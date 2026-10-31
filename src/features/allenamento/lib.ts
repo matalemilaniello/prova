@@ -1,0 +1,208 @@
+/**
+ * Allenamento · aiuti dell'interfaccia: piano della seduta (con il blocco del fisioterapista),
+ * dosi leggibili, etichette, stima dei tempi.
+ */
+import type { AppData, Exercise, ISODate, Plan, SessionExercise, WorkoutLog, WorkoutSession } from '../../domain/types';
+import { EXERCISES } from '../../data/exercises';
+import { estimateItemSec } from '../../data/sessions';
+import { weekdayOf } from '../../engine/dates';
+import { personalRecords, type PersonalRecord } from '../../engine/training';
+import { fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
+
+export const PHYSIO_BLOCK_TITLE = 'Dal fisioterapista';
+
+export interface PlayerItem {
+  /** Chiave stabile nella seduta: 'b1:3' (blocco 1, esercizio 3) oppure 'f:0' (fisioterapista). */
+  key: string;
+  blockTitle: string;
+  blockIndex: number;
+  /** Posizione dentro il blocco (0…) e numero di esercizi del blocco. */
+  indexInBlock: number;
+  blockSize: number;
+  item: SessionExercise;
+  /** Esercizio previsto (prima di eventuali sostituzioni). */
+  exercise: Exercise | undefined;
+  physio: boolean;
+  warmup: boolean;
+}
+
+export type PlayerStep = { kind: 'warmup'; key: string; blockTitle: string; items: PlayerItem[] } | { kind: 'exercise'; key: string; item: PlayerItem };
+
+export interface PlayerPlan {
+  session: WorkoutSession;
+  items: PlayerItem[];
+  steps: PlayerStep[];
+  /** Blocchi nell'ordine, con i loro esercizi. */
+  blocks: { title: string; physio: boolean; items: PlayerItem[] }[];
+  /** Il fisioterapista prevede gli esercizi in questo giorno. */
+  physioDay: boolean;
+  /** Giorni del fisioterapista nel piano (lun, mer…). */
+  physioDays: string[];
+}
+
+const WARMUP_RE = /riscaldamento/i;
+
+/** Esercizio dal catalogo o tra quelli del fisioterapista. */
+export function exerciseFor(id: string, physio?: AppData['physio']): Exercise | undefined {
+  return EXERCISES[id] ?? physio?.exercises.find((e) => e.id === id);
+}
+
+/** Giorni del piano in cui il fisioterapista prevede gli esercizi. */
+export function physioWeekdays(plan: Pick<Plan, 'week'>): string[] {
+  return plan.week.filter((d) => d.physio).map((d) => WEEKDAY_SHORT[d.weekday]);
+}
+
+/**
+ * Piano della seduta per il lettore: i blocchi della seduta più, se ci sono esercizi del fisioterapista,
+ * un blocco "Dal fisioterapista" in fondo. Il riscaldamento diventa un'unica lista da spuntare.
+ */
+export function buildPlayerPlan(session: WorkoutSession, physio: AppData['physio'], plan: Pick<Plan, 'week'>, date: ISODate): PlayerPlan {
+  const blocks: PlayerPlan['blocks'] = session.blocks.map((b, bi) => ({
+    title: b.title,
+    physio: false,
+    items: b.items.map((it, ii) => ({
+      key: `b${bi}:${ii}`,
+      blockTitle: b.title,
+      blockIndex: bi,
+      indexInBlock: ii,
+      blockSize: b.items.length,
+      item: it,
+      exercise: EXERCISES[it.exerciseId],
+      physio: false,
+      warmup: WARMUP_RE.test(b.title),
+    })),
+  }));
+  const prescriptions = physio.prescriptions.filter((p) => exerciseFor(p.exerciseId, physio));
+  if (prescriptions.length) {
+    const bi = blocks.length;
+    blocks.push({
+      title: PHYSIO_BLOCK_TITLE,
+      physio: true,
+      items: prescriptions.map((p, ii) => ({
+        key: `f:${ii}`,
+        blockTitle: PHYSIO_BLOCK_TITLE,
+        blockIndex: bi,
+        indexInBlock: ii,
+        blockSize: prescriptions.length,
+        item: p,
+        exercise: exerciseFor(p.exerciseId, physio),
+        physio: true,
+        warmup: false,
+      })),
+    });
+  }
+  const steps: PlayerStep[] = [];
+  for (const b of blocks) {
+    if (b.items[0]?.warmup) steps.push({ kind: 'warmup', key: `w:${b.items[0].blockIndex}`, blockTitle: b.title, items: b.items });
+    else for (const it of b.items) steps.push({ kind: 'exercise', key: it.key, item: it });
+  }
+  const day = plan.week.find((d) => d.weekday === weekdayOf(date));
+  return {
+    session,
+    items: blocks.flatMap((b) => b.items),
+    steps,
+    blocks,
+    physioDay: Boolean(day?.physio),
+    physioDays: physioWeekdays(plan),
+  };
+}
+
+/** Serie previste in totale. */
+export function plannedSets(items: readonly PlayerItem[]): number {
+  return items.reduce((s, it) => s + it.item.sets, 0);
+}
+
+/** Minuti stimati di una lista di esercizi. */
+export function estimateMinutes(items: readonly SessionExercise[]): number {
+  return Math.round(items.reduce((s, it) => s + estimateItemSec(it), 0) / 60);
+}
+
+/** "6-10" oppure "15". */
+export function repRange(item: Pick<SessionExercise, 'repMin' | 'repMax'>): string {
+  return item.repMin === item.repMax ? `${item.repMin}` : `${item.repMin}-${item.repMax}`;
+}
+
+/** "3 × 6-10", "3 × 30-40 s", "1 × 2 min", con "per lato" se serve. */
+export function doseLabel(item: SessionExercise, opts: { perSide?: boolean } = {}): string {
+  const { perSide = true } = opts;
+  let body: string;
+  if (item.unit === 'secondi') {
+    body = item.repMin === item.repMax && item.repMin % 60 === 0 && item.repMin >= 60 ? `${item.repMin / 60} min` : `${repRange(item)} s`;
+  } else body = repRange(item);
+  const sets = item.sets > 1 ? `${item.sets} × ${body}` : body;
+  return `${sets}${perSide && item.perSide ? ' per lato' : ''}`;
+}
+
+/** "2:00" per i recuperi, "45 s" sotto il minuto. */
+export function restLabel(sec: number): string {
+  if (sec < 60) return `${sec} s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** Carico leggibile: "22,5 kg", "corpo libero" a 0. */
+export function kgLabel(n: number): string {
+  return n > 0 ? `${fmtNumber(n, 1)} kg` : 'corpo libero';
+}
+
+/** Unità delle ripetizioni: "rip." oppure "s". */
+export function repsUnit(item: Pick<SessionExercise, 'unit'>): string {
+  return item.unit === 'secondi' ? 's' : 'rip.';
+}
+
+/** Esercizio senza attrezzi o con l'elastico: il carico di solito non si registra. */
+export function isBodyweight(ex: Exercise | undefined): boolean {
+  if (!ex) return false;
+  const eq = ex.equipment.toLowerCase();
+  if (/manubr|bilanc|trap|cavo|cavi|macchin|kettle|disco|zavorr|pulley|lat machine|leg press/.test(eq)) return false;
+  return /corpo libero|muro|elastico|tappetino|sbarra|impugnature|panca$|cyclette|ellittica|ruota/.test(eq) || ex.category === 'mobilita' || ex.category === 'riscaldamento';
+}
+
+/** Passo dello stepper del carico: l'incremento della seduta se il valore lo rispetta, altrimenti più fine. */
+export function weightStep(item: SessionExercise, value: number): number {
+  const inc = item.incrementKg && item.incrementKg > 0 ? item.incrementKg : 2.5;
+  const fits = (v: number, s: number) => Math.abs(v / s - Math.round(v / s)) < 1e-6;
+  if (fits(value, inc)) return inc;
+  if (fits(value, 1)) return 1;
+  return 0.5;
+}
+
+/** Scala RPE CR10 (Foster) in italiano, indice = valore − 1. */
+export const RPE_LABELS = [
+  'Molto, molto facile',
+  'Facile',
+  'Moderata',
+  'Abbastanza dura',
+  'Dura',
+  'Più che dura',
+  'Molto dura',
+  'Molto, molto dura',
+  'Quasi massimale',
+  'Massimale',
+];
+
+/** "lunedì e mercoledì" dai giorni brevi. */
+export function daysPhrase(days: string[]): string {
+  const long: Record<string, string> = { lun: 'lunedì', mar: 'martedì', mer: 'mercoledì', gio: 'giovedì', ven: 'venerdì', sab: 'sabato', dom: 'domenica' };
+  return listIt(days.map((d) => long[d] ?? d));
+}
+
+
+/**
+ * Colore della seduta: il tipo del giorno in cui il piano la prevede (A e B palestra, C leggero).
+ * Una seduta in un giorno di calcio resta del colore della palestra.
+ */
+export function sessionTone(sessionId: string, plan: Pick<Plan, 'week'>): 'palestra' | 'leggero' | 'riposo' {
+  const day = plan.week.find((d) => d.gymSessionId === sessionId);
+  if (day?.dayType === 'leggero' || day?.dayType === 'riposo') return day.dayType;
+  return 'palestra';
+}
+
+/** Categorie che contano per i record personali (niente core, riscaldamento, mobilità ed esercizi del fisio). */
+const RECORD_CATEGORIES = new Set(['spinta', 'tirata', 'gambe', 'prevenzione']);
+
+/** Record personali della seduta sugli esercizi di forza. */
+export function strengthRecords(log: WorkoutLog, history: readonly WorkoutLog[], physio?: AppData['physio']): PersonalRecord[] {
+  return personalRecords(log, history).filter((r) => RECORD_CATEGORIES.has(exerciseFor(r.exerciseId, physio)?.category ?? ''));
+}

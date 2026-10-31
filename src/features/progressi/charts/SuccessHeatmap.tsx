@@ -1,0 +1,228 @@
+import { useCallback, useMemo, useState, type KeyboardEvent } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import { CalendarCheck } from 'lucide-react';
+import { WEEKDAY_INITIAL, capitalize, fmtDateLong, fmtPercent, plural } from '../../../lib/format';
+import type { Weekday } from '../../../domain/types';
+import type { CalendarDay, CalendarSummary } from '../series';
+import { monthShort } from './axis';
+import { BigValue, ChartCard, LegendItem } from './ChartCard';
+import { labelStyle, useGeometry } from './frame';
+import { haptic } from '../../../lib/haptics';
+
+const GOOD = 'var(--good)';
+const LABEL_W = 16;
+const MONTH_H = 16;
+const GAP = 4;
+
+function fillFor(d: CalendarDay): { fill: string; stroke?: string; dash?: string } {
+  switch (d.kind) {
+    case 'riuscita':
+      return d.minimal
+        ? { fill: `color-mix(in srgb, ${GOOD} 55%, transparent)`, stroke: GOOD }
+        : { fill: `color-mix(in srgb, ${GOOD} ${Math.round(78 + 22 * Math.min(1, (d.score - 0.7) / 0.3))}%, transparent)` };
+    case 'parziale':
+      return { fill: `color-mix(in srgb, ${GOOD} ${Math.round(14 + 26 * Math.min(1, d.score / 0.7))}%, transparent)` };
+    case 'vuota':
+      return { fill: 'var(--ink-soft)' };
+    case 'fuori':
+      return { fill: 'transparent', stroke: 'var(--line)', dash: '2 2.5' };
+    case 'futuro':
+      return { fill: 'transparent', stroke: 'var(--line)' };
+  }
+}
+
+const KIND_TEXT: Record<CalendarDay['kind'], string> = {
+  riuscita: 'riuscita',
+  parziale: 'non riuscita',
+  vuota: 'non segnata',
+  fuori: 'prima dell’inizio del piano',
+  futuro: 'deve ancora arrivare',
+};
+
+export function SuccessHeatmap({ days, summary, weeks = 12 }: { days: CalendarDay[]; summary: CalendarSummary; weeks?: number }) {
+  const reduce = useReducedMotion();
+  const cols = Math.max(1, Math.ceil(days.length / 7));
+  // Altezza provvisoria: la geometria serve solo per la larghezza.
+  const { ref, geo } = useGeometry(10, { top: 0, right: 0, bottom: 0, left: 0 });
+  const cell = Math.max(10, Math.min(24, Math.floor((geo.width - LABEL_W - GAP * (cols - 1)) / cols)));
+  const gridW = LABEL_W + cols * cell + (cols - 1) * GAP;
+  const offsetX = Math.max(0, Math.floor((geo.width - gridW) / 2));
+  const height = MONTH_H + 7 * cell + 6 * GAP;
+
+  const cellX = useCallback((c: number) => offsetX + LABEL_W + c * (cell + GAP), [offsetX, cell]);
+  const cellY = (r: number) => MONTH_H + r * (cell + GAP);
+  const [selIdx, setSelIdx] = useState<number | null>(null);
+  const select = (i: number | null) => {
+    if (i !== null && i !== selIdx) haptic('selection');
+    setSelIdx(i);
+  };
+  const lastPast = (() => {
+    for (let i = days.length - 1; i >= 0; i--) if (days[i].kind !== 'futuro') return i;
+    return days.length - 1;
+  })();
+  const onKeyDown = (e: KeyboardEvent) => {
+    const cur = selIdx ?? lastPast;
+    const moves: Record<string, number> = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7, ArrowRight: 7 };
+    if (e.key === 'Escape') return select(null);
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    const next = selIdx === null ? lastPast : cur + moves[e.key];
+    if (next >= 0 && next < days.length) select(next);
+  };
+
+  const months = useMemo(() => {
+    const out: { x: number; label: string }[] = [];
+    let prevMonth = -1;
+    for (let c = 0; c < cols; c++) {
+      const d = days[c * 7];
+      if (!d) continue;
+      const m = Number(d.date.slice(5, 7));
+      if (m !== prevMonth) {
+        // La prima colonna di un mese: se il mese inizia a metà settimana, l'etichetta va sulla colonna dopo.
+        const firstOfMonthInCol = days.slice(c * 7, c * 7 + 7).some((x) => x.date.endsWith('-01'));
+        const col = c === 0 || !firstOfMonthInCol || days[c * 7].date.endsWith('-01') ? c : c + 1;
+        if (col < cols && (out.length === 0 || cellX(col) - out[out.length - 1].x > 30)) out.push({ x: cellX(col), label: monthShort(days[col * 7].date) });
+        prevMonth = m;
+      }
+    }
+    return out;
+  }, [days, cols, cellX]);
+
+  const sel = selIdx !== null ? days[selIdx] : null;
+  const rate = summary.counted ? summary.successful / summary.counted : 0;
+
+  const label = `Calendario delle giornate riuscite delle ultime ${weeks} settimane: ${summary.successful} su ${summary.counted}, ${fmtPercent(rate)}. Serie attuale ${plural(summary.streak, 'giorno', 'giorni')}, la più lunga ${plural(summary.best, 'giorno', 'giorni')}.`;
+
+  return (
+    <ChartCard
+      title="Giornate riuscite"
+      subtitle={`Ultime ${weeks} settimane`}
+      value={<BigValue value={String(summary.successful)} unit={`su ${summary.counted}`} />}
+      caption={
+        <span className="tabular">
+          Serie {summary.streak} <span className="text-ink-3">· record {summary.best}</span>
+        </span>
+      }
+      empty={
+        summary.counted === 0
+          ? { icon: CalendarCheck, title: 'Il calendario parte da oggi', text: 'Ogni giornata con almeno il 70% delle voci fatte diventa un quadrato pieno.' }
+          : null
+      }
+      legend={
+        <>
+          <LegendItem color={GOOD} kind="square">
+            Riuscita
+          </LegendItem>
+          <LegendItem color={`color-mix(in srgb, ${GOOD} 30%, transparent)`} kind="square">
+            Parziale
+          </LegendItem>
+          <LegendItem color={GOOD} kind="ring">
+            Giornata minima
+          </LegendItem>
+          <LegendItem color="var(--ink-soft)" kind="square">
+            Non segnata
+          </LegendItem>
+        </>
+      }
+      footnote={
+        sel ? (
+          <span className="text-ink-2" aria-live="polite">
+            {capitalize(fmtDateLong(sel.date))}: {KIND_TEXT[sel.kind]}
+            {(sel.kind === 'riuscita' || sel.kind === 'parziale') && `, ${fmtPercent(sel.score)} delle voci`}
+            {sel.minimal && ', giornata minima'}
+          </span>
+        ) : (
+          'Riuscita: almeno il 70% delle voci, oppure le 4 voci della giornata minima. Tocca un giorno per i dettagli.'
+        )
+      }
+    >
+      <div ref={ref}>
+        <svg
+          width={geo.width}
+          height={height}
+          viewBox={`0 0 ${geo.width} ${height}`}
+          role="img"
+          aria-label={label}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onBlur={() => setSelIdx(null)}
+          className="block rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+          style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}
+        >
+          <g aria-hidden>
+            {months.map((m) => (
+              <text key={`${m.x}-${m.label}`} x={m.x} y={10} style={labelStyle()}>
+                {m.label}
+              </text>
+            ))}
+            {([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((r) => (
+              <text key={r} x={offsetX} y={cellY(r) + cell / 2} dy="0.34em" style={labelStyle({ fontSize: 9.5 })}>
+                {r % 2 === 0 || r === 6 ? WEEKDAY_INITIAL[r] : ''}
+              </text>
+            ))}
+          </g>
+          <g aria-hidden>
+            {days.map((d, i) => {
+              const c = Math.floor(i / 7);
+              const r = i % 7;
+              const f = fillFor(d);
+              const x = cellX(c);
+              const yy = cellY(r);
+              const active = selIdx === i;
+              if (d.kind === 'fuori' && !active) {
+                return <circle key={d.date} cx={x + cell / 2} cy={yy + cell / 2} r={1.6} style={{ fill: 'var(--ink-3)', opacity: 0.45 }} />;
+              }
+              return (
+                <motion.rect
+                  key={d.date}
+                  x={x + 0.5}
+                  y={yy + 0.5}
+                  width={cell - 1}
+                  height={cell - 1}
+                  rx={Math.max(3, cell * 0.24)}
+                  style={{
+                    fill: f.fill,
+                    stroke: active ? 'var(--ink)' : f.stroke ?? 'none',
+                    strokeWidth: active ? 2 : f.stroke ? 1.25 : 0,
+                    strokeDasharray: active ? undefined : f.dash,
+                  }}
+                  initial={reduce ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25, delay: Math.min(0.6, c * 0.035) }}
+                />
+              );
+            })}
+            {days.map((d, i) =>
+              d.today ? (
+                <rect
+                  key="oggi"
+                  x={cellX(Math.floor(i / 7)) - 2}
+                  y={cellY(i % 7) - 2}
+                  width={cell + 4}
+                  height={cell + 4}
+                  rx={Math.max(5, cell * 0.3)}
+                  style={{ fill: 'none', stroke: 'var(--accent)', strokeWidth: 2 }}
+                />
+              ) : null,
+            )}
+          </g>
+          <rect
+            x={0}
+            y={0}
+            width={geo.width}
+            height={height}
+            fill="transparent"
+            onClick={(e) => {
+              const rect = (e.currentTarget.ownerSVGElement ?? e.currentTarget).getBoundingClientRect();
+              const c = Math.floor((e.clientX - rect.left - offsetX - LABEL_W + GAP / 2) / (cell + GAP));
+              const r = Math.floor((e.clientY - rect.top - MONTH_H + GAP / 2) / (cell + GAP));
+              if (c < 0 || c >= cols || r < 0 || r > 6) return select(null);
+              const idx = c * 7 + r;
+              select(idx === selIdx ? null : idx);
+            }}
+          />
+        </svg>
+      </div>
+    </ChartCard>
+  );
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="it" data-theme="scuro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ritmo</title>
+    <meta name="description" content="La tua giornata già decisa: pasti, allenamento intorno al calcio e sonno." />
+    <meta name="theme-color" content="#0A1220" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ritmo" />
+    <meta name="application-name" content="Ritmo" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" data-pwa-only />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" data-pwa-only />
+    <script>
+      // Tema prima del primo disegno: niente lampo bianco o nero all'apertura.
+      (function () {
+        var pref = 'sistema';
+        try {
+          var raw = localStorage.getItem('ritmo:v1');
+          if (raw) pref = (JSON.parse(raw).state || {}).settings.theme || pref;
+        } catch (e) {}
+        try {
+          var q = new URLSearchParams(location.search).get('theme');
+          if (q === 'scuro' || q === 'chiaro') pref = q;
+        } catch (e) {}
+        var light = pref === 'chiaro' || (pref === 'sistema' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+        document.documentElement.setAttribute('data-theme', light ? 'chiaro' : 'scuro');
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', light ? '#F3F5F9' : '#0A1220');
+      })();
+    </script>
+    <style>
+      html,body{background:#0A1220;margin:0}
+      html[data-theme='chiaro'],html[data-theme='chiaro'] body{background:#F3F5F9}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Ritmo ha bisogno di JavaScript per funzionare.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

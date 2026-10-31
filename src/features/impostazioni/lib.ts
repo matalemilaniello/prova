@@ -1,0 +1,232 @@
+/**
+ * Logica condivisa da Impostazioni e Benvenuto: etichette, riassunti e validazioni del profilo e del piano.
+ * Funzioni pure (testate in lib.test.ts).
+ */
+import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
+import { SESSIONS } from '../../data/sessions';
+import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
+import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_SHORT, listIt } from '../../lib/format';
+
+// ───────────────────────── Obiettivo ─────────────────────────
+
+export const GOAL_OPTIONS: { value: Goal; label: string; text: string }[] = [
+  { value: 'ricomposizione', label: 'Ricomposizione', text: 'Meno grasso e un po’ di muscolo, peso quasi fermo' },
+  { value: 'dimagrimento', label: 'Dimagrimento', text: 'Deficit moderato, circa 350 kcal al giorno' },
+  { value: 'massa', label: 'Massa', text: 'Surplus leggero, circa 250 kcal al giorno' },
+  { value: 'mantenimento', label: 'Mantenimento', text: 'Stesso peso, più energia e regolarità' },
+];
+
+export const GOAL_LABEL: Record<Goal, string> = {
+  ricomposizione: 'Ricomposizione',
+  dimagrimento: 'Dimagrimento',
+  massa: 'Massa',
+  mantenimento: 'Mantenimento',
+};
+
+// ───────────────────────── Profilo ─────────────────────────
+
+export const LIMITS = {
+  birthYearMin: 1930,
+  minAge: 14,
+  heightMin: 130,
+  heightMax: 220,
+  weightMin: 35,
+  weightMax: 200,
+} as const;
+
+export type ProfileErrors = Partial<Record<'birthYear' | 'heightCm' | 'startWeightKg', string>>;
+
+/** Errori gentili sui dati del corpo (vuoti o fuori misura). */
+export function validateBody(p: Pick<Profile, 'birthYear' | 'heightCm' | 'startWeightKg'>, currentYear: number): ProfileErrors {
+  const e: ProfileErrors = {};
+  const maxYear = currentYear - LIMITS.minAge;
+  if (!p.birthYear) e.birthYear = 'Serve per il metabolismo basale.';
+  else if (p.birthYear < LIMITS.birthYearMin || p.birthYear > maxYear) e.birthYear = `Scrivi un anno tra ${LIMITS.birthYearMin} e ${maxYear}.`;
+  if (!p.heightCm) e.heightCm = 'Serve per il metabolismo basale.';
+  else if (p.heightCm < LIMITS.heightMin || p.heightCm > LIMITS.heightMax) e.heightCm = `Scrivi l’altezza in centimetri, tra ${LIMITS.heightMin} e ${LIMITS.heightMax}.`;
+  if (!p.startWeightKg) e.startWeightKg = 'Serve per calorie e proteine.';
+  else if (p.startWeightKg < LIMITS.weightMin || p.startWeightKg > LIMITS.weightMax) e.startWeightKg = `Scrivi il peso in chili, tra ${LIMITS.weightMin} e ${LIMITS.weightMax}.`;
+  return e;
+}
+
+export const hasErrors = (e: object) => Object.keys(e).length > 0;
+
+export function ageOf(birthYear: number, currentYear: number): number | undefined {
+  return birthYear > 1900 ? currentYear - birthYear : undefined;
+}
+
+/** Iniziali per l'avatar: "Luca Rossi" → "LR". */
+export function initials(name: string | undefined): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+// ───────────────────────── Settimana ─────────────────────────
+
+export interface DayActivity {
+  key: 'calcio' | 'palestra' | 'fisio';
+  label: string;
+  tone: DayType | 'leggero';
+}
+
+/** Attività del giorno in forma breve: "Partita 21:00", "Seduta A 17:00", "Fisio". */
+export function dayActivities(day: ScheduleDay): DayActivity[] {
+  const out: DayActivity[] = [];
+  if (day.football) out.push({ key: 'calcio', label: `${FOOTBALL_LABEL[day.football.kind]} ${day.football.time}`, tone: 'calcio' });
+  if (day.gymSessionId) {
+    const name = SESSIONS[day.gymSessionId]?.name ?? `Seduta ${day.gymSessionId}`;
+    out.push({ key: 'palestra', label: `${name}${day.gymTime ? ` ${day.gymTime}` : ''}${day.gymOptional ? ', facoltativa' : ''}`, tone: 'palestra' });
+  }
+  if (day.physio) out.push({ key: 'fisio', label: 'Fisioterapista', tone: 'leggero' });
+  return out;
+}
+
+/** Quanti giorni per tipo, nell'ordine dei tipi. */
+export function dayTypeCounts(week: ScheduleDay[]): { type: DayType; count: number }[] {
+  return DAY_TYPES.map((type) => ({ type, count: week.filter((d) => d.dayType === type).length })).filter((x) => x.count > 0);
+}
+
+const daysOf = (week: ScheduleDay[], pred: (d: ScheduleDay) => boolean) =>
+  week.filter(pred).map((d) => WEEKDAY_SHORT[d.weekday]);
+
+/** "Calcio lun, mer e gio · palestra mar, ven e sab" */
+export function weekSummary(week: ScheduleDay[]): string {
+  const parts: string[] = [];
+  const football = daysOf(week, (d) => Boolean(d.football));
+  const gym = daysOf(week, (d) => Boolean(d.gymSessionId));
+  if (football.length) parts.push(`calcio ${listIt(football)}`);
+  if (gym.length) parts.push(`palestra ${listIt(gym)}`);
+  if (!parts.length) return 'Nessuna attività in programma';
+  const s = parts.join(' · ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Tipo di giorno suggerito dalle attività (usato quando si accende o si spegne un'attività). */
+export function suggestDayType(day: ScheduleDay): DayType {
+  if (day.football) return 'calcio';
+  if (day.gymSessionId) return day.gymOptional ? 'leggero' : 'palestra';
+  return day.physio ? 'leggero' : 'riposo';
+}
+
+export interface NextSession {
+  date: ISODate;
+  weekday: Weekday;
+  sessionId: string;
+  name: string;
+  time: HHMM;
+  optional: boolean;
+  /** Giorni da oggi (0 = oggi). */
+  inDays: number;
+}
+
+/** Prima seduta di palestra da oggi (compreso se l'orario non è passato). */
+export function nextGymSession(plan: Pick<Plan, 'week'>, today: ISODate, nowHHMM?: HHMM): NextSession | null {
+  for (let i = 0; i < 8; i++) {
+    const date = addDays(today, i);
+    const wd = weekdayOf(date);
+    const d = plan.week.find((w) => w.weekday === wd);
+    if (!d?.gymSessionId) continue;
+    const time = d.gymTime ?? '17:00';
+    if (i === 0 && nowHHMM && hhmmToMin(nowHHMM) > hhmmToMin(time)) continue;
+    return {
+      date,
+      weekday: wd,
+      sessionId: d.gymSessionId,
+      name: SESSIONS[d.gymSessionId]?.name ?? `Seduta ${d.gymSessionId}`,
+      time,
+      optional: Boolean(d.gymOptional),
+      inDays: i,
+    };
+  }
+  return null;
+}
+
+/** "oggi", "domani", "martedì" */
+export function relativeWeekday(inDays: number, weekdayLong: string): string {
+  return inDays === 0 ? 'oggi' : inDays === 1 ? 'domani' : weekdayLong;
+}
+
+// ───────────────────────── Pasti e sonno ─────────────────────────
+
+export const MEAL_ORDER: MealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
+
+/** Pasti fuori ordine (es. pranzo prima dello spuntino): l'elenco degli slot che non seguono il precedente. */
+export function mealOrderIssues(t: MealTimes): MealSlot[] {
+  const out: MealSlot[] = [];
+  for (let i = 1; i < MEAL_ORDER.length; i++) {
+    if (hhmmToMin(t[MEAL_ORDER[i]]) <= hhmmToMin(t[MEAL_ORDER[i - 1]])) out.push(MEAL_ORDER[i]);
+  }
+  return out;
+}
+
+export interface SleepStep {
+  week: number;
+  bed: HHMM;
+}
+
+/** Le tappe dell'orario a letto, da quello attuale all'obiettivo, una a settimana. */
+export function sleepSteps(sleep: Plan['sleep'], maxSteps = 16): SleepStep[] {
+  const steps: SleepStep[] = [{ week: 0, bed: sleep.current }];
+  const target = nightMinutes(sleep.target);
+  let cur = nightMinutes(sleep.current);
+  const step = Math.max(5, sleep.stepMin);
+  while (cur > target && steps.length <= maxSteps) {
+    cur = Math.max(target, cur - step);
+    const m = ((cur % 1440) + 1440) % 1440;
+    steps.push({ week: steps.length, bed: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` });
+  }
+  return steps;
+}
+
+// ───────────────────────── Integratori ─────────────────────────
+
+export const TIMING_OPTIONS: { value: Supplement['timing']; label: string }[] = [
+  { value: 'colazione', label: 'Colazione' },
+  { value: 'pranzo', label: 'Pranzo' },
+  { value: 'cena', label: 'Cena' },
+  { value: 'sera', label: 'Sera' },
+];
+
+export const TIMING_TEXT: Record<Supplement['timing'], string> = {
+  colazione: 'a colazione',
+  pranzo: 'a pranzo',
+  cena: 'a cena',
+  sera: 'la sera',
+};
+
+const TIMING_RANK: Record<Supplement['timing'], number> = { colazione: 0, pranzo: 1, cena: 2, sera: 3 };
+
+export function sortSupplements(list: Supplement[]): Supplement[] {
+  return list
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => TIMING_RANK[a.s.timing] - TIMING_RANK[b.s.timing] || a.i - b.i)
+    .map((x) => x.s);
+}
+
+// ───────────────────────── Zone di dolore ─────────────────────────
+
+/** Normalizza il nome di una zona scritta a mano: spazi, maiuscola iniziale, lunghezza. */
+export function normalizeSite(raw: string): string {
+  const s = raw.replace(/\s+/g, ' ').trim().slice(0, 28);
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+
+export function painLabel(v: number): string {
+  if (v <= 0) return 'nessun dolore';
+  if (v <= 3) return 'lieve';
+  if (v <= 6) return 'moderato';
+  return 'forte';
+}
+
+// ───────────────────────── Macro ─────────────────────────
+
+/** kcal che risultano dalle macro (4/4/9). */
+export function kcalFromMacros(t: { proteinG: number; carbG: number; fatG: number }): number {
+  return t.proteinG * 4 + t.carbG * 4 + t.fatG * 9;
+}
+
+/** Carboidrati che chiudono il conto con le kcal indicate, arrotondati a 5 g. */
+export function carbsToMatch(t: { kcal: number; proteinG: number; fatG: number }): number {
+  return Math.max(0, Math.round((t.kcal - t.proteinG * 4 - t.fatG * 9) / 4 / 5) * 5);
+}

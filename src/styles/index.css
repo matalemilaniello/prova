@@ -1,0 +1,447 @@
+@import './fonts.css';
+@import 'tailwindcss';
+@import './tokens.css';
+
+/*
+ * Tailwind v4: i colori sono SOLO quelli del design system (più white e black).
+ * Usa bg-card, text-ink-2, border-line, bg-accent, text-accent-ink, text-palestra…
+ */
+@theme inline {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-ink-soft: var(--ink-soft);
+  --color-calcio: var(--calcio);
+  --color-palestra: var(--palestra);
+  --color-leggero: var(--leggero);
+  --color-riposo: var(--riposo);
+  --color-good-ink: var(--good-ink);
+  --color-warn-ink: var(--warn-ink);
+  --color-bad-ink: var(--bad-ink);
+  --color-calcio-ink: var(--calcio-ink);
+  --color-palestra-ink: var(--palestra-ink);
+  --color-leggero-ink: var(--leggero-ink);
+  --color-riposo-ink: var(--riposo-ink);
+  --color-scrim: var(--scrim);
+  --color-sheet: var(--sheet-bg);
+  --color-control: var(--control);
+  --color-control-line: var(--control-line);
+  --color-field: var(--field);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+
+  --spacing-gutter: var(--gutter);
+  --spacing-tabbar: var(--tabbar-h);
+
+  --shadow-card: var(--card-shadow);
+  --shadow-sheet: var(--sheet-shadow);
+
+  --ease-out: var(--ease-out);
+  --ease-spring: var(--ease-spring);
+}
+
+/* ───────────────────────── Scala tipografica ───────────────────────── */
+
+/* Titolo grande di schermata: Barlow Condensed 700, 36 px, interlinea 1. */
+@utility t-large-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: 0.005em;
+}
+/* Titolo di sezione importante o di foglio. */
+@utility t-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.75rem;
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+}
+@utility t-title-2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.375rem;
+  line-height: 1.1;
+}
+/* Titolo di card o riga: Figtree 600, 17 px. */
+@utility t-headline {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+@utility t-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+@utility t-callout {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+@utility t-footnote {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+@utility t-caption {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+/* Etichetta di sezione: IBM Plex Mono 11 px, maiuscoletto, spaziatura 0.06em. */
+@utility t-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* Orari e dati tecnici. */
+@utility t-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+/* Numeri protagonisti: Barlow Condensed 600, cifre tabellari. */
+@utility t-num {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+/* Area toccabile minima 44 px senza cambiare l'aspetto. */
+@utility hit-44 {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Superficie traslucida delle barre (sfocatura iOS). */
+@utility glass {
+  background: var(--bar-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────────────────── Base iOS ───────────────────────── */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--bg);
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv11', 'ss01';
+    overscroll-behavior: none;
+    overflow: hidden;
+    /* Il testo dell'interfaccia non si seleziona per sbaglio; i contenuti leggibili sì (vedi sotto). */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  #root {
+    height: 100dvh;
+    isolation: isolate;
+  }
+
+  /* Testi da leggere, copiare o modificare restano selezionabili. */
+  input,
+  textarea,
+  [contenteditable='true'],
+  .selectable,
+  .selectable * {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  button,
+  [role='button'],
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    /* 16 px minimi: iOS non fa lo zoom quando si tocca il campo. */
+    font-size: max(16px, 1em);
+    color: inherit;
+  }
+
+  ::selection {
+    background: var(--accent-glow);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  img,
+  svg {
+    display: block;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────── Animazioni condivise ───────────────────────── */
+
+@keyframes ritmo-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+@keyframes ritmo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ritmo-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ritmo-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+.ritmo-skeleton {
+  background: linear-gradient(100deg, var(--skeleton) 30%, var(--skeleton-shine) 50%, var(--skeleton) 70%);
+  background-size: 200% 100%;
+  animation: ritmo-shimmer 1.4s linear infinite;
+}
+
+.ritmo-screen-enter {
+  animation: ritmo-fade-in 260ms var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ritmo-skeleton {
+    animation: none;
+  }
+}
+
+/*
+ * Barra di stato di iOS: con 'black-translucent' il testo è sempre bianco. Nel tema chiaro, installata sulla
+ * schermata Home, una velatura blu notte sotto l'ora e la batteria la tiene leggibile.
+ */
+.ritmo-status-scrim {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: calc(var(--safe-top) + 6px);
+  z-index: 90;
+  pointer-events: none;
+  display: none;
+  background: linear-gradient(to bottom, rgb(10 18 32 / 0.82), rgb(10 18 32 / 0.55) 70%, rgb(10 18 32 / 0));
+}
+:root[data-theme='chiaro'][data-standalone='true'] .ritmo-status-scrim {
+  display: block;
+}
+
+/* Cambio di tema: dissolvenza breve (View Transitions). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease-out);
+}
+
+/* Slider nativo (ScaleSlider): pista trasparente, pollice disegnato da noi. */
+.ritmo-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.ritmo-range::-webkit-slider-runnable-track {
+  height: 44px;
+  background: transparent;
+}
+.ritmo-range::-moz-range-track {
+  height: 44px;
+  background: transparent;
+}
+.ritmo-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #fff;
+  border: 0;
+  box-shadow:
+    0 0 0 4px var(--thumb-ring, var(--accent-soft)),
+    0 2px 8px rgb(0 0 0 / 0.35);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.ritmo-range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.ritmo-range::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #fff;
+  border: 0;
+  box-shadow:
+    0 0 0 4px var(--thumb-ring, var(--accent-soft)),
+    0 2px 8px rgb(0 0 0 / 0.35);
+}
+.ritmo-range:focus-visible {
+  outline: none;
+}
+.ritmo-range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px var(--bg),
+    0 0 0 5px var(--focus);
+}
+
+/* Campo orario nativo: icona nascosta, allineamento coerente. */
+input[type='time']::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+input[type='time'] {
+  position: relative;
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 1.5em;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

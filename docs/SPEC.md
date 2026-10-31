@@ -191,7 +191,7 @@ da percorsi fissi (contratto tra moduli). Ogni componente riceve il payload del 
 | `checkin` | `src/features/oggi/CheckInSheet.tsx` | `{ date, onClose }` |
 | `session` | `src/features/allenamento/SessionPlayer.tsx` | `{ sessionId, date, onClose }` (schermo intero) |
 | `football` | `src/features/oggi/FootballSheet.tsx` | `{ date, kind, itemId, onClose }` |
-| `barPlanB` | `src/features/coach/BarPlanBSheet.tsx` | `{ onClose }` |
+| `barPlanB` | `src/features/coach/BarPlanBSheet.tsx` | `{ slot?, onClose }` |
 
 Apertura da qualunque punto: `useUi.getState().open({ type: 'recipe', ... })`.
 
@@ -458,3 +458,15 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
 ## Modifiche al contratto
 
 (annota qui ogni campo aggiunto a `types.ts`, con motivo)
+
+- `WeeklyReview.proposals?: Proposal[]` (area Progressi): istantanea delle proposte mostrate al salvataggio
+  della revisione. Riaprendo una revisione salvata si vedono le stesse proposte con il loro stato
+  (accettata o no), anche se nel frattempo il piano è cambiato (es. l'orario a letto già anticipato), e una
+  proposta già applicata non si può applicare due volte. Le revisioni senza il campo ricalcolano le proposte.
+- `ChatMessage.stop?: 'interrotta' | 'rifiuto' | 'limite'` (area Coach): segna una risposta del coach non
+  completa. `interrotta` quando l'utente ferma lo streaming (il testo parziale resta), `rifiuto` quando il
+  modello rifiuta (`stop_reason: 'refusal'`, il messaggio non si reinvia nella conversazione), `limite` quando
+  la risposta è troncata a `max_tokens` (l'interfaccia offre "Continua"). Senza il campo la risposta è completa.
+- `Overlay` di tipo `barPlanB` con `slot?: MealSlot` (integrazione): il piano B aperto dalla voce spuntino o
+  merenda di Oggi mostra subito quel pasto invece di quello dell'ora attuale. Senza il campo il comportamento
+  è quello di prima.

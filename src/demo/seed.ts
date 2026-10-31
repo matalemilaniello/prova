@@ -1,0 +1,471 @@
+/**
+ * Dati di esempio: un'app in uso da 3 settimane.
+ *
+ * Deterministico (generatore con seme, dipende solo da `todayIso` e dall'ora passata).
+ * Legge a runtime RECIPES, SESSIONS, EXERCISES e MENU_ROTATION: funziona anche se sono vuoti
+ * e produce dati più ricchi quando i contenuti ci sono. Nessun dato reale dell'utente.
+ */
+import type {
+  AppData,
+  ChatMessage,
+  CheckIn,
+  DayLog,
+  Exercise,
+  ExerciseLog,
+  FootballLog,
+  ISODate,
+  ItemStatus,
+  MealSlot,
+  SessionExercise,
+  TimelineItem,
+  WeeklyReview,
+  WorkoutLog,
+} from '../domain/types';
+import { EXERCISES } from '../data/exercises';
+import { RECIPES } from '../data/recipes';
+import { SESSIONS } from '../data/sessions';
+import { DATA_VERSION, defaultAppData, defaultPlan } from '../data/defaults';
+import {
+  addDays,
+  addMinutes,
+  daysBetween,
+  fromISO,
+  hhmmToMin,
+  minToHHMM,
+  weekStart,
+  weekdayOf,
+} from '../engine/dates';
+import { MEAL_SLOTS, menuWeekFor, mealsForDate } from '../engine/menu';
+import { sleepHours } from '../engine/sleep';
+
+// Il motore della timeline appartiene a un altro modulo: se c'è, i suoi id guidano il diario.
+type TimelineModule = { buildTimeline?: (iso: ISODate, state: AppData) => TimelineItem[] };
+const timelineModules = import.meta.glob<TimelineModule>('../engine/timeline.ts', { eager: true });
+const buildTimelineExt = Object.values(timelineModules)[0]?.buildTimeline;
+
+/** Generatore pseudo-casuale con seme (mulberry32). */
+export function rng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const round1 = (x: number) => Math.round(x * 10) / 10;
+const clampInt = (x: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(x)));
+
+const MEAL_NOTES = [
+  'Panino al bar con bresaola e rucola',
+  'Pizza margherita con i colleghi',
+  'Piadina con crudo al volo',
+  'Insalatona al bar, senza pane',
+  'Pasta al pomodoro in mensa',
+];
+
+/** Voci della giornata quando il motore della timeline non è disponibile. */
+function fallbackItems(iso: ISODate, data: AppData): TimelineItem[] {
+  const day = data.plan.week[weekdayOf(iso)];
+  const minimal = data.dayLogs[iso]?.minimal;
+  const t = data.plan.mealTimes;
+  if (minimal) {
+    return [
+      { id: 'minima:proteine', time: t.colazione, kind: 'minima', title: 'Proteine a ogni pasto' },
+      { id: 'minima:frutto', time: t.spuntino, kind: 'minima', title: 'Almeno un frutto' },
+      { id: 'minima:integratori', time: t.colazione, kind: 'minima', title: 'Integratori' },
+      { id: 'minima:telefono', time: data.plan.sleep.current, kind: 'minima', title: 'Telefono fuori dalla camera' },
+    ];
+  }
+  const items: TimelineItem[] = [
+    { id: 'controllo', time: addMinutes(data.plan.sleep.wake, 5), kind: 'controllo', title: 'Controllo del mattino' },
+    { id: 'integratori', time: t.colazione, kind: 'integratori', title: 'Integratori' },
+    ...MEAL_SLOTS.map((slot) => ({ id: `pasto:${slot}`, time: t[slot], kind: 'pasto' as const, title: slot, slot })),
+  ];
+  if (day?.gymSessionId) {
+    items.push({ id: `palestra:${day.gymSessionId}`, time: day.gymTime ?? '17:00', kind: 'palestra', title: 'Palestra', ref: day.gymSessionId });
+  }
+  if (day?.football) {
+    items.push({ id: `calcio:${day.football.kind}`, time: day.football.time, kind: 'calcio', title: day.football.kind, ref: day.football.kind });
+  }
+  if (day?.physio) items.push({ id: 'fisio', time: '15:30', kind: 'fisio', title: 'Esercizi del fisioterapista' });
+  items.push({ id: 'coprifuoco', time: addMinutes(data.plan.sleep.current, -data.plan.sleep.curfewLeadMin), kind: 'coprifuoco', title: 'Coprifuoco' });
+  items.push({ id: 'letto', time: data.plan.sleep.current, kind: 'letto', title: 'A letto' });
+  return items.sort((a, b) => hhmmToMin(a.time) - hhmmToMin(b.time));
+}
+
+function itemsFor(iso: ISODate, data: AppData): TimelineItem[] {
+  if (buildTimelineExt) {
+    try {
+      const items = buildTimelineExt(iso, data);
+      if (Array.isArray(items) && items.length) return items;
+    } catch {
+      /* il modulo è in lavorazione: si usano le voci di riserva */
+    }
+  }
+  return fallbackItems(iso, data);
+}
+
+/** Carico di partenza plausibile (kg) per un esercizio, dal nome e dalla categoria. */
+function baseLoad(ex: Exercise | undefined): number {
+  if (!ex) return 0;
+  const n = ex.name.toLowerCase();
+  const eq = (ex.equipment || '').toLowerCase();
+  if (/corpo libero|nessuna|elastico|tappetino|muro/.test(eq) && !/manubr|bilanc|trap|cavo|macchin/.test(eq)) return 0;
+  // Ordine importante: le regole più specifiche prima (es. "split squat" prima di "squat").
+  const rules: [RegExp, number][] = [
+    [/piegament|push-up|push up|trazion/, 0],
+    [/una gamba|monopodal|single leg/, 18],
+    [/rumeno/, 50],
+    [/trap bar|stacco/, 80],
+    [/split|bulgar|affond|step-up|step up/, 14],
+    [/goblet/, 22],
+    [/squat/, 60],
+    [/hip thrust|ponte/, 70],
+    [/leg press/, 120],
+    [/inclinat/, 16],
+    [/panca|distensi|spinta|chest press/, 20],
+    [/military|lento|overhead|sopra la testa/, 14],
+    [/rematore|row/, 24],
+    [/lat|pulldown|tirata al petto/, 50],
+    [/nordic|copenhagen|plank|dead bug|bird/, 0],
+    [/polpacci in piedi|calf in piedi/, 60],
+    [/polpacc|calf|soleo/, 40],
+    [/face pull|alzate|croci|cavo/, 12],
+    [/pallof|anti-rotaz/, 10],
+    [/curl/, 12],
+    [/tibial/, 6],
+    [/polso|tyler|estensori/, 0],
+    [/farmer|carry|trasport/, 20],
+  ];
+  for (const [re, kg] of rules) if (re.test(n)) return kg;
+  switch (ex.category) {
+    case 'gambe':
+      return 40;
+    case 'spinta':
+      return 18;
+    case 'tirata':
+      return 25;
+    default:
+      return 0;
+  }
+}
+
+function exerciseLogFor(item: SessionExercise, weekNo: number, r: () => number): ExerciseLog {
+  const ex = EXERCISES[item.exerciseId];
+  const light = ex && ['riscaldamento', 'mobilita'].includes(ex.category);
+  const base = light ? 0 : baseLoad(ex);
+  const inc = item.incrementKg ?? (base >= 40 ? 5 : 2);
+  const progressing = item.progression === 'doppia' && base > 0;
+  // Doppia progressione: le ripetizioni salgono di settimana in settimana, poi sale il carico.
+  const span = Math.max(1, item.repMax - item.repMin);
+  const steps = progressing ? weekNo : 0;
+  const loadSteps = Math.floor(steps / (span + 1));
+  const weight = base + loadSteps * inc;
+  const repTarget = item.repMin + (steps % (span + 1));
+  const sets = Array.from({ length: item.sets }, (_, i) => {
+    let reps: number;
+    if (item.unit === 'secondi') reps = item.repMax;
+    else if (light || !progressing) reps = item.repMax;
+    else reps = Math.min(item.repMax, repTarget + (i === item.sets - 1 && r() < 0.35 ? -1 : 0));
+    return { weightKg: weight, reps: Math.max(1, reps), done: true };
+  });
+  return { exerciseId: item.exerciseId, sets };
+}
+
+function iso2Date(iso: ISODate, hh: number, mm: number): string {
+  const d = fromISO(iso);
+  d.setHours(hh, mm, 0, 0);
+  return d.toISOString();
+}
+
+export interface DemoOptions {
+  /** Minuti dalla mezzanotte "adesso": le voci di oggi già passate risultano segnate. Default 13:00. */
+  nowMin?: number;
+}
+
+/** Costruisce i dati di esempio per la data di oggi. */
+export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
+  const r = rng(20251110);
+  const nowMin = opts.nowMin ?? 13 * 60;
+  const start = weekStart(addDays(todayIso, -21));
+  const year = fromISO(todayIso).getFullYear();
+
+  const data: AppData = defaultAppData(todayIso);
+  data.version = DATA_VERSION;
+  data.onboarded = true;
+  data.profile = {
+    sex: 'M',
+    birthYear: year - 30,
+    heightCm: 178,
+    startWeightKg: 70.8,
+    goal: 'ricomposizione',
+    painSites: ['Tibia', 'Gomito'],
+    waterTargetL: 2.5,
+  };
+  data.plan = defaultPlan(start);
+  // Due revisioni accettate: l'orario a letto è già avanzato di due passi (00:45 → 00:15).
+  data.plan.sleep = { ...data.plan.sleep, current: '00:15' };
+  data.settings = { ...data.settings, demoData: true };
+  data.physio = demoPhysio();
+
+  const histDays = daysBetween(start, todayIso);
+  const minimalDays = new Set([5, 16].filter((i) => i < histDays));
+  const recipeIds = Object.keys(RECIPES);
+
+  // ── Controlli del mattino ──
+  const skipCheckIn = new Set([3, 12].filter((i) => i < histDays));
+  for (let i = 0; i <= histDays; i++) {
+    const iso = addDays(start, i);
+    if (skipCheckIn.has(i)) continue;
+    const p = histDays ? i / histDays : 1;
+    const wd = weekdayOf(iso);
+    const hours = round1(lerp(6.2, 7.2, p) + (r() - 0.5) * 0.5);
+    const wake = minToHHMM(hhmmToMin('07:15') + Math.round((r() - 0.5) * 16));
+    const bed = minToHHMM(hhmmToMin(wake) - Math.round(hours * 60) - 12);
+    const afterMatch = wd === 1 || wd === 3; // il giorno dopo partita e calcetto
+    const tibia = clampInt(lerp(3, 1, p) + (afterMatch ? 0.7 : 0) + (r() - 0.5) * 0.8, 0, 10);
+    const gomito = clampInt(lerp(3, 2, p) + (wd === 2 || wd === 5 ? 0.5 : 0) + (r() - 0.5) * 0.8, 0, 10);
+    const withWeight = r() < 0.88 || i === histDays;
+    const c: CheckIn = {
+      date: iso,
+      bedTime: bed,
+      wakeTime: wake,
+      sleepHours: round1(sleepHours(bed, wake) - 0.2),
+      sleepQuality: clampInt(lerp(3, 4.2, p) + (r() - 0.5) * 1.2, 1, 5),
+      pain: { Tibia: tibia, Gomito: gomito },
+      energy: clampInt(lerp(6, 8, p) + (r() - 0.5) * 1.6, 1, 10),
+    };
+    if (withWeight) c.weightKg = round1(lerp(70.6, 69.8, p) + (r() - 0.5) * 0.5 + (wd === 0 ? 0.2 : 0));
+    data.checkIns[iso] = c;
+  }
+
+  // ── Diario di ogni giornata ──
+  const sweetsByWeek = new Map<ISODate, number>();
+  for (let i = 0; i <= histDays; i++) {
+    const iso = addDays(start, i);
+    const isToday = i === histDays;
+    const p = histDays ? i / histDays : 1;
+    const log: DayLog = {
+      date: iso,
+      status: {},
+      notes: {},
+      minimal: minimalDays.has(i),
+      waterGlasses: 0,
+      sweets: 0,
+      recipeSwaps: {},
+    };
+    data.dayLogs[iso] = log;
+
+    // Qualche sostituzione di ricetta dalle alternative previste.
+    if (!isToday && recipeIds.length && i % 6 === 4) {
+      const meals = mealsForDate(iso, data);
+      const target = meals.bySlot.cena ?? meals.bySlot.pranzo;
+      const alt = target?.recipe?.swaps?.find((id) => RECIPES[id]);
+      if (target && alt) log.recipeSwaps[target.slot as MealSlot] = alt;
+    }
+
+    const adherence = lerp(0.62, 0.9, p);
+    const items = itemsFor(iso, data);
+    for (const it of items) {
+      if (isToday && hhmmToMin(it.time) > nowMin - 20) continue;
+      if (it.kind === 'controllo') {
+        if (data.checkIns[iso]) log.status[it.id] = 'fatto';
+        continue;
+      }
+      if (it.kind === 'letto') {
+        const next = data.checkIns[addDays(iso, 1)];
+        if (next?.bedTime && hhmmToMin(next.bedTime) < 12 * 60 && hhmmToMin(next.bedTime) <= hhmmToMin(data.plan.sleep.current) + 15) {
+          log.status[it.id] = 'fatto';
+        }
+        continue;
+      }
+      const x = r();
+      let st: ItemStatus | undefined;
+      if (log.minimal) st = x < 0.85 ? 'fatto' : undefined;
+      else if (x < adherence) st = 'fatto';
+      else if (x < adherence + 0.13) st = 'sostituito';
+      else if (x < adherence + 0.2) st = 'saltato';
+      if (!st) continue;
+      log.status[it.id] = st;
+      if (st === 'sostituito') {
+        log.notes[it.id] = it.kind === 'pasto' ? MEAL_NOTES[Math.floor(r() * MEAL_NOTES.length)] : 'Fatto più tardi del previsto';
+      }
+    }
+
+    log.waterGlasses = isToday ? Math.min(4, Math.floor(nowMin / 180)) : clampInt(lerp(5, 9, p) + (r() - 0.5) * 3, 2, 12);
+    const ws = weekStart(iso);
+    const weekSweets = sweetsByWeek.get(ws) ?? 0;
+    // Circa 3 dolci a settimana, uno in più nell'ultima settimana chiusa.
+    const lastClosed = daysBetween(ws, weekStart(todayIso)) === 7;
+    const wantSweet = weekdayOf(iso) === 2 || weekdayOf(iso) === 5 || weekdayOf(iso) === 6 || (lastClosed && weekdayOf(iso) === 3);
+    if (!isToday && wantSweet && r() < 0.92) {
+      log.sweets = 1;
+      sweetsByWeek.set(ws, weekSweets + 1);
+    }
+  }
+
+  // ── Sedute di palestra ──
+  const workouts: WorkoutLog[] = [];
+  let doneC = false;
+  for (let i = 0; i < histDays; i++) {
+    const iso = addDays(start, i);
+    const day = data.plan.week[weekdayOf(iso)];
+    const sid = day?.gymSessionId;
+    if (!sid) continue;
+    const weekNo = Math.floor(i / 7);
+    if (day.gymOptional) {
+      if (doneC || weekNo !== 1) continue;
+      doneC = true;
+    }
+    if (minimalDays.has(i)) continue;
+    const session = SESSIONS[sid];
+    const exercises: ExerciseLog[] = session
+      ? session.blocks.flatMap((b) => b.items).map((it) => exerciseLogFor(it, weekNo, r))
+      : [];
+    const pain = data.checkIns[iso]?.pain ?? { Tibia: 1, Gomito: 2 };
+    workouts.push({
+      id: `demo-w-${iso}`,
+      date: iso,
+      sessionId: sid,
+      durationMin: Math.round((session?.estMin ?? (sid === 'C' ? 38 : 55)) + (r() - 0.5) * 8),
+      rpe: clampInt(lerp(7, 7.5, r()) + (r() - 0.5), 6, 9),
+      pain: { ...pain },
+      exercises,
+      notes: weekNo === 0 && sid === 'A' ? 'Prima seduta: carichi prudenti, tecnica pulita.' : undefined,
+    });
+    const status = data.dayLogs[iso]?.status;
+    if (status) {
+      const key = Object.keys(status).find((k) => k.startsWith('palestra')) ?? `palestra:${sid}`;
+      status[key] = 'fatto';
+    }
+  }
+  data.workoutLogs = workouts;
+
+  // ── Calcio ──
+  const football: FootballLog[] = [];
+  for (let i = 0; i < histDays; i++) {
+    const iso = addDays(start, i);
+    const f = data.plan.week[weekdayOf(iso)]?.football;
+    if (!f) continue;
+    if (i === 9) continue; // un calcetto saltato
+    const rpe = f.kind === 'partita' ? clampInt(7.4 + (r() - 0.5) * 1.6, 6, 9) : clampInt(6.4 + (r() - 0.5) * 1.6, 5, 8);
+    football.push({
+      id: `demo-f-${iso}`,
+      date: iso,
+      kind: f.kind,
+      durationMin: f.durationMin + (f.kind === 'partita' ? 0 : Math.round((r() - 0.5) * 10)),
+      rpe,
+    });
+    const status = data.dayLogs[iso]?.status;
+    if (status) {
+      const key = Object.keys(status).find((k) => k.startsWith('calcio')) ?? `calcio:${f.kind}`;
+      status[key] = 'fatto';
+    }
+  }
+  data.footballLogs = football;
+
+  // ── Revisioni della domenica ──
+  const reviews: WeeklyReview[] = [];
+  for (let w = 0; w < 2; w++) {
+    const ws = addDays(start, w * 7);
+    if (daysBetween(addDays(ws, 6), todayIso) <= 0) continue;
+    reviews.push({
+      weekStart: ws,
+      votes: { energia: 6 + w, digestione: 7, umore: 7, campo: 6 + w },
+      waistCm: w === 0 ? 84.5 : 84,
+      skinfolds: w === 0 ? { Addome: 18, Sovrailiaca: 14, Coscia: 12 } : undefined,
+      acceptedProposals: ['sonno'],
+      note: w === 0 ? 'Prima settimana: il coprifuoco è la parte più difficile.' : 'Meglio con la cena preparata la domenica.',
+    });
+  }
+  data.reviews = reviews;
+
+  // ── Spesa e preparazione della settimana in corso ──
+  const thisWeek = weekStart(todayIso);
+  const prep = menuWeekFor(todayIso, data.plan.startDate)?.prep ?? [];
+  data.prepDone = { [thisWeek]: prep.slice(0, Math.max(0, prep.length - 1)).map((t) => t.id) };
+  data.shoppingChecked = {};
+
+  // ── Qualche messaggio con il coach ──
+  data.chat = demoChat(todayIso);
+
+  return data;
+}
+
+function demoPhysio(): AppData['physio'] {
+  const exercises: Exercise[] = [
+    {
+      id: 'fisio-soleo-iso',
+      name: 'Isometria del soleo al muro',
+      category: 'fisio',
+      equipment: 'Muro',
+      cues: ['Ginocchio piegato sopra le dita', 'Tallone appena staccato da terra', 'Spingi forte senza muoverti'],
+      elbowFriendly: true,
+    },
+    {
+      id: 'fisio-tibiale-muro',
+      name: 'Sollevamento delle punte con la schiena al muro',
+      category: 'fisio',
+      equipment: 'Muro',
+      cues: ['Talloni a 20 cm dal muro', 'Solleva le punte fino in fondo', 'Scendi in 3 secondi'],
+      elbowFriendly: true,
+    },
+    {
+      id: 'fisio-polso-eccentrico',
+      name: 'Eccentrico degli estensori del polso',
+      category: 'fisio',
+      equipment: 'Manubrio leggero',
+      cues: ['Avambraccio appoggiato sulla coscia', 'Sali aiutandoti con l’altra mano', 'Scendi lento in 4 secondi'],
+      elbowFriendly: true,
+    },
+  ];
+  const prescriptions: SessionExercise[] = [
+    { exerciseId: 'fisio-soleo-iso', sets: 4, repMin: 30, repMax: 45, unit: 'secondi', restSec: 60, progression: 'nessuna', perSide: true },
+    { exerciseId: 'fisio-tibiale-muro', sets: 3, repMin: 12, repMax: 15, unit: 'reps', restSec: 45, progression: 'nessuna' },
+    { exerciseId: 'fisio-polso-eccentrico', sets: 3, repMin: 12, repMax: 15, unit: 'reps', restSec: 60, progression: 'nessuna', perSide: true, note: 'Dolore fino a 3 su 10 accettabile' },
+  ];
+  return { exercises, prescriptions };
+}
+
+/** Ultimo giorno prima di oggi (fino a 7 giorni fa) con uno dei giorni della settimana indicati. */
+function lastWeekday(todayIso: ISODate, weekdays: number[]): ISODate {
+  for (let i = 1; i <= 7; i++) {
+    const d = addDays(todayIso, -i);
+    if (weekdays.includes(weekdayOf(d))) return d;
+  }
+  return addDays(todayIso, -1);
+}
+
+function demoChat(todayIso: ISODate): ChatMessage[] {
+  // Coerente con la settimana predefinita: la domanda sul bar in un giorno di calcetto (mercoledì),
+  // quella sulla palestra nell'ultimo giorno di palestra (martedì o venerdì).
+  const d2 = lastWeekday(todayIso, [2]);
+  const d1 = lastWeekday(todayIso, [1, 4]);
+  const chat: ChatMessage[] = [
+    { id: 'demo-c1', role: 'user', text: 'Sono al bar, cosa prendo?', createdAt: iso2Date(d2, 10, 41) },
+    {
+      id: 'demo-c2',
+      role: 'assistant',
+      text:
+        'A metà mattina prendi un toast con prosciutto cotto e una spremuta, oppure uno yogurt bianco con un frutto se c’è. ' +
+        'Cornetto e succo insieme no: tanti zuccheri, poche proteine e alle 12 hai di nuovo fame. ' +
+        'Stasera c’è il calcetto: il toast, con i suoi carboidrati, va benissimo.',
+      createdAt: iso2Date(d2, 10, 41),
+    },
+    { id: 'demo-c3', role: 'user', text: 'Salto la palestra? Ho dormito poco.', createdAt: iso2Date(d1, 16, 12) },
+    {
+      id: 'demo-c4',
+      role: 'assistant',
+      text:
+        'Non saltarla, accorciala. Riscaldamento completo, blocco principale con una serie in meno e RIR 3. ' +
+        'La prevenzione per la tibia tienila tutta: è la parte che conta di più questa settimana. ' +
+        'Stasera coprifuoco del telefono alle 23:45.',
+      createdAt: iso2Date(d1, 16, 13),
+    },
+  ];
+  return chat.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}

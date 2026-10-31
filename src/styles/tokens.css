@@ -1,0 +1,222 @@
+/*
+ * Ritmo · token del design system, direzione "campo di sera".
+ * Blu notte profondo, la luce calda dei riflettori come accento, linee pulite come le righe del campo.
+ *
+ * Il tema si sceglie con data-theme su <html>: 'scuro' | 'chiaro'.
+ * Senza attributo segue prefers-color-scheme.
+ */
+
+:root,
+:root[data-theme='scuro'] {
+  color-scheme: dark;
+
+  --bg: #0a1220;
+  --bg-elev: #0f1a2c;
+  --card: #142036;
+  --card-2: #1a2842;
+  --line: #22324d;
+  --line-strong: #2d4063;
+  --ink: #eef2f8;
+  --ink-2: #a9b5ca;
+  --ink-3: #6e7e99;
+  --accent: #f5c04a;
+  --accent-ink: #f5c04a;
+  --on-accent: #1b1405;
+  --good: #4cc38a;
+  --warn: #f0a548;
+  --bad: #f2706a;
+  --calcio: #f5c04a;
+  --palestra: #6ea8fe;
+  --leggero: #4fd1c5;
+  --riposo: #b39dff;
+
+  /* Varianti per il testo colorato (AA su card) */
+  --good-ink: #4cc38a;
+  --warn-ink: #f0a548;
+  --bad-ink: #f2706a;
+  --calcio-ink: #f5c04a;
+  --palestra-ink: #6ea8fe;
+  --leggero-ink: #4fd1c5;
+  --riposo-ink: #b39dff;
+
+  /* Testo su superfici piene del tono */
+  --on-good: #06140d;
+  --on-warn: #1b1003;
+  --on-bad: #1f0605;
+  --on-calcio: #1b1405;
+  --on-palestra: #06122a;
+  --on-leggero: #04201d;
+  --on-riposo: #140b33;
+  --seg-thumb: #2b3c5e;
+  --sheet-bg: #0f1a2c;
+  --control: rgb(238 242 248 / 0.08);
+  --control-line: rgb(255 255 255 / 0.07);
+  --field: rgb(255 255 255 / 0.045);
+
+  /* Derivati */
+  --accent-soft: rgb(245 192 74 / 0.14);
+  --accent-glow: rgb(245 192 74 / 0.32);
+  --good-soft: rgb(76 195 138 / 0.14);
+  --warn-soft: rgb(240 165 72 / 0.15);
+  --bad-soft: rgb(242 112 106 / 0.15);
+  --ink-soft: rgb(238 242 248 / 0.07);
+  --scrim: rgb(3 7 14 / 0.62);
+  --bar-bg: rgb(12 21 36 / 0.84);
+  --bar-line: rgb(255 255 255 / 0.06);
+  --card-shadow: 0 0 0 0 transparent;
+  --sheet-shadow: 0 -12px 40px rgb(0 0 0 / 0.45);
+  --focus: #f5c04a;
+  --skeleton: rgb(255 255 255 / 0.06);
+  --skeleton-shine: rgb(255 255 255 / 0.1);
+  /* Luce dei riflettori in cima alle schermate */
+  --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(245 192 74 / 0.09), transparent 62%);
+  --pitch-line: rgb(255 255 255 / 0.035);
+}
+
+:root[data-theme='chiaro'] {
+  color-scheme: light;
+
+  --bg: #f3f5f9;
+  --bg-elev: #ffffff;
+  --card: #ffffff;
+  --card-2: #eef2f7;
+  --line: #dce2ec;
+  --line-strong: #c9d2e0;
+  --ink: #0d1a2c;
+  --ink-2: #4b5a72;
+  --ink-3: #7d8ba3;
+  --accent: #e3a21f;
+  --accent-ink: #8a5a00;
+  --on-accent: #1b1405;
+  --good: #1e8a57;
+  --warn: #b86a08;
+  --bad: #c9372c;
+  --calcio: #c98a0e;
+  --palestra: #2f6fe0;
+  --leggero: #138a80;
+  --riposo: #6e56d8;
+
+  --good-ink: #17784a;
+  --warn-ink: #95560a;
+  --bad-ink: #b8302a;
+  --calcio-ink: #8a5a00;
+  --palestra-ink: #2560c8;
+  --leggero-ink: #0c6e66;
+  --riposo-ink: #5b43c9;
+
+  --on-good: #ffffff;
+  --on-warn: #ffffff;
+  --on-bad: #ffffff;
+  --on-calcio: #1b1405;
+  --on-palestra: #ffffff;
+  --on-leggero: #ffffff;
+  --on-riposo: #ffffff;
+  --seg-thumb: #ffffff;
+  --sheet-bg: #f3f5f9;
+  --control: rgb(13 26 44 / 0.06);
+  --control-line: rgb(13 26 44 / 0.07);
+  --field: rgb(13 26 44 / 0.035);
+
+  --accent-soft: rgb(227 162 31 / 0.16);
+  --accent-glow: rgb(227 162 31 / 0.3);
+  --good-soft: rgb(30 138 87 / 0.11);
+  --warn-soft: rgb(184 106 8 / 0.11);
+  --bad-soft: rgb(201 55 44 / 0.1);
+  --ink-soft: rgb(13 26 44 / 0.05);
+  --scrim: rgb(13 26 44 / 0.38);
+  --bar-bg: rgb(255 255 255 / 0.85);
+  --bar-line: rgb(13 26 44 / 0.08);
+  --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
+  --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
+  --focus: #8a5a00;
+  --skeleton: rgb(13 26 44 / 0.06);
+  --skeleton-shine: rgb(13 26 44 / 0.1);
+  --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(227 162 31 / 0.12), transparent 62%);
+  --pitch-line: rgb(13 26 44 / 0.04);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: #f3f5f9;
+    --bg-elev: #ffffff;
+    --card: #ffffff;
+    --card-2: #eef2f7;
+    --line: #dce2ec;
+    --line-strong: #c9d2e0;
+    --ink: #0d1a2c;
+    --ink-2: #4b5a72;
+    --ink-3: #7d8ba3;
+    --accent: #e3a21f;
+    --accent-ink: #8a5a00;
+    --on-accent: #1b1405;
+    --good: #1e8a57;
+    --warn: #b86a08;
+    --bad: #c9372c;
+    --calcio: #c98a0e;
+    --palestra: #2f6fe0;
+    --leggero: #138a80;
+    --riposo: #6e56d8;
+
+    --good-ink: #17784a;
+    --warn-ink: #95560a;
+    --bad-ink: #b8302a;
+    --calcio-ink: #8a5a00;
+    --palestra-ink: #2560c8;
+    --leggero-ink: #0c6e66;
+    --riposo-ink: #5b43c9;
+
+    --on-good: #ffffff;
+    --on-warn: #ffffff;
+    --on-bad: #ffffff;
+    --on-calcio: #1b1405;
+    --on-palestra: #ffffff;
+    --on-leggero: #ffffff;
+    --on-riposo: #ffffff;
+    --seg-thumb: #ffffff;
+    --sheet-bg: #f3f5f9;
+    --control: rgb(13 26 44 / 0.06);
+    --control-line: rgb(13 26 44 / 0.07);
+    --field: rgb(13 26 44 / 0.035);
+    --accent-soft: rgb(227 162 31 / 0.16);
+    --accent-glow: rgb(227 162 31 / 0.3);
+    --good-soft: rgb(30 138 87 / 0.11);
+    --warn-soft: rgb(184 106 8 / 0.11);
+    --bad-soft: rgb(201 55 44 / 0.1);
+    --ink-soft: rgb(13 26 44 / 0.05);
+    --scrim: rgb(13 26 44 / 0.38);
+    --bar-bg: rgb(255 255 255 / 0.85);
+    --bar-line: rgb(13 26 44 / 0.08);
+    --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
+    --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
+    --focus: #8a5a00;
+    --skeleton: rgb(13 26 44 / 0.06);
+    --skeleton-shine: rgb(13 26 44 / 0.1);
+    --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(227 162 31 / 0.12), transparent 62%);
+    --pitch-line: rgb(13 26 44 / 0.04);
+  }
+}
+
+:root {
+  /* Forma e spazio (griglia a 4 px) */
+  --radius-card: 20px;
+  --radius-control: 14px;
+  --gutter: 20px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --tabbar-core: 58px;
+  --tabbar-h: calc(var(--tabbar-core) + max(var(--safe-bottom), 8px));
+
+  /* Movimento */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --dur-fast: 140ms;
+  --dur: 240ms;
+
+  /* Tipografia */
+  --font-display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}

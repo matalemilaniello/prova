@@ -374,6 +374,8 @@ export interface WeeklyReview {
   skinfolds?: Record<string, number>;
   acceptedProposals: string[];
   note?: string;
+  /** Proposte mostrate al salvataggio: la revisione si rilegge com'era, anche dopo che il piano è cambiato. */
+  proposals?: Proposal[];
 }
 
 export interface Proposal {
@@ -395,6 +397,11 @@ export interface ChatMessage {
   image?: string;
   createdAt: string;
   error?: boolean;
+  /**
+   * Risposta del coach non completa: interrotta dall'utente, rifiutata dal modello (non si reinvia
+   * nella conversazione) o troncata al limite di lunghezza.
+   */
+  stop?: 'interrotta' | 'rifiuto' | 'limite';
 }
 
 // ───────────────────────── Impostazioni e stato ─────────────────────────
@@ -414,7 +421,8 @@ export type Overlay =
   | { type: 'checkin'; date: ISODate }
   | { type: 'session'; sessionId: string; date: ISODate }
   | { type: 'football'; date: ISODate; kind: FootballKind; itemId: string }
-  | { type: 'barPlanB' }
+  /** `slot`: pasto da mostrare all'apertura (es. dallo spuntino di Oggi); senza, quello dell'ora attuale. */
+  | { type: 'barPlanB'; slot?: MealSlot }
   | null;
 
 export interface AppData {

@@ -1,0 +1,127 @@
+/**
+ * La "scala del sonno": l'orario a letto che si anticipa di un passo a settimana fino all'obiettivo.
+ * Grafico SVG disegnato a mano, in scala, leggibile in entrambi i temi.
+ */
+import { useId } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import type { SleepPlan } from '../../../domain/types';
+import { nightMinutes } from '../../../engine/dates';
+import { sleepHours } from '../../../engine/sleep';
+import { fmtHours } from '../../../lib/format';
+import { cn, toneColor, toneInk } from '../../../ui';
+import { sleepSteps } from '../lib';
+
+const W = 320;
+const H = 132;
+const PAD = { l: 6, r: 6, t: 26, b: 24 };
+const CAPS = { textTransform: 'uppercase', letterSpacing: '0.06em' } as const;
+
+export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?: string }) {
+  const id = useId().replace(/:/g, '');
+  const reduce = useReducedMotion();
+  const steps = sleepSteps(sleep, 12);
+  const weeks = steps.length - 1;
+  const atTarget = weeks === 0;
+  const now = sleepHours(sleep.current, sleep.wake);
+  const goal = sleepHours(atTarget ? sleep.current : sleep.target, sleep.wake);
+
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+  const maxM = nightMinutes(sleep.current);
+  const minM = atTarget ? maxM - 60 : nightMinutes(sleep.target);
+  const y = (bed: string) => PAD.t + ((maxM - nightMinutes(bed)) / Math.max(1, maxM - minM)) * innerH;
+  const n = steps.length;
+  const segW = innerW / n;
+  const x = (i: number) => PAD.l + i * segW;
+
+  let d = `M ${x(0)} ${y(steps[0].bed)}`;
+  steps.forEach((_, i) => {
+    d += ` H ${x(i + 1)}`;
+    if (i + 1 < n) d += ` V ${y(steps[i + 1].bed)}`;
+  });
+  const area = `${d} V ${H - PAD.b} H ${x(0)} Z`;
+  const yTarget = y(steps[n - 1].bed);
+  const riposo = toneColor('riposo');
+  const good = toneColor('good');
+
+  const label = atTarget
+    ? `Orario a letto ${sleep.current}: sei già all’obiettivo, ${fmtHours(now)} di sonno.`
+    : `Da ${sleep.current} a ${sleep.target} in ${weeks} settimane, da ${fmtHours(now)} a ${fmtHours(goal)} di sonno.`;
+
+  return (
+    <figure className={cn('flex flex-col gap-3', className)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full overflow-visible" role="img" aria-label={label}>
+        <defs>
+          <linearGradient id={`fill-${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={riposo} stopOpacity="0.26" />
+            <stop offset="1" stopColor={riposo} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* Righe di fondo, come le linee del campo. */}
+        {[0, 0.5, 1].map((t) => (
+          <line key={t} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + t * innerH} y2={PAD.t + t * innerH} stroke="var(--line)" strokeWidth="1" strokeDasharray={t === 1 ? undefined : '2 4'} />
+        ))}
+        {!atTarget && <line x1={PAD.l} x2={W - PAD.r} y1={yTarget} y2={yTarget} stroke={good} strokeWidth="1.25" strokeDasharray="4 4" opacity="0.7" />}
+        <motion.path
+          d={area}
+          fill={`url(#fill-${id})`}
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.35 }}
+        />
+        <motion.path
+          d={d}
+          fill="none"
+          stroke={riposo}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          initial={reduce ? false : { pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+        />
+        {steps.map((s, i) => (
+          <motion.circle
+            key={i}
+            cx={x(i)}
+            cy={y(s.bed)}
+            r={i === 0 ? 4.5 : 3}
+            fill={i === 0 ? riposo : 'var(--card)'}
+            stroke={riposo}
+            strokeWidth="2"
+            initial={reduce ? false : { scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 26, delay: reduce ? 0 : 0.12 + (i / n) * 0.9 }}
+            style={{ transformOrigin: `${x(i)}px ${y(s.bed)}px` }}
+          />
+        ))}
+        <text x={x(0)} y={y(steps[0].bed) - 10} className="font-mono" fontSize="11" fontWeight="500" fill="var(--ink)">
+          {sleep.current}
+        </text>
+        <text x={x(0)} y={H - 6} className="font-mono" fontSize="9.5" fill="var(--ink-3)" style={CAPS}>
+          Questa settimana
+        </text>
+        {!atTarget && (
+          <text x={W - PAD.r} y={yTarget - 10} textAnchor="end" className="font-mono" fontSize="11" fontWeight="500" fill={toneInk('good')}>
+            {sleep.target}
+          </text>
+        )}
+        {!atTarget && (
+          <text x={W - PAD.r} y={H - 6} textAnchor="end" className="font-mono" fontSize="9.5" fill="var(--ink-3)" style={CAPS}>
+            {weeks === 1 ? 'Tra 1 settimana' : `Tra ${weeks} settimane`}
+          </text>
+        )}
+      </svg>
+      <figcaption className="t-footnote text-ink-2">
+        {atTarget ? (
+          <>Sei già all’obiettivo: {fmtHours(now)} di sonno a notte. L’orario resta questo.</>
+        ) : (
+          <>
+            Da <strong className="font-semibold text-ink">{fmtHours(now)}</strong> a{' '}
+            <strong className="font-semibold text-ink">{fmtHours(goal)}</strong> di sonno a notte, un passo di {sleep.stepMin} minuti a settimana.
+          </>
+        )}
+      </figcaption>
+    </figure>
+  );
+}
