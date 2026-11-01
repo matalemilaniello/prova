@@ -29,7 +29,7 @@ const RECIPE_LIST: Recipe[] = [
   // ───────────────────────── Colazioni ─────────────────────────
   {
     id: 'porridge-cacao-banana',
-    name: 'Porridge al cacao con banana e burro di arachidi',
+    name: 'Porridge al cacao con banana e crema di arachidi',
     slots: ['colazione'],
     ingredients: [
       i('avena', 1.5, 'mano a coppa', C),
@@ -42,7 +42,7 @@ const RECIPE_LIST: Recipe[] = [
     steps: [
       'In una ciotola capiente mescola avena, latte e cacao.',
       'Cuoci al microonde per 2 minuti a 800 W, mescola e prosegui per altri 30-60 secondi.',
-      'Completa con la banana a rondelle, il burro di arachidi e lo yogurt greco.',
+      'Completa con la banana a rondelle, la crema di arachidi e lo yogurt greco.',
     ],
     prepMin: 5,
     tags: ['veloce', 'microonde', 'fibre'],
@@ -56,7 +56,7 @@ const RECIPE_LIST: Recipe[] = [
       i('avena', 1, 'mano a coppa', C),
       i('skyr', 1, 'vasetto'),
       i('latte', 0.5, 'tazza'),
-      i('semi-chia', 1, 'cucchiaio'),
+      i('semi-chia', 1, 'cucchiaino'),
       i('frutti-bosco', 1, 'mano a coppa', { note: 'anche ancora surgelati' }),
       i('miele', 1, 'cucchiaino'),
       i('noci', 0.5, 'manciata'),
@@ -134,7 +134,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'cappuccino-fette-skyr',
-    name: 'Cappuccino, fette biscottate con confettura e skyr ai frutti di bosco',
+    name: 'Cappuccino, fette biscottate con confettura, skyr con frutti di bosco e noci',
     slots: ['colazione'],
     ingredients: [
       i('latte', 1, 'tazza'),
@@ -142,11 +142,12 @@ const RECIPE_LIST: Recipe[] = [
       i('confettura', 2, 'cucchiaino'),
       i('skyr', 1, 'vasetto'),
       i('frutti-bosco', 1, 'mano a coppa'),
+      i('noci', 0.5, 'manciata'),
     ],
     steps: [
       'Scalda e monta il latte, poi prepara il cappuccino.',
       'Spalma la confettura sulle fette biscottate.',
-      'Mescola lo skyr con i frutti di bosco scongelati per 1 minuto al microonde.',
+      'Scongela i frutti di bosco per 1 minuto al microonde, mescolali allo skyr e completa con le noci spezzettate.',
     ],
     prepMin: 5,
     tags: ['veloce', 'classica'],
@@ -163,7 +164,7 @@ const RECIPE_LIST: Recipe[] = [
       i('banana', 0.5, 'pezzo'),
       i('cannella', 0.5, 'cucchiaino'),
       i('yogurt-greco-0', 0.5, 'vasetto'),
-      i('frutti-bosco', 1, 'mano a coppa'),
+      i('frutti-bosco', 0.5, 'mano a coppa'),
       i('miele', 1, 'cucchiaino'),
     ],
     steps: [
@@ -177,18 +178,18 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pane-arachidi-banana',
-    name: 'Pane integrale, burro di arachidi e banana, con uno skyr',
+    name: 'Pane integrale, crema di arachidi e banana, con uno yogurt greco',
     slots: ['colazione'],
     ingredients: [
       i('pane-integrale', 2, 'fetta', C),
-      i('burro-arachidi', 1, 'pollice'),
+      i('burro-arachidi', 1.5, 'pollice'),
       i('banana', 1, 'pezzo'),
-      i('skyr', 1, 'vasetto'),
+      i('yogurt-greco-2', 1, 'vasetto'),
     ],
     steps: [
-      'Tosta il pane e spalma il burro di arachidi.',
+      'Tosta il pane e spalma la crema di arachidi.',
       'Copri con la banana a rondelle, se ti piace con un pizzico di cannella.',
-      'Accompagna con lo skyr.',
+      'Accompagna con lo yogurt greco.',
     ],
     prepMin: 4,
     tags: ['veloce', 'giorno di calcio'],
@@ -208,10 +209,10 @@ const RECIPE_LIST: Recipe[] = [
     ],
     steps: [
       'Farcisci il pane con la fesa di tacchino, anche la sera prima.',
-      'Avvolgi il panino nella carta; mela e mandorle vanno nello zaino così come sono.',
+      'Avvolgi il panino nella carta; con il caldo mettilo nella borsa termica. Mela e mandorle vanno nello zaino così come sono.',
     ],
     prepMin: 3,
-    tags: ['da portare', 'senza frigo', 'carne bianca'],
+    tags: ['da portare', 'carne bianca'],
     swaps: ['crackers-grana-pera', 'frittatine-spinaci'],
   },
   {
@@ -274,11 +275,12 @@ const RECIPE_LIST: Recipe[] = [
     steps: [
       'Domenica: sbatti uova e albumi con gli spinaci strizzati, il formaggio grattugiato e un pizzico di sale.',
       'Versa nei pirottini da muffin, due per spuntino, e cuoci in forno a 180 °C per 18-20 minuti.',
-      'In frigo si conservano 4 giorni. Per lo spuntino: due frittatine, una fetta di pane e una clementina.',
+      'In frigo, in un contenitore chiuso, si conservano 3 giorni.',
+      'Per lo spuntino: due frittatine, una fetta di pane e una clementina, nello zaino nella borsa termica con un siberino.',
     ],
     prepMin: 2,
     batch: true,
-    tags: ['preparazione', 'da portare', 'uova', 'proteica'],
+    tags: ['preparazione', 'da portare', 'borsa termica', 'uova', 'proteica'],
     swaps: ['panino-tacchino-mela', 'barrette-avena-datteri'],
   },
   {
@@ -293,7 +295,7 @@ const RECIPE_LIST: Recipe[] = [
       i('albume', 1, 'pezzo'),
     ],
     steps: [
-      'Domenica: trita datteri e mandorle, poi mescola con avena, burro di arachidi e albumi.',
+      'Domenica: trita datteri e mandorle, poi mescola con avena, crema di arachidi e albume.',
       'Stendi in una teglia con carta forno, alta un dito, e cuoci a 170 °C per 20 minuti; taglia le barrette da tiepide.',
       'Due barrette a spuntino. In un contenitore chiuso durano 5 giorni, in freezer un mese.',
     ],
@@ -316,7 +318,7 @@ const RECIPE_LIST: Recipe[] = [
   // ───────────────────────── Merende e pre-calcio ─────────────────────────
   {
     id: 'pre-gallette-banana',
-    name: 'Pre-calcio: gallette con confettura, banana e yogurt greco',
+    name: 'Gallette con confettura, banana e yogurt greco',
     slots: ['merenda'],
     ingredients: [
       i('gallette-riso', 4, 'pezzo', C),
@@ -335,7 +337,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pre-fiocchi-mais-latte',
-    name: 'Pre-calcio: fiocchi di mais con latte, banana e miele',
+    name: 'Fiocchi di mais con latte, banana e miele',
     slots: ['merenda'],
     ingredients: [
       i('fiocchi-mais', 1.5, 'tazza', C),
@@ -350,7 +352,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pre-pane-ricotta-miele',
-    name: 'Pre-calcio: pane con ricotta e miele, clementine',
+    name: 'Pane comune con ricotta e miele, clementine',
     slots: ['merenda'],
     ingredients: [
       i('pane-bianco', 2, 'fetta', C),
@@ -368,7 +370,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pre-frullato-banana',
-    name: 'Pre-calcio: frullato di banana e latte con gallette',
+    name: 'Frullato di banana e latte con gallette',
     slots: ['merenda'],
     ingredients: [
       i('latte', 1, 'tazza'),
@@ -470,7 +472,7 @@ const RECIPE_LIST: Recipe[] = [
       i('origano', 0.5, 'cucchiaino'),
     ],
     steps: [
-      'Riso e pollo sono pronti dalla domenica.',
+      'Riso e pollo sono pronti dalla domenica, in freezer: la sera prima passali in frigo.',
       'Scalda le verdure grigliate in padella per 4 minuti, o al microonde.',
       'Unisci riso, pollo a striscioline, verdure e pomodorini; condisci con olio, origano e un pizzico di sale.',
     ],
@@ -485,10 +487,10 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['pranzo'],
     ingredients: [
       i('pasta', 1.5, 'pugno', { carb: true, note: 'ditalini o mezzi rigatoni' }),
-      i('ceci', 2, 'mano a coppa'),
+      i('ceci', 1.5, 'mano a coppa'),
       i('soffritto', 2, 'cucchiaio'),
       i('passata', 0.5, 'bicchiere'),
-      i('grana', 4, 'cucchiaio'),
+      i('grana', 5, 'cucchiaio'),
       i('olio-evo', 1, 'cucchiaio'),
       i('rosmarino', 0.5, 'cucchiaino'),
     ],
@@ -554,7 +556,7 @@ const RECIPE_LIST: Recipe[] = [
       i('pasta-lenticchie', 1.5, 'pugno', C),
       i('zucchine', 1.5, 'pugno'),
       i('pomodorini', 1, 'manciata'),
-      i('feta', 1, 'fetta'),
+      i('feta', 1.5, 'fetta'),
       i('olio-evo', 1.5, 'cucchiaio'),
       i('origano', 0.5, 'cucchiaino'),
     ],
@@ -576,7 +578,7 @@ const RECIPE_LIST: Recipe[] = [
       i('tonno', 1, 'palmo', { note: 'due scatolette' }),
       i('passata', 1, 'bicchiere'),
       i('aglio', 1, 'pezzo'),
-      i('olio-evo', 1.5, 'cucchiaio'),
+      i('olio-evo', 2, 'cucchiaio'),
       i('origano', 0.5, 'cucchiaino'),
       i('insalata', 2, 'manciata'),
     ],
@@ -615,19 +617,19 @@ const RECIPE_LIST: Recipe[] = [
   {
     id: 'pasta-ragu-lenticchie',
     name: 'Pasta al ragù di lenticchie',
-    slots: ['pranzo'],
+    slots: ['pranzo', 'cena'],
     ingredients: [
       i('pasta', 1.5, 'pugno', C),
       i('lenticchie-rosse', 2, 'mano a coppa'),
       i('soffritto', 2, 'cucchiaio'),
-      i('passata', 1, 'bicchiere'),
+      i('passata', 0.5, 'bicchiere'),
       i('olio-evo', 1, 'cucchiaio'),
       i('grana', 2, 'cucchiaio'),
     ],
     steps: [
       "Domenica: rosola il soffritto con l'olio, aggiungi le lenticchie rosse secche, la passata e due bicchieri d'acqua.",
-      'Cuoci 15 minuti finché le lenticchie si sfaldano; dividi in 4 porzioni, una in frigo e tre in freezer.',
-      'A pranzo scalda una porzione di ragù e condisci la pasta appena scolata, con il formaggio grattugiato.',
+      'Cuoci 15 minuti finché le lenticchie si sfaldano, dividi in 4 porzioni e congelale. La sera prima passa in frigo quella che serve.',
+      'Scalda una porzione di ragù e condisci la pasta appena scolata, con il formaggio grattugiato.',
     ],
     prepMin: 12,
     batch: true,
@@ -661,9 +663,9 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['pranzo'],
     ingredients: [
       i('pasta', 1.5, 'pugno', C),
-      i('ricotta', 3, 'cucchiaio'),
-      i('spinaci', 2, 'pugno'),
-      i('grana', 2, 'cucchiaio'),
+      i('ricotta', 4, 'cucchiaio'),
+      i('spinaci', 1.5, 'pugno'),
+      i('grana', 3, 'cucchiaio'),
       i('noci', 0.5, 'manciata'),
       i('pepe', 0.5, 'cucchiaino'),
     ],
@@ -686,13 +688,14 @@ const RECIPE_LIST: Recipe[] = [
       i('edamame', 1, 'mano a coppa'),
       i('carote', 1, 'manciata', { note: 'alla julienne, in busta' }),
       i('cetriolo', 0.5, 'pezzo'),
+      i('olio-evo', 1, 'cucchiaio'),
       i('salsa-soia', 1, 'cucchiaino'),
       i('limone', 0.5, 'pezzo'),
     ],
     steps: [
       'Cuoci il salmone in padella 6 minuti e gli edamame surgelati in acqua bollente per 4.',
       'Componi la ciotola con il riso, il salmone a pezzi, edamame, carote e cetriolo a fette.',
-      'Condisci con salsa di soia e limone.',
+      "Condisci con l'olio, la salsa di soia e il limone.",
     ],
     prepMin: 12,
     tags: ['pesce', 'omega-3'],
@@ -744,13 +747,34 @@ const RECIPE_LIST: Recipe[] = [
 
   // ───────────────────────── Cene ─────────────────────────
   {
+    id: 'tacchino-riso-carote',
+    name: 'Bocconcini di tacchino al limone con riso basmati e carote',
+    slots: ['cena', 'pranzo'],
+    ingredients: [
+      i('tacchino', 1, 'palmo'),
+      i('riso-basmati', 2, 'pugno', C),
+      i('carote', 1, 'pezzo'),
+      i('insalata', 2, 'manciata'),
+      i('olio-evo', 1.5, 'cucchiaio'),
+      i('limone', 0.5, 'pezzo'),
+    ],
+    steps: [
+      'Cuoci il riso in acqua salata per 10-12 minuti.',
+      "Intanto taglia il tacchino a bocconcini e rosolalo 4-5 minuti in padella con metà dell'olio, poi sfuma con il succo di limone.",
+      "Servi con il riso, la carota grattugiata e l'insalata condite con l'olio rimasto.",
+    ],
+    prepMin: 15,
+    tags: ['carne bianca', 'veloce', 'carboidrati'],
+    swaps: ['tacchino-limone-patate', 'pollo-paprika-peperoni', 'riso-pollo-curcuma'],
+  },
+  {
     id: 'salmone-patate-broccoli',
     name: 'Salmone in padella con patate e broccoli',
     slots: ['cena'],
     ingredients: [
       i('salmone', 1, 'palmo'),
       i('patate', 2.5, 'pugno', C),
-      i('broccoli', 2, 'pugno'),
+      i('broccoli', 1.5, 'pugno'),
       i('olio-evo', 1, 'cucchiaio'),
       i('limone', 0.5, 'pezzo'),
     ],
@@ -765,11 +789,11 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'merluzzo-pizzaiola-couscous',
-    name: 'Merluzzo alla pizzaiola con cous cous integrale',
+    name: 'Merluzzo alla pizzaiola con cous cous',
     slots: ['cena'],
     ingredients: [
       i('merluzzo', 1, 'palmo'),
-      i('couscous-integrale', 2, 'pugno', C),
+      i('couscous', 2, 'pugno', C),
       i('pomodorini', 2, 'manciata'),
       i('olio-evo', 2, 'cucchiaio'),
       i('aglio', 1, 'pezzo'),
@@ -817,7 +841,7 @@ const RECIPE_LIST: Recipe[] = [
       i('rucola', 2, 'manciata'),
       i('pomodorini', 1, 'manciata'),
       i('grana', 2, 'cucchiaio', { note: 'a scaglie' }),
-      i('olio-evo', 1, 'cucchiaio'),
+      i('olio-evo', 1.5, 'cucchiaio'),
       i('aceto-balsamico', 1, 'cucchiaino'),
     ],
     steps: [
@@ -856,11 +880,11 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['cena'],
     ingredients: [
       i('zucca', 3, 'pugno'),
-      i('lenticchie-rosse', 2.5, 'mano a coppa'),
+      i('lenticchie-rosse', 2, 'mano a coppa'),
       i('soffritto', 2, 'cucchiaio'),
       i('curcuma', 0.5, 'cucchiaino'),
       i('olio-evo', 1, 'cucchiaio'),
-      i('pane-integrale', 2.5, 'fetta', C),
+      i('pane-integrale', 2, 'fetta', C),
       i('grana', 3, 'cucchiaio'),
     ],
     steps: [
@@ -943,10 +967,10 @@ const RECIPE_LIST: Recipe[] = [
     name: 'Minestrone con ditalini, borlotti e grana',
     slots: ['cena'],
     ingredients: [
-      i('minestrone', 300, 'g', { note: 'circa un terzo della busta' }),
+      i('minestrone', 250, 'g', { note: 'un quarto della busta' }),
       i('pasta', 1.5, 'pugno', { carb: true, note: 'ditalini, peso da cotti' }),
       i('borlotti', 1.5, 'mano a coppa'),
-      i('grana', 3, 'cucchiaio'),
+      i('grana', 4, 'cucchiaio'),
       i('olio-evo', 1, 'cucchiaio'),
       i('rosmarino', 0.5, 'cucchiaino'),
     ],
@@ -984,13 +1008,13 @@ const RECIPE_LIST: Recipe[] = [
   // ───────────────────────── Cene di recupero (dopo il calcio) ─────────────────────────
   {
     id: 'box-riso-pollo-zucchine',
-    name: 'Recupero: riso, pollo e zucchine in vaschetta',
+    name: 'Riso, pollo e zucchine in vaschetta',
     slots: ['cena'],
     ingredients: [
       i('riso-basmati', 1.5, 'pugno', C),
       i('pollo', 1, 'palmo'),
       i('zucchine', 2, 'pugno'),
-      i('olio-evo', 1, 'cucchiaio'),
+      i('olio-evo', 1.5, 'cucchiaio'),
       i('salsa-soia', 1, 'cucchiaino'),
     ],
     steps: [
@@ -1005,7 +1029,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pasta-fredda-tonno',
-    name: 'Recupero: pasta fredda con tonno, pomodorini e rucola',
+    name: 'Pasta fredda con tonno, pomodorini e rucola',
     slots: ['cena', 'pranzo'],
     ingredients: [
       i('pasta', 1.5, 'pugno', C),
@@ -1026,14 +1050,14 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'couscous-gamberi-piselli',
-    name: 'Recupero: cous cous con gamberi, piselli e zucchine',
+    name: 'Cous cous con gamberi, piselli e zucchine',
     slots: ['cena'],
     ingredients: [
-      i('couscous-integrale', 1.5, 'pugno', C),
+      i('couscous', 1.5, 'pugno', C),
       i('gamberi', 1, 'palmo'),
       i('piselli', 1, 'mano a coppa'),
       i('zucchine', 1.5, 'pugno'),
-      i('olio-evo', 1, 'cucchiaio'),
+      i('olio-evo', 1.5, 'cucchiaio'),
       i('limone', 0.5, 'pezzo'),
     ],
     steps: [
@@ -1047,7 +1071,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'riso-saltato-uova-piselli',
-    name: 'Recupero: riso saltato con uova, piselli e carote',
+    name: 'Riso saltato con uova, piselli e carote',
     slots: ['cena'],
     ingredients: [
       i('riso-basmati', 1.5, 'pugno', C),
@@ -1056,7 +1080,7 @@ const RECIPE_LIST: Recipe[] = [
       i('piselli', 1, 'mano a coppa'),
       i('carote', 1, 'manciata', { note: 'alla julienne, in busta' }),
       i('zucchine', 1, 'pugno'),
-      i('olio-evo', 1, 'cucchiaio'),
+      i('olio-evo', 1.5, 'cucchiaio'),
       i('salsa-soia', 1, 'cucchiaino'),
     ],
     steps: [
@@ -1071,13 +1095,13 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'patate-salmone-affumicato',
-    name: 'Recupero: patate, salmone affumicato e yogurt al limone',
+    name: 'Patate, salmone affumicato e yogurt al limone',
     slots: ['cena'],
     ingredients: [
       i('patate', 2.5, 'pugno', C),
       i('salmone-affumicato', 4, 'fetta'),
       i('yogurt-greco-0', 0.5, 'vasetto'),
-      i('spinaci-novelli', 3, 'manciata'),
+      i('spinaci-novelli', 2, 'manciata'),
       i('pomodorini', 1, 'manciata'),
       i('olio-evo', 1, 'cucchiaio'),
       i('limone', 0.5, 'pezzo'),

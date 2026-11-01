@@ -2,6 +2,11 @@
  * Settimana: striscia dei 7 giorni e tre schede, Menù, Spesa e Preparazione.
  * Si può scorrere tra le settimane (dall'inizio del piano a due mesi avanti); un giorno toccato nella
  * striscia apre il suo menù. `?tab=menu|spesa|preparazione` sceglie la scheda iniziale (screenshot).
+ *
+ * Nel fine settimana Spesa e Preparazione aprono da sole la settimana che inizia lunedì: è quella da
+ * comprare e preparare. Finché l'utente non sceglie una settimana con le frecce, l'offset è automatico.
+ * Parametri nell'hash (li usa Oggi): `settimana=prossima` apre la settimana dopo, `guida=1` con
+ * `tab=preparazione` avvia subito il lettore della preparazione.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'motion/react';
@@ -14,14 +19,14 @@ import { menuWeekFor, rotationIndexFor } from '../../engine/menu';
 import { shoppingList, shoppingProgress } from '../../engine/shopping';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
-import { useToday } from '../../state/hooks';
+import { usePlanDay } from '../../state/hooks';
 import { Button, IconButton, Screen } from '../../ui';
 import { MenuTab } from './MenuTab';
 import { PrepTab } from './PrepTab';
 import { ShoppingTab } from './ShoppingTab';
 import { TabSwitch } from './TabSwitch';
 import { WeekStrip } from './WeekStrip';
-import { daySuccessfulSafe, relativeWeekLabel } from './helpers';
+import { daySuccessfulSafe, isWeekend, relativeWeekLabel, shoppingFromDate } from './helpers';
 
 type Tab = 'menu' | 'spesa' | 'preparazione';
 
@@ -30,12 +35,21 @@ const MAX_AHEAD = 8;
 const EMPTY: string[] = [];
 
 export default function SettimanaScreen() {
-  const today = useToday();
+  const today = usePlanDay();
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
   const initialTab = useUrlParam('tab');
+  const weekParam = useUrlParam('settimana');
+  const guideParam = useUrlParam('guida');
+  // Il lettore parte da solo una volta sola, non a ogni cambio di settimana o di scheda.
+  const [guide, setGuide] = useState(() => guideParam === '1');
   const [tab, setTab] = useState<Tab>(() => parseTab(initialTab));
-  const [offset, setOffset] = useState(0);
+  // null = automatico: nel weekend Spesa e Preparazione guardano alla settimana che inizia lunedì.
+  const [manualOffset, setManualOffset] = useState<number | null>(() => (weekParam === 'prossima' ? 1 : null));
+  const weekend = isWeekend(today);
+  const offsetFor = (t: Tab) => manualOffset ?? (weekend && t !== 'menu' ? 1 : 0);
+  const offset = offsetFor(tab);
+  const autoAhead = manualOffset === null && offset === 1;
   const [picked, setPicked] = useState<ISODate>(today);
   const reduce = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -58,12 +72,15 @@ export default function SettimanaScreen() {
   const planWeek = weekIndexSince(plan.startDate, monday) + 1;
   const rotation = rotationIndexFor(monday, plan.startDate);
 
-  // Contatori delle schede.
-  const list = useMemo(() => shoppingList(monday, { plan, dayLogs }), [monday, plan, dayLogs]);
-  const checked = useApp((s) => s.shoppingChecked[monday] ?? EMPTY);
-  const prepDone = useApp((s) => s.prepDone[monday] ?? EMPTY);
+  // Contatori delle schede: ognuno conta la settimana che la sua scheda apre.
+  const shopMonday = addDays(thisMonday, offsetFor('spesa') * 7);
+  const shopFrom = shoppingFromDate(plan, shopMonday);
+  const list = useMemo(() => shoppingList(shopMonday, { plan, dayLogs }, { fromDate: shopFrom }), [shopMonday, shopFrom, plan, dayLogs]);
+  const checked = useApp((s) => s.shoppingChecked[shopMonday] ?? EMPTY);
+  const prepMonday = addDays(thisMonday, offsetFor('preparazione') * 7);
+  const prepDone = useApp((s) => s.prepDone[prepMonday] ?? EMPTY);
   const progress = shoppingProgress(list, checked);
-  const prepTasks = menuWeekFor(monday, plan.startDate)?.prep ?? [];
+  const prepTasks = menuWeekFor(prepMonday, plan.startDate)?.prep ?? [];
   const prepLeft = prepTasks.filter((t) => !prepDone.includes(t.id)).length;
 
   // Giornate passate riuscite (spunta nella striscia).
@@ -74,9 +91,37 @@ export default function SettimanaScreen() {
     return out;
   }, [dates, today, dayLogs]);
 
+  // La schermata resta montata tra una scheda e l'altra: i parametri che Oggi mette nell'hash
+  // (`#settimana?tab=spesa&settimana=prossima`) vanno letti anche dopo, a ogni cambio dell'hash.
+  const [guideKey, setGuideKey] = useState(0);
+  useEffect(() => {
+    const apply = () => {
+      const q = location.hash.indexOf('?');
+      if (q === -1) return;
+      const p = new URLSearchParams(location.hash.slice(q + 1));
+      const t = p.get('tab');
+      if (t) setTab(parseTab(t));
+      if (p.get('settimana') === 'prossima') setManualOffset(1);
+      if (p.get('guida') === '1') {
+        setGuide(true);
+        setGuideKey((n) => n + 1);
+      }
+      // Tolti dall'indirizzo: ricaricando la pagina il lettore non riparte da solo.
+      try {
+        history.replaceState(history.state, '', `${location.pathname}${location.search}${location.hash.slice(0, q)}`);
+      } catch {
+        /* indirizzo non modificabile (anteprima): nessun problema */
+      }
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, []);
+
   const scrollContainer = () => rootRef.current?.closest<HTMLElement>('[data-scroll-container]') ?? null;
 
   const changeTab = (t: Tab) => {
+    setGuide(false);
     setTab(t);
     const sc = scrollContainer();
     if (sc && sc.scrollTop > 160) sc.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
@@ -84,14 +129,20 @@ export default function SettimanaScreen() {
 
   const goWeek = (next: number) => {
     const o = Math.max(minOffset, Math.min(MAX_AHEAD, next));
-    if (o === offset) return;
+    if (o === offset) {
+      if (manualOffset === null) setManualOffset(o);
+      return;
+    }
     haptic('selection');
-    setOffset(o);
+    setGuide(false);
+    setManualOffset(o);
     // Lo stesso giorno della settimana; tornando a questa settimana, oggi.
     setPicked(o === 0 ? today : addDays(addDays(thisMonday, o * 7), weekdayOf(selected)));
   };
 
   const pickDay = (d: ISODate) => {
+    // Il giorno toccato resta nella settimana mostrata, anche se la scheda Menù di solito apre questa.
+    if (manualOffset === null) setManualOffset(offset);
     setPicked(d);
     if (tab !== 'menu') changeTab('menu');
   };
@@ -107,11 +158,11 @@ export default function SettimanaScreen() {
       setPicked(dates[ni]);
     } else if (ni >= 7 && offset < MAX_AHEAD) {
       haptic('selection');
-      setOffset(offset + 1);
+      setManualOffset(offset + 1);
       setPicked(addDays(dates[6], 1));
     } else if (ni < 0 && offset > minOffset) {
       haptic('selection');
-      setOffset(offset - 1);
+      setManualOffset(offset - 1);
       setPicked(addDays(dates[0], -1));
     }
   };
@@ -183,12 +234,24 @@ export default function SettimanaScreen() {
                   dayLogs={dayLogs}
                   offset={offset}
                   today={today}
+                  fromDate={shoppingFromDate(plan, monday)}
+                  autoAhead={autoAhead}
                   onOpenWeek={(o) => goWeek(o)}
                   onGoPrep={() => changeTab('preparazione')}
                 />
               )}
               {tab === 'preparazione' && (
-                <PrepTab weekStart={monday} plan={plan} dayLogs={dayLogs} offset={offset} today={today} onOpenWeek={(o) => goWeek(o)} />
+                <PrepTab
+                  key={guideKey}
+                  weekStart={monday}
+                  plan={plan}
+                  dayLogs={dayLogs}
+                  offset={offset}
+                  today={today}
+                  autoAhead={autoAhead}
+                  autoPlay={guide}
+                  onOpenWeek={(o) => goWeek(o)}
+                />
               )}
             </motion.div>
           </AnimatePresence>

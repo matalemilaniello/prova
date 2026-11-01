@@ -3,14 +3,14 @@
  * Il carico della seduta è minuti × RPE (metodo di Foster), lo stesso che usa la revisione.
  */
 import { useMemo, useState } from 'react';
-import { Check, Gauge, Timer, Trash2, Trophy } from 'lucide-react';
+import { Check, Gauge, Timer, Trash2, Weight } from 'lucide-react';
 import type { FootballKind, ISODate } from '../../domain/types';
 import { daysBetween, formatDayLong, formatRelativeDay, todayISO, weekdayOf } from '../../engine/dates';
 import { FOOTBALL_TITLE } from '../../engine/timeline';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
-import { Button, Card, Chip, NumberTicker, RatingPicker, Sheet, Stepper, toneInk, toneSoft } from '../../ui';
+import { Button, Card, Chip, NumberTicker, RatingPicker, Sheet, Stepper, toneInk, toneRing, toneSoft } from '../../ui';
 
 const RPE_LABELS = [
   'Molto facile',
@@ -95,7 +95,7 @@ export default function FootballSheet({ date, kind, itemId, onClose }: { date: I
       <div className="flex flex-col gap-3.5 pb-2">
         <Card as="section" padding="none" aria-label="Minuti giocati">
           <div className="flex items-center gap-3 px-4 pt-4">
-            <span aria-hidden className="grid size-8 place-items-center rounded-[10px]" style={{ background: toneSoft('calcio', 18), color: toneInk('calcio') }}>
+            <span aria-hidden className="grid size-8 place-items-center rounded-[10px]" style={{ background: toneSoft('calcio', 18), boxShadow: toneRing('calcio'), color: toneInk('calcio') }}>
               <Timer size={17} strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
@@ -117,7 +117,7 @@ export default function FootballSheet({ date, kind, itemId, onClose }: { date: I
 
         <Card as="section" padding="none" aria-label="Fatica percepita">
           <div className="flex items-center gap-3 px-4 pt-4">
-            <span aria-hidden className="grid size-8 place-items-center rounded-[10px]" style={{ background: toneSoft('bad', 16), color: toneInk('bad') }}>
+            <span aria-hidden className="grid size-8 place-items-center rounded-[10px]" style={{ background: toneSoft('bad', 16), boxShadow: toneRing('bad'), color: toneInk('bad') }}>
               <Gauge size={17} strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
@@ -135,8 +135,8 @@ export default function FootballSheet({ date, kind, itemId, onClose }: { date: I
 
         <Card padding="md" as="section" aria-label="Carico della seduta">
           <div className="flex items-center gap-3">
-            <span aria-hidden className="grid size-10 place-items-center rounded-full" style={{ background: toneSoft('calcio', 18), color: toneInk('calcio') }}>
-              <Trophy size={19} strokeWidth={2.2} />
+            <span aria-hidden className="grid size-10 place-items-center rounded-full" style={{ background: toneSoft('calcio', 18), boxShadow: toneRing('calcio'), color: toneInk('calcio') }}>
+              <Weight size={19} strokeWidth={2.2} />
             </span>
             <div className="min-w-0 flex-1">
               <p className="t-label text-ink-3">Carico della seduta</p>

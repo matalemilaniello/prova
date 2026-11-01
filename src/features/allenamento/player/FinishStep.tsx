@@ -82,7 +82,9 @@ export function FinishStep(p: FinishStepProps) {
         <section className="flex flex-col gap-5 rounded-card bg-card p-4 shadow-card" aria-label="Dolore per zona">
           <div>
             <h3 className="t-headline text-ink">Dolore durante la seduta</h3>
-            <p className="t-footnote mt-0.5 text-ink-3">Da 0 a 10. La tacca è la tua soglia ({p.threshold}).</p>
+            <p className="t-footnote mt-0.5 text-ink-3">
+              Da 0 a 10. La tacca è la tua soglia ({p.threshold}): se la superi, la prossima seduta mantiene i carichi.
+            </p>
           </div>
           {p.painSites.map((site) => (
             <ScaleSlider

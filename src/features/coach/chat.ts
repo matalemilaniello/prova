@@ -4,14 +4,17 @@
  */
 import type { ChatMessage, ISODate } from '../../domain/types';
 import { addDays, formatDayLong, toISO } from '../../engine/dates';
-import { useApp } from '../../state/store';
+import { PERSISTED_CHAT_IMAGES, useApp } from '../../state/store';
 
 /** Messaggi conservati sul telefono. */
 export const CHAT_KEEP = 60;
-/** Foto conservate nella cronologia (le più recenti): lo spazio sul telefono è poco. */
-export const CHAT_KEEP_IMAGES = 12;
+/**
+ * Foto conservate nella cronologia (le più recenti): lo spazio sul telefono è poco. Come
+ * `PERSISTED_CHAT_IMAGES` dello store: una foto più vecchia non resterebbe comunque dopo la chiusura.
+ */
+export const CHAT_KEEP_IMAGES = PERSISTED_CHAT_IMAGES;
 
-/** Ultimi 60 messaggi; oltre le 12 foto più recenti l'immagine si toglie (resta il testo). */
+/** Ultimi 60 messaggi; oltre le 4 foto più recenti l'immagine si toglie (resta il testo). */
 export function pruneChat(chat: readonly ChatMessage[]): ChatMessage[] {
   const kept = chat.slice(-CHAT_KEEP);
   let images = 0;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../domain/types';
 import {
   buildApiMessages,
@@ -11,6 +11,8 @@ import {
   modelSupport,
   normalizeKey,
   PHOTO_ONLY_PROMPT,
+  streamCoachReply,
+  streamErrorKind,
   tidyReply,
 } from './claude';
 
@@ -49,14 +51,19 @@ describe('modello', () => {
     expect(modelLabel('modello-strano')).toBe('modello-strano');
   });
 
-  it('pensiero adattivo ed effort solo dove esistono', () => {
-    expect(modelSupport('claude-opus-5-5')).toEqual({ adaptiveThinking: true, effort: true });
-    expect(modelSupport('claude-opus-4-6')).toEqual({ adaptiveThinking: true, effort: true });
-    expect(modelSupport('claude-opus-4-5')).toEqual({ adaptiveThinking: false, effort: true });
-    expect(modelSupport('claude-sonnet-4-5-20250929')).toEqual({ adaptiveThinking: false, effort: false });
-    expect(modelSupport('claude-haiku-4-5')).toEqual({ adaptiveThinking: false, effort: false });
-    expect(modelSupport('claude-haiku-5-5')).toEqual({ adaptiveThinking: true, effort: true });
-    expect(modelSupport('qualcosa')).toEqual({ adaptiveThinking: false, effort: false });
+  it('pensiero adattivo, effort e fallback solo dove esistono', () => {
+    expect(modelSupport('claude-opus-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true });
+    expect(modelSupport('claude-opus-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true });
+    expect(modelSupport('claude-opus-4-6')).toEqual({ adaptiveThinking: true, effort: true, fallback: false });
+    expect(modelSupport('claude-opus-4-5')).toEqual({ adaptiveThinking: false, effort: true, fallback: false });
+    expect(modelSupport('claude-sonnet-5-5')).toMatchObject({ fallback: true });
+    expect(modelSupport('claude-sonnet-5')).toMatchObject({ fallback: false });
+    expect(modelSupport('claude-sonnet-4-5-20250929')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
+    expect(modelSupport('claude-haiku-4-5')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
+    // Haiku 5.5: nessun fallback lato server, il parametro non va mandato.
+    expect(modelSupport('claude-haiku-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: false });
+    expect(modelSupport('claude-fable-5-1')).toMatchObject({ fallback: true });
+    expect(modelSupport('qualcosa')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
   });
 });
 
@@ -149,5 +156,89 @@ describe('testo e errori', () => {
     expect(e.retryable).toBe(false);
     expect(errorInfo('limite').retryable).toBe(true);
     expect(errorInfo('offline').message).not.toMatch(/—/);
+  });
+});
+
+describe('streaming', () => {
+  const KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789';
+  const sse = (events: object[]) =>
+    events.map((e) => `event: ${(e as { type: string }).type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+  const start = (model: string) => ({
+    type: 'message_start',
+    message: { id: 'msg_1', type: 'message', role: 'assistant', model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } },
+  });
+  const textEvents = [
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Prendi il toast' } },
+  ];
+  const end = [
+    { type: 'content_block_stop', index: 0 },
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } },
+    { type: 'message_stop' },
+  ];
+
+  function mockFetch(body: string) {
+    const calls: { body: Record<string, unknown>; headers: Headers }[] = [];
+    const fn = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init?.body ?? '{}')), headers: new Headers(init?.headers) });
+      return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    });
+    vi.stubGlobal('fetch', fn);
+    return calls;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  const opts = (model: string) => ({ apiKey: KEY, model, system: 'Sistema', context: 'Contesto', messages: [{ role: 'user' as const, content: 'Sono al bar' }] });
+
+  it('manda i fallback solo ai modelli che li hanno', async () => {
+    const calls = mockFetch(sse([start('claude-opus-5-5'), ...textEvents, ...end]));
+    const reply = await streamCoachReply(opts('claude-opus-5-5'));
+    expect(reply.text).toBe('Prendi il toast');
+    expect(calls[0].body.fallbacks).toBe('default');
+    expect(calls[0].headers.get('anthropic-beta') ?? '').toContain('server-side-fallback-2026-07-01');
+
+    const haiku = mockFetch(sse([start('claude-haiku-5-5'), ...textEvents, ...end]));
+    await streamCoachReply(opts('claude-haiku-5-5'));
+    expect(haiku[0].body.fallbacks).toBeUndefined();
+    expect(haiku[0].headers.get('anthropic-beta') ?? '').not.toContain('server-side-fallback');
+
+    const custom = mockFetch(sse([start('modello-mio'), ...textEvents, ...end]));
+    await streamCoachReply(opts('modello-mio'));
+    expect(custom[0].body.fallbacks).toBeUndefined();
+  });
+
+  it('segnala il modello che ha risposto dopo un fallback', async () => {
+    const final = [
+      { type: 'content_block_stop', index: 0 },
+      {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn', stop_sequence: null },
+        usage: { output_tokens: 5, iterations: [{ type: 'message', input_tokens: 10, output_tokens: 0 }, { type: 'fallback_message', input_tokens: 10, output_tokens: 5 }] },
+      },
+      { type: 'message_stop' },
+    ];
+    mockFetch(sse([start('claude-opus-5'), ...textEvents, ...final]));
+    const reply = await streamCoachReply(opts('claude-opus-5-5'));
+    expect(reply.model).toBe('claude-opus-5');
+    expect(reply.fallback).toBe(true);
+  });
+
+  it('uno stream che si chiude a metà è una risposta interrotta dalla rete, con il testo arrivato', async () => {
+    mockFetch(sse([start('claude-opus-5-5'), ...textEvents]));
+    const err = await streamCoachReply(opts('claude-opus-5-5')).catch((e) => e);
+    expect(err).toBeInstanceOf(CoachError);
+    expect(err.kind).toBe('interrotta-rete');
+    expect(err.partial).toBe('Prendi il toast');
+    expect(err.message).toContain('Il testo arrivato resta qui sopra');
+  });
+
+  it('classifica gli errori a metà risposta', async () => {
+    const sdk = await import('@anthropic-ai/sdk');
+    const h = new Headers();
+    expect(streamErrorKind(sdk, new Error('stream chiuso'), 'testo')).toBe('interrotta-rete');
+    expect(streamErrorKind(sdk, new sdk.APIConnectionError({}), 'testo')).toBe('interrotta-rete');
+    expect(streamErrorKind(sdk, new sdk.InternalServerError(529, {}, 'x', h, 'overloaded_error'), 'testo')).toBe('occupato');
+    expect(streamErrorKind(sdk, new Error('boh'), '')).toBe('sconosciuto');
   });
 });

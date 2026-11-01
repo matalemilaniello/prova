@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { Food, IngredientLine, Recipe } from '../domain/types';
+import type { DayType, Food, IngredientLine, Plan, Recipe } from '../domain/types';
+import { defaultPlan } from '../data/defaults';
+import { addDays } from './dates';
 import {
   carbFactor,
+  dayCarbScale,
+  dayNutrition,
+  dayNutritionDetail,
+  fiberRampFactor,
+  fiberRampWeek,
   formatPortion,
+  planCarbScale,
+  totalCarbFactor,
   lineGrams,
   portionParts,
   portionWords,
@@ -180,5 +189,67 @@ describe('porzioni a occhio', () => {
 
   it('senza grammi noti mostra solo la porzione', () => {
     expect(formatPortion(line({ foodId: 'pollo', qty: 1, unit: 'pugno' }), 'palestra', foods)).toBe('1 pugno');
+  });
+});
+
+describe('le porzioni seguono gli obiettivi del piano', () => {
+  const start = '2026-11-09';
+  const base = defaultPlan(start);
+  const withDelta = (delta: number): Plan => ({
+    ...base,
+    targets: Object.fromEntries(
+      (Object.keys(base.targets) as DayType[]).map((t) => [t, { ...base.targets[t], kcal: base.targets[t].kcal + delta }]),
+    ) as Plan['targets'],
+  });
+  const days = Array.from({ length: 14 }, (_, i) => addDays(start, i));
+
+  it('con gli obiettivi predefiniti la scala è 1', () => {
+    for (const d of days) expect(dayCarbScale(d, { plan: base, dayLogs: {} })).toBe(1);
+    expect(planCarbScale('palestra', base)).toBe(1);
+  });
+
+  it('+150 kcal nel piano → circa +150 kcal nel piatto, ogni giorno delle due settimane', () => {
+    const plus = withDelta(150);
+    for (const d of days) {
+      const before = dayNutrition(d, { plan: base, dayLogs: {} }).kcal;
+      const after = dayNutrition(d, { plan: plus, dayLogs: {} }).kcal;
+      expect(after - before).toBeGreaterThan(120);
+      expect(after - before).toBeLessThan(180);
+    }
+  });
+
+  it('−100 kcal riducono solo i carboidrati: proteine e grassi restano', () => {
+    const minus = withDelta(-100);
+    const d = days[1];
+    const a = dayNutrition(d, { plan: base, dayLogs: {} });
+    const b = dayNutrition(d, { plan: minus, dayLogs: {} });
+    expect(a.kcal - b.kcal).toBeGreaterThan(70);
+    expect(a.kcal - b.kcal).toBeLessThan(130);
+    expect(b.carbG).toBeLessThan(a.carbG);
+    expect(Math.abs(a.proteinG - b.proteinG)).toBeLessThan(4);
+  });
+
+  it('la scala è limitata e accetta un numero o il piano', () => {
+    expect(planCarbScale('riposo', withDelta(5000))).toBe(1.6);
+    expect(planCarbScale('riposo', withDelta(-1500))).toBe(0.6);
+    const l = line({ foodId: 'riso', qty: 1, unit: 'pugno', carbScaled: true });
+    expect(lineGrams(l, 'palestra', foods, 1.2)).toBeCloseTo(180);
+    expect(lineGrams(l, 'palestra', foods, base)).toBeCloseTo(150);
+    expect(totalCarbFactor('calcio', 1.2)).toBeCloseTo(1.5);
+  });
+
+  it('la vigilia della partita mangia come un giorno di calcio', () => {
+    // 2026-11-15 è domenica, il giorno prima della partita del lunedì.
+    const d = dayNutritionDetail('2026-11-15', { plan: base, dayLogs: {} });
+    expect(d.dayType).toBe('calcio');
+    expect(d.total.kcal).toBeGreaterThan(base.targets.calcio.kcal * 0.92);
+  });
+
+  it('avvio graduale delle fibre nelle prime due settimane', () => {
+    expect(fiberRampWeek(start, base)).toBe(1);
+    expect(fiberRampFactor(addDays(start, 6), base)).toBe(0.6);
+    expect(fiberRampFactor(addDays(start, 7), base)).toBe(0.8);
+    expect(fiberRampFactor(addDays(start, 14), base)).toBe(1);
+    expect(fiberRampWeek(addDays(start, -1), base)).toBeNull();
   });
 });

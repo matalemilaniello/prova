@@ -4,13 +4,14 @@
  * È l'anello del marchio di Ritmo, riempito con il piano.
  */
 import { motion, useReducedMotion } from 'motion/react';
-import { Dumbbell, HeartPulse, Moon, Trophy, type LucideIcon } from 'lucide-react';
+import { Dumbbell, HeartPulse, Moon } from 'lucide-react';
 import type { Plan, Weekday } from '../../domain/types';
 import { hhmmToMin } from '../../engine/dates';
 import { curfewFor } from '../../engine/sleep';
 import { mealSchedule, PHYSIO_AFTER_LUNCH_MIN } from '../../engine/timeline';
 import { SESSIONS } from '../../data/sessions';
-import { cn, toneColor, toneInk, type AnyTone } from '../../ui';
+import { useResolvedTheme } from '../../app/theme';
+import { BallIcon, cn, renderIcon, toneColor, toneInk, type AnyTone, type IconLike } from '../../ui';
 
 const S = 280;
 const C = S / 2;
@@ -34,7 +35,7 @@ interface Arc {
   from: number;
   to: number;
   tone: AnyTone;
-  icon: LucideIcon;
+  icon: IconLike;
   label: string;
 }
 
@@ -51,7 +52,7 @@ export function dialData(plan: Plan, weekday: Weekday) {
   }
   if (day?.football) {
     const start = hhmmToMin(day.football.time);
-    arcs.push({ key: 'calcio', from: start, to: start + day.football.durationMin, tone: 'calcio', icon: Trophy, label: 'Calcio' });
+    arcs.push({ key: 'calcio', from: start, to: start + day.football.durationMin, tone: 'calcio', icon: BallIcon, label: 'Calcio' });
   }
   if (day?.physio) {
     const start = hhmmToMin(meals.pranzo.time) + PHYSIO_AFTER_LUNCH_MIN;
@@ -74,7 +75,10 @@ export interface DayDialProps {
 
 export function DayDial({ plan, weekday, size = S, className, delay = 0.15 }: DayDialProps) {
   const reduce = useReducedMotion();
+  const dark = useResolvedTheme() === 'scuro';
   const { arcs, mealMins, curfew } = dialData(plan, weekday);
+  // Alone degli archi: al buio i toni caldi brillano di luce bianca calda (l'ambra diluita sul blu diventa oliva).
+  const halo = (tone: AnyTone) => (dark && (tone === 'calcio' || tone === 'accent' || tone === 'warn') ? 'rgb(var(--light-warm))' : toneColor(tone));
   const ease = [0.22, 1, 0.36, 1] as const;
   const label = `Giornata tipo: ${arcs.map((a) => a.label.toLowerCase()).join(', ')} e ${mealMins.length} pasti.`;
 
@@ -112,7 +116,7 @@ export function DayDial({ plan, weekday, size = S, className, delay = 0.15 }: Da
             <motion.path
               d={arcPath(a.from, a.to, R)}
               fill="none"
-              stroke={toneColor(a.tone)}
+              stroke={halo(a.tone)}
               strokeWidth={STROKE + 6}
               strokeLinecap="round"
               opacity={0.18}
@@ -190,7 +194,7 @@ export function DayDial({ plan, weekday, size = S, className, delay = 0.15 }: Da
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 420, damping: 22, delay: delay + 0.45 + i * 0.18 }}
           >
-            <a.icon size={15} strokeWidth={2.5} />
+            {renderIcon(a.icon, 15, 2.5)}
           </motion.span>
         );
       })}

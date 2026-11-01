@@ -8,7 +8,15 @@ import { Check, Minus, Plus } from 'lucide-react';
 import type { HHMM } from '../../../domain/types';
 import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { cn, parseItalianNumber, renderIcon, springSnappy, toneColor, toneInk, toneOn, toneSoft, type AnyTone, type IconLike } from '../../../ui';
+import { cn, parseItalianNumber, renderIcon, springSnappy, toneColor, toneInk, toneOn, toneRing, toneSoft, type AnyTone, type IconLike } from '../../../ui';
+
+/**
+ * Tessera dell'icona, come nelle righe delle liste: fondo tenue, anello di 1 px e icona nel colore del tono.
+ * Nel tema scuro i toni caldi restano blu e la luce sta nell'anello e nell'icona.
+ */
+export function tileStyle(tone: AnyTone): { background: string; boxShadow: string; color: string } {
+  return { background: toneSoft(tone, 18), boxShadow: toneRing(tone, 22), color: toneColor(tone) };
+}
 
 // ───────────────────────── Orario a pillola ─────────────────────────
 
@@ -36,7 +44,7 @@ export function TimePill({ value, onChange, label, tone, disabled, className }: 
         disabled && 'opacity-40',
         className,
       )}
-      style={tone ? { background: toneSoft(tone, 16), color: toneInk(tone) } : undefined}
+      style={tone ? { background: toneSoft(tone, 16), boxShadow: toneRing(tone, 22), color: toneInk(tone) } : undefined}
     >
       <span aria-hidden className="t-num text-[1.25rem] leading-none">
         {value || '--:--'}
@@ -59,9 +67,7 @@ export function TimePill({ value, onChange, label, tone, disabled, className }: 
             /* il browser apre il selettore da solo */
           }
         }}
-        // In linea: la regola globale su input[type=time] (position: relative) vincerebbe sulle classi.
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minHeight: 0 }}
-        className="cursor-pointer opacity-0 disabled:cursor-default"
+        className="absolute inset-0 h-full min-h-0 w-full cursor-pointer opacity-0 disabled:cursor-default"
       />
     </span>
   );
@@ -159,7 +165,7 @@ export function FormRow({ label, icon, iconTone = 'accent', hint, error, htmlFor
         <span
           aria-hidden
           className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-          style={{ background: toneSoft(iconTone, 18), color: toneColor(iconTone) }}
+          style={tileStyle(iconTone)}
         >
           {renderIcon(icon, 17, 2.2)}
         </span>
@@ -441,7 +447,7 @@ export function SelectRow({ checked, onChange, title, subtitle, meta, icon, tone
       className="flex min-h-[60px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors active:bg-ink-soft disabled:opacity-45"
     >
       {icon && (
-        <span aria-hidden className="grid size-[30px] shrink-0 place-items-center rounded-[9px]" style={{ background: toneSoft(tone, 18), color: toneColor(tone) }}>
+        <span aria-hidden className="grid size-[30px] shrink-0 place-items-center rounded-[9px]" style={tileStyle(tone)}>
           {renderIcon(icon, 17, 2.2)}
         </span>
       )}

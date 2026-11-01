@@ -1,7 +1,7 @@
 /**
  * Obiettivi giornalieri: Mifflin-St Jeor × fattore di attività per tipo di giorno.
  * Proteine 1,9 g/kg; grassi ≈ 28% delle kcal del giorno di palestra (costanti nella settimana);
- * carboidrati il resto (periodizzati sul tipo di giorno); fibre 30 g.
+ * carboidrati il resto (periodizzati sul tipo di giorno); fibre 35 g.
  */
 import type { DayType, Goal, MacroTarget, Profile } from '../domain/types';
 
@@ -23,10 +23,11 @@ export const GOAL_DELTA_KCAL: Record<Goal, number> = {
 
 export const PROTEIN_G_PER_KG = 1.9;
 export const FAT_SHARE = 0.28;
-export const FIBER_G = 30;
+/** Fibre: circa 14 g ogni 1.000 kcal (LARN 2014: 12,6-16,7 g/1.000 kcal, almeno 25 g al giorno). */
+export const FIBER_G = 35;
 
 /** Valori di riserva quando il profilo non è compilato. */
-const FALLBACK = { age: 30, heightCm: 178, weightKg: 72 };
+const FALLBACK = { age: 32, heightCm: 178, weightKg: 72 };
 
 export interface BodyInput {
   sex: 'M' | 'F';

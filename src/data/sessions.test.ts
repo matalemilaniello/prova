@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Exercise, SessionExercise, WorkoutSession } from '../domain/types';
-import { EXERCISES, EXERCISE_LIST } from './exercises';
+import { EXERCISES, EXERCISE_LIST, startLoads } from './exercises';
 import { SESSIONS, SESSION_LIST, estimateSessionMin } from './sessions';
 
 // ───────────────────────── Modello di durata ─────────────────────────
@@ -129,6 +129,31 @@ describe('catalogo degli esercizi', () => {
       expect(e.name.toLowerCase(), e.id).toContain('presa neutra');
       expect(e.equipment.toLowerCase(), e.id).not.toMatch(/bilanciere/);
     }
+  });
+
+  it('gli esercizi d’impatto hanno un’alternativa senza volo', () => {
+    const impact = EXERCISE_LIST.filter((e) => e.impact);
+    expect(impact.map((e) => e.id)).toContain('balzi-del-pattinatore');
+    for (const e of impact) {
+      const safe = (e.alternatives ?? []).filter((a) => EXERCISES[a] && !EXERCISES[a].impact);
+      expect(safe.length, e.id).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('i carichi di partenza sono tre, crescenti e solo per esercizi con carico', () => {
+    const errors: string[] = [];
+    for (const e of EXERCISE_LIST) {
+      const s = startLoads(e);
+      if (!s.length) continue;
+      if (s.length !== 3) errors.push(`${e.id}: ${s.length} carichi di partenza`);
+      if (!s.every((v, i) => v > 0 && (i === 0 || v > s[i - 1]))) errors.push(`${e.id}: carichi non crescenti`);
+      if (!incrementRange(e.equipment) && !/manubrio/i.test(e.equipment)) errors.push(`${e.id}: carichi di partenza senza attrezzo (${e.equipment})`);
+    }
+    // Ogni esercizio con progressione doppia nelle sedute ne ha.
+    for (const it of SESSION_LIST.flatMap(allItems)) {
+      if (it.progression === 'doppia' && !startLoads(EXERCISES[it.exerciseId]).length) errors.push(`${it.exerciseId}: mancano i carichi di partenza`);
+    }
+    expect(errors).toEqual([]);
   });
 
   it('copre i contenuti richiesti dalla specifica', () => {

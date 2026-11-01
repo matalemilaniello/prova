@@ -9,6 +9,10 @@ import {
   e1rmHistory,
   elbowFriendlyAlternatives,
   gateForExercise,
+  INTRO_REASON,
+  introItem,
+  introLevel,
+  isImpactExercise,
   lastEntryFor,
   lastLogFor,
   loadAlert,
@@ -20,6 +24,7 @@ import {
   plannedLoadRemaining,
   plannedSessionFor,
   sessionLoad,
+  standingRecords,
   suggestNext,
   weeklyLoad,
   weeklyLoadSeries,
@@ -180,6 +185,49 @@ describe('suggestNext · progressione doppia', () => {
   });
 });
 
+// ───────────────────────── Fase di ingresso ─────────────────────────
+
+describe('fase di ingresso', () => {
+  it('conta le prime 2 esecuzioni di ogni seduta', () => {
+    expect(introLevel('B', [])).toBe(1);
+    const one = [workout('2026-10-23', [], { sessionId: 'B' }), workout('2026-10-20', [], { sessionId: 'A' })];
+    expect(introLevel('B', one)).toBe(2);
+    expect(introLevel('A', one)).toBe(2);
+    const two = [...one, workout('2026-10-30', [], { sessionId: 'B' })];
+    expect(introLevel('B', two)).toBeNull();
+    // La seduta che stai rivedendo non conta.
+    expect(introLevel('B', two, { excludeId: two[2].id })).toBe(2);
+    expect(introLevel('B', two, { before: '2026-10-30' })).toBe(2);
+    // La seduta C è già leggera (RIR 3): niente fase di ingresso.
+    expect(introLevel('C', [])).toBeNull();
+  });
+
+  it('una serie in meno (almeno 1) e una ripetizione di riserva in più', () => {
+    expect(introItem(bench)).toMatchObject({ sets: 2, rir: 3 });
+    const nordic: SessionExercise = { exerciseId: 'nordic-hamstring-curl', sets: 2, repMin: 4, repMax: 6, unit: 'reps', restSec: 120, progression: 'nessuna' };
+    expect(introItem(nordic)).toMatchObject({ sets: 1 });
+    expect(introItem(nordic).rir).toBeUndefined();
+    expect(introItem({ ...nordic, sets: 1 }).sets).toBe(1);
+  });
+
+  it('suggestNext riduce il volume e lo spiega', () => {
+    const s = suggestNext(bench, null, { intro: true });
+    expect(s.sets).toHaveLength(2);
+    expect(s.rir).toBe(3);
+    expect(s.intro).toBe(INTRO_REASON);
+    expect(s.reason).toContain('3 ripetizioni di riserva');
+    // Seconda esecuzione: progressione normale sulle serie ridotte.
+    const second = suggestNext(bench, exLog(bench.exerciseId, [[20, 10], [20, 10]]), { intro: true });
+    expect(second.kind).toBe('aumenta');
+    expect(second.sets).toHaveLength(2);
+    // Dopo la fase di ingresso la dose torna piena e la serie in più non fa saltare il carico.
+    const after = suggestNext(bench, exLog(bench.exerciseId, [[22, 8], [22, 7]]));
+    expect(after.sets.map((x) => x.reps)).toEqual([9, 8, 8]);
+    expect(after.intro).toBeUndefined();
+    expect(after.rir).toBe(2);
+  });
+});
+
 // ───────────────────────── 1RM, record, volume ─────────────────────────
 
 describe('e1rm (Epley) e record personali', () => {
@@ -205,6 +253,14 @@ describe('e1rm (Epley) e record personali', () => {
   it('non conta le sedute successive come storico', () => {
     expect(personalRecords(w1, [w1, w2])).toEqual([]);
     expect(bestE1rm(bench.exerciseId, [w1, w2], { before: '2026-10-27' })).toBeCloseTo(20 * (1 + 8 / 30), 5);
+  });
+
+  it('tiene come record imbattuti solo quelli non superati dopo', () => {
+    const w3 = workout('2026-11-03', [exLog(bench.exerciseId, [[24, 8]]), exLog('lat-machine-presa-neutra', [[50, 8]])]);
+    const all = [w1, w2, w3];
+    expect(personalRecords(w2, all).map((r) => r.exerciseId)).toEqual([bench.exerciseId]);
+    expect(standingRecords(w2, all)).toEqual([]);
+    expect(standingRecords(w3, all).map((r) => r.exerciseId)).toEqual([bench.exerciseId]);
   });
 
   it('ricostruisce la serie storica del 1RM stimato', () => {
@@ -388,6 +444,71 @@ describe('painGate', () => {
         expect(ex.alternatives).toContain(alt.id);
       }
     }
+  });
+
+  it('il dolore registrato a fine seduta frena la seduta dopo (entro 2 giorni)', () => {
+    const logs = [workout('2026-10-31', [], { pain: { Gomito: 5, Tibia: 1 } })];
+    const g = painGate({ ...make([ci('2026-11-02', { Gomito: 2, Tibia: 1 })]), workoutLogs: logs }, '2026-11-02');
+    expect(g.level).toBe('mantieni');
+    expect(g.flagged[0]).toMatchObject({ site: 'Gomito', cause: 'seduta', sessionValue: 5, value: 2 });
+    expect(g.title).toBe("Gomito a 5 su 10 nell'ultima seduta");
+    expect(g.elbow).toBe(true);
+    // Dopo 3 giorni non conta più.
+    expect(painGate({ ...make([ci('2026-11-03', { Gomito: 2 })]), workoutLogs: logs }, '2026-11-03').level).toBe('ok');
+    // Senza controllo del mattino basta il dolore della seduta.
+    expect(painGate({ ...make([]), workoutLogs: logs }, '2026-11-01').level).toBe('mantieni');
+  });
+
+  it('il mattino dopo il calcio il dolore non deve salire', () => {
+    // Lunedì 2 novembre partita (dal piano), martedì mattina la tibia sale da 1 a 2.
+    const g = painGate(make([ci('2026-11-02', { Tibia: 1, Gomito: 1 }), ci('2026-11-03', { Tibia: 2, Gomito: 2 })]), '2026-11-03');
+    expect(g.level).toBe('mantieni');
+    const tibia = g.sites.find((s) => s.site === 'Tibia');
+    expect(tibia).toMatchObject({ cause: 'giorno-dopo', before: 1, after: 'calcio', noImpact: true });
+    expect(g.title).toBe('Tibia da 1 a 2 dopo il calcio');
+    expect(g.message).toContain('Il giorno dopo il dolore non deve salire');
+    // Il gomito (tendine) da 1 a 2 conta; da 0 a 1 no.
+    expect(g.sites.find((s) => s.site === 'Gomito')?.cause).toBe('giorno-dopo');
+    const light = painGate(make([ci('2026-11-02', { Gomito: 0 }), ci('2026-11-03', { Gomito: 1 })]), '2026-11-03');
+    expect(light.level).toBe('ok');
+    // Senza attività il giorno prima non si confronta (domenica di riposo).
+    expect(painGate(make([ci('2026-11-01', { Tibia: 1 }), ci('2026-11-02', { Tibia: 2 })]), '2026-11-02').level).toBe('ok');
+  });
+
+  it('dopo una seduta registrata vale lo stesso confronto', () => {
+    const logs = [workout('2026-11-06', [], { sessionId: 'B', pain: {} })];
+    const g = painGate({ ...make([ci('2026-11-06', { Tibia: 0 }), ci('2026-11-07', { Tibia: 1 })]), workoutLogs: logs }, '2026-11-07');
+    expect(g.flagged[0]).toMatchObject({ site: 'Tibia', cause: 'giorno-dopo', after: 'seduta' });
+  });
+
+  it('sotto il ginocchio gli impatti hanno una soglia più bassa', () => {
+    // Tibia a 3 con soglia 3: i carichi restano, gli impatti no.
+    const g = painGate(make([ci('2026-11-06', { Tibia: 3 })]), '2026-11-06');
+    expect(g.level).toBe('ok');
+    expect(g.impact).toBe(true);
+    expect(g.impactSite).toBe('Tibia');
+    expect(g.title).toBe('Tibia a 3 su 10: niente impatti oggi');
+    expect(gateForExercise(EXERCISES['affondo-bulgaro-manubri'], g)).toBe('ok');
+    const flag = painFlagFor(EXERCISES['balzi-del-pattinatore'], g);
+    expect(flag).toMatchObject({ reason: 'Tibia sopra soglia: niente impatti oggi', kind: 'impatto' });
+    expect(flag!.alternatives[0]).toBe('passi-laterali-elastico');
+    expect(flag!.alternatives.every((id) => !isImpactExercise(EXERCISES[id]))).toBe(true);
+    // A 2 su 10 i balzi vanno bene.
+    expect(painGate(make([ci('2026-11-06', { Tibia: 2 })]), '2026-11-06').impact).toBe(false);
+    // Il gomito non ha la soglia ridotta.
+    expect(painGate(make([ci('2026-11-06', { Gomito: 3 })]), '2026-11-06').impact).toBe(false);
+  });
+
+  it('con la tibia alta segnala i balzi e non solo il gomito', () => {
+    const g = painGate(make([ci('2026-11-06', { Tibia: 8 })]), '2026-11-06');
+    expect(g.level).toBe('riduci');
+    expect(g.impact).toBe(true);
+    expect(g.message).toContain('Niente balzi e salti');
+    expect(painFlagFor(EXERCISES['balzi-del-pattinatore'], g)?.reason).toBe('Tibia sopra soglia: niente impatti oggi');
+    expect(painFlagFor(EXERCISES['stacco-trap-bar'], g)).toBeNull();
+    expect(isImpactExercise(EXERCISES['squat-con-sollevamento-punte'])).toBe(false);
+    // Esercizi senza segnalazione (es. del fisioterapista) riconosciuti dal nome.
+    expect(isImpactExercise({ id: 'x', name: 'Saltelli sul posto', category: 'fisio', equipment: 'Corpo libero', cues: [] })).toBe(true);
   });
 
   it('frena solo gli esercizi che caricano la zona dolente', () => {

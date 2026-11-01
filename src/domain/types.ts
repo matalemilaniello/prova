@@ -117,6 +117,8 @@ export interface Plan {
   startDate: ISODate;
   /** Soglia di dolore (0-10) oltre la quale l'app frena il carico. */
   painThreshold: number;
+  /** Primo avvio dopo il benvenuto: le voci prima di quest'ora non contano e la prima settimana parte da qui. */
+  firstUse?: { date: ISODate; time: HHMM };
 }
 
 // ───────────────────────── Alimentazione ─────────────────────────
@@ -376,6 +378,8 @@ export interface WeeklyReview {
   note?: string;
   /** Proposte mostrate al salvataggio: la revisione si rilegge com'era, anche dopo che il piano è cambiato. */
   proposals?: Proposal[];
+  /** Scalino della settimana scelto nella revisione: vale la settimana dopo e Oggi ne mostra il conteggio. */
+  step?: { id: 'frutta-spuntino' | 'verdura-cena' | 'acqua' | 'dolci' | 'caffe'; title: string };
 }
 
 export interface Proposal {

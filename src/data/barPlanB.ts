@@ -37,14 +37,14 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'insalatona',
     name: 'Insalatona con tonno o pollo e uovo',
     verdict: 'si',
-    why: 'Verdure e proteine nello stesso piatto. Prendi anche il pane: con la sola insalata arrivi a cena affamato.',
+    why: 'Verdure e proteine nello stesso piatto. Prendi anche il pane: con la sola insalata la fame torna presto.',
     approx: { kcal: 430, proteinG: 30, carbG: 12, fatG: 28, fiberG: 5 },
   },
   {
     id: 'pasta-pomodoro',
     name: 'Piatto di pasta al pomodoro',
     verdict: 'si',
-    why: 'Carboidrati semplici da digerire, ideali nei giorni di calcio. Aggiungi una proteina: tonno, uovo o formaggio.',
+    why: 'Amido facile da digerire, ideale nei giorni di calcio. Aggiungi una proteina: tonno, uovo o formaggio.',
     approx: { kcal: 510, proteinG: 16, carbG: 81, fatG: 12.5, fiberG: 5 },
   },
   {
@@ -58,7 +58,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'macedonia',
     name: 'Macedonia o frutto fresco',
     verdict: 'si',
-    why: 'Una porzione di frutta in più verso le cinque del giorno. Senza zucchero e senza panna.',
+    why: 'Una porzione in più verso le cinque porzioni di frutta e verdura del giorno. Senza zucchero e senza panna.',
     approx: { kcal: 105, proteinG: 1.5, carbG: 22, fatG: 0.4, fiberG: 4 },
   },
   {
@@ -72,7 +72,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'spremuta',
     name: "Spremuta d'arancia",
     verdict: 'si',
-    why: 'La bevanda migliore del bar: vitamina C e nessuno zucchero aggiunto. Il frutto intero sazia di più.',
+    why: 'Vitamina C e nessuno zucchero aggiunto, ma senza la fibra del frutto: un bicchiere basta, e quando puoi scegli il frutto intero.',
     approx: { kcal: 88, proteinG: 1.4, carbG: 19, fatG: 0.4, fiberG: 0.4 },
   },
   {
@@ -86,7 +86,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'caffe',
     name: 'Caffè espresso',
     verdict: 'si',
-    why: 'Praticamente zero calorie. Dopo le 16 scegli il decaffeinato: la caffeina disturba il sonno per ore.',
+    why: 'Praticamente zero calorie. Dopo le 14 scegli il decaffeinato: la caffeina disturba il sonno per ore.',
     approx: { kcal: 2, proteinG: 0.1, carbG: 0.3, fatG: 0, fiberG: 0 },
   },
 

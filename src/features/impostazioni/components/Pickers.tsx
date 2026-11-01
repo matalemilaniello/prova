@@ -163,7 +163,7 @@ export function ThemePicker({ value, onChange }: { value: ThemePref; onChange: (
             </span>
             <span
               aria-hidden
-              className={cn('grid size-[22px] place-items-center rounded-full transition-colors duration-200', on ? 'bg-accent text-on-accent' : 'shadow-[inset_0_0_0_1.5px_var(--line-strong)]')}
+              className={cn('mt-auto grid size-[22px] place-items-center rounded-full transition-colors duration-200', on ? 'bg-accent text-on-accent' : 'shadow-[inset_0_0_0_1.5px_var(--line-strong)]')}
             >
               {on && <Check size={14} strokeWidth={3.2} />}
             </span>

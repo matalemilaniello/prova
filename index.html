@@ -26,6 +26,7 @@
         } catch (e) {}
         try {
           var q = new URLSearchParams(location.search).get('theme');
+          q = q === 'dark' ? 'scuro' : q === 'light' ? 'chiaro' : q;
           if (q === 'scuro' || q === 'chiaro') pref = q;
         } catch (e) {}
         var light = pref === 'chiaro' || (pref === 'sistema' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);

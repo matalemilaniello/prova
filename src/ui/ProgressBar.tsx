@@ -38,7 +38,7 @@ export function ProgressBar({ value, tone = 'accent', size = 'sm', label, marker
         {Array.from({ length: segments }, (_, i) => {
           const part = Math.max(0, Math.min(1, filled - i));
           return (
-            <span key={i} className={cn('relative flex-1 overflow-hidden rounded-full bg-ink-soft', H[size])}>
+            <span key={i} className={cn('relative flex-1 overflow-hidden rounded-full bg-[var(--ring-track)]', H[size])}>
               <motion.span
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{ background: color }}
@@ -55,7 +55,7 @@ export function ProgressBar({ value, tone = 'accent', size = 'sm', label, marker
 
   return (
     <div
-      className={cn('relative w-full overflow-hidden rounded-full bg-ink-soft', H[size], className)}
+      className={cn('relative w-full overflow-hidden rounded-full bg-[var(--ring-track)]', H[size], className)}
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}

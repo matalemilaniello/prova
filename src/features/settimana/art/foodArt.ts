@@ -71,6 +71,7 @@ export const FOOD_ART: Record<string, FoodArt> = {
   'pasta-lenticchie': A('pasta', 'base', '#E39A5E', '#C9783F'),
   farro: A('grain', 'base', '#C8A26F', '#A88350'),
   orzo: A('grain', 'base', '#D9C190', '#BEA36F'),
+  couscous: A('grain', 'base', '#E6CC92', '#CDAE6F'),
   'couscous-integrale': A('grain', 'base', '#D1AB70', '#B48D52'),
   'pane-integrale': A('bread', 'bread', '#8C5E36', '#C29464'),
   'pane-bianco': A('bread', 'bread', '#B98144', '#EBD7AE'),

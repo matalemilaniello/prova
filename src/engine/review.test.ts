@@ -7,7 +7,13 @@ import { mealsForDate } from './menu';
 import { recipeNutrition } from './nutrition';
 import {
   acceptable,
+  creatineLoading,
   dayIntake,
+  proposeWeeklyStep,
+  reviewStart,
+  STEP_ITEM_ID,
+  stepProgress,
+  weeklyStepStatus,
   isReviewDay,
   kcalCorrection,
   loadingSince,
@@ -161,13 +167,38 @@ describe('calorie e peso', () => {
     expect(p.reason).toMatch(/69,5\skg/);
   });
 
-  it('ricomposizione: aumento oltre lo 0,5% → −100 kcal', () => {
-    const d = base();
+  it('ricomposizione: aumento oltre lo 0,5% → −100 kcal (dopo le prime settimane di creatina)', () => {
+    const d = base('2026-10-05');
     weighIns(d, W1, [70.0, 70.0, 70.0, null, null, null, null]);
     weighIns(d, W2, [70.5, 70.4, 70.5, 70.4, null, null, null]);
     const p = byId(proposals(W2, d), 'calorie')!;
     expect(p.apply).toEqual({ type: 'kcalDelta', value: -100 });
     expect(p.title).toBe('−100 kcal al giorno');
+  });
+
+  it('creatina nelle prime 4 settimane: il peso in salita è acqua, calorie invariate', () => {
+    const d = base();
+    expect(creatineLoading(W2, d.plan)).toBe(true);
+    weighIns(d, W1, [70.0, 70.0, 70.0, null, null, null, null]);
+    weighIns(d, W2, [70.5, 70.4, 70.5, 70.4, null, null, null]);
+    const p = byId(proposals(W2, d), 'calorie')!;
+    expect(p.apply).toBeUndefined();
+    expect(p.title).toBe('Calorie invariate');
+    expect(p.reason).toContain('creatina');
+    expect(p.reason).toContain('acqua');
+    expect(p.reason).toContain('ricontrolliamo tra una settimana');
+    // Senza creatina attiva la correzione torna.
+    d.plan.supplements = d.plan.supplements.map((x) => (x.id === 'creatina' ? { ...x, active: false } : x));
+    expect(creatineLoading(W2, d.plan)).toBe(false);
+    expect(byId(proposals(W2, d), 'calorie')!.apply).toEqual({ type: 'kcalDelta', value: -100 });
+  });
+
+  it('creatina: un calo resta un calo, la regola vale solo per il peso in salita', () => {
+    const d = base();
+    weighIns(d, W1, [70.0, 70.1, 69.9, 70.0, null, null, null]);
+    weighIns(d, W2, [69.5, 69.6, 69.4, null, 69.5, null, null]);
+    expect(byId(proposals(W2, d), 'calorie')!.apply).toEqual({ type: 'kcalDelta', value: 150 });
+    expect(creatineLoading('2026-11-30', d.plan)).toBe(false);
   });
 
   it('ricomposizione: peso stabile → calorie invariate, proposta informativa', () => {
@@ -458,6 +489,138 @@ describe('proposte e revisioni', () => {
         expect(p.title.length).toBeGreaterThan(4);
         expect(p.reason).not.toMatch(/NaN|undefined|—/);
       }
+    }
+  });
+});
+
+describe('prima settimana', () => {
+  // Benvenuto mercoledì 4 novembre alle 15:30: il piano parte lunedì 2.
+  const WED = addDays(W1, 2);
+  function firstWeek(): AppData {
+    const d = base();
+    (d.plan as AppData['plan'] & { firstUse?: { date: string; time: string } }).firstUse = { date: WED, time: '15:30' };
+    return d;
+  }
+
+  it('i giorni prima del primo avvio non contano', () => {
+    const d = firstWeek();
+    expect(reviewStart(d)).toBe(WED);
+    const s = weekStats(W1, d, { today: addDays(W1, 6) });
+    // Mercoledì, giovedì, venerdì e sabato chiusi; domenica è oggi.
+    expect(s.adherenceDays).toBe(4);
+    expect(s.countedNights).toBe(5);
+    expect(s.firstWeek).toBe(true);
+    expect(s.daysWithRitmo).toBe(5);
+  });
+
+  it('notti in orario con lo stesso denominatore nelle card e nella proposta', () => {
+    const d = firstWeek();
+    bedtimes(d, W1, [null, null, null, '00:40', '01:30', null, null]);
+    const s = weekStats(W1, d, { today: addDays(W1, 6) });
+    expect(s.nightsWithBedtime).toBe(2);
+    expect(s.nightsOnTarget).toBe(1);
+    const p = byId(proposals(W1, d, { today: addDays(W1, 6) }), 'sonno')!;
+    expect(p.reason).toContain('1 notte su 5');
+    expect(p.reason).toContain('Prima settimana');
+    expect(p.reason).not.toContain('su 7');
+  });
+
+  it('senza primo avvio salvato conta dal primo giorno con qualcosa di segnato', () => {
+    const d = base();
+    const thu = addDays(W1, 3);
+    d.dayLogs[thu] = { date: thu, status: { 'pasto:pranzo': 'fatto' }, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} };
+    expect(reviewStart(d)).toBe(thu);
+    const s = weekStats(W1, d, { today: addDays(W1, 6) });
+    expect(s.adherenceDays).toBe(3);
+    expect(s.itemsMarked).toBe(1);
+  });
+
+  it('dalla seconda settimana contano tutti i giorni', () => {
+    const d = firstWeek();
+    const s = weekStats(W2, d);
+    expect(s.firstWeek).toBe(false);
+    expect(s.adherenceDays).toBe(7);
+    expect(s.countedNights).toBe(7);
+  });
+});
+
+describe('scalino della settimana', () => {
+  function log(d: AppData, date: ISODate, patch: Partial<AppData['dayLogs'][string]>) {
+    const empty = { date, status: {}, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} };
+    d.dayLogs[date] = { ...empty, ...d.dayLogs[date], ...patch };
+  }
+
+  it('sceglie il punto più debole: poca acqua', () => {
+    const d = base();
+    weekDates(W2).forEach((date) => log(d, date, { waterGlasses: 3 }));
+    const s = proposeWeeklyStep(W2, d);
+    expect(s.suggested.id).toBe('acqua');
+    expect(s.suggested.reason).toContain('In media 3 bicchieri');
+    expect(s.options).toHaveLength(5);
+    expect(new Set(s.options.map((o) => o.id)).size).toBe(5);
+  });
+
+  it('dolci oltre il previsto: niente dolci fuori programma', () => {
+    const d = base();
+    weekDates(W2).forEach((date) => log(d, date, { waterGlasses: 9, sweets: 1 }));
+    expect(proposeWeeklyStep(W2, d).suggested.id).toBe('dolci');
+  });
+
+  it('cene fuori menù: verdura a ogni cena', () => {
+    const d = base();
+    weekDates(W2).forEach((date, i) =>
+      log(d, date, { waterGlasses: 9, status: { 'pasto:colazione': 'fatto', 'pasto:spuntino': 'fatto', 'pasto:pranzo': 'fatto', 'pasto:merenda': 'fatto', 'pasto:cena': i % 2 ? 'fatto' : 'sostituito' } }),
+    );
+    expect(proposeWeeklyStep(W2, d).suggested.id).toBe('verdura-cena');
+  });
+
+  it('si salva nella revisione e vale la settimana dopo: Oggi conta i giorni', () => {
+    const d = base();
+    d.reviews = [{ weekStart: W1, votes: { energia: 7, digestione: 7, umore: 7, campo: 7 }, acceptedProposals: [], step: { id: 'frutta-spuntino', title: 'Un frutto allo spuntino' } } as AppData['reviews'][number]];
+    log(d, W2, { status: { [STEP_ITEM_ID]: 'fatto' } });
+    log(d, addDays(W2, 1), { status: { [STEP_ITEM_ID]: 'fatto' } });
+    const st = weeklyStepStatus(addDays(W2, 2), d)!;
+    expect(st.step.id).toBe('frutta-spuntino');
+    expect(st.manual).toBe(true);
+    expect(st.done).toBe(2);
+    expect(st.todayState).toBe('in-corso');
+    expect(st.days.map((x) => x.state)).toEqual(['fatto', 'fatto', 'in-corso', 'futuro', 'futuro', 'futuro', 'futuro']);
+    // La voce dello scalino non conta nell'aderenza né tra le voci segnate.
+    expect(weekStats(W2, d, { today: addDays(W2, 2) }).itemsMarked).toBe(0);
+    expect(weeklyStepStatus(addDays(W1, 3), d)).toBeNull();
+  });
+
+  it('acqua e dolci si contano dal diario', () => {
+    const d = base();
+    log(d, W2, { waterGlasses: 8 });
+    log(d, addDays(W2, 1), { waterGlasses: 5 });
+    const water = stepProgress('acqua', W2, d, addDays(W2, 2));
+    expect(water.days.slice(0, 3).map((x) => x.state)).toEqual(['fatto', 'mancato', 'in-corso']);
+    weekDates(W2).forEach((date) => log(d, date, { sweets: 1 }));
+    const sweets = stepProgress('dolci', W2, d, addDays(W2, 6));
+    // 3 previsti: lunedì, martedì e mercoledì vanno bene, poi sono fuori programma.
+    expect(sweets.days.map((x) => x.state)).toEqual(['fatto', 'fatto', 'fatto', 'mancato', 'mancato', 'mancato', 'mancato']);
+  });
+
+  it('scalino non riuscito: si ripete; riuscito: si sale al prossimo', () => {
+    const d = base();
+    d.reviews = [{ weekStart: W1, votes: { energia: 7, digestione: 7, umore: 7, campo: 7 }, acceptedProposals: [], step: { id: 'acqua', title: '' } } as AppData['reviews'][number]];
+    weekDates(W2).forEach((date, i) => log(d, date, { waterGlasses: i < 3 ? 8 : 4 }));
+    const again = proposeWeeklyStep(W2, d);
+    expect(again.previous).toMatchObject({ id: 'acqua', done: 3, consolidated: false });
+    expect(again.suggested.id).toBe('acqua');
+    expect(again.suggested.reason).toContain('3 giorni su 7');
+
+    weekDates(W2).forEach((date) => log(d, date, { waterGlasses: 8 }));
+    const next = proposeWeeklyStep(W2, d);
+    expect(next.previous?.consolidated).toBe(true);
+    expect(next.suggested.id).not.toBe('acqua');
+  });
+
+  it('i testi non hanno trattini lunghi né valori mancanti', () => {
+    const s = proposeWeeklyStep(reviewWeekFor('2026-11-01'), buildDemo('2026-11-01'), { today: '2026-11-01' });
+    for (const o of s.options) {
+      expect(o.title + o.reason).not.toMatch(/—|NaN|undefined/);
     }
   });
 });

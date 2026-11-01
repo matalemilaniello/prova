@@ -5,8 +5,9 @@
  */
 import type { AppData, HHMM, ISODate } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekStart as weekStartOf } from '../../engine/dates';
+import { reviewStart } from '../../engine/review';
 import { checkInSleepHours } from '../../engine/sleep';
-import { adherenceSummary, isSuccessful } from '../../engine/timeline';
+import { adherenceSummary, isSuccessful, streakInfo } from '../../engine/timeline';
 import { firstLoggedDate, loadStatus, plannedLoadRemaining, weekLoadEntries } from '../../engine/training';
 
 export type SeriesState = Pick<AppData, 'plan' | 'dayLogs' | 'checkIns' | 'workoutLogs' | 'footballLogs' | 'profile'> &
@@ -123,6 +124,8 @@ export interface CalendarDay {
   score: number;
   minimal: boolean;
   today: boolean;
+  /** Giornata non riuscita salvata da un jolly: la serie non si è spezzata. */
+  jolly?: boolean;
 }
 
 /**
@@ -132,15 +135,44 @@ export interface CalendarDay {
 export function successCalendar(state: SeriesState, today: ISODate, weeks = 12): CalendarDay[] {
   const end = addDays(weekStartOf(today), 6);
   const start = addDays(weekStartOf(today), -7 * (weeks - 1));
-  const planStart = state.plan.startDate;
+  const first = reviewStart(state);
+  const jolly = new Set(streakInfo(state, today).jollyDays);
   return dateRange(start, end).map((date) => {
-    if (date > today) return { date, kind: 'futuro', score: 0, minimal: false, today: false };
-    if (planStart && date < planStart) return { date, kind: 'fuori', score: 0, minimal: false, today: false };
-    const s = adherenceSummary(date, state);
-    const ok = isSuccessful(s);
-    const marked = s.done + s.replaced + s.skipped > 0;
-    const kind: CalendarKind = ok ? 'riuscita' : marked && s.score > 0 ? 'parziale' : 'vuota';
-    return { date, kind, score: s.score, minimal: s.minimal, today: date === today };
+    const d = calendarDay(date, state, today, first);
+    return jolly.has(date) && d.kind !== 'riuscita' && d.kind !== 'fuori' ? { ...d, jolly: true } : d;
+  });
+}
+
+/**
+ * Un giorno del calendario. Prima del primo giorno con Ritmo (primo avvio, o primo giorno segnato) è
+ * "fuori": chi comincia il mercoledì non ha lunedì e martedì vuoti.
+ */
+export function calendarDay(date: ISODate, state: SeriesState, today: ISODate, first: ISODate | null = reviewStart(state)): CalendarDay {
+  if (date > today) return { date, kind: 'futuro', score: 0, minimal: false, today: false };
+  if (first && date < first) return { date, kind: 'fuori', score: 0, minimal: false, today: false };
+  const s = adherenceSummary(date, state);
+  // Nessuna voce che conta (tutte prima del primo avvio): senza dati, non "non riuscita".
+  if (s.total === 0) return { date, kind: 'fuori', score: 0, minimal: false, today: date === today };
+  const ok = isSuccessful(s);
+  const marked = s.done + s.replaced + s.skipped > 0;
+  const kind: CalendarKind = ok ? 'riuscita' : marked && s.score > 0 ? 'parziale' : 'vuota';
+  return { date, kind, score: s.score, minimal: s.minimal, today: date === today };
+}
+
+/** Settimane del calendario: dalla settimana del primo giorno con Ritmo, al massimo `max`. */
+export function calendarWeeks(state: SeriesState, today: ISODate, max = 12): number {
+  const first = reviewStart(state);
+  if (!first || first > today) return 1;
+  const weeks = Math.floor(daysBetween(weekStartOf(first), weekStartOf(today)) / 7) + 1;
+  return Math.max(1, Math.min(max, weeks));
+}
+
+/** Valori giornalieri di una settimana per le piccole linee del referto (null = nessun dato). */
+export function weekDaily(state: Pick<AppData, 'checkIns'>, weekStart: ISODate, pick: (c: AppData['checkIns'][string]) => number | undefined): (number | null)[] {
+  return dateRange(weekStart, addDays(weekStart, 6)).map((d) => {
+    const c = state.checkIns[d];
+    const v = c ? pick(c) : undefined;
+    return isNum(v) ? v : null;
   });
 }
 
@@ -159,12 +191,13 @@ export function calendarSummary(days: CalendarDay[]): CalendarSummary {
   const closed = inPlan.filter((d) => !d.today || d.kind === 'riuscita');
   let best = 0;
   let run = 0;
+  // Come in Oggi: una giornata salvata da un jolly non si somma ma non spezza la serie.
   for (const d of closed) {
-    run = d.kind === 'riuscita' ? run + 1 : 0;
+    run = d.kind === 'riuscita' ? run + 1 : d.jolly ? run : 0;
     best = Math.max(best, run);
   }
   let streak = 0;
-  for (let i = closed.length - 1; i >= 0 && closed[i].kind === 'riuscita'; i--) streak++;
+  for (let i = closed.length - 1; i >= 0 && (closed[i].kind === 'riuscita' || closed[i].jolly); i--) if (closed[i].kind === 'riuscita') streak++;
   return { successful: closed.filter((d) => d.kind === 'riuscita').length, counted: closed.length, streak, best };
 }
 

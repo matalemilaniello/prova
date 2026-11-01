@@ -6,7 +6,7 @@ import type { AppData, Exercise, ISODate, Plan, SessionExercise, WorkoutLog, Wor
 import { EXERCISES } from '../../data/exercises';
 import { estimateItemSec } from '../../data/sessions';
 import { weekdayOf } from '../../engine/dates';
-import { personalRecords, type PersonalRecord } from '../../engine/training';
+import { introItem, noImpactAlternatives, painFlagFor, personalRecords, standingRecords, type PainGate, type PersonalRecord } from '../../engine/training';
 import { fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
 
 export const PHYSIO_BLOCK_TITLE = 'Dal fisioterapista';
@@ -19,9 +19,16 @@ export interface PlayerItem {
   /** Posizione dentro il blocco (0…) e numero di esercizi del blocco. */
   indexInBlock: number;
   blockSize: number;
+  /** Dose di oggi (ridotta nella fase di ingresso). */
   item: SessionExercise;
+  /** Dose della seduta, prima della fase di ingresso: è quella da passare a suggestNext con `intro`. */
+  base: SessionExercise;
   /** Esercizio previsto (prima di eventuali sostituzioni). */
   exercise: Exercise | undefined;
+  /** Esercizio della seduta sostituito in automatico dalla regola del dolore (es. i balzi con la tibia alta). */
+  replacedFrom?: string;
+  /** Perché è stato sostituito. */
+  replacedReason?: string;
   physio: boolean;
   warmup: boolean;
 }
@@ -38,6 +45,15 @@ export interface PlayerPlan {
   physioDay: boolean;
   /** Giorni del fisioterapista nel piano (lun, mer…). */
   physioDays: string[];
+  /** Fase di ingresso: prima o seconda esecuzione della seduta (volume ridotto), null dopo. */
+  intro: 1 | 2 | null;
+}
+
+export interface PlayerPlanOptions {
+  /** Regola del dolore di oggi: con gli impatti bloccati il riscaldamento perde i balzi. */
+  gate?: PainGate;
+  /** Fase di ingresso della seduta (da introLevel). */
+  intro?: 1 | 2 | null;
 }
 
 const WARMUP_RE = /riscaldamento/i;
@@ -55,22 +71,51 @@ export function physioWeekdays(plan: Pick<Plan, 'week'>): string[] {
 /**
  * Piano della seduta per il lettore: i blocchi della seduta più, se ci sono esercizi del fisioterapista,
  * un blocco "Dal fisioterapista" in fondo. Il riscaldamento diventa un'unica lista da spuntare.
+ * Nella fase di ingresso gli esercizi della seduta (non quelli del fisioterapista) hanno una serie in meno
+ * e una ripetizione di riserva in più. Con gli impatti bloccati dalla regola del dolore, gli esercizi
+ * d'impatto del riscaldamento diventano la prima alternativa senza volo.
  */
-export function buildPlayerPlan(session: WorkoutSession, physio: AppData['physio'], plan: Pick<Plan, 'week'>, date: ISODate): PlayerPlan {
+export function buildPlayerPlan(
+  session: WorkoutSession,
+  physio: AppData['physio'],
+  plan: Pick<Plan, 'week'>,
+  date: ISODate,
+  opts: PlayerPlanOptions = {},
+): PlayerPlan {
+  const intro = opts.intro ?? null;
   const blocks: PlayerPlan['blocks'] = session.blocks.map((b, bi) => ({
     title: b.title,
     physio: false,
-    items: b.items.map((it, ii) => ({
-      key: `b${bi}:${ii}`,
-      blockTitle: b.title,
-      blockIndex: bi,
-      indexInBlock: ii,
-      blockSize: b.items.length,
-      item: it,
-      exercise: EXERCISES[it.exerciseId],
-      physio: false,
-      warmup: WARMUP_RE.test(b.title),
-    })),
+    items: b.items.map((it, ii) => {
+      const warmup = WARMUP_RE.test(b.title);
+      let base = it;
+      let exercise = EXERCISES[it.exerciseId];
+      let replacedFrom: string | undefined;
+      let replacedReason: string | undefined;
+      const flag = warmup && opts.gate ? painFlagFor(exercise, opts.gate) : null;
+      if (flag?.kind === 'impatto') {
+        const alt = noImpactAlternatives(exercise)[0];
+        if (alt) {
+          replacedFrom = it.exerciseId;
+          replacedReason = flag.reason;
+          base = { ...it, exerciseId: alt.id, note: undefined };
+          exercise = alt;
+        }
+      }
+      return {
+        key: `b${bi}:${ii}`,
+        blockTitle: b.title,
+        blockIndex: bi,
+        indexInBlock: ii,
+        blockSize: b.items.length,
+        item: intro ? introItem(base) : base,
+        base,
+        exercise,
+        physio: false,
+        warmup,
+        ...(replacedFrom ? { replacedFrom, replacedReason } : {}),
+      };
+    }),
   }));
   const prescriptions = physio.prescriptions.filter((p) => exerciseFor(p.exerciseId, physio));
   if (prescriptions.length) {
@@ -85,6 +130,7 @@ export function buildPlayerPlan(session: WorkoutSession, physio: AppData['physio
         indexInBlock: ii,
         blockSize: prescriptions.length,
         item: p,
+        base: p,
         exercise: exerciseFor(p.exerciseId, physio),
         physio: true,
         warmup: false,
@@ -104,6 +150,7 @@ export function buildPlayerPlan(session: WorkoutSession, physio: AppData['physio
     blocks,
     physioDay: Boolean(day?.physio),
     physioDays: physioWeekdays(plan),
+    intro,
   };
 }
 
@@ -202,7 +249,43 @@ export function sessionTone(sessionId: string, plan: Pick<Plan, 'week'>): 'pales
 /** Categorie che contano per i record personali (niente core, riscaldamento, mobilità ed esercizi del fisio). */
 const RECORD_CATEGORIES = new Set(['spinta', 'tirata', 'gambe', 'prevenzione']);
 
-/** Record personali della seduta sugli esercizi di forza. */
+const isStrength = (id: string, physio?: AppData['physio']) => RECORD_CATEGORIES.has(exerciseFor(id, physio)?.category ?? '');
+
+/** Record personali della seduta sugli esercizi di forza (1RM stimato oltre il migliore precedente). */
 export function strengthRecords(log: WorkoutLog, history: readonly WorkoutLog[], physio?: AppData['physio']): PersonalRecord[] {
-  return personalRecords(log, history).filter((r) => RECORD_CATEGORIES.has(exerciseFor(r.exerciseId, physio)?.category ?? ''));
+  return personalRecords(log, history).filter((r) => isStrength(r.exerciseId, physio));
+}
+
+/**
+ * Il record della seduta da mostrare nello storico: tra i record ancora imbattuti (1RM stimato migliore di
+ * sempre, anche contando le sedute successive), quello con il miglioramento maggiore. Uno solo, così il
+ * trofeo resta raro.
+ */
+export function headlineRecord(log: WorkoutLog, history: readonly WorkoutLog[], physio?: AppData['physio']): PersonalRecord | null {
+  return standingRecords(log, history).find((r) => isStrength(r.exerciseId, physio)) ?? null;
+}
+
+/** Nomi propri che restano maiuscoli nel nome breve. */
+const PROPER_START = /^(Nordic|Copenhagen|Tyler|Pallof)\b/;
+/** Nomi brevi dove il taglio automatico sarebbe ambiguo (due rematori, tre polpacci…). */
+const SHORT_NAME: Record<string, string> = {
+  'rematore-manubrio-una-mano': 'rematore a una mano',
+  'rematore-petto-appoggiato': 'rematore con petto appoggiato',
+  'polpacci-in-piedi-macchina': 'polpacci in piedi',
+  'polpacci-seduto': 'polpacci da seduto',
+  'polpacci-una-gamba-manubrio': 'polpacci su una gamba',
+  'stacco-trap-bar': 'stacco con trap bar',
+  'stacco-rumeno-una-gamba': 'stacco rumeno su una gamba',
+  'distensioni-ai-cavi-presa-neutra': 'distensioni ai cavi',
+  'leg-press': 'leg press',
+};
+
+/**
+ * Nome breve di un esercizio, minuscolo, per le frasi: "Hip thrust con bilanciere" → "hip thrust",
+ * "Panca piana con manubri a presa neutra" → "panca piana", "Pallof press al cavo" → "Pallof press".
+ */
+export function shortName(name: string, id?: string): string {
+  if (id && SHORT_NAME[id]) return SHORT_NAME[id];
+  const cut = name.split(/ (?:con|a presa|al|alla|alle|ai|da|su|sulla|in|a una|a leva|degli|del|dei)(?= |$)/)[0].trim() || name;
+  return PROPER_START.test(cut) ? cut : cut.charAt(0).toLowerCase() + cut.slice(1);
 }

@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { haptic } from '../lib/haptics';
 import { cn } from './cn';
 import { renderIcon, type IconLike } from './icon';
-import { toneColor, type AnyTone } from './tones';
+import { toneColor, toneRing, toneSoft, type AnyTone } from './tones';
 
 export interface ListGroupProps {
   /** Etichetta sopra il gruppo (maiuscoletto). */
@@ -72,7 +72,7 @@ export function ListRow({
         <span
           aria-hidden
           className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-          style={{ background: `color-mix(in srgb, ${toneColor(iconTone)} 18%, transparent)`, color: toneColor(iconTone) }}
+          style={{ background: toneSoft(iconTone, 18), boxShadow: toneRing(iconTone, 22), color: toneColor(iconTone) }}
         >
           {renderIcon(icon, 17, 2.2)}
         </span>

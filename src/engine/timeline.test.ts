@@ -4,7 +4,17 @@ import { defaultAppData, defaultPlan } from '../data/defaults';
 import { addDays } from './dates';
 import {
   adherenceSummary,
+  buildDay,
   buildTimeline,
+  canMarkNow,
+  firstUseOf,
+  isBeforeStart,
+  itemCounts,
+  markableFrom,
+  nextWeekPrep,
+  nightStreak,
+  openItems,
+  physioSetupDue,
   dayAdherence,
   dayMinutes,
   daySuccessful,
@@ -41,15 +51,15 @@ function log(date: ISODate, status: Record<string, ItemStatus>, extra: Partial<D
   return { date, status, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {}, ...extra };
 }
 
-const ids = (items: TimelineItem[]) => items.map((i) => i.id);
+const ids = (items: Pick<TimelineItem, 'id'>[]) => items.map((i) => i.id);
 /** I formattatori usano spazi indivisibili prima delle unità. */
 const sp = (s: string | undefined) => s?.replace(/\u00a0/g, ' ');
-const byId = (items: TimelineItem[], id: string) => items.find((i) => i.id === id);
+const byId = <T extends Pick<TimelineItem, 'id'>>(items: T[], id: string) => items.find((i) => i.id === id);
 
 /** Segna tutte le voci (tranne il letto) con lo stato dato. */
 function markAll(state: TimelineState, date: ISODate, st: ItemStatus, except: string[] = []): Record<string, ItemStatus> {
   const out: Record<string, ItemStatus> = {};
-  for (const it of buildTimeline(date, state)) if (it.kind !== 'letto' && !except.includes(it.id)) out[it.id] = st;
+  for (const it of buildDay(date, state)) if (it.kind !== 'letto' && !except.includes(it.id)) out[it.id] = st;
   return out;
 }
 
@@ -121,21 +131,25 @@ describe('timeline · giorni di calcio', () => {
     expect(merenda?.title).toBe('Merenda pre-partita');
     const cena = byId(items, 'pasto:cena');
     expect(cena?.time).toBe('23:00');
-    expect(cena?.title).toBe('Cena di recupero, leggera e veloce');
+    expect(cena?.title).toBe('Cena di recupero, veloce e digeribile');
     // Ordine: merenda, partita, cena di recupero.
     const order = ids(items);
     expect(order.indexOf('pasto:merenda')).toBeLessThan(order.indexOf('calcio:partita'));
     expect(order.indexOf('calcio:partita')).toBeLessThan(order.indexOf('pasto:cena'));
   });
 
-  it('lunedì e mercoledì ci sono gli esercizi del fisioterapista dopo pranzo', () => {
-    expect(byId(buildTimeline(MON, state), 'fisio')?.time).toBe('15:30');
-    expect(byId(buildTimeline(WED, state), 'fisio')).toBeDefined();
-    expect(byId(buildTimeline(THU, state), 'fisio')).toBeUndefined();
+  it('senza esercizi del fisioterapista inseriti non c\'è nessuna voce da spuntare', () => {
+    const mon = buildTimeline(MON, state);
+    expect(byId(mon, 'fisio')).toBeUndefined();
+    // Controllo, 5 pasti, integratori, partita, coprifuoco: 9 voci che contano.
+    expect(adherenceSummary(MON, state).total).toBe(9);
+    // Al suo posto, una riga di configurazione che non conta, all'orario degli esercizi.
+    expect(physioSetupDue(MON, state)).toBe('15:30');
+    expect(physioSetupDue(WED, state)).toBe('15:30');
+    expect(physioSetupDue(THU, state)).toBeNull();
   });
 
   it('il fisio conta esercizi e minuti quando ci sono', () => {
-    expect(byId(buildTimeline(MON, state), 'fisio')?.detail).toBe('Aggiungi gli esercizi nelle impostazioni');
     const withPhysio = makeState({
       physio: {
         exercises: [],
@@ -146,7 +160,12 @@ describe('timeline · giorni di calcio', () => {
       },
     });
     expect(physioMinutes(withPhysio.physio)).toBeGreaterThanOrEqual(5);
+    expect(byId(buildTimeline(MON, withPhysio), 'fisio')?.time).toBe('15:30');
+    expect(byId(buildTimeline(WED, withPhysio), 'fisio')).toBeDefined();
+    expect(byId(buildTimeline(THU, withPhysio), 'fisio')).toBeUndefined();
     expect(sp(byId(buildTimeline(MON, withPhysio), 'fisio')?.detail)).toMatch(/^2 esercizi · \d+ min$/);
+    expect(physioSetupDue(MON, withPhysio)).toBeNull();
+    expect(adherenceSummary(MON, withPhysio).total).toBe(10);
   });
 
   it('calcetto e allenamento: merenda e cena seguono l\'orario', () => {
@@ -246,14 +265,31 @@ describe('timeline · altri giorni', () => {
     ).toBe('ZMA, omega-3 e DHA');
   });
 
-  it('giornata minima: solo le 4 voci minime', () => {
+  it('giornata minima: le 4 voci minime più la seduta come appuntamento che non conta', () => {
     const s = makeState({ dayLogs: { [TUE]: log(TUE, {}, { minimal: true }) } });
     const items = buildTimeline(TUE, s);
-    expect(items).toHaveLength(4);
-    expect(items.every((i) => i.kind === 'minima')).toBe(true);
-    expect(new Set(ids(items))).toEqual(new Set(['minima:proteine', 'minima:frutto', 'minima:integratori', 'minima:telefono']));
+    const minima = items.filter((i) => i.kind === 'minima');
+    expect(minima).toHaveLength(4);
+    expect(new Set(ids(minima))).toEqual(new Set(['minima:proteine', 'minima:frutto', 'minima:integratori', 'minima:telefono']));
     expect(items.at(-1)?.id).toBe('minima:telefono');
     expect(items[0].id).toBe('minima:proteine');
+    expect(ids(items)).toContain('palestra:A');
+    expect(itemCounts(TUE, byId(items, 'palestra:A')!, s)).toBe(false);
+    expect(adherenceSummary(TUE, s).total).toBe(4);
+  });
+
+  it('giornata minima nel giorno di partita: la partita resta per segnare minuti e RPE, ma non conta', () => {
+    const all = { 'minima:proteine': 'fatto', 'minima:frutto': 'fatto', 'minima:integratori': 'fatto', 'minima:telefono': 'fatto' } as const;
+    const s = makeState({ dayLogs: { [MON]: log(MON, { ...all }, { minimal: true }) } });
+    const items = buildTimeline(MON, s);
+    expect(ids(items)).toContain('calcio:partita');
+    expect(items.some((i) => i.kind === 'pasto')).toBe(false);
+    const sum = adherenceSummary(MON, s);
+    expect(sum.total).toBe(4);
+    expect(daySuccessful(MON, s)).toBe(true);
+    // La partita passata non resta indietro: non conta.
+    const late = overdueItems(items, effectiveStatus(MON, s, items), '23:30', s.plan, (it) => itemCounts(MON, it, s));
+    expect(ids(late)).toEqual([]);
   });
 
   it('dayMinutes: dopo mezzanotte conta come notte della stessa giornata', () => {
@@ -267,7 +303,7 @@ describe('timeline · altri giorni', () => {
 describe('aderenza e giornata riuscita', () => {
   it('fatto 1, sostituito 0,5, saltato e non segnato 0; il letto non conta', () => {
     const base = makeState();
-    const items = buildTimeline(SUN, base);
+    const items = buildDay(SUN, base);
     const counted = items.filter((i) => i.kind !== 'letto');
     const status: Record<string, ItemStatus> = {};
     counted.slice(0, 4).forEach((i) => (status[i.id] = 'fatto'));
@@ -292,7 +328,7 @@ describe('aderenza e giornata riuscita', () => {
 
   it('riuscita con il 70%', () => {
     const s0 = makeState();
-    const items = buildTimeline(SUN, s0).filter((i) => i.kind !== 'letto');
+    const items = buildDay(SUN, s0).filter((i) => i.kind !== 'letto');
     const need = Math.ceil(items.length * 0.7);
     const status: Record<string, ItemStatus> = {};
     items.slice(0, need).forEach((i) => (status[i.id] = 'fatto'));
@@ -359,9 +395,9 @@ describe('serie di giornate riuscite', () => {
     const bad = addDays(today, -4);
     dayLogs[bad] = log(bad, { 'pasto:colazione': 'fatto' });
     const s = makeState({ dayLogs });
-    expect(streakInfo(s, today)).toEqual({ days: 3, includesToday: false });
+    expect(streakInfo(s, today)).toMatchObject({ days: 3, includesToday: false, jolly: 0 });
     dayLogs[today] = success(today);
-    expect(streakInfo(makeState({ dayLogs }), today)).toEqual({ days: 4, includesToday: true });
+    expect(streakInfo(makeState({ dayLogs }), today)).toMatchObject({ days: 4, includesToday: true });
   });
 
   it('la giornata minima completa conta nella serie', () => {
@@ -444,11 +480,215 @@ describe('adesso', () => {
     expect(p?.item.id).toBe('minima:proteine');
     expect(p?.state).toBe('adesso');
     // Dopo il coprifuoco proteine, frutto e integratori non segnati restano indietro.
-    expect(ids(overdueItems(min, { 'minima:telefono': 'fatto' }, '00:30', s.plan))).toEqual(['minima:proteine', 'minima:integratori', 'minima:frutto']);
+    const counts = (it: TimelineItem) => itemCounts(TUE, it, s);
+    expect(ids(overdueItems(min, { 'minima:telefono': 'fatto' }, '00:30', s.plan, counts))).toEqual(['minima:proteine', 'minima:integratori', 'minima:frutto']);
   });
 
   it('minuti al coprifuoco, anche a cavallo della mezzanotte', () => {
     expect(minutesToCurfew(TUE, '22:55', plan)).toBe(80);
     expect(minutesToCurfew(TUE, '00:20', plan)).toBe(-5);
+  });
+});
+
+describe('primo avvio', () => {
+  // Benvenuto completato mercoledì alle 15:30: la mattina non c'era ancora l'app.
+  const withFirst = (patch: Partial<AppData> = {}) => {
+    const s = makeState(patch);
+    return { ...s, plan: { ...s.plan, firstUse: { date: WED, time: '15:30' } } as Plan };
+  };
+
+  it('legge il campo facoltativo e ignora valori non validi', () => {
+    expect(firstUseOf(withFirst().plan)).toEqual({ date: WED, time: '15:30' });
+    expect(firstUseOf(makeState().plan)).toBeNull();
+    expect(firstUseOf({ ...makeState().plan, firstUse: { date: 'ieri', time: '15:30' } } as Plan)).toBeNull();
+  });
+
+  it('le voci prima dell\'inizio non contano e non restano indietro', () => {
+    const s = withFirst();
+    const items = buildDay(WED, s);
+    expect(isBeforeStart(WED, byId(items, 'pasto:colazione')!, s.plan)).toBe(true);
+    expect(isBeforeStart(WED, byId(items, 'pasto:merenda')!, s.plan)).toBe(false);
+    const sum = adherenceSummary(WED, s);
+    // Restano merenda pre-calcetto, calcetto, cena di recupero e coprifuoco.
+    expect(sum.total).toBe(4);
+    const late = overdueItems(items, {}, '15:40', s.plan, (it) => itemCounts(WED, it, s));
+    expect(late).toEqual([]);
+    // Il giorno dopo tutto conta di nuovo.
+    expect(adherenceSummary(THU, s).total).toBe(buildDay(THU, s).filter((i) => i.kind !== 'letto').length);
+  });
+
+  it('i giorni prima del primo avvio non contano nella serie', () => {
+    const s = withFirst();
+    const done = markAll(s, WED, 'fatto');
+    const st = { ...s, dayLogs: { [WED]: log(WED, done) } };
+    expect(daySuccessful(WED, st)).toBe(true);
+    expect(streakInfo(st, THU)).toMatchObject({ days: 1, best: 1 });
+  });
+});
+
+describe('riti del fine settimana', () => {
+  const state = makeState();
+
+  it('sabato la spesa, dopo la seduta C se si sovrappone', () => {
+    const sat = buildDay(SAT, state);
+    const spesa = byId(sat, 'rito:spesa');
+    expect(spesa?.kind).toBe('spesa');
+    // Seduta C alle 11:00 (circa 40 minuti): la spesa slitta a dopo.
+    expect(spesa && dayMinutes(spesa.time, state.plan)).toBeGreaterThan(11 * 60 + 30);
+    expect(buildTimeline(SAT, state).some((i) => i.id === 'rito:spesa')).toBe(false);
+    // Senza seduta resta alle 11:30.
+    const plan: Plan = { ...state.plan, week: state.plan.week.map((d) => (d.weekday === 5 ? { ...d, gymSessionId: undefined } : d)) };
+    expect(byId(buildDay(SAT, makeState({ plan })), 'rito:spesa')?.time).toBe('11:30');
+  });
+
+  it('domenica preparazione che finisce prima della revisione delle 18:00', () => {
+    const sun = buildDay(SUN, state);
+    const prep = byId(sun, 'rito:preparazione');
+    const review = byId(sun, 'rito:revisione');
+    expect(review?.time).toBe('18:00');
+    expect(prep).toBeDefined();
+    expect(sp(prep?.detail)).toMatch(/attività · /);
+    expect(dayMinutes(prep!.time, state.plan)).toBeLessThanOrEqual(17 * 60);
+    const order = ids(sun);
+    expect(order.indexOf('rito:preparazione')).toBeLessThan(order.indexOf('rito:revisione'));
+    expect(order.indexOf('rito:revisione')).toBeLessThan(order.indexOf('pasto:cena'));
+  });
+
+  it('nessun rito negli altri giorni né in giornata minima', () => {
+    expect(buildDay(TUE, state).some((i) => i.id.startsWith('rito:'))).toBe(false);
+    const min = makeState({ dayLogs: { [SUN]: log(SUN, {}, { minimal: true }) } });
+    expect(buildDay(SUN, min).some((i) => i.id.startsWith('rito:'))).toBe(false);
+  });
+
+  it('stato ricavato: revisione salvata e preparazione completa', () => {
+    const sun = buildDay(SUN, state);
+    const review = byId(sun, 'rito:revisione')!;
+    const prep = byId(sun, 'rito:preparazione')!;
+    expect(derivedStatus(SUN, state, review)).toBeUndefined();
+    const reviewed = makeState({
+      reviews: [{ weekStart: '2026-11-09', votes: { energia: 7, digestione: 7, umore: 7, campo: 7 }, acceptedProposals: [] }],
+    });
+    expect(derivedStatus(SUN, reviewed, review)).toBe('fatto');
+    expect(derivedStatus(SUN, state, prep)).toBeUndefined();
+    // Tutte le attività della settimana dopo spuntate (per il lunedì 16).
+    const next = nextWeekPrep(SUN, state.plan);
+    expect(next.weekStart).toBe('2026-11-16');
+    const all = makeState({ prepDone: { [next.weekStart]: next.tasks.map((t) => t.id) } });
+    expect(derivedStatus(SUN, all, prep)).toBe('fatto');
+    const partial = makeState({ prepDone: { [next.weekStart]: next.tasks.slice(1).map((t) => t.id) } });
+    expect(derivedStatus(SUN, partial, prep)).toBeUndefined();
+  });
+
+  it('i riti contano nell\'aderenza del giorno', () => {
+    const sum = adherenceSummary(SUN, state);
+    expect(sum.total).toBe(buildDay(SUN, state).filter((i) => i.kind !== 'letto').length);
+    expect(sum.total).toBeGreaterThan(buildTimeline(SUN, state).filter((i) => i.kind !== 'letto').length);
+  });
+});
+
+describe('coprifuoco onesto', () => {
+  const state = makeState();
+  const items = buildTimeline(TUE, state);
+  const curfew = byId(items, 'coprifuoco')!;
+
+  it('coprifuoco, letto e telefono fuori si segnano da un\'ora prima del coprifuoco', () => {
+    // Coprifuoco alle 00:15: si segna dalle 23:15.
+    expect(markableFrom(TUE, curfew, state.plan)).toBe('23:15');
+    expect(canMarkNow(TUE, curfew, '15:00', state.plan)).toBe(false);
+    expect(canMarkNow(TUE, curfew, '23:14', state.plan)).toBe(false);
+    expect(canMarkNow(TUE, curfew, '23:15', state.plan)).toBe(true);
+    expect(canMarkNow(TUE, curfew, '00:40', state.plan)).toBe(true);
+    expect(canMarkNow(TUE, byId(items, 'letto')!, '20:00', state.plan)).toBe(false);
+    expect(canMarkNow(TUE, { id: 'minima:telefono', kind: 'minima' }, '15:00', state.plan)).toBe(false);
+    expect(canMarkNow(TUE, { id: 'minima:frutto', kind: 'minima' }, '15:00', state.plan)).toBe(true);
+    expect(markableFrom(TUE, byId(items, 'pasto:pranzo')!, state.plan)).toBeNull();
+  });
+
+  it('la sera di ieri si sistema anche il mattino dopo', () => {
+    expect(canMarkNow(TUE, curfew, '08:00', state.plan, WED)).toBe(true);
+  });
+
+  it('voci di ieri ancora aperte', () => {
+    const s = makeState({ dayLogs: { [TUE]: log(TUE, markAll(state, TUE, 'fatto', ['pasto:cena', 'coprifuoco'])) } });
+    expect(ids(openItems(TUE, s))).toEqual(['pasto:cena', 'coprifuoco']);
+  });
+});
+
+describe('serie con jolly', () => {
+  const s0 = makeState();
+  const success = (d: ISODate) => log(d, markAll(s0, d, 'fatto'));
+  const fail = (d: ISODate) => log(d, { 'pasto:colazione': 'fatto' });
+  // Settimana dal 2 all'8 novembre e la successiva dal 9 al 15.
+  const days = (from: ISODate, n: number) => Array.from({ length: n }, (_, i) => addDays(from, i));
+
+  it('5 giornate riuscite in una settimana fanno guadagnare un jolly', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 5)) dayLogs[d] = success(d);
+    const info = streakInfo(makeState({ dayLogs }), '2026-11-07');
+    expect(info).toMatchObject({ days: 5, jolly: 1, jollyDays: [] });
+  });
+
+  it('con 4 giornate riuscite niente jolly: la giornata storta azzera la serie', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 4)) dayLogs[d] = success(d);
+    dayLogs['2026-11-06'] = fail('2026-11-06');
+    const info = streakInfo(makeState({ dayLogs }), '2026-11-07');
+    expect(info).toMatchObject({ days: 0, jolly: 0, best: 4 });
+  });
+
+  it('il jolly salva la serie una volta: il giorno salvato non si somma', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 5)) dayLogs[d] = success(d);
+    dayLogs['2026-11-07'] = fail('2026-11-07');
+    dayLogs['2026-11-08'] = success('2026-11-08');
+    const info = streakInfo(makeState({ dayLogs }), '2026-11-09');
+    expect(info).toMatchObject({ days: 6, jolly: 0, jollyDays: ['2026-11-07'], best: 6 });
+  });
+
+  it('due giornate storte di fila: il secondo giorno senza jolly azzera', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 5)) dayLogs[d] = success(d);
+    dayLogs['2026-11-07'] = fail('2026-11-07');
+    dayLogs['2026-11-08'] = fail('2026-11-08');
+    const info = streakInfo(makeState({ dayLogs }), '2026-11-09');
+    expect(info).toMatchObject({ days: 0, jolly: 0, jollyDays: [], best: 5 });
+  });
+
+  it('al massimo un jolly da parte, anche dopo due settimane piene', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 14)) dayLogs[d] = success(d);
+    const info = streakInfo(makeState({ dayLogs }), '2026-11-16');
+    expect(info).toMatchObject({ days: 14, jolly: 1 });
+  });
+
+  it('oggi in corso non consuma il jolly', () => {
+    const dayLogs: Record<ISODate, DayLog> = {};
+    for (const d of days('2026-11-02', 5)) dayLogs[d] = success(d);
+    dayLogs['2026-11-07'] = fail('2026-11-07');
+    expect(streakInfo(makeState({ dayLogs }), '2026-11-07')).toMatchObject({ days: 5, jolly: 1, includesToday: false });
+  });
+});
+
+describe('notti in orario', () => {
+  const s0 = makeState();
+  const plan = s0.plan; // a letto alle 00:45
+
+  it('conta le notti consecutive dai controlli del mattino; stanotte senza controllo non spezza', () => {
+    const checkIns: Record<ISODate, AppData['checkIns'][string]> = {
+      [TUE]: { date: TUE, pain: {}, bedTime: '00:40' },
+      [WED]: { date: WED, pain: {}, bedTime: '00:55' },
+      [THU]: { date: THU, pain: {}, bedTime: '01:30' },
+    };
+    // Venerdì mattina senza controllo: la notte di giovedì non si sa ancora; quella di mercoledì è tardi.
+    expect(nightStreak(makeState({ checkIns, plan }), '2026-11-13')).toBe(0);
+    const ok = { ...checkIns, [THU]: { date: THU, pain: {}, bedTime: '00:30' } };
+    expect(nightStreak(makeState({ checkIns: ok, plan }), '2026-11-13')).toBe(3);
+  });
+
+  it('vale anche la voce A letto segnata', () => {
+    const dayLogs = { [WED]: log(WED, { letto: 'fatto' }) };
+    expect(nightStreak(makeState({ dayLogs }), THU)).toBe(1);
+    expect(nightStreak(makeState({ dayLogs }), '2026-11-13')).toBe(1);
+    expect(nightStreak(makeState({ dayLogs: { [WED]: log(WED, { letto: 'saltato' }) } }), THU)).toBe(0);
   });
 });

@@ -60,13 +60,16 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
   const [selected, setSelected] = useState<string[]>([]);
   const chipsRef = useRef<HTMLDivElement>(null);
 
-  // Il pasto scelto resta visibile nella fila (la cena è in fondo a destra).
+  // Il pasto scelto sta al centro della fila (la cena è in fondo a destra): all'apertura subito, poi con
+  // uno scorrimento morbido. I bordi della fila sfumano, così un pasto tagliato non sembra un errore.
+  const firstScroll = useRef(true);
   useEffect(() => {
     const row = chipsRef.current;
     const chip = row?.querySelector<HTMLElement>('[aria-checked="true"]');
     if (!row || !chip) return;
     const left = chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2;
-    row.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' });
+    row.scrollTo({ left: Math.max(0, left), behavior: reduce || firstScroll.current ? 'auto' : 'smooth' });
+    firstScroll.current = false;
   }, [slot, reduce]);
 
   const combo = useMemo(() => {
@@ -161,6 +164,10 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
             role="radiogroup"
             aria-label="Per quale pasto"
             className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-0.5 pt-1"
+            style={{
+              maskImage: 'linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent)',
+              WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent)',
+            }}
           >
             {MEAL_SLOTS.map((s) => {
               const active = s === slot;

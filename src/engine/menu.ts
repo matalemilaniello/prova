@@ -5,7 +5,7 @@
 import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Recipe } from '../domain/types';
 import { MENU_ROTATION } from '../data/menu';
 import { RECIPES } from '../data/recipes';
-import { daysBetween, weekdayOf, weekIndexSince } from './dates';
+import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince } from './dates';
 
 /** Ordine dei pasti nella giornata. */
 export const MEAL_SLOTS: MealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
@@ -27,7 +27,15 @@ export interface MealEntry {
 
 export interface DayMeals {
   date: ISODate;
+  /**
+   * Tipo di giorno per le porzioni e gli obiettivi (vedi `effectiveDayType`): uguale a quello del piano,
+   * tranne la vigilia della partita, che mangia come un giorno di calcio.
+   */
   dayType: DayType;
+  /** Tipo di giorno previsto dalla settimana (per etichette e colori). */
+  scheduledDayType: DayType;
+  /** True se domani c'è la partita (le porzioni sono quelle di un giorno di calcio). */
+  matchEve: boolean;
   /** Indice della settimana nella rotazione (0 se la rotazione è vuota). */
   rotationIndex: number;
   /** Pasti in ordine di giornata; mancano gli slot senza ricetta. */
@@ -65,9 +73,32 @@ export function dayTypeFor(iso: ISODate, plan: AppData['plan']): DayType {
   return plan.week.find((d) => d.weekday === wd)?.dayType ?? plan.week[wd]?.dayType ?? 'riposo';
 }
 
+/** True se il giorno dopo `iso` il piano prevede una partita. */
+export function isMatchEve(iso: ISODate, plan: AppData['plan']): boolean {
+  if (!isISODate(iso)) return false;
+  const next = addDays(iso, 1);
+  const wd = weekdayOf(next);
+  const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
+  return day?.football?.kind === 'partita';
+}
+
+/**
+ * Tipo di giorno che decide porzioni e obiettivi. La vigilia della partita mangia come un giorno di calcio
+ * (carboidrati × 1,25, obiettivo del giorno di calcio): il giorno prima della gara servono glicogeno pieno e
+ * più carboidrati, non meno (UEFA expert group statement on nutrition in elite football, 2021: 6-8 g/kg
+ * per i professionisti; per un amatore il carico del giorno di calcio, circa 5,5 g/kg, è il compromesso).
+ * Negli altri giorni coincide con `dayTypeFor`.
+ */
+export function effectiveDayType(iso: ISODate, plan: AppData['plan']): DayType {
+  const planned = dayTypeFor(iso, plan);
+  if (planned !== 'calcio' && isMatchEve(iso, plan)) return 'calcio';
+  return planned;
+}
+
 /** Pasti effettivi della data: ricetta del menù o sostituzione del diario, con il tipo di giorno. */
 export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[] = MENU_ROTATION): DayMeals {
-  const dayType = dayTypeFor(iso, state.plan);
+  const scheduledDayType = dayTypeFor(iso, state.plan);
+  const dayType = effectiveDayType(iso, state.plan);
   const day = menuDayFor(iso, state.plan.startDate, rotation);
   const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
   const meals: MealEntry[] = [];
@@ -87,7 +118,15 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
     meals.push(entry);
     bySlot[slot] = entry;
   }
-  return { date: iso, dayType, rotationIndex: rotationIndexFor(iso, state.plan.startDate, rotation), meals, bySlot };
+  return {
+    date: iso,
+    dayType,
+    scheduledDayType,
+    matchEve: isMatchEve(iso, state.plan),
+    rotationIndex: rotationIndexFor(iso, state.plan.startDate, rotation),
+    meals,
+    bySlot,
+  };
 }
 
 /** Alternative valide per una ricetta (dalle sue `swaps` e dalle ricette dello stesso pasto). */

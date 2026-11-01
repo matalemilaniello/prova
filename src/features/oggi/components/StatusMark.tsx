@@ -1,37 +1,43 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeftRight, Minus } from 'lucide-react';
-import type { ItemStatus, TimelineItem } from '../../../domain/types';
-import { cn, springSnappy, toneColor, toneInk, toneSoft } from '../../../ui';
+import type { DayType, ItemStatus } from '../../../domain/types';
+import type { DayItem } from '../../../engine/timeline';
+import { cn, springSnappy, toneColor, toneInk } from '../../../ui';
 import { itemIcon, itemTone } from '../kinds';
 
 export interface StatusMarkProps {
-  item: TimelineItem;
+  item: DayItem;
+  dayType: DayType;
   status?: ItemStatus;
   /** Diametro in px (default 30). */
   size?: number;
   /** Voce attuale: anello luminoso del suo colore. */
   current?: boolean;
+  /** Voce che non conta (prima del primo avvio): grigia e tratteggiata. */
+  muted?: boolean;
   className?: string;
 }
 
 /**
- * Cerchio della voce: icona del tipo quando è da fare, spunta verde quando è fatta,
- * frecce ambra quando è sostituita, trattino quando è saltata. La spunta si disegna.
+ * Cerchio della voce: icona del tipo su fondo neutro con un filo del suo colore quando è da fare, spunta verde
+ * quando è fatta, frecce quando è sostituita, trattino quando è saltata. La spunta si disegna.
+ * Il colore del tipo resta sul filo e sull'icona: mai come riempimento diluito (l'ambra sul blu diventa grigia).
  */
-export function StatusMark({ item, status, size = 30, current, className }: StatusMarkProps) {
+export function StatusMark({ item, dayType, status, size = 30, current, muted, className }: StatusMarkProps) {
   const reduce = useReducedMotion();
-  const tone = itemTone(item);
+  const tone = muted ? 'neutral' : itemTone(item, dayType);
   const Icon = itemIcon(item);
   const icon = Math.round(size * 0.53);
+  const ring = tone === 'neutral' ? 'var(--line-strong)' : `color-mix(in srgb, ${toneColor(tone)} 62%, transparent)`;
 
   const bg =
     status === 'fatto'
       ? 'var(--good)'
       : status === 'sostituito'
         ? 'var(--warn)'
-        : status === 'saltato'
+        : status === 'saltato' || muted
           ? 'transparent'
-          : toneSoft(tone, 17);
+          : 'var(--card-2)';
 
   return (
     <span
@@ -52,7 +58,15 @@ export function StatusMark({ item, status, size = 30, current, className }: Stat
         initial={false}
         animate={{ backgroundColor: bg, scale: status === 'fatto' && !reduce ? [1, 1.16, 1] : 1 }}
         transition={{ backgroundColor: { duration: 0.18 }, scale: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } }}
-        style={status === 'saltato' ? { boxShadow: 'inset 0 0 0 1.5px var(--line-strong)' } : undefined}
+        style={
+          status === 'saltato'
+            ? { boxShadow: 'inset 0 0 0 1.5px var(--line-strong)' }
+            : !status && muted
+              ? { border: '1.5px dashed var(--line-strong)' }
+              : !status
+                ? { boxShadow: `inset 0 0 0 1px ${ring}` }
+                : undefined
+        }
       />
       <AnimatePresence initial={false} mode="popLayout">
         {status === 'fatto' ? (
@@ -89,7 +103,7 @@ export function StatusMark({ item, status, size = 30, current, className }: Stat
           </motion.span>
         ) : (
           <motion.span key="todo" className="relative" initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} transition={springSnappy}>
-            <Icon size={icon} strokeWidth={2.2} style={{ color: toneInk(tone) }} />
+            <Icon size={icon} strokeWidth={2.2} style={{ color: muted ? 'var(--ink-3)' : toneInk(tone) }} />
           </motion.span>
         )}
       </AnimatePresence>

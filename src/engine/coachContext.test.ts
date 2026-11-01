@@ -91,6 +91,36 @@ describe('contesto', () => {
   });
 });
 
+describe('zone e priorità dal profilo', () => {
+  it('nessuna zona scritta a mano: con il solo ginocchio non si parla di tibia né di gomito', () => {
+    const s = defaultAppData(TODAY);
+    s.profile = { ...s.profile, painSites: ['Ginocchio'] };
+    s.checkIns[TODAY] = { date: TODAY, pain: { Ginocchio: 5 }, weightKg: 70, energy: 6 };
+    const text = `${COACH_SYSTEM_PROMPT}\n${buildCoachContext(s, NOW)}`.toLowerCase();
+    expect(text).not.toContain('tibia');
+    expect(text).not.toContain('gomito');
+    expect(text).toContain('ginocchio');
+  });
+
+  it('le limitazioni arrivano dalle zone monitorate e dal dolore di oggi', () => {
+    const s = defaultAppData(TODAY);
+    s.profile = { ...s.profile, painSites: ['Tibia', 'Gomito'] };
+    s.checkIns[TODAY] = { date: TODAY, pain: { Tibia: 5, Gomito: 5 } };
+    const ctx = buildCoachContext(s, NOW);
+    expect(ctx).toContain('Limitazioni del piano: gomito monitorato: nelle spinte manubri a presa neutra');
+    expect(ctx).toMatch(/tibia: balzi e salti solo con dolore fino a \d su 10/);
+    expect(ctx).toContain('Limitazioni di oggi: niente balzi né salti; spinte solo con manubri a presa neutra.');
+  });
+
+  it('le priorità seguono l’obiettivo', () => {
+    const s = defaultAppData(TODAY);
+    expect(buildCoachContext(s, NOW)).toContain("Priorità, in quest'ordine: salute");
+    s.profile = { ...s.profile, goal: 'dimagrimento' };
+    expect(buildCoachContext(s, NOW)).toContain('calo di grasso graduale');
+    expect(COACH_SYSTEM_PROMPT).not.toContain("un po' di muscolo");
+  });
+});
+
 describe('riassunto per la chat', () => {
   it('riporta tipo di giorno, attività e avanzamento', () => {
     const s = coachDaySummary(demo(), NOW);

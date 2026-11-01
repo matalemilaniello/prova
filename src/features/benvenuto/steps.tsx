@@ -18,7 +18,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
-  Trophy,
+  ArchiveRestore,
 } from 'lucide-react';
 import type { DayType, MacroTarget, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { computeTargets } from '../../engine/targets';
@@ -26,8 +26,9 @@ import { currentDate } from '../../engine/dates';
 import { curfewFor } from '../../engine/sleep';
 import { DAY_TYPE_LABEL, DAY_TYPES, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt, plural } from '../../lib/format';
 import { useNowHHMM, useToday } from '../../state/hooks';
-import { Callout, Card, DayTypeBadge, Field, ListGroup, ListRow, NumberTicker, Segmented, TextInput, cn, staggerItem, toneColor, toneInk, toneSoft } from '../../ui';
-import { ChoiceCards, FormRow, InlineNumber, TimePill } from '../impostazioni/components/controls';
+import { BallIcon, Callout, Card, DayTypeBadge, Field, ListGroup, ListRow, NumberTicker, Segmented, TextInput, cn, staggerItem, toneColor, toneInk, toneSoft } from '../../ui';
+import { ChoiceCards, FormRow, InlineNumber, TimePill, tileStyle } from '../impostazioni/components/controls';
+import { InstallCard } from '../impostazioni/components/InstallCard';
 import { PainSitesPicker } from '../impostazioni/components/Pickers';
 import { SleepStairs } from '../impostazioni/components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../impostazioni/components/SupplementEditor';
@@ -77,19 +78,29 @@ const PRINCIPLES: { icon: typeof Hand; tone: 'accent' | 'good' | 'palestra'; tit
   },
 ];
 
-export function StepWelcome({ plan }: Pick<StepProps, 'plan'>) {
+/** Diametro del quadrante: più piccolo sugli schermi bassi, così i tre principi restano sopra il pulsante. */
+function dialSize(): number {
+  const h = typeof window === 'undefined' ? 900 : window.innerHeight;
+  return h >= 900 ? 264 : h >= 820 ? 200 : 176;
+}
+
+export function StepWelcome({ plan, install, onRestore }: Pick<StepProps, 'plan'> & { install?: boolean; onRestore?: () => void }) {
+  const [size] = useState(dialSize);
   return (
-    <div className="flex flex-col gap-8">
-      <div className="-mt-1 flex justify-center">
-        <DayDial plan={plan} weekday={0} size={264} />
+    <div className="flex flex-col gap-5">
+      <div className="-mt-2 flex justify-center">
+        <DayDial plan={plan} weekday={0} size={size} />
       </div>
       <StepHeader eyebrow="Benvenuto in Ritmo" title="La tua giornata, già decisa">
-        Cosa mangiare, come allenarti intorno al calcio, quando posare il telefono. Tu esegui e segni con un tocco.
+        Pasti, allenamento intorno al calcio, sonno: tu esegui e segni con un tocco.
       </StepHeader>
-      <ul className="flex flex-col gap-4">
+      {install && (
+        <InstallCard compact note="Su iPhone l’app installata non vede i dati scritti in Safari: installala adesso e comincia dall’icona." />
+      )}
+      <ul className="flex flex-col gap-3.5">
         {PRINCIPLES.map((p, i) => (
           <motion.li key={p.title} {...staggerItem(i + 2, 0.08, 0.6)} className="flex gap-3.5">
-            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px]" style={{ background: toneSoft(p.tone, 16), color: toneInk(p.tone) }}>
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px]" style={tileStyle(p.tone)}>
               <p.icon size={20} strokeWidth={2.2} />
             </span>
             <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
@@ -99,10 +110,18 @@ export function StepWelcome({ plan }: Pick<StepProps, 'plan'>) {
           </motion.li>
         ))}
       </ul>
-      <p className="t-footnote flex items-center gap-2 text-ink-3">
-        <Lock size={14} strokeWidth={2.2} aria-hidden className="shrink-0" />
-        Niente account: tutto resta su questo telefono.
-      </p>
+      <div className="flex flex-col items-start gap-1">
+        <p className="t-footnote flex items-center gap-2 text-ink-3">
+          <Lock size={14} strokeWidth={2.2} aria-hidden className="shrink-0" />
+          Niente account: tutto resta su questo telefono.
+        </p>
+        {onRestore && (
+          <button type="button" onClick={onRestore} className="t-footnote hit-44 inline-flex min-h-[44px] items-center gap-2 font-semibold text-accent-ink">
+            <ArchiveRestore size={15} strokeWidth={2.2} aria-hidden className="shrink-0" />
+            Hai già un backup? Ripristinalo
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -172,7 +191,7 @@ export function StepYou({ profile, setProfile, errors, showErrors }: StepProps &
       <EstimateCard targets={targets} />
 
       <Field label="Competenze" optional hint="Il coach adatta il tono: niente spiegazioni da principiante.">
-        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => setProfile({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista" maxLength={80} />
+        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => setProfile({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista, medico dello sport" maxLength={80} />
       </Field>
     </div>
   );
@@ -363,7 +382,7 @@ function ReadyBadge() {
   );
 }
 
-export function StepReady({ profile, plan, targets }: Pick<StepProps, 'profile' | 'plan'> & { targets: Record<DayType, MacroTarget> }) {
+export function StepReady({ profile, plan, targets, install }: Pick<StepProps, 'profile' | 'plan'> & { targets: Record<DayType, MacroTarget>; install?: boolean }) {
   const today = useToday();
   const now = useNowHHMM();
   const next = nextGymSession(plan, today, now);
@@ -392,16 +411,18 @@ export function StepReady({ profile, plan, targets }: Pick<StepProps, 'profile' 
             <motion.div key={t} {...staggerItem(i, 0.06)}>
               <Card padding="md" className="flex h-full flex-col gap-2 overflow-hidden">
                 <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 size-24 rounded-full" style={{ background: `radial-gradient(circle, ${toneSoft(t, 22)}, transparent 70%)` }} />
-                <div className="flex items-center justify-between gap-2">
+                <div className="relative flex items-center justify-between gap-2">
                   <DayTypeBadge dayType={t} variant="dot" />
-                  <span className="t-mono text-[0.6875rem] text-ink-3">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessuno'}</span>
+                  <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessuno'}</span>
                 </div>
-                <div className="flex items-baseline gap-1">
+                <div className="relative flex items-baseline gap-1">
                   <NumberTicker value={targets[t].kcal} duration={0.9} className="t-num text-[2rem] text-ink" />
                   <span className="t-mono text-[0.75rem] text-ink-3">kcal</span>
                 </div>
-                <span className="t-mono text-[0.6875rem] text-ink-2">
-                  P {fmtNumber(targets[t].proteinG)} · C {fmtNumber(targets[t].carbG)} · G {fmtNumber(targets[t].fatG)}
+                <span className="t-mono relative flex flex-wrap gap-x-2 text-[0.6875rem] text-ink-2">
+                  <span className="whitespace-nowrap">P {fmtNumber(targets[t].proteinG)}</span>
+                  <span className="whitespace-nowrap">C {fmtNumber(targets[t].carbG)}</span>
+                  <span className="whitespace-nowrap">G {fmtNumber(targets[t].fatG)}</span>
                 </span>
               </Card>
             </motion.div>
@@ -417,7 +438,7 @@ export function StepReady({ profile, plan, targets }: Pick<StepProps, 'profile' 
           subtitle={next ? `${relativeWeekday(next.inDays, WEEKDAY_LONG[next.weekday])} alle ${next.time}${next.optional ? ', facoltativa' : ''}` : undefined}
           value={next ? next.name : 'Nessuna in programma'}
         />
-        <ListRow icon={Trophy} iconTone="calcio" title="Calcio" value={footballDays.length ? listIt(footballDays) : 'Nessuno'} />
+        <ListRow icon={BallIcon} iconTone="calcio" title="Calcio" value={footballDays.length ? listIt(footballDays) : 'Nessuno'} />
         <ListRow
           icon={Moon}
           iconTone="riposo"
@@ -428,6 +449,10 @@ export function StepReady({ profile, plan, targets }: Pick<StepProps, 'profile' 
         <ListRow icon={PillIcon} iconTone="leggero" title="Integratori" value={active.length ? plural(active.length, 'attivo', 'attivi') : 'Nessuno'} />
         <ListRow icon={Activity} iconTone="bad" title="Zone monitorate" value={profile.painSites.length ? listIt(profile.painSites) : 'Nessuna'} />
       </ListGroup>
+
+      {install && (
+        <InstallCard note="Installata, Ritmo parte da capo: i dati scritti in Safari restano a Safari. Installala adesso e rifai questi passi dall’icona, bastano due minuti." />
+      )}
 
       {!profile.painSites.length && (
         <Callout tone="neutral" title="Nessuna zona di dolore">

@@ -29,19 +29,18 @@ import {
   formatDayLong,
   formatShort,
   formatWeekdayShort,
-  hhmmToMin,
   nowHHMM,
   toISO,
   weekStart,
   weekdayOf,
 } from './dates';
-import { dayTypeFor, mealsForDate } from './menu';
-import { dayNutritionDetail, recipeNutrition } from './nutrition';
-import { weekStats } from './review';
-import { checkInSleepHours, curfewFor } from './sleep';
+import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate } from './menu';
+import { dayCarbScale, dayNutritionDetail, recipeNutrition } from './nutrition';
+import { weeklyStepStatus, weekStats } from './review';
+import { checkInSleepHours, curfewFor, planDayISO } from './sleep';
 import { ageFrom } from './targets';
-import { adherenceSummary, buildTimeline, dayCutoffMin, effectiveStatus } from './timeline';
-import { bestSet, findExercise, loadStatus, nextPlannedSession, painGate } from './training';
+import { adherenceSummary, buildDay, effectiveStatus } from './timeline';
+import { bestSet, findExercise, IMPACT_PAIN_THRESHOLD, loadStatus, nextPlannedSession, painGate } from './training';
 
 // ───────────────────────── Prompt di sistema ─────────────────────────
 
@@ -68,7 +67,7 @@ function barSection(): string {
 export const COACH_SYSTEM_PROMPT = `Sei il coach di Ritmo, un'app personale che decide la giornata dell'utente: cosa mangiare, come allenarsi intorno al calcio, quando posare il telefono e dormire. Sei un allenatore e un nutrizionista sportivo pratico: parli come un professionista competente e calmo, a bordo campo.
 
 Chi hai davanti
-- Un calciatore amatoriale che va anche in palestra: partite e allenamenti di sera, sedute di palestra con un programma, esercizi del fisioterapista. Priorità, in quest'ordine: salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, un po' di muscolo.
+- Un calciatore amatoriale che va anche in palestra: partite e allenamenti di sera, sedute di palestra con un programma, esercizi del fisioterapista. Obiettivo, priorità e zone da monitorare sono nel profilo del contesto: rispetta quell'ordine.
 - Insieme a queste istruzioni ricevi il contesto di Ritmo: profilo, piano, giornata di oggi con lo stato di ogni voce, menù con i valori stimati, controlli del mattino, dolori, sedute e calcio recenti. Usalo: rispondi su questa persona e su questa giornata, non in generale. Se un dato manca, dillo in mezza riga e dai comunque l'indicazione migliore.
 - Se nel profilo ci sono competenze dichiarate (per esempio allenatore o fisioterapista), parla da collega: termini tecnici corretti, niente spiegazioni di base, vai dritto al ragionamento e ai numeri.
 
@@ -83,13 +82,14 @@ Cosa sai fare
 - Al bar: scegli dal piano B qui sotto in base all'ora, al pasto e al tipo di giorno (nei giorni di calcio più carboidrati; prima della partita cibi digeribili e poveri di grassi e fibre).
 - Foto del piatto: stima porzioni e valori indicativi, confronta con il pasto previsto e con gli obiettivi di oggi, poi suggerisci un solo aggiustamento per il resto della giornata. Le stime da foto sono approssimative: dillo una volta, senza insistere.
 - Cucina: piatti da 15 minuti con ingredienti comuni e verdure comode (surgelati, insalate in busta, legumi in barattolo, vellutate), adattati al tipo di giorno e a quello che l'utente ha in casa.
-- Allenamento: decidi se saltare, accorciare o spingere una seduta in base a sonno, dolore, carico della settimana e distanza dalla partita. Di solito accorciare è meglio che saltare. Rispetta la progressione doppia, i RIR e le varianti per il gomito (manubri a presa neutra, niente bilanciere in spinta).
-- Settimana: leggi aderenza, sonno, peso, dolori e carico; di' cosa ha funzionato e proponi una correzione. Le modifiche al piano si accettano nella revisione della domenica, nella sezione Progressi: ricordalo quando proponi un cambiamento.
+- Allenamento: decidi se saltare, accorciare o spingere una seduta in base a sonno, dolore, carico della settimana e distanza dalla partita. Di solito accorciare è meglio che saltare. Rispetta la progressione doppia, i RIR e le limitazioni del piano indicate nel contesto.
+- Settimana: leggi aderenza, sonno, peso, dolori e carico; di' cosa ha funzionato e proponi una correzione. Se nel contesto c'è uno scalino della settimana (un solo obiettivo piccolo, come un frutto allo spuntino), aiutalo a centrarlo prima di aggiungere altro. Le modifiche al piano si accettano nella revisione della domenica, nella sezione Progressi: ricordalo quando proponi un cambiamento.
 - Ritmo ha queste sezioni: Oggi (timeline da segnare, acqua, dolci, giornata minima), Settimana (menù, spesa, preparazione della domenica), Allenamento (sedute e storico), Coach, Progressi (grafici e revisione della domenica). Indica la sezione giusta quando serve.
 
 Limiti e sicurezza
 - Non fai diagnosi e non prescrivi farmaci né integratori nuovi. Per dosi come quella della vitamina D rimanda al medico e agli esami.
-- Dolore: se è sopra la soglia del piano o in aumento, mantieni o riduci il carico, niente balzi con la tibia sensibile, e consiglia di sentire il fisioterapista. Non cambiare gli esercizi prescritti dal fisioterapista.
+- Peso: guarda la media di 7 giorni, non la singola pesata. Nelle prime 3-4 settimane di creatina il peso sale di circa 0,5-1 kg per l'acqua nei muscoli: non è grasso e non si correggono le calorie per questo.
+- Dolore: se una zona monitorata è sopra la soglia del piano o in aumento, mantieni o riduci il carico e consiglia di sentire il fisioterapista; applica le limitazioni indicate nel contesto. Non cambiare gli esercizi prescritti dal fisioterapista.
 - Segnali da medico, subito: dolore al petto, svenimento, fiato corto anomalo, palpitazioni, gonfiore o arrossamento importante, dolore notturno o a riposo che non passa, febbre, trauma con deformità o impossibilità di caricare il peso. In questi casi dillo per primo, con chiarezza.
 - Niente diete estreme, digiuni lunghi o cali di peso rapidi. Se emergono segnali di un rapporto difficile con il cibo, rispondi con delicatezza e suggerisci un professionista.
 - Se una domanda esce dal tuo campo, rispondi in breve o indica chi può aiutare.
@@ -101,8 +101,7 @@ ${barSection()}`;
 
 /** Giornata in corso: dopo mezzanotte e prima della sveglia vale ancora quella di ieri (come in Oggi). */
 export function coachDay(state: Pick<AppData, 'plan'>, now: Date = currentDate()): ISODate {
-  const cal = toISO(now);
-  return hhmmToMin(nowHHMM(now)) < dayCutoffMin(state.plan) ? addDays(cal, -1) : cal;
+  return planDayISO(now, state.plan);
 }
 
 const STATUS_LABEL: Record<ItemStatus, string> = { fatto: 'fatto', sostituito: 'sostituito', saltato: 'saltato' };
@@ -113,6 +112,17 @@ const GOAL_LABEL: Record<AppData['profile']['goal'], string> = {
   massa: 'aumento della massa muscolare',
   mantenimento: 'mantenimento',
 };
+
+/** Priorità in ordine, dall'obiettivo del profilo: salute e calcio vengono sempre prima. */
+const GOAL_PRIORITIES: Record<AppData['profile']['goal'], string> = {
+  ricomposizione: "salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, un po' di muscolo a peso stabile",
+  dimagrimento: 'salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, calo di grasso graduale senza perdere muscolo',
+  massa: 'salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, più muscolo con un surplus contenuto',
+  mantenimento: 'salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, peso e forma stabili',
+};
+
+const ELBOW_SITE = /gomit/i;
+const LOWER_LEG_SITE = /tibi|stinc|cavigl|polpacc|achill|piede|metatars/i;
 
 const n1 = (x: number) => fmtNumber(x, 1);
 /** "Dose da definire" → "dose da definire" (non tocca sigle come "EPA"). */
@@ -168,6 +178,7 @@ function profileSection(state: AppData, today: ISODate, now: Date): string[] {
   if (weight.length) bits.push(`Peso: ${weight.join(', ')}.`);
   bits.push(`Obiettivo: ${GOAL_LABEL[p.goal] ?? p.goal}.`);
   const lines = [bits.join(' ')];
+  if (GOAL_PRIORITIES[p.goal]) lines.push(`Priorità, in quest'ordine: ${GOAL_PRIORITIES[p.goal]}.`);
   if (p.expertise?.trim()) lines.push(`Competenze dichiarate: ${p.expertise.trim()}.`);
   if (p.painSites.length) lines.push(`Zone di dolore monitorate: ${listIt(p.painSites)}; soglia del piano ${n0(state.plan.painThreshold)} su 10.`);
   lines.push(`Acqua: ${n1(p.waterTargetL)} l al giorno.`);
@@ -208,6 +219,16 @@ function planSection(state: AppData, today: ISODate): string[] {
   const supp = plan.supplements.filter((x) => x.active);
   if (supp.length) lines.push(`Integratori: ${supp.map((x) => `${x.name}, ${lowerFirst(x.dose)} (${x.timing})`).join('; ')}.`);
   lines.push(`Dolci previsti: ${n0(plan.sweetsPerWeek)} a settimana.`);
+  const sites = state.profile.painSites ?? [];
+  const limits: string[] = [];
+  const elbow = sites.find((x) => ELBOW_SITE.test(x));
+  if (elbow) limits.push(`${elbow.toLowerCase()} monitorato: nelle spinte manubri a presa neutra, niente bilanciere`);
+  const lower = sites.filter((x) => LOWER_LEG_SITE.test(x));
+  if (lower.length) {
+    const t = Math.min(plan.painThreshold ?? 3, IMPACT_PAIN_THRESHOLD);
+    limits.push(`${listIt(lower.map((x) => x.toLowerCase()))}: balzi e salti solo con dolore fino a ${n0(t)} su 10`);
+  }
+  if (limits.length) lines.push(`Limitazioni del piano: ${limits.join('; ')}.`);
   const presc = state.physio.prescriptions;
   if (presc.length) {
     const ex = presc.map((p) => {
@@ -223,12 +244,15 @@ function planSection(state: AppData, today: ISODate): string[] {
 function todaySection(state: AppData, today: ISODate): string[] {
   const plan = state.plan;
   const dayType = dayTypeFor(today, plan);
-  const t = plan.targets[dayType];
+  // La vigilia della partita mangia come un giorno di calcio: porzioni e obiettivo.
+  const eff = effectiveDayType(today, plan);
+  const t = plan.targets[eff];
   const log = state.dayLogs[today];
   const lines: string[] = [];
-  lines.push(`Tipo di giorno: ${DAY_TYPE_LABEL[dayType].toLowerCase()}, obiettivo ${fmtKcal(t.kcal)} (${macros(t)}).`);
+  const eve = isMatchEve(today, plan) ? ', vigilia della partita (porzioni e obiettivo da giorno di calcio)' : '';
+  lines.push(`Tipo di giorno: ${DAY_TYPE_LABEL[dayType].toLowerCase()}${eve}, obiettivo ${fmtKcal(t.kcal)} (${macros(t)}).`);
 
-  const items = buildTimeline(today, state);
+  const items = buildDay(today, state);
   const status = effectiveStatus(today, state, items);
   const sum = adherenceSummary(today, state, items, status);
   const counts = [
@@ -242,6 +266,7 @@ function todaySection(state: AppData, today: ISODate): string[] {
   );
 
   const meals = mealsForDate(today, state);
+  const k = dayCarbScale(today, state);
   lines.push('Timeline:');
   for (const it of items) {
     const st = status[it.id];
@@ -249,7 +274,7 @@ function todaySection(state: AppData, today: ISODate): string[] {
     if (it.kind === 'pasto' && it.slot) {
       const entry = meals.bySlot[it.slot as MealSlot];
       if (entry?.recipe) {
-        const nn = recipeNutrition(entry.recipe, dayType);
+        const nn = recipeNutrition(entry.recipe, meals.dayType, undefined, k);
         label += `: ${entry.recipe.name}${entry.swapped ? ' (scelta al posto del menù)' : ''} (${fmtKcal(nn.kcal)}, P ${n0(nn.proteinG)} g, fibre ${n0(nn.fiberG)} g)`;
       }
     } else if (it.detail) {
@@ -295,6 +320,10 @@ function checkInsSection(state: AppData, today: ISODate): string[] {
   if (!state.checkIns[today]) lines.unshift('- Il controllo del mattino di oggi non è ancora fatto.');
   const gate = painGate(state, today);
   if (gate.sites.length) lines.push(`Regola del dolore oggi: ${gate.title}. ${gate.message}`);
+  const limits: string[] = [];
+  if (gate.impact || gate.lowerLeg) limits.push('niente balzi né salti');
+  if (gate.elbow) limits.push('spinte solo con manubri a presa neutra');
+  if (limits.length) lines.push(`Limitazioni di oggi: ${limits.join('; ')}.`);
   return lines;
 }
 
@@ -353,7 +382,8 @@ function weekSection(state: AppData, today: ISODate): string[] {
     const s = weekStats(ws, state, opts);
     const parts: string[] = [];
     if (s.adherence !== null) parts.push(`aderenza media ${fmtPercent(s.adherence)} su ${plural(s.adherenceDays, 'giorno', 'giorni')}, ${plural(s.successfulDays, 'giornata riuscita', 'giornate riuscite')}`);
-    if (s.sleepAvgH !== null) parts.push(`sonno medio ${fmtHours(s.sleepAvgH)}, ${n0(s.nightsOnTarget)} notti in orario su ${n0(s.nightsWithBedtime)}`);
+    if (s.sleepAvgH !== null) parts.push(`sonno medio ${fmtHours(s.sleepAvgH)}, ${n0(s.nightsOnTarget)} notti in orario su ${n0(Math.max(s.countedNights, s.nightsWithBedtime))}`);
+    if (s.firstWeek) parts.unshift(`prima settimana con Ritmo (${plural(s.daysWithRitmo, 'giorno', 'giorni')})`);
     if (s.weightAvg !== null) parts.push(`peso medio ${fmtKg(s.weightAvg)}${s.weightDelta !== null ? ` (${s.weightDelta >= 0 ? '+' : '−'}${n1(Math.abs(s.weightDelta))} kg)` : ''}`);
     if (s.fiberAvgG !== null) parts.push(`fibre stimate ${n0(s.fiberAvgG)} g al giorno, proteine ${s.proteinAvgG !== null ? n0(s.proteinAvgG) : '?'} g`);
     parts.push(`dolci ${n0(s.sweets)} su ${n0(s.sweetsPlanned)} previsti`);
@@ -364,6 +394,12 @@ function weekSection(state: AppData, today: ISODate): string[] {
   describe(`Settimana in corso (dal ${formatDayLong(ws)})`, ws, { today });
   const prev = addDays(ws, -7);
   if (prev >= weekStart(state.plan.startDate)) describe(`Settimana scorsa (dal ${formatDayLong(prev)})`, prev, {});
+  const step = weeklyStepStatus(today, state);
+  if (step) {
+    out.push(
+      `Scalino della settimana: ${step.step.title.toLowerCase()} (${step.step.how}). Fatto ${plural(step.done, 'giorno', 'giorni')} su ${n0(step.target)} da centrare${step.todayState === 'fatto' ? ', oggi già fatto' : ''}.`,
+    );
+  }
   const last = [...state.reviews].sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))[0];
   if (last) {
     const v = last.votes;
@@ -418,6 +454,7 @@ export interface CoachDaySummary {
 export function coachDaySummary(state: AppData, now: Date = currentDate()): CoachDaySummary {
   const today = coachDay(state, now);
   const dayType = dayTypeFor(today, state.plan);
+  const eff = effectiveDayType(today, state.plan);
   const wd = state.plan.week.find((d) => d.weekday === weekdayOf(today));
   let activity: string | null = null;
   if (wd?.football) activity = `${capitalize(FOOTBALL_LABEL[wd.football.kind])} alle ${wd.football.time}`;
@@ -442,14 +479,14 @@ export function coachDaySummary(state: AppData, now: Date = currentDate()): Coac
   try {
     const gate = painGate(state, today);
     const top = gate.sites[0];
-    if (top && gate.date === today) pain = { site: top.site, value: top.value, over: top.over || top.worsening };
+    if (top && gate.date === today) pain = { site: top.site, value: top.value, over: top.level !== 'ok' };
   } catch {
     pain = null;
   }
   return {
     date: today,
     dayType,
-    kcal: state.plan.targets[dayType]?.kcal ?? 0,
+    kcal: state.plan.targets[eff]?.kcal ?? 0,
     activity,
     done,
     total,

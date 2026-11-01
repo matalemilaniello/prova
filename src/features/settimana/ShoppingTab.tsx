@@ -1,6 +1,8 @@
 /**
  * Scheda Spesa: lista aggregata per reparto dal menù della settimana, con spunte salvate,
  * avanzamento, prodotti da dispensa separati e "Copia lista" (appunti, con ripiego a selezione).
+ * Carne e pesce freschi che servono a metà settimana portano la nota "congela" sotto il nome.
+ * Nella prima settimana di chi inizia a metà settimana la lista parte dal giorno di inizio.
  */
 import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -8,6 +10,7 @@ import {
   Apple,
   Bean,
   Check,
+  ChevronLeft,
   ChevronRight,
   ClipboardCopy,
   Copy,
@@ -24,25 +27,25 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { AppData, ISODate, Plan, ShopCategory } from '../../domain/types';
-import { formatWeekRange, weekdayOf } from '../../engine/dates';
+import { formatDayLong, formatWeekRange, weekdayOf } from '../../engine/dates';
 import { shoppingList, shoppingProgress, shoppingText, type ShoppingItem } from '../../engine/shopping';
 import { plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
-import { Button, Callout, Card, CheckRow, EmptyState, ProgressRing, Sheet, type AnyTone } from '../../ui';
-import { toneColor, toneSoft } from '../../ui/tones';
+import { Button, Callout, Card, CheckRow, EmptyState, ProgressRing, Sheet } from '../../ui';
 import { copyText } from './clipboard';
-import { daysText } from './helpers';
+import { dateSpanText, daysText } from './helpers';
 
-const CATEGORY_LOOK: Record<ShopCategory, { icon: LucideIcon; tone: AnyTone }> = {
-  'Frutta e verdura': { icon: Apple, tone: 'good' },
-  Surgelati: { icon: Snowflake, tone: 'palestra' },
-  'Carne e pesce': { icon: Fish, tone: 'bad' },
-  'Latticini e uova': { icon: Milk, tone: 'riposo' },
-  'Pane e cereali': { icon: Wheat, tone: 'calcio' },
-  Legumi: { icon: Bean, tone: 'leggero' },
-  Dispensa: { icon: Package, tone: 'warn' },
-  Condimenti: { icon: Droplet, tone: 'accent' },
+/** Icona del reparto. Niente colori dei tipi di giorno: i reparti sono neutri, come le corsie. */
+const CATEGORY_ICON: Record<ShopCategory, LucideIcon> = {
+  'Frutta e verdura': Apple,
+  Surgelati: Snowflake,
+  'Carne e pesce': Fish,
+  'Latticini e uova': Milk,
+  'Pane e cereali': Wheat,
+  Legumi: Bean,
+  Dispensa: Package,
+  Condimenti: Droplet,
 };
 
 const EMPTY: string[] = [];
@@ -54,12 +57,16 @@ export interface ShoppingTabProps {
   /** Settimana mostrata rispetto a quella attuale (0 = questa). */
   offset: number;
   today: ISODate;
+  /** Primo giorno da comprare (prima settimana di chi inizia a metà settimana). */
+  fromDate?: ISODate;
+  /** True se la scheda mostra da sola la settimana prossima (fine settimana). */
+  autoAhead?: boolean;
   onOpenWeek: (offset: number) => void;
   onGoPrep: () => void;
 }
 
-export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek, onGoPrep }: ShoppingTabProps) {
-  const list = useMemo(() => shoppingList(weekStart, { plan, dayLogs }), [weekStart, plan, dayLogs]);
+export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate, autoAhead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
+  const list = useMemo(() => shoppingList(weekStart, { plan, dayLogs }, { fromDate }), [weekStart, plan, dayLogs, fromDate]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);
   const toast = useUi((s) => s.toast);
@@ -101,8 +108,14 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, onOpenWee
     );
   }
 
+  const freezeCount = list.items.filter((i) => i.note).length;
+  const label = offset === 0 ? 'Spesa della settimana' : offset === 1 ? 'Spesa della settimana prossima' : `Spesa · ${range}`;
+
   return (
     <div className="flex flex-col gap-6">
+      {autoAhead && (
+        <WeekAheadNote weekStart={weekStart} onBack={() => onOpenWeek(0)} />
+      )}
       <Card variant="highlight" tone={allDone ? 'good' : 'accent'} padding="lg" as="section" aria-label="Avanzamento della spesa">
         <div className="flex items-center gap-4">
           <ProgressRing
@@ -122,9 +135,11 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, onOpenWee
             )}
           </ProgressRing>
           <div className="min-w-0 flex-1">
-            <p className="t-label text-ink-3">{offset === 0 ? 'Spesa della settimana' : `Spesa · ${range}`}</p>
+            <p className="t-label text-ink-3">{label}</p>
             <p className="t-title-2 mt-1 text-ink">{allDone ? 'Tutto preso' : `${plural(remaining, 'prodotto', 'prodotti')} da prendere`}</p>
-            <p className="t-footnote mt-0.5 text-ink-2">Per {list.mealCount} pasti, da lunedì a domenica</p>
+            <p className="t-footnote mt-0.5 text-ink-2">
+              Per {list.mealCount} pasti, {dateSpanText(list.dates)}
+            </p>
           </div>
         </div>
         <div className="mt-4 flex gap-2">
@@ -149,7 +164,14 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, onOpenWee
             </Button>
           }
         >
-          La lista per la settimana prossima è già pronta: falla nel weekend, prima della preparazione della domenica.
+          Questa è la spesa della settimana in corso. Quella per lunedì è già pronta: falla nel fine settimana, prima della
+          preparazione della domenica.
+        </Callout>
+      )}
+
+      {fromDate && (
+        <Callout tone="neutral" title="Prima settimana">
+          Hai iniziato {formatDayLong(fromDate)}: la lista comprende solo i pasti da quel giorno in poi.
         </Callout>
       )}
 
@@ -208,6 +230,7 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, onOpenWee
         <p className="t-footnote text-ink-3">
           Quantità dal menù della settimana, con le porzioni di ogni tipo di giorno e le ricette che hai cambiato. Pesi a crudo dove serve,
           arrotondati per eccesso.
+          {freezeCount > 0 && ' Carne e pesce freschi reggono in frigo uno o due giorni: le porzioni per metà settimana vanno in freezer appena a casa.'}
         </p>
         {progress.done > 0 && (
           <div>
@@ -236,8 +259,7 @@ function CategorySection({
   hideDone: boolean;
   onToggle: (key: string) => void;
 }) {
-  const look = CATEGORY_LOOK[category] ?? { icon: Package, tone: 'neutral' as AnyTone };
-  const Icon = look.icon;
+  const Icon = CATEGORY_ICON[category] ?? Package;
   const done = items.filter((i) => checked.has(i.key)).length;
   const complete = done === items.length;
   const visible = hideDone ? items.filter((i) => !checked.has(i.key)) : items;
@@ -245,7 +267,7 @@ function CategorySection({
   return (
     <section className="flex flex-col gap-2" aria-labelledby={id}>
       <div className="flex items-center gap-2.5 px-1">
-        <span aria-hidden className="grid size-6 place-items-center rounded-[7px]" style={{ background: toneSoft(look.tone, 18), color: toneColor(look.tone) }}>
+        <span aria-hidden className="grid size-6 place-items-center rounded-[7px] bg-ink-soft text-ink-2">
           <Icon size={14} strokeWidth={2.3} />
         </span>
         <h3 id={id} className="t-label text-ink-3">
@@ -291,7 +313,7 @@ function CategorySection({
                         checked={checked.has(item.key)}
                         onChange={() => onToggle(item.key)}
                         title={item.name}
-                        subtitle={[item.hint, daysText(item.days)].filter(Boolean).join(' · ').replace(/ /g, ' ')}
+                        subtitle={<ItemSubtitle item={item} />}
                         meta={item.amount}
                         tone="good"
                       />
@@ -304,6 +326,42 @@ function CategorySection({
         )}
       </AnimatePresence>
     </section>
+  );
+}
+
+/** Sotto il nome: stato a crudo e giorni; per i freschi di metà settimana, cosa congelare. */
+function ItemSubtitle({ item }: { item: ShoppingItem }) {
+  const line = [item.hint, daysText(item.days)].filter(Boolean).join(' · ').replace(/ /g, ' ');
+  if (!item.note) return <>{line}</>;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>{line}</span>
+      <span className="flex items-start gap-1.5 text-ink">
+        <Snowflake aria-hidden size={13} strokeWidth={2.4} className="mt-[3px] shrink-0 text-ink-2" />
+        <span>{item.note}</span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Sopra la scheda quando nel fine settimana si apre da sola la settimana prossima: le date sono già
+ * nell'intestazione, qui basta la strada per tornare.
+ */
+export function WeekAheadNote({ weekStart, onBack }: { weekStart: ISODate; onBack: () => void }) {
+  return (
+    <div className="-my-2 flex justify-end">
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={ChevronLeft}
+        onClick={onBack}
+        className="-mr-2"
+        aria-label={`Torna a questa settimana: ora vedi quella del ${formatWeekRange(weekStart)}`}
+      >
+        Torna a questa settimana
+      </Button>
+    </div>
   );
 }
 

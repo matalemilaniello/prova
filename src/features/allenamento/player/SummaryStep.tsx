@@ -1,11 +1,11 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { Check, Trophy } from 'lucide-react';
+import { Check, Flag, TrendingUp, Trophy } from 'lucide-react';
 import type { AppData, WorkoutLog } from '../../../domain/types';
 import { formatDayLong } from '../../../engine/dates';
-import { sessionLoad, workoutSetCount, workoutVolume, type LoadStatus, type PersonalRecord } from '../../../engine/training';
-import { fmtDelta, fmtNumber } from '../../../lib/format';
-import { Callout, ProgressRing, cn, spring, staggerItem } from '../../../ui';
-import { exerciseFor, kgLabel } from '../lib';
+import { bestSet, lastEntryFor, sessionLoad, workoutSetCount, workoutVolume, type LoadStatus, type PersonalRecord } from '../../../engine/training';
+import { fmtDelta, fmtNumber, listIt } from '../../../lib/format';
+import { Callout, ProgressRing, cn, spring, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
+import { exerciseFor, kgLabel, shortName } from '../lib';
 import { LoadMeter } from '../components/LoadMeter';
 
 export interface SummaryStepProps {
@@ -15,11 +15,37 @@ export interface SummaryStepProps {
   records: PersonalRecord[];
   status: LoadStatus;
   physio: AppData['physio'];
+  /** Sedute registrate prima di questa (per i punti di partenza e i progressi). */
+  history?: readonly WorkoutLog[];
 }
 
+/** Esercizi che contano per i punti di partenza e i progressi (niente riscaldamento e mobilità). */
+const TRACKED = new Set(['spinta', 'tirata', 'gambe', 'prevenzione', 'core']);
+
 /** Riepilogo dopo il salvataggio: numeri della seduta, record personali, carico della settimana. */
-export function SummaryStep({ log, sessionName, setsPlanned, records, status, physio }: SummaryStepProps) {
+export function SummaryStep({ log, sessionName, setsPlanned, records, status, physio, history = [] }: SummaryStepProps) {
   const reduce = useReducedMotion();
+  const prior = history.filter((w) => w.id !== log.id);
+  const tracked = log.exercises.filter((e) => TRACKED.has(exerciseFor(e.exerciseId, physio)?.category ?? ''));
+  // Prima volta con carico: il punto da cui la progressione riparte la prossima volta.
+  const starts = tracked
+    .filter((e) => !lastEntryFor(e.exerciseId, prior))
+    .map((e) => ({ ex: e, best: bestSet(e) }))
+    .filter((x): x is { ex: typeof x.ex; best: NonNullable<typeof x.best> } => Boolean(x.best && x.best.set.weightKg > 0));
+  const firstEver = tracked.length > 0 && tracked.every((e) => !lastEntryFor(e.exerciseId, prior));
+  const recordIds = new Set(records.map((r) => r.exerciseId));
+  // Meglio dell'ultima volta (più ripetizioni o più carico), anche senza battere il record.
+  const improved = tracked.filter((e) => {
+    if (recordIds.has(e.exerciseId)) return false;
+    const before = bestSet(lastEntryFor(e.exerciseId, prior)?.log)?.e1rm ?? 0;
+    const now = bestSet(e)?.e1rm ?? 0;
+    return before > 0 && now > before + 0.05;
+  });
+  const nameOf = (id: string) => shortName(exerciseFor(id, physio)?.name ?? id, id);
+  const improvedText = (() => {
+    const names = improved.map((e) => nameOf(e.exerciseId));
+    return names.length > 4 ? `${names.slice(0, 3).join(', ')} e altri ${names.length - 3}` : listIt(names);
+  })();
   const sets = workoutSetCount(log);
   const volume = workoutVolume(log);
   const load = sessionLoad(log.durationMin, log.rpe);
@@ -63,6 +89,43 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
         ))}
       </dl>
 
+      {starts.length > 0 && (
+        <section className="flex flex-col gap-2" aria-label="Punti di partenza">
+          <h3 className="t-label px-1 text-ink-3">{firstEver ? 'Punti di partenza' : 'Nuovi punti di partenza'}</h3>
+          <div className="overflow-hidden rounded-card bg-card shadow-card">
+            {firstEver && (
+              <div className="flex items-start gap-3 border-b border-line px-4 py-3.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: toneSoft('good', 16), boxShadow: toneRing('good'), color: toneInk('good') }} aria-hidden>
+                  <Flag size={17} strokeWidth={2.2} />
+                </span>
+                <p className="t-callout min-w-0 text-ink">
+                  <span className="font-semibold">Prima seduta registrata.</span> Ecco i tuoi punti di partenza: la prossima volta ti propongo da qui.
+                </p>
+              </div>
+            )}
+            <ol>
+              {starts.map(({ ex, best }, i) => (
+                <motion.li key={ex.exerciseId} {...staggerItem(i + 4)} className={cn('flex items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}>
+                  <span className="min-w-0 flex-1">
+                    <span className="t-callout block font-semibold text-ink">{exerciseFor(ex.exerciseId, physio)?.name ?? ex.exerciseId}</span>
+                    <span className="t-footnote block text-ink-2 tabular">
+                      Serie migliore {kgLabel(best.set.weightKg)} × {best.set.reps}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="t-label block text-[0.625rem] text-ink-3">1RM stimato</span>
+                    <span className="t-num text-[1.25rem] text-ink">{fmtNumber(Math.round(best.e1rm * 2) / 2, 1)}</span>
+                    <span className="t-mono ml-0.5 text-[0.6875rem] text-ink-3">kg</span>
+                  </span>
+                </motion.li>
+              ))}
+            </ol>
+            {!firstEver && <p className="t-footnote border-t border-line px-4 py-3 text-ink-2">La prossima volta ti propongo da qui.</p>}
+          </div>
+        </section>
+      )}
+
+      {(records.length > 0 || !firstEver) && (
       <section className="flex flex-col gap-2" aria-label="Record personali">
         <h3 className="t-label px-1 text-ink-3">Record personali</h3>
         {records.length ? (
@@ -73,7 +136,7 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
                 <motion.li key={r.exerciseId} {...staggerItem(i + 4)} className={cn('flex items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}>
                   <span
                     className="grid size-9 shrink-0 place-items-center rounded-[11px]"
-                    style={{ background: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent-ink)' }}
+                    style={{ background: toneSoft('accent', 16), boxShadow: toneRing('accent', 40), color: toneInk('accent') }}
                     aria-hidden
                   >
                     <Trophy size={17} strokeWidth={2.2} />
@@ -89,12 +152,28 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
               );
             })}
           </ol>
+        ) : improved.length > 0 ? (
+          <p className="t-footnote flex items-start gap-2.5 rounded-card bg-card px-4 py-3.5 text-ink-2 shadow-card">
+            <TrendingUp size={16} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
+            <span>
+              <span className="font-semibold text-ink">Meglio dell'ultima volta in {improvedText}.</span> Con la
+              progressione doppia salgono prima le ripetizioni, poi il carico: i record arrivano a ondate.
+            </span>
+          </p>
         ) : (
           <p className="t-footnote rounded-card bg-card px-4 py-3.5 text-ink-2 shadow-card">
-            Nessun record oggi. Con la progressione doppia i record arrivano a ondate: prima le ripetizioni, poi il carico.
+            Oggi hai consolidato i carichi. Con la progressione doppia salgono prima le ripetizioni, poi il carico: i record
+            arrivano a ondate.
+          </p>
+        )}
+        {records.length > 0 && improved.length > 0 && (
+          <p className="t-footnote flex items-start gap-2 px-1 text-ink-2">
+            <TrendingUp size={15} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
+            Meglio dell'ultima volta anche in {improvedText}.
           </p>
         )}
       </section>
+      )}
 
       <section className="flex flex-col gap-2" aria-label="Carico della settimana">
         <h3 className="t-label px-1 text-ink-3">Carico della settimana</h3>

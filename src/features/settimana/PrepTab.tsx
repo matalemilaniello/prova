@@ -3,9 +3,9 @@
  * consigliato (prima ciò che cuoce più a lungo), con minuti, resa, spunte salvate, tempo totale e
  * stima con due fuochi accesi insieme. Ogni attività porta alle ricette che prepara.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, ChefHat, ChevronRight, Flame, Timer } from 'lucide-react';
+import { Check, ChefHat, ChevronRight, Flame, Play, Timer } from 'lucide-react';
 import type { AppData, ISODate, MealSlot, Plan, PrepTask } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { addDays, formatDayLong, weekDates, weekdayOf } from '../../engine/dates';
@@ -16,7 +16,9 @@ import { useApp, useUi } from '../../state/store';
 import { Button, Callout, Card, EmptyState, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { cn } from '../../ui/cn';
 import { DishArt } from './art/DishArt';
-import { parallelMinutes } from './helpers';
+import { firstUseDate, parallelMinutes } from './helpers';
+import { PrepPlayer } from './PrepPlayer';
+import { WeekAheadNote } from './ShoppingTab';
 
 const EMPTY: string[] = [];
 
@@ -26,6 +28,10 @@ export interface PrepTabProps {
   dayLogs: AppData['dayLogs'];
   offset: number;
   today: ISODate;
+  /** True se la scheda mostra da sola la settimana prossima (fine settimana). */
+  autoAhead?: boolean;
+  /** Apre subito il lettore della preparazione (dalla voce della domenica in Oggi). */
+  autoPlay?: boolean;
   onOpenWeek: (offset: number) => void;
 }
 
@@ -37,7 +43,8 @@ export function orderPrep(tasks: PrepTask[]): PrepTask[] {
     .map((x) => x.t);
 }
 
-export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }: PrepTabProps) {
+export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, autoPlay, onOpenWeek }: PrepTabProps) {
+  const [playing, setPlaying] = useState(Boolean(autoPlay));
   const tasks = useMemo(() => orderPrep(menuWeekFor(weekStart, plan.startDate)?.prep ?? []), [weekStart, plan.startDate]);
   const done = useApp((s) => s.prepDone[weekStart] ?? EMPTY);
   const togglePrep = useApp((s) => s.togglePrep);
@@ -72,6 +79,10 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
   const parallel = parallelMinutes(tasks.map((t) => t.minutes));
   const recipeIds = new Set(tasks.flatMap((t) => t.recipeIds ?? []));
   const prepPast = prepDay < today;
+  // Chi ha iniziato dopo la domenica di preparazione: questa settimana si cucina sul momento.
+  const first = firstUseDate(plan);
+  const startedLate = Boolean(first && first > prepDay && first <= addDays(weekStart, 6));
+  const nextPrep = addDays(weekStart, 6);
 
   const toggle = (t: PrepTask) => {
     const willBeDone = !doneSet.has(t.id);
@@ -84,6 +95,15 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
 
   return (
     <div className="flex flex-col gap-6">
+      {autoAhead && (
+        <WeekAheadNote weekStart={weekStart} onBack={() => onOpenWeek(0)} />
+      )}
+      {startedLate && first && (
+        <Callout tone="neutral" title="Prima settimana">
+          Hai iniziato {formatDayLong(first)}: la prima preparazione è {formatDayLong(nextPrep)}. Fino ad allora le ricette da
+          preparazione si cucinano sul momento, con qualche minuto in più.
+        </Callout>
+      )}
       <Card variant="highlight" tone={allDone ? 'good' : 'accent'} padding="lg" as="section" aria-label="Riepilogo della preparazione">
         <p className="t-label text-ink-3">{capitalize(formatDayLong(prepDay))}</p>
         <div className="mt-2 flex items-center justify-between gap-4">
@@ -109,14 +129,19 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
         </div>
         <div className="mt-4 flex flex-col gap-2">
           <ProgressBar value={total ? doneMin / total : 0} tone={allDone ? 'good' : 'accent'} label={`${doneMin} minuti fatti su ${total}`} />
-          <div className="t-footnote flex items-center justify-between gap-3 text-ink-2">
-            <span>{allDone ? (prepPast ? 'Fatta: la settimana è pronta' : 'Tutto pronto') : `Mancano ${fmtMinutes(total - doneMin)}`}</span>
-            <span className="inline-flex items-center gap-1 text-ink-3">
+          <div className="t-footnote flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ink-2">
+            <span className="whitespace-nowrap">{allDone ? (prepPast ? 'Fatta: la settimana è pronta' : 'Tutto pronto') : `Mancano ${fmtMinutes(total - doneMin)}`}</span>
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-ink-3">
               <Flame aria-hidden size={14} strokeWidth={2.2} />
               Con due fuochi circa {fmtMinutes(parallel)}
             </span>
           </div>
         </div>
+        {!allDone && (
+          <Button icon={Play} fullWidth size="lg" onClick={() => setPlaying(true)} className="mt-4">
+            {doneTasks.length ? 'Riprendi la preparazione' : 'Inizia la preparazione'}
+          </Button>
+        )}
       </Card>
 
       {offset === 0 && wd >= 5 && (
@@ -172,16 +197,11 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
                       <span className={cn('t-callout font-semibold transition-colors', isDone ? 'text-ink-3 line-through decoration-ink-3/60' : 'text-ink')}>
                         {t.title}
                       </span>
-                      <span className={cn('t-footnote mt-0.5', isDone ? 'text-ink-3' : 'text-ink-2')}>{t.yields}</span>
-                    </span>
-                    <span
-                      className={cn(
-                        't-mono mt-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[0.75rem]',
-                        isDone ? 'bg-good-soft text-good-ink' : 'bg-ink-soft text-ink-2',
-                      )}
-                    >
-                      <Timer aria-hidden size={12} strokeWidth={2.4} />
-                      {t.minutes}&nbsp;min
+                      <span className={cn('t-footnote mt-0.5 inline-flex items-center gap-1', isDone ? 'text-good-ink' : 'text-ink-2')}>
+                        <Timer aria-hidden size={13} strokeWidth={2.4} className="shrink-0" />
+                        <span className="t-mono text-[0.75rem]">{t.minutes}&nbsp;min</span>
+                      </span>
+                      <span className={cn('t-footnote mt-1', isDone ? 'text-ink-3' : 'text-ink-2')}>{t.yields}</span>
                     </span>
                   </button>
                   {recipes.length > 0 && (
@@ -197,11 +217,11 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
                               haptic('selection');
                               useUi.getState().open({ type: 'recipe', recipeId: r.id, date, slot: use?.slot ?? r.slots[0] });
                             }}
-                            className="flex h-8 max-w-full items-center gap-1.5 rounded-full bg-ink-soft pl-1 pr-3 text-left transition-colors hover:bg-control"
+                            className="flex min-h-8 max-w-full items-center gap-1.5 rounded-[16px] bg-ink-soft py-1 pl-1 pr-3 text-left transition-colors hover:bg-control"
                             aria-label={`Apri la ricetta: ${r.name}`}
                           >
                             <DishArt recipe={r} dayType={plan.week[weekdayOf(date)]?.dayType ?? 'palestra'} variant="thumb" className="size-6 shrink-0" />
-                            <span className="t-caption truncate font-medium text-ink-2">{shortRecipeName(r.name)}</span>
+                            <span className="t-caption font-medium leading-snug text-ink-2">{r.name}</span>
                           </button>
                         );
                       })}
@@ -216,12 +236,18 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, onOpenWeek }:
           Le ricette pronte dalla domenica sono segnate nel menù. Quello che serve da metà settimana in poi va in freezer a porzioni.
         </p>
       </section>
+
+      {playing && (
+        <PrepPlayer
+          open
+          weekStart={weekStart}
+          tasks={tasks}
+          done={done}
+          onToggle={(t) => toggle(t)}
+          onClose={() => setPlaying(false)}
+        />
+      )}
     </div>
   );
 }
 
-/** Nome per le etichette: senza i prefissi "Recupero:" e "Pre-calcio:" (il resto lo tronca il CSS). */
-function shortRecipeName(name: string): string {
-  const s = name.replace(/^(Recupero|Pre-calcio):\s*/i, '');
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

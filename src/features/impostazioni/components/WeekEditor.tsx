@@ -5,16 +5,16 @@
  */
 import { useRef } from 'react';
 import { motion } from 'motion/react';
-import { ChevronRight, Dumbbell, HeartPulse, Trophy } from 'lucide-react';
+import { ChevronRight, Dumbbell, HeartPulse } from 'lucide-react';
 import type { DayType, FootballEvent, FootballKind, ScheduleDay, Weekday } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
 import { DAY_TYPE_LABEL, DAY_TYPES, WEEKDAY_INITIAL, WEEKDAY_LONG, capitalize } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, DAY_TYPE_ICON, DayTypeBadge, Segmented, Sheet, Toggle, cn, renderIcon, springSnappy, staggerItem, toneColor, toneInk, toneSoft } from '../../../ui';
+import { BallIcon, Button, DAY_TYPE_ICON, DayTypeBadge, Segmented, Sheet, Toggle, cn, renderIcon, springSnappy, staggerItem, toneColor, toneInk, toneRing, toneSoft } from '../../../ui';
 import { dayActivities, suggestDayType } from '../lib';
 import { FormRow, MiniStepper, TimePill } from './controls';
 
-const ACTIVITY_ICON = { calcio: Trophy, palestra: Dumbbell, fisio: HeartPulse } as const;
+const ACTIVITY_ICON = { calcio: BallIcon, palestra: Dumbbell, fisio: HeartPulse } as const;
 
 // ───────────────────────── Nastro dei 7 giorni ─────────────────────────
 
@@ -37,7 +37,7 @@ export function WeekRibbon({ week, onSelect, highlight, className }: WeekRibbonP
             <span className={cn('t-label', highlight === d.weekday ? 'text-ink' : 'text-ink-3')}>{WEEKDAY_INITIAL[d.weekday]}</span>
             <span
               className="relative grid h-[52px] w-full place-items-center overflow-hidden rounded-[13px]"
-              style={{ background: toneSoft(tone, 15), color: toneInk(tone), boxShadow: highlight === d.weekday ? `inset 0 0 0 1.5px ${toneColor(tone)}` : undefined }}
+              style={{ background: toneSoft(tone, 15), color: toneInk(tone), boxShadow: highlight === d.weekday ? `inset 0 0 0 1.5px ${toneColor(tone)}` : toneRing(tone, 26) }}
             >
               {renderIcon(DAY_TYPE_ICON[tone], 19, 2.2)}
               <span aria-hidden className="absolute inset-x-2.5 bottom-1.5 flex justify-center gap-[3px]">
@@ -230,7 +230,7 @@ export function DayEditorSheet({ day, onClose, onChange }: DayEditorSheetProps) 
         <section className="flex flex-col gap-2" aria-label="Calcio">
           <h3 className="t-label px-1 text-ink-3">Calcio</h3>
           <div className="overflow-hidden rounded-card bg-card shadow-card">
-            <FormRow icon={Trophy} iconTone="calcio" label="C’è calcio">
+            <FormRow icon={BallIcon} iconTone="calcio" label="C’è calcio">
               <Toggle
                 label="C’è calcio"
                 checked={Boolean(d.football)}

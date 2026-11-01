@@ -23,22 +23,26 @@ import {
   TriangleAlert,
   User,
 } from 'lucide-react';
-import { goBack, navigate, useRoute } from '../../app/router';
+import { goBack, navigate, parseRoute, useRoute } from '../../app/router';
 import { IS_PREVIEW } from '../../app/env';
 import { getUrlParam } from '../../app/urlParams';
 import { isProfileComplete } from '../../data/defaults';
 import { currentDate } from '../../engine/dates';
 import { modelLabel } from '../../lib/claude';
 import { setLastBackupAt } from '../../lib/backup';
-import { fmtKg, fmtNumber, plural } from '../../lib/format';
+import { fmtDateLong, fmtKg, fmtNumber, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { safeStorage, useApp, useUi } from '../../state/store';
 import { Button, Card, ListGroup, ListRow, Pill, Screen, ScreenSkeleton, Toggle, cn } from '../../ui';
+import { useSessionDraft } from '../allenamento/draft';
 import { clearDraft } from '../benvenuto/draft';
-import { InlineReveal } from './components/controls';
+import { InlineReveal, tileStyle } from './components/controls';
+import { InstallCard } from './components/InstallCard';
 import { ThemePicker } from './components/Pickers';
+import { canSuggestInstall } from './install';
 import { GOAL_LABEL, MEAL_ORDER, ageOf, initials, weekSummary } from './lib';
 import { PAGE_IDS, PAGE_TITLE, type PageId, type PageProps } from './pages/Page';
+import { clearReminderPrefs, useCalendarStatus } from './reminders';
 
 const ProfiloPage = lazy(() => import('./pages/ProfiloPage'));
 const ObiettiviPage = lazy(() => import('./pages/ObiettiviPage'));
@@ -91,6 +95,21 @@ export default function ImpostazioniScreen() {
       pushed.current = 0;
     }
   }, [route]);
+
+  // La schermata resta montata: `#impostazioni?sezione=promemoria` (es. dalla revisione) apre la pagina anche dopo.
+  useEffect(() => {
+    const apply = () => {
+      const q = location.hash.indexOf('?');
+      if (q === -1 || parseRoute(location.hash) !== 'impostazioni') return;
+      const sec = new URLSearchParams(location.hash.slice(q + 1)).get('sezione');
+      if (sec && (PAGE_IDS as string[]).includes(sec)) {
+        setDir(1);
+        setStack([sec as PageId]);
+      }
+    };
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, []);
 
   // Indietro del sistema (Android, gesto del browser): chiude la sotto-pagina.
   useEffect(() => {
@@ -215,8 +234,12 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
   const activeSupps = plan.supplements.filter((s) => s.active).length;
   const physioCount = physio.prescriptions.length;
   const hasPreDemo = settings.demoData && safeStorage.getItem(PRE_DEMO_KEY) !== null;
+  const calendar = useCalendarStatus();
+  const [showInstall] = useState(canSuggestInstall);
 
   const toggleDemo = (on: boolean) => {
+    // Una seduta lasciata a metà appartiene ai dati che stanno per essere sostituiti.
+    useSessionDraft.getState().clear();
     if (on) {
       useApp.getState().loadDemo();
       toast('Dati di esempio caricati. I tuoi tornano quando li togli', 'neutral');
@@ -232,11 +255,9 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
     haptic('warning');
     clearDraft();
     setLastBackupAt(null);
-    try {
-      globalThis.localStorage?.removeItem('ritmo:promemoria');
-    } catch {
-      /* niente */
-    }
+    clearReminderPrefs();
+    useSessionDraft.getState().clear();
+    void useSessionDraft.persist.clearStorage();
     navigate('oggi');
     useApp.getState().resetAll();
     useUi.getState().toast('Dati azzerati. Si riparte dal benvenuto', 'neutral');
@@ -247,7 +268,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
       {settings.demoData && (
         <Card variant="highlight" tone="riposo" padding="md" className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
-            <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: 'color-mix(in srgb, var(--riposo) 18%, transparent)', color: 'var(--riposo-ink)' }}>
+            <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={tileStyle('riposo')}>
               <FlaskConical size={18} strokeWidth={2.2} />
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -260,6 +281,8 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
           </Button>
         </Card>
       )}
+
+      {showInstall && <InstallCard compact note="L’app installata parte vuota. Per portarci i dati, qui in Backup ed esportazione tocca Copia, poi nell’app scegli Hai già un backup? Ripristinalo." />}
 
       {/* Profilo, come la scheda dell'ID Apple. */}
       <Card padding="md" onPress={() => open('profilo')} aria-label="Profilo" className="flex items-center gap-4">
@@ -318,7 +341,26 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
       </ListGroup>
 
       <ListGroup title="Promemoria e coach">
-        <ListRow icon={BellRing} iconTone="warn" title="Promemoria nel calendario" subtitle="File .ics con avvisi ricorrenti" onPress={() => open('promemoria')} />
+        <ListRow
+          icon={BellRing}
+          iconTone="warn"
+          title="Promemoria nel calendario"
+          subtitle={
+            calendar.state === 'da-aggiornare' ? (
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Pill tone="warn" dot>
+                  Da aggiornare
+                </Pill>
+                <span>{calendar.reason === 'sonno' ? 'Il coprifuoco è cambiato' : 'Il piano è cambiato'}</span>
+              </span>
+            ) : calendar.state === 'aggiornato' ? (
+              `Nel calendario dal ${fmtDateLong(calendar.at).replace(/^\S+\s/, '')}`
+            ) : (
+              'Avvisi all’orario nel calendario dell’iPhone'
+            )
+          }
+          onPress={() => open('promemoria')}
+        />
         <ListRow
           icon={Sparkles}
           iconTone="accent"

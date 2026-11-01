@@ -39,9 +39,12 @@ import { MEAL_SLOTS, menuWeekFor, mealsForDate } from '../engine/menu';
 import { sleepHours } from '../engine/sleep';
 
 // Il motore della timeline appartiene a un altro modulo: se c'è, i suoi id guidano il diario.
-type TimelineModule = { buildTimeline?: (iso: ISODate, state: AppData) => TimelineItem[] };
+// `buildDay` aggiunge i riti del fine settimana (spesa, preparazione, revisione), come in Oggi.
+type BuildFn = (iso: ISODate, state: AppData) => TimelineItem[];
+type TimelineModule = { buildDay?: BuildFn; buildTimeline?: BuildFn };
 const timelineModules = import.meta.glob<TimelineModule>('../engine/timeline.ts', { eager: true });
-const buildTimelineExt = Object.values(timelineModules)[0]?.buildTimeline;
+const timelineModule = Object.values(timelineModules)[0];
+const buildTimelineExt = timelineModule?.buildDay ?? timelineModule?.buildTimeline;
 
 /** Generatore pseudo-casuale con seme (mulberry32). */
 export function rng(seed: number): () => number {
@@ -199,7 +202,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   data.onboarded = true;
   data.profile = {
     sex: 'M',
-    birthYear: year - 30,
+    birthYear: year - 33,
     heightCm: 178,
     startWeightKg: 70.8,
     goal: 'ricomposizione',
@@ -276,6 +279,8 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
         if (data.checkIns[iso]) log.status[it.id] = 'fatto';
         continue;
       }
+      // La revisione si ricava dalle revisioni salvate più sotto.
+      if ((it.kind as string) === 'revisione') continue;
       if (it.kind === 'letto') {
         const next = data.checkIns[addDays(iso, 1)];
         if (next?.bedTime && hhmmToMin(next.bedTime) < 12 * 60 && hhmmToMin(next.bedTime) <= hhmmToMin(data.plan.sleep.current) + 15) {
@@ -369,20 +374,33 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   data.footballLogs = football;
 
   // ── Revisioni della domenica ──
+  // Le ultime due settimane chiuse (la prima è rimasta senza revisione): l'ultima ha scelto lo scalino
+  // della settimana in corso.
   const reviews: WeeklyReview[] = [];
-  for (let w = 0; w < 2; w++) {
+  const current = Math.max(0, Math.floor(daysBetween(start, weekStart(todayIso)) / 7));
+  for (let w = Math.max(0, current - 2); w < current; w++) {
     const ws = addDays(start, w * 7);
-    if (daysBetween(addDays(ws, 6), todayIso) <= 0) continue;
+    const last = w === current - 1;
     reviews.push({
       weekStart: ws,
-      votes: { energia: 6 + w, digestione: 7, umore: 7, campo: 6 + w },
-      waistCm: w === 0 ? 84.5 : 84,
-      skinfolds: w === 0 ? { Addome: 18, Sovrailiaca: 14, Coscia: 12 } : undefined,
+      votes: { energia: last ? 7 : 6, digestione: 7, umore: 7, campo: last ? 7 : 6 },
+      waistCm: last ? 84 : 84.5,
+      skinfolds: last ? undefined : { Addome: 18, Sovrailiaca: 14, Coscia: 12 },
       acceptedProposals: ['sonno'],
-      note: w === 0 ? 'Prima settimana: il coprifuoco è la parte più difficile.' : 'Meglio con la cena preparata la domenica.',
+      note: last ? 'Meglio con la cena preparata la domenica.' : 'Il coprifuoco è la parte più difficile.',
+      ...(last ? { step: { id: 'frutta-spuntino' as const, title: 'Un frutto allo spuntino' } } : {}),
     });
   }
   data.reviews = reviews;
+
+  // Scalino della settimana in corso: segnato quasi tutti i giorni passati.
+  if (reviews.length) {
+    const from = weekStart(todayIso);
+    for (let d = from, i = 0; daysBetween(d, todayIso) > 0; d = addDays(d, 1), i++) {
+      const log = data.dayLogs[d];
+      if (log && i % 4 !== 2) log.status.scalino = 'fatto';
+    }
+  }
 
   // ── Spesa e preparazione della settimana in corso ──
   const thisWeek = weekStart(todayIso);

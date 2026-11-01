@@ -83,6 +83,8 @@ export function Segmented<T extends string>({
             onClick={() => select(o.value)}
             className={cn(
               'relative z-0 flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] px-3 font-semibold transition-colors duration-200',
+              // Piccolo nell'aspetto, ma l'area toccabile resta di 44 px.
+              size === 'sm' && 'hit-44',
               size === 'sm' ? 'text-[0.8125rem]' : 'text-[0.9375rem]',
               fullWidth && 'flex-1',
               active ? 'text-ink' : 'text-ink-2',

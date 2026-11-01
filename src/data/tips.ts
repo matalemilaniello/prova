@@ -54,13 +54,13 @@ export const TIPS: Tip[] = [
     id: 'sonno-caffe',
     topic: 'sonno',
     title: 'Ultimo caffè entro le 14',
-    text: 'La caffeina ha un’emivita di 5-6 ore: un caffè alle 17 è ancora per metà in circolo a mezzanotte e accorcia il sonno profondo.',
+    text: 'La caffeina ha un’emivita di 5-6 ore: un caffè alle 17 è ancora per metà in circolo alle 23 e accorcia il sonno profondo.',
   },
   {
     id: 'sonno-infortuni',
     topic: 'sonno',
     title: 'Il sonno è il primo integratore',
-    text: 'Sotto le 7 ore a notte il rischio di infortunio negli atleti sale in modo netto. Ogni quarto d’ora anticipato vale più di qualsiasi polvere.',
+    text: 'Negli atleti dormire stabilmente meno di 7-8 ore si associa a più infortuni. Ogni quarto d’ora anticipato vale più di qualsiasi polvere.',
   },
   {
     id: 'sonno-dopo-partita',
@@ -131,7 +131,7 @@ export const TIPS: Tip[] = [
     id: 'fibre-gradualita',
     topic: 'fibre',
     title: 'Più fibre, a piccoli passi',
-    text: 'Aumentarle di colpo porta gonfiore. Cinque grammi in più a settimana e acqua a sufficienza: l’intestino si adatta in poche settimane.',
+    text: 'Il menù porta tra 34 e 44 g di fibre al giorno, spesso il doppio di prima. Nelle prime due settimane sciacqua bene i legumi in barattolo e bevi un bicchiere d’acqua in più a pasto. Se ti senti gonfio, per qualche giorno fai metà porzione di legumi: l’intestino si adatta.',
   },
   {
     id: 'fibre-pre-calcio',
@@ -198,15 +198,15 @@ export const TIPS: Tip[] = [
     id: 'carico-nordic',
     topic: 'carico',
     title: 'Nordic: poco ma sempre',
-    text: 'Bastano due serie a settimana per mantenere la forza eccentrica dei flessori, la difesa principale contro gli stiramenti.',
+    text: 'Bastano due serie a settimana per mantenere la forza eccentrica dei flessori, una delle difese più efficaci contro gli stiramenti.',
     dayTypes: ['palestra', 'leggero'],
   },
   {
     id: 'carico-rir',
     topic: 'carico',
     title: 'Fermati a due ripetizioni dal cedimento',
-    text: 'Con RIR 2 lo stimolo è quasi lo stesso e la fatica molto minore: arrivi fresco al calcio del giorno dopo.',
-    dayTypes: ['palestra', 'leggero'],
+    text: 'Con RIR 2 lo stimolo è quasi lo stesso e la fatica molto minore: arrivi più fresco al calcio.',
+    dayTypes: ['palestra'],
   },
   {
     id: 'carico-riposo',
@@ -225,8 +225,8 @@ export const TIPS: Tip[] = [
   {
     id: 'carico-polpacci',
     topic: 'carico',
-    title: 'Polpacci forti, tibia protetta',
-    text: 'Polpacci e soleo assorbono gran parte dei carichi della corsa. Le serie lente e pesanti sono la miglior prevenzione per la tibia.',
+    title: 'Polpacci forti, tibia più protetta',
+    text: 'Gastrocnemio e soleo assorbono gran parte del carico della corsa: serie lente e pesanti aiutano la tibia a tollerarlo.',
   },
 
   // ───────────────────────── Al bar ─────────────────────────
@@ -246,13 +246,13 @@ export const TIPS: Tip[] = [
     id: 'bar-spremuta',
     topic: 'bar',
     title: 'Spremuta sì, succo confezionato no',
-    text: 'La spremuta è frutta appena spremuta; il succo spesso ha zuccheri aggiunti e meno vitamina C. Un frutto intero è ancora meglio.',
+    text: 'La spremuta è frutta appena spremuta; nettari e bevande alla frutta hanno spesso zuccheri aggiunti. Un frutto intero sazia di più.',
   },
   {
     id: 'bar-piano-b',
     topic: 'bar',
     title: 'Il piano B è già deciso',
-    text: 'Quando salta il pasto preparato, il piano B al bar ti evita la scelta di fretta. Lo trovi nello spuntino e nel coach, anche senza rete.',
+    text: 'Quando salta il pasto preparato, il piano B al bar ti evita la scelta di fretta. Lo trovi in ogni pasto di Oggi e nel coach, anche senza rete.',
   },
 
   // ───────────────────────── Idratazione ─────────────────────────
@@ -260,13 +260,13 @@ export const TIPS: Tip[] = [
     id: 'acqua-pasti',
     topic: 'idratazione',
     title: 'Un bicchiere a ogni pasto',
-    text: 'Legare l’acqua ai pasti è più facile che ricordarsela: cinque bicchieri arrivano così, il resto viene da solo.',
+    text: 'Legare l’acqua ai pasti è più facile che ricordarsela: cinque bicchieri arrivano così; gli altri cinque tienili in una borraccia da 1 l da finire entro sera.',
   },
   {
     id: 'acqua-pre-calcio',
     topic: 'idratazione',
     title: 'Bevi prima di giocare',
-    text: 'Nelle 2-3 ore prima del calcio bevi 400-600 ml d’acqua: già un 2% di disidratazione riduce sprint e lucidità.',
+    text: 'Nelle 2-3 ore prima del calcio bevi 400-600 ml d’acqua: perdere già il 2% del peso in sudore riduce resistenza e lucidità.',
     dayTypes: ['calcio'],
   },
   {
@@ -317,15 +317,18 @@ export function tipsFor(dayType: DayType): Tip[] {
 
 /**
  * Consiglio del giorno, deterministico: stessa data e stesso tipo di giorno, stesso consiglio.
- * `offset` scorre agli altri consigli della giornata ("Un altro").
+ * `offset` scorre agli altri consigli della giornata ("Un altro"); `firstId` mette quel consiglio in testa.
  */
-export function tipOfDay(iso: ISODate, dayType: DayType, offset = 0): Tip {
+export function tipOfDay(iso: ISODate, dayType: DayType, offset = 0, firstId?: string): Tip {
   const pool = tipsFor(dayType);
   const list = pool.length ? pool : TIPS;
   const ordered = list
     .map((t) => ({ t, h: hashString(`${iso}:${t.id}`) }))
     .sort((a, b) => a.h - b.h)
     .map((x) => x.t);
+  // Un consiglio da mostrare per primo (es. l'avvio graduale delle fibre nelle prime due settimane).
+  const first = firstId ? ordered.findIndex((t) => t.id === firstId) : -1;
+  if (first > 0) ordered.unshift(...ordered.splice(first, 1));
   const n = ordered.length;
   return ordered[(((offset % n) + n) % n)];
 }

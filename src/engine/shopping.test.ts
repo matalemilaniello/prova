@@ -3,10 +3,15 @@ import type { AppData, Food, MenuWeek } from '../domain/types';
 import { defaultPlan } from '../data/defaults';
 import { FOODS } from '../data/foods';
 import { RECIPES } from '../data/recipes';
+import { weekDates } from './dates';
+import { effectiveDayType } from './menu';
 import { lineGrams } from './nutrition';
 import {
+  FRESH_LAST_WEEKDAY,
   SHOP_CATEGORIES,
   formatShopWeight,
+  freezeNote,
+  isPerishable,
   parseBuyLabel,
   roundShopGrams,
   shopName,
@@ -111,9 +116,9 @@ describe('lista della settimana', () => {
     const pasta = list.items.find((i) => i.foodId === 'pasta');
     expect(pasta).toBeDefined();
     const line = RECIPES[pastaId].ingredients.find((l) => l.foodId === 'pasta')!;
-    // Settimana tipo: 3 giorni di calcio, 2 di palestra, 1 leggero, 1 di riposo.
-    const expected =
-      3 * lineGrams(line, 'calcio') + 2 * lineGrams(line, 'palestra') + lineGrams(line, 'leggero') + lineGrams(line, 'riposo');
+    // Settimana tipo: 3 giorni di calcio, 2 di palestra, 1 leggero e la domenica, vigilia della partita, da calcio.
+    const expected = weekDates('2026-11-02').reduce((a, d) => a + lineGrams(line, effectiveDayType(d, plan)), 0);
+    expect(expected).toBeCloseTo(4 * lineGrams(line, 'calcio') + 2 * lineGrams(line, 'palestra') + lineGrams(line, 'leggero'), 5);
     expect(pasta!.eatenG).toBeCloseTo(expected, 5);
     expect(pasta!.buyG).toBeCloseTo(expected * (FOODS.pasta.buyFactor ?? 1), 5);
     expect(pasta!.days).toHaveLength(7);
@@ -174,11 +179,90 @@ describe('lista della settimana', () => {
     expect(shoppingProgress(empty, ['pasta'])).toEqual({ done: 0, total: 0, ratio: 0 });
   });
 
+  it('segue gli obiettivi del piano: più kcal nel piano, più carboidrati da comprare', () => {
+    const richer = { ...plan, targets: { ...plan.targets, palestra: { ...plan.targets.palestra, kcal: plan.targets.palestra.kcal + 300 } } };
+    const base = shoppingList('2026-11-02', state(), { rotation: oneMeal(pastaId) });
+    const more = shoppingList('2026-11-02', { plan: richer, dayLogs: {} }, { rotation: oneMeal(pastaId) });
+    const p0 = base.items.find((i) => i.foodId === 'pasta')!;
+    const p1 = more.items.find((i) => i.foodId === 'pasta')!;
+    expect(p1.eatenG).toBeGreaterThan(p0.eatenG);
+    // Cambiano solo i due giorni di palestra.
+    const tue = (l: typeof p0) => l.uses.find((u) => u.date === '2026-11-03')!.grams;
+    const mon = (l: typeof p0) => l.uses.find((u) => u.date === '2026-11-02')!.grams;
+    expect(tue(p1)).toBeGreaterThan(tue(p0));
+    expect(mon(p1)).toBeCloseTo(mon(p0), 5);
+  });
+
+  it('con fromDate parte da quel giorno', () => {
+    const list = shoppingList('2026-11-02', state(), { rotation: oneMeal(pastaId), fromDate: '2026-11-04' });
+    expect(list.dates).toEqual(['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
+    expect(list.mealCount).toBe(5);
+    expect(list.items.find((i) => i.foodId === 'pasta')?.days[0]).toBe('2026-11-04');
+    const full = shoppingList('2026-11-02', state(), { rotation: oneMeal(pastaId) });
+    expect(full.dates).toHaveLength(7);
+  });
+
   it('attraversa il cambio dell’ora legale senza perdere giorni', () => {
     // 29 marzo 2027: la settimana prima contiene il passaggio all'ora legale (domenica 28).
     const list = shoppingList('2027-03-22', { plan: defaultPlan('2027-03-01'), dayLogs: {} }, { rotation: oneMeal(pastaId) });
     expect(list.mealCount).toBe(7);
     expect(list.items.find((i) => i.foodId === 'pasta')?.days).toHaveLength(7);
+  });
+});
+
+describe('conservazione di carne e pesce freschi', () => {
+  /** Un piatto con pollo crudo cucinato sul momento, ogni giorno a cena. */
+  const fresh = Object.values(RECIPES).find((r) => !r.batch && r.slots.includes('cena') && r.ingredients.some((l) => l.foodId === 'pollo'))!;
+  const batch = Object.values(RECIPES).find((r) => r.batch && r.ingredients.some((l) => l.foodId === 'pollo'))!;
+  const dinner = (id: string): MenuWeek[] => [{ days: Array.from({ length: 7 }, () => ({ meals: { cena: id } })), prep: [] }];
+
+  it('riconosce i freschi deperibili', () => {
+    expect(isPerishable(FOODS.pollo)).toBe(true);
+    expect(isPerishable(FOODS.salmone)).toBe(true);
+    expect(isPerishable(FOODS.manzo)).toBe(true);
+    expect(isPerishable(FOODS.gamberi)).toBe(false);
+    expect(isPerishable(FOODS['salmone-affumicato'])).toBe(false);
+    expect(isPerishable(FOODS.tonno)).toBe(false);
+  });
+
+  it('dice di congelare le porzioni cucinate da mercoledì in poi', () => {
+    expect(fresh).toBeDefined();
+    const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id) });
+    const pollo = list.items.find((i) => i.foodId === 'pollo')!;
+    expect(FRESH_LAST_WEEKDAY).toBe(1);
+    expect(pollo.freezeDates).toEqual(['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
+    expect(pollo.note).toBe('Congela le porzioni per mercoledì, giovedì, venerdì, sabato e domenica, separate, e passale in frigo la sera prima');
+  });
+
+  it('una porzione sola: giorno e peso da congelare', () => {
+    const rotation: MenuWeek[] = [
+      { days: Array.from({ length: 7 }, (_, i) => ({ meals: i === 4 ? { cena: fresh.id } : {} })), prep: [] },
+    ];
+    const pollo = shoppingList('2026-11-02', state(), { rotation }).items.find((i) => i.foodId === 'pollo')!;
+    expect(pollo.freezeDates).toEqual(['2026-11-06']);
+    expect(sp(pollo.note ?? '')).toMatch(/^Congela la porzione per venerdì \(≈ \d+ g\) e passala in frigo la sera prima$/);
+    expect(sp(freezeNote(['2026-11-06'], 143))).toBe('Congela la porzione per venerdì (≈ 140 g) e passala in frigo la sera prima');
+  });
+
+  it('ciò che si cuoce nella preparazione della domenica non va congelato da crudo', () => {
+    expect(batch).toBeDefined();
+    const pollo = shoppingList('2026-11-02', state(), { rotation: dinner(batch.id) }).items.find((i) => i.foodId === 'pollo')!;
+    expect(pollo.uses.every((u) => u.ahead)).toBe(true);
+    expect(pollo.note).toBeUndefined();
+  });
+
+  it('i surgelati e la dispensa non hanno note', () => {
+    const list = shoppingList('2026-11-02', state());
+    for (const i of list.items) if (!isPerishable(FOODS[i.foodId])) expect(i.note, i.foodId).toBeUndefined();
+    for (const i of list.pantry) expect(i.note, i.foodId).toBeUndefined();
+  });
+
+  it('il testo da copiare ricorda cosa congelare appena a casa', () => {
+    const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id) });
+    const text = shoppingText(list);
+    expect(text).toContain('APPENA A CASA');
+    expect(text).toContain('- Petto di pollo: congela le porzioni per mercoledì');
+    expect(shoppingText(list, { includeFreezer: false })).not.toContain('APPENA A CASA');
   });
 });
 

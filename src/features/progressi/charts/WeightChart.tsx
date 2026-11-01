@@ -50,13 +50,14 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
   const firstIdx = points.findIndex((p) => p.trend !== null);
   const last = lastIdx >= 0 ? points[lastIdx] : null;
   const first = firstIdx >= 0 ? points[firstIdx] : null;
-  const change = last && first && lastIdx > firstIdx ? (last.trend ?? 0) - (first.trend ?? 0) : null;
+  const weighIns = points.reduce((k, p) => k + (p.weight !== null ? 1 : 0), 0);
+  // La variazione si mostra da 4 pesate in su (come nella revisione) e su almeno una settimana di media.
+  const change = last && first && lastIdx - firstIdx >= 6 && weighIns >= 4 ? (last.trend ?? 0) - (first.trend ?? 0) : null;
   const weeks = Math.max(1, Math.round((lastIdx - firstIdx) / 7));
 
   const sel = scrub.index !== null ? points[scrub.index] : null;
   // Con una sola pesata la media non c'è ancora: si mostra l'ultima pesata.
   const lastWeighed = [...points].reverse().find((p) => p.weight !== null) ?? null;
-  const weighIns = points.reduce((k, p) => k + (p.weight !== null ? 1 : 0), 0);
   const shown = sel ?? last ?? lastWeighed;
   const shownValue = sel ? (sel.weight ?? sel.trend) : (last?.trend ?? lastWeighed?.weight ?? null);
 
@@ -70,6 +71,8 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
     <span className="tabular">
       {signedKg(change)} <span className="text-ink-3">in {weeks === 1 ? '1 settimana' : `${weeks} settimane`}</span>
     </span>
+  ) : weighIns > 0 && weighIns < 4 ? (
+    <span className="text-ink-3">servono 4 pesate</span>
   ) : !last && weighIns > 0 ? (
     <span className="text-ink-3">{weighIns === 1 ? 'prima pesata' : 'media 7 giorni'}</span>
   ) : (

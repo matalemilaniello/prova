@@ -10,10 +10,11 @@ import { Settings } from 'lucide-react';
 import type { ISODate } from '../../domain/types';
 import { getUrlParam } from '../../app/urlParams';
 import { navigate } from '../../app/router';
-import { addDays, dateRange, todayISO, weekIndexSince } from '../../engine/dates';
+import { addDays, dateRange, weekDates, weekIndexSince } from '../../engine/dates';
 import {
   changesPlan,
   isReviewDay,
+  MIN_WEIGH_INS,
   periodStats,
   proposalEffect,
   proposals,
@@ -24,7 +25,7 @@ import {
   type ReviewState,
 } from '../../engine/review';
 import { capitalize, listIt } from '../../lib/format';
-import { useToday } from '../../state/hooks';
+import { usePlanDay } from '../../state/hooks';
 import { useApp } from '../../state/store';
 import { IconButton, Screen, SectionTitle, staggerItem } from '../../ui';
 import { LoadChart } from './charts/LoadChart';
@@ -37,7 +38,9 @@ import { ReviewHistory } from './ReviewHistory';
 import { ReviewPrompt } from './ReviewPrompt';
 import { ReviewSheet } from './ReviewSheet';
 import {
+  calendarDay,
   calendarSummary,
+  calendarWeeks,
   chartRange,
   loadWeekCount,
   loadWeeks,
@@ -51,7 +54,7 @@ import {
 /** "Peso stabile, sonno in crescita e dolore in calo." */
 function pulse(s: PeriodStats): string | null {
   const parts: string[] = [];
-  if (s.weightAvg !== null && s.weightPrevAvg !== null) {
+  if (s.weightAvg !== null && s.weightPrevAvg !== null && s.weighIns >= MIN_WEIGH_INS) {
     const pct = (s.weightAvg - s.weightPrevAvg) / s.weightPrevAvg;
     parts.push(Math.abs(pct) < 0.003 ? 'peso stabile' : pct < 0 ? 'peso in calo' : 'peso in aumento');
   }
@@ -74,7 +77,7 @@ function Reveal({ i, children }: { i: number; children: React.ReactNode }) {
 }
 
 export default function ProgressiScreen() {
-  const today = useToday();
+  const today = usePlanDay();
   const plan = useApp((s) => s.plan);
   const profile = useApp((s) => s.profile);
   const checkIns = useApp((s) => s.checkIns);
@@ -89,7 +92,9 @@ export default function ProgressiScreen() {
     [plan, profile, checkIns, dayLogs, workoutLogs, footballLogs, reviews, physio],
   );
 
-  const [sheetWeek, setSheetWeek] = useState<ISODate | null>(() => (getUrlParam('view') === 'revisione' ? reviewWeekFor(todayISO()) : null));
+  const [sheetWeek, setSheetWeek] = useState<ISODate | null>(() =>
+    getUrlParam('view') === 'revisione' && reviewAvailable(today, plan) ? reviewWeekFor(today) : null,
+  );
 
   // ── Revisione ──
   const reviewWeek = reviewWeekFor(today);
@@ -104,6 +109,8 @@ export default function ProgressiScreen() {
       count: list.filter((p) => p.apply !== undefined).length,
     };
   }, [available, savedReview, reviewWeek, state, today]);
+  // Le sette giornate della settimana da rivedere, per il tabellone dell'invito.
+  const reviewDays = useMemo(() => (available ? weekDates(reviewWeek).map((d) => calendarDay(d, state, today)) : []), [available, reviewWeek, state, today]);
 
   // ── Numeri e serie ──
   const rolling = useMemo(
@@ -121,7 +128,9 @@ export default function ProgressiScreen() {
       }),
     [state, range, rolling],
   );
-  const calendar = useMemo(() => successCalendar(state, today, 12), [state, today]);
+  // La mappa parte dalla settimana del primo giorno con Ritmo (al massimo 12 settimane).
+  const calWeeks = useMemo(() => calendarWeeks(state, today, 12), [state, today]);
+  const calendar = useMemo(() => successCalendar(state, today, calWeeks), [state, today, calWeeks]);
   const calSummary = useMemo(() => calendarSummary(calendar), [calendar]);
   const load = useMemo(() => loadWeeks(state, today, loadWeekCount(state, today)), [state, today]);
 
@@ -138,6 +147,7 @@ export default function ProgressiScreen() {
       saved={savedReview}
       changes={preview.changes}
       count={preview.count}
+      days={reviewDays}
       onOpen={() => setSheetWeek(reviewWeek)}
     />
   );
@@ -147,7 +157,7 @@ export default function ProgressiScreen() {
     <Screen
       eyebrow={`Settimana ${weekNo} del piano`}
       title="Progressi"
-      subtitle={pulse(rolling) ?? undefined}
+      subtitle={pulse(rolling) ? <span className="block text-pretty">{pulse(rolling)}</span> : undefined}
       actions={<IconButton icon={Settings} label="Impostazioni" variant="tinted" onClick={() => navigate('impostazioni')} />}
     >
       {(promptOnTop || !available) && <Reveal i={i++}>{prompt}</Reveal>}
@@ -162,7 +172,7 @@ export default function ProgressiScreen() {
           <WeightChart points={weight} today={today} />
         </Reveal>
         <Reveal i={i++}>
-          <SleepChart points={sleep} sleep={plan.sleep} />
+          <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} />
         </Reveal>
         <Reveal i={i++}>
           <PainChart series={pain} threshold={plan.painThreshold} />
@@ -179,7 +189,7 @@ export default function ProgressiScreen() {
       <section className="flex flex-col gap-3" aria-label="Costanza">
         <SectionTitle>Costanza</SectionTitle>
         <Reveal i={i++}>
-          <SuccessHeatmap days={calendar} summary={calSummary} weeks={12} />
+          <SuccessHeatmap days={calendar} summary={calSummary} weeks={calWeeks} />
         </Reveal>
       </section>
 

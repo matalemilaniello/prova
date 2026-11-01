@@ -13,13 +13,24 @@
  *
  * I prodotti da dispensa (olio, sale, spezie) restano in un elenco separato: di solito ci sono già.
  * Le chiavi delle voci sono gli id degli alimenti: restano stabili anche se il menù cambia.
+ *
+ * Le porzioni sono quelle che l'utente vede nel menù: tipo di giorno effettivo (la vigilia della partita
+ * mangia come un giorno di calcio) e scala del piano (`dayCarbScale`).
+ *
+ * Conservazione: la spesa si fa nel fine settimana. Carne e pesce freschi da crudi reggono in frigo
+ * 1-2 giorni; se un pasto cucinato sul momento li usa da mercoledì in poi, la voce porta una nota che dice
+ * di congelare quelle porzioni (`note`, `freezeDates`). Ciò che si cuoce nella preparazione della domenica
+ * non conta: lì si cucina subito e si conserva cotto.
+ *
+ * Con `fromDate` la lista parte da quel giorno (la prima settimana di chi inizia a metà settimana).
  */
 import type { Food, ISODate, MealSlot, MenuWeek, ShopCategory } from '../domain/types';
 import { FOODS } from '../data/foods';
 import { MENU_ROTATION } from '../data/menu';
-import { weekDates, weekStart } from './dates';
-import { mealsForDate, type MenuState } from './menu';
-import { lineGrams } from './nutrition';
+import { WEEKDAY_LONG, listIt } from '../lib/format';
+import { weekDates, weekStart, weekdayOf } from './dates';
+import { mealsForDate, menuWeekFor, type MenuState } from './menu';
+import { dayCarbScale, lineGrams } from './nutrition';
 
 const NBSP = ' ';
 
@@ -41,6 +52,8 @@ export interface ShoppingUse {
   recipeId: string;
   /** Grammi mangiati in questo pasto. */
   grams: number;
+  /** True se l'alimento si cucina nella preparazione della domenica (ricetta da preparazione). */
+  ahead?: boolean;
 }
 
 export interface ShoppingItem {
@@ -60,6 +73,13 @@ export interface ShoppingItem {
   amount: string;
   /** Nota facoltativa: "peso a crudo", "confezione da 1 kg". */
   hint?: string;
+  /**
+   * Avviso di conservazione per carne e pesce freschi usati a metà settimana o dopo:
+   * "Congela la porzione per venerdì (≈ 150 g) e passala in frigo la sera prima".
+   */
+  note?: string;
+  /** Giorni dei pasti per cui l'alimento va congelato appena comprato. */
+  freezeDates?: ISODate[];
   pantry: boolean;
   uses: ShoppingUse[];
   /** Giorni in cui serve, in ordine. */
@@ -81,11 +101,15 @@ export interface ShoppingList {
   items: ShoppingItem[];
   /** Pasti del menù considerati. */
   mealCount: number;
+  /** Giorni considerati, in ordine (tutta la settimana, oppure da `fromDate`). */
+  dates: ISODate[];
 }
 
 export interface ShoppingOptions {
   foods?: Record<string, Food>;
   rotation?: MenuWeek[];
+  /** Primo giorno da considerare (incluso): i giorni prima restano fuori dalla lista. */
+  fromDate?: ISODate;
 }
 
 // ───────────────────────── Nomi ─────────────────────────
@@ -277,6 +301,37 @@ export function shoppingQuantity(food: Food | undefined, buyG: number): ShopQuan
   return { qty: w, amount: w, hint: rawHint };
 }
 
+// ───────────────────────── Conservazione ─────────────────────────
+
+/** Carne e pesce freschi, al banco o in vaschetta: da crudi 1-2 giorni in frigo. */
+const PERISHABLE = new Set(['pollo', 'tacchino', 'manzo', 'salmone']);
+
+/** Ultimo giorno della settimana (0 = lunedì) in cui il fresco comprato nel weekend si cucina senza congelarlo. */
+export const FRESH_LAST_WEEKDAY = 1;
+
+/** True per carne e pesce freschi (non confezionati a lunga conservazione, non surgelati). */
+export function isPerishable(food: Pick<Food, 'id' | 'category' | 'buyLabel' | 'pantry'>): boolean {
+  if (PERISHABLE.has(food.id)) return true;
+  return food.category === 'Carne e pesce' && !food.buyLabel && !food.pantry;
+}
+
+/** Testo della nota di conservazione per i giorni da congelare. */
+export function freezeNote(dates: ISODate[], buyG?: number): string {
+  const days = listIt(dates.map((d) => WEEKDAY_LONG[weekdayOf(d)]));
+  if (dates.length === 1) {
+    const g = buyG && buyG > 0 ? ` (${formatShopWeight(buyG)})` : '';
+    return `Congela la porzione per ${days}${g} e passala in frigo la sera prima`;
+  }
+  return `Congela le porzioni per ${days}, separate, e passale in frigo la sera prima`;
+}
+
+/** True se la preparazione della settimana cucina quell'alimento per quella ricetta. */
+function preparedAhead(foodId: string, recipeId: string, batch: boolean | undefined, week: MenuWeek | undefined): boolean {
+  if (batch) return true;
+  const word = foodId.split('-')[0];
+  return Boolean(week?.prep?.some((t) => (t.recipeIds ?? []).includes(recipeId) && t.title.toLowerCase().includes(word)));
+}
+
 // ───────────────────────── Lista della settimana ─────────────────────────
 
 const collator = new Intl.Collator('it-IT', { sensitivity: 'base' });
@@ -287,20 +342,25 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
   const rotation = opts.rotation ?? MENU_ROTATION;
   const monday = weekStart(weekStartIso);
   const acc = new Map<string, { eaten: number; uses: ShoppingUse[] }>();
+  const week = rotation.length ? menuWeekFor(monday, state.plan.startDate, rotation) : undefined;
+  const dates = weekDates(monday).filter((d) => !opts.fromDate || d >= opts.fromDate);
   let mealCount = 0;
 
-  for (const date of weekDates(monday)) {
+  for (const date of dates) {
     const { dayType, meals } = mealsForDate(date, state, rotation);
+    const scale = dayCarbScale(date, state);
     for (const meal of meals) {
       if (!meal.recipe) continue;
       mealCount++;
       for (const line of meal.recipe.ingredients) {
         if (!foods[line.foodId]) continue;
-        const grams = lineGrams(line, dayType, foods);
+        const grams = lineGrams(line, dayType, foods, scale);
         if (!(grams > 0)) continue;
         const cur = acc.get(line.foodId) ?? { eaten: 0, uses: [] };
         cur.eaten += grams;
-        cur.uses.push({ date, slot: meal.slot, recipeId: meal.recipeId, grams });
+        const use: ShoppingUse = { date, slot: meal.slot, recipeId: meal.recipeId, grams };
+        if (preparedAhead(line.foodId, meal.recipeId, meal.recipe.batch, week)) use.ahead = true;
+        cur.uses.push(use);
         acc.set(line.foodId, cur);
       }
     }
@@ -311,7 +371,7 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
     const food = foods[foodId];
     const buyG = eaten * (food.buyFactor ?? 1);
     const q = shoppingQuantity(food, buyG);
-    all.push({
+    const item: ShoppingItem = {
       key: foodId,
       foodId,
       name: q.name ?? shopName(food),
@@ -324,7 +384,17 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
       pantry: Boolean(food.pantry),
       uses,
       days: [...new Set(uses.map((u) => u.date))].sort(),
-    });
+    };
+    if (isPerishable(food)) {
+      const late = uses.filter((u) => !u.ahead && weekdayOf(u.date) > FRESH_LAST_WEEKDAY);
+      const lateDates = [...new Set(late.map((u) => u.date))].sort();
+      if (lateDates.length) {
+        const lateBuyG = late.reduce((a, u) => a + u.grams, 0) * (food.buyFactor ?? 1);
+        item.freezeDates = lateDates;
+        item.note = freezeNote(lateDates, lateBuyG);
+      }
+    }
+    all.push(item);
   }
 
   const byName = (a: ShoppingItem, b: ShoppingItem) => collator.compare(a.name, b.name);
@@ -345,6 +415,7 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
     pantry: all.filter((i) => i.pantry).sort(byName),
     items: groups.flatMap((g) => g.items),
     mealCount,
+    dates,
   };
 }
 
@@ -370,6 +441,8 @@ export interface ShoppingTextOptions {
   title?: string;
   /** Aggiunge in fondo i prodotti da dispensa da controllare (default true). */
   includePantry?: boolean;
+  /** Aggiunge in fondo cosa congelare appena a casa (default true). */
+  includeFreezer?: boolean;
 }
 
 /** Una riga di testo per la voce: "6 uova", "Petto di pollo: ≈ 650 g". */
@@ -398,6 +471,15 @@ export function shoppingText(list: ShoppingList, opts: ShoppingTextOptions = {})
       if (lines.length) lines.push('');
       lines.push('DA CONTROLLARE IN DISPENSA');
       for (const i of pantry) lines.push(`- ${i.name}`);
+    }
+  }
+  if (opts.includeFreezer !== false) {
+    // Le voci già spuntate restano: a casa servono proprio quelle comprate.
+    const freeze = list.items.filter((i) => i.note);
+    if (freeze.length) {
+      if (lines.length) lines.push('');
+      lines.push('APPENA A CASA');
+      for (const i of freeze) lines.push(`- ${i.name}: ${i.note!.charAt(0).toLowerCase()}${i.note!.slice(1)}`);
     }
   }
   return lines.join('\n').replace(/ /g, ' ');

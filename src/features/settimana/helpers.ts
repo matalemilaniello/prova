@@ -3,9 +3,9 @@
  * Gli orari dei pasti vengono dal motore della timeline se c'è (stessa logica della schermata Oggi),
  * altrimenti da un calcolo equivalente semplificato.
  */
-import type { AppData, FootballKind, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
-import { addMinutes, hhmmToMin, minToHHMM, weekdayOf } from '../../engine/dates';
-import { FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_SHORT, listIt } from '../../lib/format';
+import type { AppData, DayType, FootballKind, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
+import { addMinutes, hhmmToMin, isISODate, minToHHMM, weekStart, weekdayOf } from '../../engine/dates';
+import { FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
 
 interface MealSchedule {
   time: HHMM;
@@ -124,3 +124,48 @@ export function parallelMinutes(minutes: number[], lanes = 2): number {
   }
   return Math.max(0, ...load);
 }
+
+/** Giorno del primo avvio (campo facoltativo `Plan.firstUse`, scritto alla fine del benvenuto), se valido. */
+export function firstUseDate(plan: Plan): ISODate | undefined {
+  const f = (plan as { firstUse?: { date?: unknown } }).firstUse;
+  return f && isISODate(f.date) ? f.date : undefined;
+}
+
+/**
+ * Primo giorno da comprare per la settimana che inizia `monday`: il giorno del primo avvio se cade dopo il
+ * lunedì di quella settimana (chi inizia a metà settimana non compra per i giorni passati), altrimenti nessuno.
+ */
+export function shoppingFromDate(plan: Plan, monday: ISODate): ISODate | undefined {
+  const first = firstUseDate(plan);
+  if (!first || weekStart(first) !== monday || first === monday) return undefined;
+  return first;
+}
+
+/** Sabato o domenica: la spesa e la preparazione guardano alla settimana che inizia lunedì. */
+export function isWeekend(iso: ISODate): boolean {
+  return weekdayOf(iso) >= 5;
+}
+
+/** "da mercoledì a domenica", "da lunedì a domenica". */
+export function dateSpanText(dates: ISODate[]): string {
+  if (!dates.length) return '';
+  const a = WEEKDAY_LONG[weekdayOf(dates[0])];
+  const b = WEEKDAY_LONG[weekdayOf(dates[dates.length - 1])];
+  return dates.length === 1 ? `solo ${a}` : `da ${a} a ${b}`;
+}
+
+export function dayTypePhrase(t: DayType): string {
+  return t === 'calcio' ? 'di calcio' : t === 'palestra' ? 'di palestra' : t === 'leggero' ? 'leggero' : 'di riposo';
+}
+
+/**
+ * "Per un giorno leggero i carboidrati calano del 10%: le quantità cambiate sono evidenziate."
+ * Il fattore comprende il tipo di giorno e la scala del piano.
+ */
+export function portionSentence(dayType: DayType, factor: number, matchEve = false): { lead: string; pct: string; tail: string } | null {
+  const pct = Math.round(Math.abs(factor - 1) * 100);
+  if (!pct) return null;
+  const who = matchEve ? 'Per la vigilia della partita' : `Per un giorno ${dayTypePhrase(dayType)}`;
+  return { lead: `${who} i carboidrati ${factor > 1 ? 'crescono' : 'calano'} del `, pct: `${fmtNumber(pct)}%`, tail: ': le quantità cambiate sono evidenziate.' };
+}
+

@@ -12,16 +12,16 @@ import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
 import { formatRelativeDay } from '../../engine/dates';
 import { mealsForDate, swapOptions } from '../../engine/menu';
-import { carbFactor, portionParts, recipeNutrition, recipeVegPortions } from '../../engine/nutrition';
+import { dayCarbScale, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber, fmtPercent, listIt } from '../../lib/format';
 import { useApp } from '../../state/store';
-import { useToday } from '../../state/hooks';
+import { usePlanDay } from '../../state/hooks';
 import { Button, Card, DayTypeBadge, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
-import { toneInk, toneSoft } from '../../ui/tones';
+import { toneInk, toneRing } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import { swatchFor } from './art/foodArt';
-import { mealScheduleFor } from './helpers';
+import { mealScheduleFor, portionSentence } from './helpers';
 import { applySwap } from './SwapSheet';
 
 export interface RecipeSheetProps {
@@ -46,7 +46,7 @@ const DAY_PHRASE: Record<DayType, string> = { calcio: 'di calcio', palestra: 'di
 export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeSheetProps) {
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
-  const today = useToday();
+  const today = usePlanDay();
   const reduce = useReducedMotion();
   const [viewId, setViewId] = useState(recipeId);
   const topRef = useRef<HTMLDivElement>(null);
@@ -59,6 +59,9 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
   const current = currentId ? RECIPES[currentId] : undefined;
   const recipe: Recipe | undefined = RECIPES[viewId];
   const dayType = meals.dayType;
+  // Colori ed etichetta seguono il tipo previsto; porzioni e valori il tipo effettivo (vigilia = calcio).
+  const colorType = meals.scheduledDayType;
+  const scale = useMemo(() => dayCarbScale(date, { plan, dayLogs }), [date, plan, dayLogs]);
   const schedule = mealScheduleFor(date, plan);
   const slotTitle = slotEff ? schedule[slotEff]?.title : undefined;
   const previewing = Boolean(slotEff && currentId && viewId !== currentId);
@@ -124,7 +127,7 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
         className="flex flex-col gap-6 pb-4"
       >
         {previewing && current && (
-          <div className="flex items-center gap-3 rounded-[16px] p-3" style={{ background: toneSoft('accent', 10), boxShadow: `inset 0 0 0 1px ${toneSoft('accent', 24)}` }}>
+          <div className="flex items-center gap-3 rounded-[16px] bg-card p-3" style={{ boxShadow: toneRing('accent', 40) }}>
             <span className="t-footnote min-w-0 flex-1 text-ink-2">Stai guardando un’alternativa.</span>
             <Button variant="ghost" size="sm" icon={Undo2} onClick={() => setViewId(current.id)} className="-my-1 -mr-1.5">
               Torna alla ricetta
@@ -132,8 +135,8 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
           </div>
         )}
 
-        <Hero recipe={recipe} dayType={dayType} />
-        <Values recipe={recipe} dayType={dayType} targetKcal={plan.targets[dayType].kcal} />
+        <Hero recipe={recipe} dayType={colorType} label={meals.matchEve ? 'Vigilia della partita' : undefined} />
+        <Values recipe={recipe} dayType={dayType} scale={scale} targetKcal={plan.targets[dayType].kcal} />
         {recipe.tags.length > 0 && (
           <ul className="-mt-2 flex flex-wrap gap-1.5" aria-label="Caratteristiche">
             {recipe.tags.map((t) => (
@@ -145,12 +148,13 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
             ))}
           </ul>
         )}
-        <Ingredients recipe={recipe} dayType={dayType} />
+        <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} />
         <Steps recipe={recipe} />
         {slotEff && entry && (
           <Alternatives
             slot={slotEff}
             dayType={dayType}
+            scale={scale}
             viewId={viewId}
             currentId={entry.recipeId}
             plannedId={entry.plannedId}
@@ -168,12 +172,12 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
 
 // ───────────────────────── Parti ─────────────────────────
 
-function Hero({ recipe, dayType }: { recipe: Recipe; dayType: DayType }) {
+function Hero({ recipe, dayType, label }: { recipe: Recipe; dayType: DayType; label?: string }) {
   return (
     <div className="relative overflow-hidden rounded-card shadow-card">
       <DishArt recipe={recipe} dayType={dayType} variant="hero" className="aspect-[360/220] w-full" />
       <div className="pointer-events-none absolute left-3 top-3">
-        <DayTypeBadge dayType={dayType} variant="solid" />
+        <DayTypeBadge dayType={dayType} variant="solid" label={label} />
       </div>
       <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap gap-1.5">
         <span className="glass t-footnote inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--bar-line)] px-2.5 font-semibold text-ink">
@@ -191,9 +195,9 @@ function Hero({ recipe, dayType }: { recipe: Recipe; dayType: DayType }) {
   );
 }
 
-function Values({ recipe, dayType, targetKcal }: { recipe: Recipe; dayType: DayType; targetKcal: number }) {
-  const n = recipeNutrition(recipe, dayType);
-  const veg = recipeVegPortions(recipe, dayType);
+function Values({ recipe, dayType, scale, targetKcal }: { recipe: Recipe; dayType: DayType; scale: number; targetKcal: number }) {
+  const n = recipeNutrition(recipe, dayType, FOODS, scale);
+  const veg = recipeVegPortions(recipe, dayType, FOODS, scale);
   const macros = [
     { label: 'proteine', v: n.proteinG },
     { label: 'carboidrati', v: n.carbG },
@@ -236,26 +240,38 @@ function Values({ recipe, dayType, targetKcal }: { recipe: Recipe; dayType: DayT
   );
 }
 
-function Ingredients({ recipe, dayType }: { recipe: Recipe; dayType: DayType }) {
-  const factor = carbFactor(dayType);
+function Ingredients({
+  recipe,
+  dayType,
+  colorType,
+  scale,
+  matchEve,
+}: {
+  recipe: Recipe;
+  dayType: DayType;
+  colorType: DayType;
+  scale: number;
+  matchEve: boolean;
+}) {
+  const factor = totalCarbFactor(dayType, scale);
   const units = [...new Set(recipe.ingredients.map((l) => HAND_HELP[l.unit]).filter((x): x is string => Boolean(x)))];
   const hasScaled = recipe.ingredients.some((l) => l.carbScaled) && factor !== 1;
-  const pct = `${factor > 1 ? '+' : '−'}${fmtNumber(Math.abs(factor - 1) * 100)}%`;
+  const sentence = hasScaled ? portionSentence(dayType, factor, matchEve) : null;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-ingredienti">
       <SectionTitle
         id="ricetta-ingredienti"
         subtitle={
-          hasScaled ? (
+          sentence ? (
             <>
-              Per un giorno {DAY_PHRASE[dayType]}: carboidrati{' '}
-              <span className="font-semibold" style={{ color: toneInk(dayType) }}>
-                {pct}
+              {sentence.lead}
+              <span className="font-semibold" style={{ color: toneInk(colorType) }}>
+                {sentence.pct}
               </span>
-              , in colore.
+              {sentence.tail}
             </>
           ) : (
-            `Porzioni per un giorno ${DAY_PHRASE[dayType]}.`
+            `Porzioni per ${matchEve ? 'la vigilia della partita' : `un giorno ${DAY_PHRASE[dayType]}`}.`
           )
         }
       >
@@ -265,7 +281,7 @@ function Ingredients({ recipe, dayType }: { recipe: Recipe; dayType: DayType }) 
         <ul>
           {recipe.ingredients.map((l, i) => {
             const food = FOODS[l.foodId];
-            const p = portionParts(l, dayType);
+            const p = portionParts(l, dayType, FOODS, scale);
             const scaled = l.carbScaled && factor !== 1;
             const hand = l.unit !== 'g' && l.unit !== 'ml';
             const detail = [food ? foodState(food) : undefined, l.note].filter(Boolean).join(' · ');
@@ -283,7 +299,7 @@ function Ingredients({ recipe, dayType }: { recipe: Recipe; dayType: DayType }) 
                     {detail && <span className="t-footnote text-ink-3">{detail}</span>}
                   </span>
                   <span className="flex shrink-0 flex-col items-end text-right">
-                    <span className="t-callout font-semibold" style={{ color: scaled ? toneInk(dayType) : 'var(--ink)' }}>
+                    <span className="t-callout font-semibold" style={{ color: scaled ? toneInk(colorType) : 'var(--ink)' }}>
                       {p.portion}
                     </span>
                     {hand && p.grams > 0 && <span className="t-mono text-[0.75rem] text-ink-3">≈ {p.grams}&nbsp;g</span>}
@@ -332,6 +348,7 @@ function Steps({ recipe }: { recipe: Recipe }) {
 function Alternatives({
   slot,
   dayType,
+  scale,
   viewId,
   currentId,
   plannedId,
@@ -340,6 +357,7 @@ function Alternatives({
 }: {
   slot: MealSlot;
   dayType: DayType;
+  scale: number;
   viewId: string;
   currentId: string;
   plannedId: string;
@@ -355,7 +373,7 @@ function Alternatives({
   for (const r of swapOptions(plannedId || currentId, slot, 6)) push(r.id);
   const list = ids.filter((id) => id !== viewId).slice(0, 6);
   if (!list.length) return null;
-  const view = recipeNutrition(RECIPES[viewId], dayType);
+  const view = recipeNutrition(RECIPES[viewId], dayType, FOODS, scale);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-alternative">
       <SectionTitle id="ricetta-alternative" subtitle="Stesso pasto, valori adattati a questo giorno.">
@@ -365,7 +383,7 @@ function Alternatives({
         <ul>
           {list.map((id, i) => {
             const r = RECIPES[id];
-            const n = recipeNutrition(r, dayType);
+            const n = recipeNutrition(r, dayType, FOODS, scale);
             const dk = Math.round(n.kcal - view.kcal);
             const isCurrent = id === currentId;
             return (

@@ -8,7 +8,7 @@ export interface RatingPickerProps {
   value: number | undefined;
   onChange: (value: number) => void;
   label: string;
-  /** 5 (qualità del sonno) o 10 (voti della revisione, RPE). Default 5. */
+  /** 5 (qualità del sonno) o 10 (voti della revisione, RPE: due righe da 5, pulsanti da 44 px). Default 5. */
   max?: 5 | 10;
   /** Primo valore (default 1). */
   min?: number;
@@ -35,6 +35,7 @@ export function RatingPicker({
 }: RatingPickerProps) {
   const id = useId();
   const values = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  // Oltre 6 valori si va su due righe da 5: dieci pulsanti in una riga sarebbero larghi 26 px.
   const dense = values.length > 6;
   const desc = value !== undefined ? labels?.[value - min] : undefined;
 
@@ -57,7 +58,7 @@ export function RatingPicker({
         role="radiogroup"
         aria-labelledby={hideLabel ? undefined : id}
         aria-label={hideLabel ? label : undefined}
-        className={cn('grid gap-1.5', dense ? 'grid-cols-10' : 'grid-cols-5')}
+        className="grid grid-cols-5 gap-1.5"
         onKeyDown={(e) => {
           const cur = value ?? min - 1;
           if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
@@ -84,8 +85,8 @@ export function RatingPicker({
               onClick={() => pick(n)}
               className={cn(
                 't-num relative grid place-items-center rounded-[12px] transition-colors duration-150',
-                dense ? 'h-11 text-[1.125rem]' : 'h-12 text-[1.375rem]',
-                on ? 'bg-accent text-on-accent shadow-[0_6px_16px_-8px_var(--accent-glow)]' : 'bg-ink-soft text-ink-2 hover:text-ink',
+                dense ? 'h-11 text-[1.25rem]' : 'h-12 text-[1.375rem]',
+                on ? 'bg-accent text-on-accent shadow-[0_6px_16px_-8px_var(--accent-glow)]' : 'bg-control text-ink-2 hover:text-ink',
               )}
             >
               {n}

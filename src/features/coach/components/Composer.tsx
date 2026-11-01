@@ -8,7 +8,7 @@ import { ArrowUp, Camera, ImagePlus, Images, Plus, Square, X } from 'lucide-reac
 import { prepareImage } from '../../../lib/image';
 import { haptic } from '../../../lib/haptics';
 import { useUi } from '../../../state/store';
-import { cn, Spinner, springSnappy } from '../../../ui';
+import { cn, Spinner, springSnappy, toneRing } from '../../../ui';
 import type { OutgoingImage } from '../useCoachChat';
 import type { Suggestion } from '../suggestions';
 
@@ -379,7 +379,7 @@ function AttachMenu({
                   i > 0 && 'border-t border-line',
                 )}
               >
-                <span className="grid size-8 place-items-center rounded-[10px] bg-accent-soft text-accent-ink">
+                <span className="grid size-8 place-items-center rounded-[10px] bg-accent-soft text-accent-ink" style={{ boxShadow: toneRing('accent') }}>
                   <Icon size={17} strokeWidth={2.2} aria-hidden />
                 </span>
                 <span className="flex min-w-0 flex-col">

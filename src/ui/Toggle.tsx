@@ -32,8 +32,15 @@ export function Toggle({ checked, onChange, label, disabled, tone = 'accent', cl
         onChange(!checked);
       }}
       className={cn(
-        'hit-44 relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full p-[2px] transition-colors duration-200 disabled:opacity-40',
-        checked ? (tone === 'good' ? 'bg-good' : 'bg-accent') : 'bg-[color-mix(in_srgb,var(--ink-3)_38%,transparent)]',
+        'hit-44 relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full p-[2px] transition-colors duration-200',
+        // Disattivato: niente ambra trasparente (sul blu diventa oliva), pista neutra e pollice attenuato.
+        disabled
+          ? 'cursor-default bg-control ring-1 ring-inset ring-[var(--control-line)] [&>*]:opacity-60'
+          : checked
+            ? tone === 'good'
+              ? 'bg-good'
+              : 'bg-accent'
+            : 'bg-[color-mix(in_srgb,var(--ink-3)_38%,transparent)]',
         className,
       )}
     >

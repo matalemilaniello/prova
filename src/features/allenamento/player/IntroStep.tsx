@@ -1,13 +1,14 @@
 import { motion } from 'motion/react';
-import { Clock, HeartPulse, History, Layers, ListOrdered, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, Clock, HeartPulse, History, Layers, ListOrdered, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate, WorkoutLog } from '../../../domain/types';
 import { compareHHMM, formatDayLong, formatRelativeDay } from '../../../engine/dates';
 import { useNowHHMM } from '../../../state/hooks';
+import { estimateSessionMin } from '../../../data/sessions';
 import { sessionLoad, type PainGate, type Suggestion } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
-import { Callout, Pill, cn, staggerItem } from '../../../ui';
+import { Callout, Pill, cn, keepHyphens, staggerItem } from '../../../ui';
 import { SessionGlyph } from '../components/SessionGlyph';
-import { daysPhrase, doseLabel, estimateMinutes, kgLabel, plannedSets, type PlayerPlan } from '../lib';
+import { daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, type PlayerPlan } from '../lib';
 
 export interface IntroStepProps {
   plan: PlayerPlan;
@@ -35,6 +36,10 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
   const upcoming = Boolean(time) && (date > today || (date === today && compareHHMM(nowHHMM, time!) < 0));
   const whenLabel = `${when.charAt(0).toUpperCase()}${when.slice(1)}${upcoming ? ` alle ${time}` : ''}`;
   const increases = plan.items.filter((it) => suggestions[it.key]?.kind === 'aumenta').length;
+  const minutes = plan.intro
+    ? Math.round((session.estMin * estimateMinutes(own.map((i) => i.item))) / Math.max(1, estimateSessionMin(session)))
+    : session.estMin;
+  const swapped = own.filter((i) => i.replacedFrom);
 
   return (
     <div className="flex flex-col gap-6 pb-8 pt-3">
@@ -52,7 +57,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
         </div>
         <dl className="grid grid-cols-3 overflow-hidden rounded-[18px] bg-card shadow-card">
           {[
-            { icon: Clock, label: 'Durata', value: `${session.estMin}`, unit: 'min' },
+            { icon: Clock, label: 'Durata', value: `${minutes}`, unit: 'min' },
             { icon: ListOrdered, label: 'Esercizi', value: `${exercises}` },
             { icon: Layers, label: 'Serie', value: `${sets}` },
           ].map((s, i) => (
@@ -71,9 +76,17 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
         <p className="t-callout text-ink-2">{session.focus}</p>
       </header>
 
-      {gate.level !== 'ok' && (
+      {plan.intro && (
+        <Callout tone="good" icon={Sprout} title={plan.intro === 1 ? 'Prima volta con questa seduta' : 'Seconda volta con questa seduta'}>
+          Una serie in meno per esercizio e una ripetizione di riserva in più. L'indolenzimento degli esercizi nuovi ha il
+          picco dopo {keepHyphens('48-72')} ore: così arrivi fresco alla partita.{' '}
+          {plan.intro === 1 ? 'Dalla terza volta la seduta è completa.' : 'Dalla prossima volta la seduta è completa.'}
+        </Callout>
+      )}
+
+      {(gate.level !== 'ok' || swapped.length > 0) && (
         <Callout tone={gate.level === 'riduci' ? 'bad' : 'warn'} title={gate.title}>
-          {gate.message}
+          {gate.level === 'ok' ? 'Nel riscaldamento gli esercizi con salti diventano varianti senza volo, il resto come previsto.' : gate.message}
         </Callout>
       )}
 
@@ -120,6 +133,12 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
                     <span className="t-mono w-4 shrink-0 text-[0.75rem] text-ink-3">{i + 1}</span>
                     <span className="min-w-0 flex-1">
                       <span className="t-callout block font-medium text-ink">{it.exercise?.name ?? it.item.exerciseId}</span>
+                      {it.replacedFrom && (
+                        <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
+                          <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
+                          al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
+                        </span>
+                      )}
                       <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
                     </span>
                     {w > 0 && !it.warmup && (

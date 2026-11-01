@@ -8,7 +8,7 @@ import { CONSOLE_KEYS_URL, CONSOLE_LIMITS_URL, isLikelyApiKey, maskKey, modelLab
 import { haptic } from '../../../lib/haptics';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, Field, IconButton, Pill, TextInput, springSnappy } from '../../../ui';
-import { ChoiceCards, InlineReveal } from '../components/controls';
+import { ChoiceCards, InlineReveal, tileStyle } from '../components/controls';
 import { Page, type PageProps } from './Page';
 
 const MODELS: { value: string; label: string; text: string }[] = [
@@ -61,7 +61,7 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
 
       <Card variant="highlight" padding="lg" className="flex flex-col gap-4">
         <div className="flex items-center gap-3.5">
-          <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent-ink">
+          <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-[14px]" style={tileStyle('accent')}>
             <Sparkles size={24} strokeWidth={2} />
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-1">

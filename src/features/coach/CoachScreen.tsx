@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowDown, Coffee, LockKeyhole, Sparkles, Wallet } from 'lucide-react';
+import { ArrowDown, CalendarCheck, Camera, Coffee, Dumbbell, LockKeyhole, Store, Wallet, type LucideIcon } from 'lucide-react';
 import type { AppData, ChatMessage } from '../../domain/types';
 import { IS_PREVIEW } from '../../app/env';
 import { useUrlParam } from '../../app/urlParams';
@@ -16,7 +16,7 @@ import { coachDay, coachDaySummary } from '../../engine/coachContext';
 import { hhmmToMin, nowHHMM, toISO, weekdayOf } from '../../engine/dates';
 import { useNow } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Card, IconButton, Screen, SCROLL_TOP_EVENT, useKeyboardInset } from '../../ui';
+import { Card, cn, Floodlights, IconButton, Screen, SCROLL_TOP_EVENT, toneInk, toneRing, toneSoft, useKeyboardInset } from '../../ui';
 import { chatRows } from './chat';
 import { ActivateStrip, ChatHeader, ConversationIntro, HEADER_CORE, PreviewStrip, SuggestionGrid } from './components/ChatChrome';
 import { CoachAvatar } from './components/CoachAvatar';
@@ -87,17 +87,25 @@ function CoachSetupScreen() {
           </div>
         </div>
         <ul className="mt-5 flex flex-col gap-3.5">
-          {[
-            { t: 'Al bar o fuori casa', d: 'Cosa ordinare adesso, in base al pasto e al tipo di giorno.' },
-            { t: 'Una foto del piatto', d: 'Porzioni stimate e un aggiustamento per il resto della giornata.' },
-            { t: 'Allenamento', d: 'Saltare, accorciare o spingere, guardando sonno, dolori e carico.' },
-            { t: 'La settimana', d: 'Cosa ha funzionato e cosa correggere nella revisione della domenica.' },
-          ].map((x) => (
-            <li key={x.t} className="flex gap-3">
-              <Sparkles size={16} strokeWidth={2.2} aria-hidden className="mt-[3px] shrink-0 text-accent-ink" />
-              <p className="t-footnote text-ink-2">
-                <span className="font-semibold text-ink">{x.t}. </span>
-                {x.d}
+          {(
+            [
+              { icon: Store, t: 'Al bar o fuori casa', d: 'Cosa ordinare adesso, in base al pasto e al tipo di giorno.' },
+              { icon: Camera, t: 'Una foto del piatto', d: 'Porzioni stimate e un aggiustamento per il resto della giornata.' },
+              { icon: Dumbbell, t: 'Allenamento', d: 'Saltare, accorciare o spingere, guardando sonno, dolori e carico.' },
+              { icon: CalendarCheck, t: 'La settimana', d: 'Cosa ha funzionato e cosa correggere nella revisione della domenica.' },
+            ] as { icon: LucideIcon; t: string; d: string }[]
+          ).map(({ icon: Icon, t, d }) => (
+            <li key={t} className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className="grid size-8 shrink-0 place-items-center rounded-[10px]"
+                style={{ background: toneSoft('accent', 16), boxShadow: toneRing('accent'), color: toneInk('accent') }}
+              >
+                <Icon size={16} strokeWidth={2.2} />
+              </span>
+              <p className="t-footnote pt-[5px] text-ink-2">
+                <span className="font-semibold text-ink">{t}. </span>
+                {d}
               </p>
             </li>
           ))}
@@ -138,7 +146,7 @@ function CoachSetupScreen() {
 
       <Card padding="md" onPress={() => open({ type: 'barPlanB' })}>
         <div className="flex items-center gap-3.5">
-          <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-accent-soft text-accent-ink">
+          <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-accent-soft text-accent-ink" style={{ boxShadow: toneRing('accent') }}>
             <Coffee size={21} strokeWidth={2.1} aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
@@ -191,8 +199,14 @@ function CoachChatScreen() {
   const composerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ComposerHandle>(null);
   const atBottom = useRef(true);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const introRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [showJump, setShowJump] = useState(false);
   const [composerH, setComposerH] = useState(64);
+  // Altezza minima della conversazione quando la presentazione resterebbe mozzata sotto l'intestazione:
+  // i messaggi scendono in fondo e la presentazione esce del tutto sopra.
+  const [introMinH, setIntroMinH] = useState<number | null>(null);
 
   const toBottom = useCallback(
     (smooth: boolean) => {
@@ -211,6 +225,24 @@ function CoachChatScreen() {
     setShowJump(d > 280);
   };
 
+  /**
+   * All'apertura la chat è in fondo. Se della presentazione (avatar, pillole) resta solo una striscia
+   * sotto l'intestazione, la si nasconde del tutto: la prima cosa visibile è un separatore di data, non
+   * mezza pillola. Quando non c'è più da scorrere, i messaggi scendono in fondo e lo spazio va sopra.
+   */
+  const tuckIntro = useCallback(() => {
+    const el = scrollerRef.current;
+    const intro = introRef.current;
+    const header = rootRef.current?.querySelector('header');
+    if (!el || !intro || !header) return;
+    const cut = intro.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom;
+    if (cut <= 0 || cut > 120) return;
+    const need = cut + 6;
+    const max = el.scrollHeight - el.clientHeight;
+    if (el.scrollTop + need <= max + 1) el.scrollTop += need;
+    else if (contentRef.current) setIntroMinH(contentRef.current.offsetHeight + Math.ceil(el.scrollTop + need - max));
+  }, []);
+
   useLayoutEffect(() => {
     // Conversazione vuota: si parte dall'alto, con il coach e i suggerimenti in vista.
     if (!useApp.getState().chat.length) {
@@ -218,10 +250,18 @@ function CoachChatScreen() {
       return;
     }
     toBottom(false);
+    tuckIntro();
     // Le immagini caricate dopo allungano la lista: si torna in fondo una volta.
-    const id = window.setTimeout(() => toBottom(false), 120);
+    const id = window.setTimeout(() => {
+      toBottom(false);
+      tuckIntro();
+    }, 120);
     return () => window.clearTimeout(id);
-  }, [toBottom]);
+  }, [toBottom, tuckIntro]);
+
+  useLayoutEffect(() => {
+    if (introMinH !== null && atBottom.current) toBottom(false);
+  }, [introMinH, toBottom]);
 
   const lastId = chat[chat.length - 1]?.id;
   const lastRole = chat[chat.length - 1]?.role;
@@ -236,7 +276,6 @@ function CoachChatScreen() {
 
   // Qualunque cosa allunghi la lista (testo in arrivo, foto caricate, suggerimenti) tiene il fondo
   // agganciato, se l'utente era in fondo.
-  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = contentRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -299,7 +338,7 @@ function CoachChatScreen() {
   const empty = chat.length === 0 && !coach.draft;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-bg">
+    <div ref={rootRef} className="relative h-full w-full overflow-hidden bg-bg">
       <ChatHeader
         onBarPlan={barPlan}
         onOptions={() => setOptionsOpen(true)}
@@ -312,18 +351,22 @@ function CoachChatScreen() {
         onScroll={onScroll}
         data-scroll-container
         className="h-full overflow-y-auto overflow-x-hidden overscroll-y-contain"
+        style={{ scrollPaddingTop: `calc(var(--safe-top) + ${HEADER_CORE}px)` }}
       >
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px]" style={{ background: 'var(--floodlight)' }} />
+        {/* I riflettori illuminano la presentazione del coach in cima alla conversazione. */}
+        <Floodlights intensity={0.45} pitch={false} height={460} style={{ top: `calc(var(--safe-top) + ${HEADER_CORE - 24}px)` }} />
         <div
           ref={contentRef}
           className="relative mx-auto flex min-h-full max-w-[640px] flex-col"
           style={{
+            minHeight: introMinH !== null ? `max(100%, ${introMinH}px)` : undefined,
             paddingTop: `calc(var(--safe-top) + ${HEADER_CORE + 8}px)`,
             paddingBottom: `calc(${bottomOffset} + ${composerH + 16}px)`,
             paddingLeft: 'calc(var(--gutter) - 6px + var(--safe-left))',
             paddingRight: 'calc(var(--gutter) - 4px + var(--safe-right))',
           }}
         >
+          <div ref={introRef}>
           <ConversationIntro summary={summary} model={model} onContext={() => setContextOpen(true)}>
             {empty && (
               <div className="mt-6 flex w-full flex-col items-center gap-4">
@@ -334,8 +377,9 @@ function CoachChatScreen() {
               </div>
             )}
           </ConversationIntro>
+          </div>
 
-          <div role="log" aria-label="Conversazione con il coach" aria-live="off" className="flex flex-col">
+          <div role="log" aria-label="Conversazione con il coach" aria-live="off" className={cn('flex flex-col', introMinH !== null && 'mt-auto')}>
             {rows.map((r) => (
               <div key={r.message.id}>
                 {r.separator && <Separator label={r.separator} />}
@@ -350,6 +394,7 @@ function CoachChatScreen() {
                   onFixKey={() => setKeyOpen(true)}
                   onBarPlan={barPlan}
                   errorKind={coach.errorKinds[r.message.id]}
+                  answeredBy={coach.answeredBy[r.message.id]}
                 />
               </div>
             ))}

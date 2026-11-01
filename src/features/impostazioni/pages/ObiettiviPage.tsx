@@ -10,7 +10,7 @@ import { DAY_TYPES, DAY_TYPE_LABEL, fmtDelta, fmtKg, fmtNumber, plural } from '.
 import { haptic } from '../../../lib/haptics';
 import { latestWeight, useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, DayTypeBadge, ListGroup, NumberTicker, Sheet, cn, springSnappy, staggerItem, toneColor, toneInk } from '../../../ui';
-import { FormRow, MiniStepper } from '../components/controls';
+import { FormRow, MiniStepper, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
 import { carbsToMatch, dayTypeCounts, kcalFromMacros } from '../lib';
 import { Page, type PageProps } from './Page';
@@ -22,15 +22,16 @@ function MacroBar({ t, tone }: { t: MacroTarget; tone: DayType }) {
   const f = t.fatG * 9;
   const tot = Math.max(1, p + c + f);
   const color = toneColor(tone);
+  // Niente colore diluito (l'ambra trasparente sul blu diventa oliva): proteine piene, carboidrati a filo, grassi neutri.
   const parts = [
-    { w: p / tot, bg: color, label: 'proteine' },
-    { w: c / tot, bg: `color-mix(in srgb, ${color} 55%, transparent)`, label: 'carboidrati' },
-    { w: f / tot, bg: `color-mix(in srgb, ${color} 26%, transparent)`, label: 'grassi' },
+    { w: p / tot, style: { background: color }, label: 'proteine' },
+    { w: c / tot, style: { boxShadow: `inset 0 0 0 1.5px ${color}` }, label: 'carboidrati' },
+    { w: f / tot, style: { background: 'var(--line-strong)' }, label: 'grassi' },
   ];
   return (
     <div className="flex h-2 w-full gap-[3px] overflow-hidden rounded-full" aria-hidden>
       {parts.map((x) => (
-        <motion.span key={x.label} className="h-full rounded-full" style={{ background: x.bg }} initial={false} animate={{ width: `${x.w * 100}%` }} transition={springSnappy} />
+        <motion.span key={x.label} className="h-full rounded-full" style={x.style} initial={false} animate={{ width: `${x.w * 100}%` }} transition={springSnappy} />
       ))}
     </div>
   );
@@ -52,7 +53,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
       {complete ? (
         <Card variant="highlight" padding="lg" className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
-            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent-ink">
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px]" style={tileStyle('accent')}>
               <Calculator size={20} strokeWidth={2.2} />
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -81,7 +82,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <DayTypeBadge dayType={t} />
-                    <span className="t-mono text-[0.75rem] text-ink-3">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessun giorno'}</span>
+                    <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessun giorno'}</span>
                   </div>
                   <ChevronRight size={18} strokeWidth={2.2} className="text-ink-3" aria-hidden />
                 </div>

@@ -15,11 +15,26 @@
  *           trazioni), bilanciere in spinta. Ognuno di questi ha almeno un'alternativa adatta.
  *
  * Le alternative puntano a esercizi dello stesso schema motorio o con lo stesso scopo preventivo.
+ *
+ * Campi propri del catalogo (non fanno parte del contratto dei dati, gli esercizi del fisioterapista non li hanno):
+ *   impact  · esercizio con fase di volo e atterraggio (balzi, salti): con la tibia oltre la soglia degli
+ *             impatti viene sostituito da un'alternativa senza volo;
+ *   startKg · tre carichi di partenza tipici per la prima volta (totali per bilanciere, trap bar e macchine,
+ *             per manubrio con i manubri), pensati per lasciare 2-3 ripetizioni di riserva a un adulto
+ *             allenato ma senza programma. Sono un punto di partenza: il lettore li propone, l'utente sceglie.
  */
 import type { Exercise } from '../domain/types';
 
+/** Esercizio del catalogo, con i campi facoltativi propri del catalogo. */
+export interface CatalogExercise extends Exercise {
+  /** Fase di volo e atterraggio: da evitare con la tibia oltre la soglia degli impatti. */
+  impact?: boolean;
+  /** Carichi di partenza tipici in kg (tre valori crescenti) per la prima volta con l'esercizio. */
+  startKg?: readonly number[];
+}
+
 /** Catalogo in ordine di categoria (riscaldamento, mobilità, spinte, tirate, gambe, core, prevenzione). */
-export const EXERCISE_LIST: readonly Exercise[] = [
+export const EXERCISE_LIST: readonly CatalogExercise[] = [
   // ───────────────────────── Riscaldamento (FIFA 11+ adattato) ─────────────────────────
   {
     id: 'cyclette-ritmo-crescente',
@@ -116,8 +131,23 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       "Ginocchio sopra il piede all'atterraggio, mai verso l'interno",
     ],
     elbowFriendly: true,
-    alternatives: ['equilibrio-su-una-gamba-a-stella'],
+    impact: true,
+    alternatives: ['passi-laterali-elastico', 'equilibrio-su-una-gamba-a-stella'],
     videoQuery: 'balzi laterali del pattinatore atterraggio stabile calcio',
+  },
+  {
+    id: 'passi-laterali-elastico',
+    name: 'Passi laterali con elastico ad anello',
+    category: 'riscaldamento',
+    equipment: 'Elastico ad anello',
+    cues: [
+      'Elastico sopra le caviglie, mezzo squat con il busto alto',
+      "Passi laterali corti, piedi paralleli che non si toccano mai",
+      "Ginocchia sopra i piedi, mai verso l'interno",
+    ],
+    elbowFriendly: true,
+    alternatives: ['equilibrio-su-una-gamba-a-stella', 'apertura-chiusura-anca-in-marcia'],
+    videoQuery: 'passi laterali elastico ad anello attivazione glutei',
   },
   {
     id: 'aperture-con-elastico',
@@ -246,6 +276,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 2 secondi fino al petto e spingi senza bloccare i gomiti',
     ],
     elbowFriendly: true,
+    startKg: [12, 16, 20],
     alternatives: ['chest-press-presa-neutra', 'distensioni-ai-cavi-presa-neutra', 'piegamenti-su-impugnature'],
     videoQuery: 'panca piana manubri presa neutra tecnica',
   },
@@ -260,6 +291,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Spingi in alto e leggermente indietro, sopra le spalle',
     ],
     elbowFriendly: true,
+    startKg: [10, 14, 18],
     alternatives: ['distensioni-ai-cavi-presa-neutra', 'lento-manubri-presa-neutra', 'panca-manubri-presa-neutra'],
     videoQuery: 'panca inclinata manubri presa neutra 30 gradi',
   },
@@ -274,6 +306,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Spingi senza bloccare i gomiti e torna in 2 secondi',
     ],
     elbowFriendly: true,
+    startKg: [30, 40, 50],
     alternatives: ['panca-manubri-presa-neutra', 'distensioni-ai-cavi-presa-neutra'],
     videoQuery: 'chest press macchina presa neutra regolazione sedile',
   },
@@ -288,6 +321,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Al ritorno non lasciare che i cavi ti tirino indietro le spalle',
     ],
     elbowFriendly: true,
+    startKg: [10, 15, 20],
     alternatives: ['chest-press-presa-neutra', 'panca-manubri-presa-neutra'],
     videoQuery: 'distensioni ai cavi in piedi tecnica',
   },
@@ -302,6 +336,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Spingi sopra la testa senza inarcare la schiena',
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['panca-inclinata-manubri-presa-neutra', 'distensioni-ai-cavi-presa-neutra'],
     videoQuery: 'lento avanti manubri presa neutra seduto',
   },
@@ -332,6 +367,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Risali in 2 secondi fino a braccia distese',
     ],
     elbowFriendly: true,
+    startKg: [35, 45, 55],
     alternatives: ['pulley-basso-presa-neutra', 'trazioni-presa-neutra'],
     videoQuery: 'lat machine presa neutra stretta tecnica',
   },
@@ -360,6 +396,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Fermati un secondo in alto e scendi fino ad allungare la scapola',
     ],
     elbowFriendly: true,
+    startKg: [14, 18, 22],
     alternatives: ['rematore-petto-appoggiato', 'pulley-basso-presa-neutra'],
     videoQuery: 'rematore manubrio una mano panca tecnica',
   },
@@ -374,6 +411,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Stringi le scapole un secondo e scendi controllando',
     ],
     elbowFriendly: true,
+    startKg: [10, 14, 18],
     alternatives: ['rematore-manubrio-una-mano', 'pulley-basso-presa-neutra'],
     videoQuery: 'rematore petto appoggiato panca inclinata manubri',
   },
@@ -388,6 +426,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Allunga le braccia in avanti senza piegare la schiena',
     ],
     elbowFriendly: true,
+    startKg: [35, 45, 55],
     alternatives: ['rematore-petto-appoggiato', 'lat-machine-presa-neutra'],
     videoQuery: 'pulley basso maniglia a V tecnica',
   },
@@ -402,6 +441,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Chiudi con le mani accanto alle orecchie e torna lento',
     ],
     elbowFriendly: true,
+    startKg: [10, 15, 20],
     alternatives: ['aperture-con-elastico', 'extrarotazioni-con-elastico'],
     videoQuery: 'face pull corda cavo tecnica corretta',
   },
@@ -418,6 +458,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Chiudi con i glutei, senza inarcare la schiena in alto',
     ],
     elbowFriendly: false,
+    startKg: [40, 60, 80],
     alternatives: ['hip-thrust-bilanciere', 'leg-press', 'stacco-rumeno-manubri'],
     videoQuery: 'stacco trap bar tecnica corretta',
   },
@@ -432,6 +473,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Spingi con tutto il piede e risali dritto',
     ],
     elbowFriendly: true,
+    startKg: [16, 20, 24],
     alternatives: ['leg-press', 'affondo-bulgaro-manubri', 'squat-con-sollevamento-punte'],
     videoQuery: 'squat goblet manubrio tecnica',
   },
@@ -446,6 +488,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       "Busto un po' in avanti, spingi con il tallone della gamba davanti",
     ],
     elbowFriendly: true,
+    startKg: [6, 10, 14],
     alternatives: ['affondi-indietro-manubri', 'step-up-manubri', 'leg-press'],
     videoQuery: 'affondo bulgaro manubri tecnica',
   },
@@ -460,6 +503,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Torna spingendo con il tallone della gamba avanti',
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['affondo-bulgaro-manubri', 'step-up-manubri'],
     videoQuery: 'affondi indietro con manubri tecnica',
   },
@@ -474,6 +518,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi lento in 2 secondi',
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['affondi-indietro-manubri', 'affondo-bulgaro-manubri'],
     videoQuery: 'step up panca manubri tecnica',
   },
@@ -488,6 +533,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Spingi senza bloccare le ginocchia in alto',
     ],
     elbowFriendly: true,
+    startKg: [60, 80, 100],
     alternatives: ['squat-goblet', 'affondo-bulgaro-manubri'],
     videoQuery: 'leg press 45 gradi posizione piedi tecnica',
   },
@@ -502,6 +548,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Fermati un secondo in alto con i glutei stretti, senza inarcare',
     ],
     elbowFriendly: true,
+    startKg: [40, 60, 80],
     alternatives: ['ponte-glutei-una-gamba', 'leg-press'],
     videoQuery: 'hip thrust bilanciere tecnica corretta',
   },
@@ -530,6 +577,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Risali spingendo le anche in avanti',
     ],
     elbowFriendly: false,
+    startKg: [14, 18, 22],
     alternatives: ['stacco-rumeno-una-gamba', 'leg-curl-seduto', 'hip-thrust-bilanciere'],
     videoQuery: 'stacco rumeno manubri tecnica',
   },
@@ -544,6 +592,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       "Ginocchio d'appoggio morbido, risali stringendo il gluteo",
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['ponte-glutei-una-gamba', 'stacco-rumeno-manubri', 'equilibrio-su-una-gamba-a-stella'],
     videoQuery: 'stacco rumeno una gamba manubrio equilibrio',
   },
@@ -558,6 +607,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Torna in 3 secondi fino a gamba quasi tesa',
     ],
     elbowFriendly: true,
+    startKg: [25, 35, 45],
     alternatives: ['nordic-hamstring-curl', 'stacco-rumeno-una-gamba'],
     videoQuery: 'leg curl seduto tecnica regolazione',
   },
@@ -616,6 +666,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Bacino e spalle fermi, torna al petto lento',
     ],
     elbowFriendly: true,
+    startKg: [5, 10, 15],
     alternatives: ['plank-laterale', 'dead-bug'],
     videoQuery: 'pallof press cavo anti rotazione',
   },
@@ -644,6 +695,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Addome contratto e sguardo avanti',
     ],
     elbowFriendly: false,
+    startKg: [16, 20, 24],
     alternatives: ['plank-laterale', 'pallof-press'],
     videoQuery: 'trasporto manubrio da un lato esercizio core',
   },
@@ -730,6 +782,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Riapri in 3 secondi controllando',
     ],
     elbowFriendly: true,
+    startKg: [30, 40, 50],
     alternatives: ['copenhagen-leva-corta'],
     videoQuery: 'macchina adduttori tecnica corretta',
   },
@@ -744,6 +797,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 2-3 secondi fino al massimo allungamento',
     ],
     elbowFriendly: true,
+    startKg: [40, 60, 80],
     alternatives: ['polpacci-una-gamba-manubrio', 'polpacci-seduto'],
     videoQuery: 'polpacci in piedi alla macchina tecnica',
   },
@@ -758,6 +812,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 3 secondi fino al massimo allungamento',
     ],
     elbowFriendly: true,
+    startKg: [20, 30, 40],
     alternatives: ['soleo-una-gamba-ginocchio-piegato', 'polpacci-in-piedi-macchina'],
     videoQuery: 'polpacci da seduto soleo macchina tecnica',
   },
@@ -772,6 +827,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 3 secondi sotto il livello del rialzo',
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['polpacci-in-piedi-macchina', 'soleo-una-gamba-ginocchio-piegato'],
     videoQuery: 'polpacci su una gamba con manubrio su rialzo',
   },
@@ -786,6 +842,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 3 secondi senza raddrizzare il ginocchio',
     ],
     elbowFriendly: true,
+    startKg: [8, 12, 16],
     alternatives: ['polpacci-seduto', 'polpacci-una-gamba-manubrio'],
     videoQuery: 'esercizio soleo ginocchio piegato una gamba',
   },
@@ -800,6 +857,7 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi in 3 secondi',
     ],
     elbowFriendly: true,
+    startKg: [4, 6, 8],
     alternatives: ['tibiale-al-muro'],
     videoQuery: 'rinforzo tibiale anteriore da seduto con manubrio',
   },
@@ -856,10 +914,16 @@ export const EXERCISE_LIST: readonly Exercise[] = [
       'Scendi da solo in 4 secondi fino a polso piegato',
     ],
     elbowFriendly: true,
+    startKg: [2, 3, 4],
     alternatives: ['tyler-twist', 'isometria-estensori-polso'],
     videoQuery: 'eccentrico estensori polso manubrio epicondilite',
   },
 ];
 
 /** Catalogo degli esercizi per id. */
-export const EXERCISES: Record<string, Exercise> = Object.fromEntries(EXERCISE_LIST.map((e) => [e.id, e]));
+export const EXERCISES: Record<string, CatalogExercise> = Object.fromEntries(EXERCISE_LIST.map((e) => [e.id, e]));
+
+/** Carichi di partenza tipici di un esercizio del catalogo (vuoto se non previsti). */
+export function startLoads(exercise: Exercise | undefined): readonly number[] {
+  return (exercise as CatalogExercise | undefined)?.startKg ?? [];
+}

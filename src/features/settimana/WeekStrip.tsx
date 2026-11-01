@@ -1,7 +1,8 @@
 /**
  * Striscia dei 7 giorni: giorno, data, attività (calcio, palestra, fisio) e barra col colore del tipo
- * di giorno. Il giorno scelto ha una luce del suo colore che scorre da un giorno all'altro; oggi ha la
- * data nel cerchio color riflettori; i giorni passati riusciti hanno una piccola spunta.
+ * di giorno. Un segnale per cosa: il giorno scelto ha un fondo appena più chiaro con un anello sottile del
+ * suo colore, che scorre da un giorno all'altro; oggi ha la data in luce ambra con un puntino sotto;
+ * i giorni passati riusciti hanno una piccola spunta.
  */
 import { motion, useReducedMotion } from 'motion/react';
 import { Activity, Check, Dumbbell } from 'lucide-react';
@@ -11,9 +12,9 @@ import { DAY_TYPE_LABEL, WEEKDAY_SHORT } from '../../lib/format';
 import { cn } from '../../ui/cn';
 import { DAY_TYPE_ICON } from '../../ui/DayTypeBadge';
 import { renderIcon, type IconLike } from '../../ui/icon';
-import { BallIcon } from './BallIcon';
+import { BallIcon } from '../../ui';
 import { spring } from '../../ui/motion';
-import { toneColor, toneInk, toneSoft } from '../../ui/tones';
+import { toneColor, toneInk } from '../../ui/tones';
 import { haptic } from '../../lib/haptics';
 import { dayActivities, type ActivityKind } from './helpers';
 
@@ -70,10 +71,7 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
                   layoutId="settimana-strip-sel"
                   aria-hidden
                   className="absolute inset-0 -z-0 rounded-[14px]"
-                  style={{
-                    background: `linear-gradient(180deg, ${toneSoft(dayType, 8)}, ${toneSoft(dayType, 22)})`,
-                    boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${toneColor(dayType)} 55%, transparent)`,
-                  }}
+                  style={{ background: 'var(--card-2)', boxShadow: `inset 0 0 0 1.5px ${toneColor(dayType)}` }}
                   transition={reduce ? { duration: 0 } : spring}
                 />
               )}
@@ -83,11 +81,12 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
               </span>
               <span
                 className={cn(
-                  't-num relative grid size-8 place-items-center rounded-full text-[1.25rem] leading-none',
-                  isToday ? 'bg-accent text-on-accent' : past && !isSel ? 'text-ink-2' : 'text-ink',
+                  't-num relative grid h-8 min-w-8 place-items-center text-[1.375rem] leading-none',
+                  isToday ? 'text-accent-ink' : past && !isSel ? 'text-ink-2' : 'text-ink',
                 )}
               >
                 {fromISO(d).getDate()}
+                {isToday && <span aria-hidden className="absolute -bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent" style={{ boxShadow: '0 0 6px var(--accent)' }} />}
               </span>
               <span className="relative flex h-3.5 items-center justify-center gap-[3px]" aria-hidden>
                 {acts.length
@@ -104,7 +103,7 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
               <span
                 aria-hidden
                 className="relative mt-auto h-[3px] w-5 rounded-full transition-[width] duration-300"
-                style={{ background: toneColor(dayType), width: isSel ? 26 : 18, boxShadow: isSel ? `0 0 8px ${toneColor(dayType)}` : undefined }}
+                style={{ background: toneColor(dayType), width: isSel ? 24 : 18 }}
               />
             </button>
           );

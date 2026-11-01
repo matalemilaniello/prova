@@ -1,6 +1,7 @@
 /**
  * Scheda Menù: il giorno scelto con i valori stimati rispetto all'obiettivo e i 5 pasti, ciascuno con
- * l'illustrazione del piatto, le porzioni a occhio adattate al tipo di giorno e la sostituzione.
+ * l'illustrazione del piatto, le porzioni a occhio adattate al tipo di giorno e al piano, e la sostituzione.
+ * Il giudizio "In linea" guarda kcal e macronutrienti, non solo le kcal.
  */
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
@@ -9,17 +10,16 @@ import type { DayType, ISODate, MealSlot, Plan, AppData } from '../../domain/typ
 import { FOODS } from '../../data/foods';
 import { formatDayLong, weekdayOf } from '../../engine/dates';
 import { mealsForDate, type MealEntry } from '../../engine/menu';
-import { carbFactor, dayNutritionDetail, portionParts, recipeNutrition } from '../../engine/nutrition';
+import { dayNutritionDetail, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
-import { capitalize, fmtNumber } from '../../lib/format';
+import { DAY_TYPE_LABEL, capitalize, fmtNumber } from '../../lib/format';
 import { useApp, useUi } from '../../state/store';
-import { Button, Card, DayTypeBadge, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
+import { BallIcon, Button, Card, DayTypeBadge, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { toneColor, toneInk } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
-import { BallIcon } from './BallIcon';
 import type { IconLike } from '../../ui/icon';
 import { swatchFor } from './art/foodArt';
-import { dayActivities, mealScheduleFor, type ActivityKind } from './helpers';
+import { dayActivities, mealScheduleFor, portionSentence, type ActivityKind } from './helpers';
 import { SwapSheet } from './SwapSheet';
 
 const ACT_ICON: Record<ActivityKind, IconLike> = { calcio: BallIcon, palestra: Dumbbell, fisio: Activity };
@@ -36,18 +36,21 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
   const detail = useMemo(() => dayNutritionDetail(date, state), [date, state]);
   const schedule = useMemo(() => mealScheduleFor(date, plan), [date, plan]);
   const day = plan.week.find((d) => d.weekday === weekdayOf(date));
+  // Porzioni e obiettivi seguono il tipo effettivo (la vigilia mangia da calcio); colori ed etichetta il tipo previsto.
   const dayType = meals.dayType;
+  const colorType = meals.scheduledDayType;
   const acts = dayActivities(day);
   const [swapSlot, setSwapSlot] = useState<MealSlot | null>(null);
   const swapEntry = swapSlot ? meals.bySlot[swapSlot] : undefined;
-  const factor = carbFactor(dayType);
+  const scale = detail.carbScale;
+  const factor = totalCarbFactor(dayType, scale);
 
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2.5 px-1">
         <h2 className="t-title text-ink">{capitalize(formatDayLong(date))}</h2>
         <div className="flex flex-wrap items-center gap-1.5">
-          <DayTypeBadge dayType={dayType} />
+          <DayTypeBadge dayType={colorType} label={meals.matchEve ? `${DAY_TYPE_LABEL[colorType]}, vigilia della partita` : undefined} />
           {acts.map((a) => (
             <Pill key={a.kind} variant="outline" tone="neutral" icon={ACT_ICON[a.kind]}>
               {a.label}
@@ -62,25 +65,12 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
         </Card>
       ) : (
         <>
-          <DayNutritionCard dayType={dayType} plan={plan} detail={detail} />
+          <DayNutritionCard dayType={dayType} colorType={colorType} plan={plan} detail={detail} matchEve={meals.matchEve} />
 
           <section className="flex flex-col gap-3" aria-labelledby="settimana-pasti">
             <SectionTitle
               id="settimana-pasti"
-              subtitle={
-                factor !== 1 ? (
-                  <>
-                    Porzioni per un giorno {dayTypePhrase(dayType)}: carboidrati{' '}
-                    <span style={{ color: toneInk(dayType) }} className="font-semibold">
-                      {factor > 1 ? '+' : '−'}
-                      {fmtNumber(Math.abs(factor - 1) * 100)}%
-                    </span>
-                    , in colore nelle porzioni.
-                  </>
-                ) : (
-                  'Porzioni di riferimento, per un giorno di palestra.'
-                )
-              }
+              subtitle={<PortionNote dayType={dayType} colorType={colorType} factor={factor} matchEve={meals.matchEve} />}
             >
               Pasti del giorno
             </SectionTitle>
@@ -91,6 +81,8 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
                     entry={m}
                     date={date}
                     dayType={dayType}
+                    colorType={colorType}
+                    scale={scale}
                     title={schedule[m.slot]?.title ?? capitalize(m.slot)}
                     time={schedule[m.slot]?.time}
                     onSwap={() => setSwapSlot(m.slot)}
@@ -106,24 +98,86 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
       )}
 
       {swapEntry && swapSlot && (
-        <SwapSheet open onClose={() => setSwapSlot(null)} date={date} slot={swapSlot} entry={swapEntry} dayType={dayType} title={schedule[swapSlot]?.title} />
+        <SwapSheet
+          open
+          onClose={() => setSwapSlot(null)}
+          date={date}
+          slot={swapSlot}
+          entry={swapEntry}
+          dayType={dayType}
+          scale={scale}
+          title={schedule[swapSlot]?.title}
+        />
       )}
     </div>
   );
 }
 
-function dayTypePhrase(t: DayType): string {
-  return t === 'calcio' ? 'di calcio' : t === 'palestra' ? 'di palestra' : t === 'leggero' ? 'leggero' : 'di riposo';
+function PortionNote({ dayType, colorType, factor, matchEve }: { dayType: DayType; colorType: DayType; factor: number; matchEve: boolean }) {
+  const p = portionSentence(dayType, factor, matchEve);
+  if (!p) return <>Porzioni di riferimento, per un giorno di palestra.</>;
+  return (
+    <>
+      {p.lead}
+      <span style={{ color: toneInk(colorType) }} className="font-semibold">
+        {p.pct}
+      </span>
+      {p.tail}
+    </>
+  );
+}
+
+interface Verdict {
+  good: boolean;
+  text: string;
+}
+
+const MACRO_TOLERANCE = 0.15;
+const PROTEIN_MAX_EXCESS = 0.25;
+
+/**
+ * Giudizio del giorno: "In linea" solo con kcal entro ±8% e carboidrati e grassi entro ±15% (proteine tra
+ * −15% e +25%: qualche grammo in più non è un problema). Altrimenti la voce più lontana dall'obiettivo.
+ */
+export function dayVerdict(
+  t: { kcal: number; proteinG: number; carbG: number; fatG: number },
+  target: { kcal: number; proteinG: number; carbG: number; fatG: number },
+): Verdict {
+  const dev = (v: number, ref: number) => (ref > 0 ? v / ref - 1 : 0);
+  const k = dev(t.kcal, target.kcal);
+  if (Math.abs(k) > 0.08) return { good: false, text: `${k > 0 ? '+' : '−'}${fmtNumber(Math.abs(k) * 100)}% sull’obiettivo` };
+  const off: { name: string; d: number; over: number }[] = [
+    { name: 'Proteine', d: dev(t.proteinG, target.proteinG), over: 0 },
+    { name: 'Carboidrati', d: dev(t.carbG, target.carbG), over: 0 },
+    { name: 'Grassi', d: dev(t.fatG, target.fatG), over: 0 },
+  ].map((m) => {
+    const limit = m.d > 0 ? (m.name === 'Proteine' ? PROTEIN_MAX_EXCESS : MACRO_TOLERANCE) : MACRO_TOLERANCE;
+    return { ...m, over: Math.abs(m.d) - limit };
+  });
+  const worst = off.filter((m) => m.over > 0).sort((a, b) => b.over - a.over)[0];
+  if (worst) return { good: false, text: `${worst.name} ${worst.d > 0 ? 'sopra' : 'sotto'} l’obiettivo` };
+  return { good: true, text: 'In linea con l’obiettivo' };
 }
 
 // ───────────────────────── Valori del giorno ─────────────────────────
 
-function DayNutritionCard({ dayType, plan, detail }: { dayType: DayType; plan: Plan; detail: ReturnType<typeof dayNutritionDetail> }) {
+function DayNutritionCard({
+  dayType,
+  colorType,
+  plan,
+  detail,
+  matchEve,
+}: {
+  dayType: DayType;
+  colorType: DayType;
+  plan: Plan;
+  detail: ReturnType<typeof dayNutritionDetail>;
+  matchEve: boolean;
+}) {
   const target = plan.targets[dayType];
   const t = detail.total;
   const ratio = target.kcal ? t.kcal / target.kcal : 0;
-  const diff = ratio - 1;
-  const inLine = Math.abs(diff) <= 0.08;
+  const verdict = dayVerdict(t, target);
   const veg = Math.round(detail.vegPortions * 2) / 2;
   const vegShown = Math.min(7, Math.floor(detail.vegPortions + 0.25));
   const rows = [
@@ -133,19 +187,19 @@ function DayNutritionCard({ dayType, plan, detail }: { dayType: DayType; plan: P
     { label: 'Fibre', v: t.fiberG, target: target.fiberG },
   ];
   return (
-    <Card variant="highlight" tone={dayType} padding="lg" as="section" aria-label="Valori stimati del giorno">
+    <Card variant="highlight" tone={colorType} padding="lg" as="section" aria-label="Valori stimati del giorno">
       <div className="flex items-center justify-between gap-3">
         <span className="t-label text-ink-3">Stima dal menù</span>
-        <Pill tone={inLine ? 'good' : 'warn'} dot>
-          {inLine ? 'In linea con l’obiettivo' : `${diff > 0 ? '+' : '−'}${fmtNumber(Math.abs(diff) * 100)}% sull’obiettivo`}
+        <Pill tone={verdict.good ? 'good' : 'warn'} dot>
+          {verdict.text}
         </Pill>
       </div>
-      <div className="mt-4 flex items-center gap-5">
+      <div className="mt-4 flex items-center gap-4">
         <ProgressRing
           value={ratio}
-          size={118}
+          size={108}
           stroke={10}
-          tone={dayType}
+          tone={colorType}
           celebrate={false}
           label={`${fmtNumber(t.kcal)} kcal stimate su ${fmtNumber(target.kcal)} di obiettivo`}
         >
@@ -157,14 +211,14 @@ function DayNutritionCard({ dayType, plan, detail }: { dayType: DayType; plan: P
         <dl className="flex min-w-0 flex-1 flex-col gap-2.5">
           {rows.map((r) => (
             <div key={r.label} className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                <dt className="t-footnote text-ink-2">{r.label}</dt>
-                <dd className="t-mono ml-auto whitespace-nowrap text-[0.75rem]">
+              <div className="flex items-baseline justify-between gap-x-1.5">
+                <dt className="t-footnote min-w-0 truncate text-ink-2">{r.label}</dt>
+                <dd className="t-mono shrink-0 whitespace-nowrap text-[0.75rem] max-[380px]:text-[0.6875rem]">
                   <span className="font-medium text-ink">{fmtNumber(Math.round(r.v))}</span>
                   <span className="text-ink-3"> / {fmtNumber(r.target)}&nbsp;g</span>
                 </dd>
               </div>
-              <ProgressBar value={r.target ? r.v / r.target : 0} size="xs" tone={dayType} label={`${r.label}: ${Math.round(r.v)} su ${r.target} g`} />
+              <ProgressBar value={r.target ? r.v / r.target : 0} size="xs" tone={colorType} label={`${r.label}: ${Math.round(r.v)} su ${r.target} g`} />
             </div>
           ))}
         </dl>
@@ -190,6 +244,9 @@ function DayNutritionCard({ dayType, plan, detail }: { dayType: DayType; plan: P
           <span className="text-ink-3">, obiettivo 5</span>
         </p>
       </div>
+      {matchEve && (
+        <p className="t-footnote mt-3 text-ink-3">Vigilia della partita: porzioni da giorno di calcio, per arrivare in campo con le scorte di glicogeno piene.</p>
+      )}
     </Card>
   );
 }
@@ -200,6 +257,10 @@ interface MealCardProps {
   entry: MealEntry;
   date: ISODate;
   dayType: DayType;
+  /** Tipo previsto dalla settimana, per i colori. */
+  colorType: DayType;
+  /** Scala del piano per le righe di carboidrati (`dayCarbScale`). */
+  scale: number;
   title: string;
   time?: string;
   onSwap: () => void;
@@ -207,12 +268,12 @@ interface MealCardProps {
 
 const SPICE_MAX_G = 6;
 
-function MealCard({ entry, date, dayType, title, time, onSwap }: MealCardProps) {
+function MealCard({ entry, date, dayType, colorType, scale, title, time, onSwap }: MealCardProps) {
   const recipe = entry.recipe;
   const swapRecipe = useApp((s) => s.swapRecipe);
   const toast = useUi((s) => s.toast);
-  const n = useMemo(() => recipeNutrition(recipe, dayType), [recipe, dayType]);
-  const factor = carbFactor(dayType);
+  const n = useMemo(() => recipeNutrition(recipe, dayType, FOODS, scale), [recipe, dayType, scale]);
+  const factor = totalCarbFactor(dayType, scale);
 
   if (!recipe) {
     return (
@@ -224,7 +285,7 @@ function MealCard({ entry, date, dayType, title, time, onSwap }: MealCardProps) 
 
   const lines = recipe.ingredients.map((l) => {
     const food = FOODS[l.foodId];
-    const p = portionParts(l, dayType);
+    const p = portionParts(l, dayType, FOODS, scale);
     return { l, food, p, spice: Boolean(food?.pantry) && p.grams < SPICE_MAX_G && l.foodId !== 'olio-evo' };
   });
   const main = lines.filter((x) => !x.spice);
@@ -241,7 +302,7 @@ function MealCard({ entry, date, dayType, title, time, onSwap }: MealCardProps) 
     <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: ${recipe.name}`}>
       <Pressable onPress={open} pressScale={0.985} className="flex w-full items-start gap-3.5 p-4 pb-3" aria-label={`${title}, ${recipe.name}. Apri la ricetta`}>
         <span className="relative size-[68px] shrink-0">
-          <DishArt recipe={recipe} dayType={dayType} variant="thumb" className="size-full" />
+          <DishArt recipe={recipe} dayType={colorType} variant="thumb" className="size-full" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col pt-0.5">
           <span className="flex min-w-0 items-center gap-2">
@@ -270,28 +331,23 @@ function MealCard({ entry, date, dayType, title, time, onSwap }: MealCardProps) 
           const name = food ? shopName(food) : l.foodId;
           const state = food ? foodState(food) : undefined;
           const scaled = l.carbScaled && factor !== 1;
-          const showPortion = l.unit !== 'g' && l.unit !== 'ml';
+          const hand = l.unit !== 'g' && l.unit !== 'ml';
           return (
-            <li key={`${l.foodId}-${i}`} className="flex min-h-7 items-baseline gap-2.5 py-1">
+            <li key={`${l.foodId}-${i}`} className="flex items-start gap-2.5 py-1">
               <span
                 aria-hidden
-                className="mt-[5px] size-2 shrink-0 self-start rounded-full"
+                className="mt-[6px] size-2 shrink-0 rounded-full"
                 style={{ background: swatchFor(l.foodId, food), boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)' }}
               />
               <span className="t-footnote min-w-0 flex-1 text-ink">
                 {name}
                 {state && <span className="text-ink-3"> {state}</span>}
               </span>
-              {showPortion && (
-                <span className="t-footnote shrink-0 whitespace-nowrap text-right font-medium" style={{ color: scaled ? toneInk(dayType) : 'var(--ink-2)' }}>
+              <span className="flex max-w-[45%] shrink-0 flex-col items-end text-right">
+                <span className="t-footnote font-medium leading-5" style={{ color: scaled ? toneInk(colorType) : 'var(--ink-2)' }}>
                   {p.portion}
                 </span>
-              )}
-              <span
-                className="t-mono w-[3.75rem] shrink-0 text-right text-[0.75rem]"
-                style={{ color: scaled && !showPortion ? toneInk(dayType) : 'var(--ink-3)' }}
-              >
-                {p.grams ? `≈ ${p.grams} g` : ''}
+                {hand && p.grams > 0 && <span className="t-caption tabular leading-4 text-ink-3">≈&nbsp;{p.grams}&nbsp;g</span>}
               </span>
             </li>
           );

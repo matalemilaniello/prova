@@ -1,21 +1,31 @@
+import { useId } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Cookie, GlassWater, Minus, Plus } from 'lucide-react';
 import { fmtLiters, fmtNumber, plural } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Card, IconButton, NumberTicker, Pill, cn, toneColor, toneInk, toneSoft } from '../../../ui';
+import { Button, Card, IconButton, NumberTicker, Pill, cn, toneColor, toneInk, toneRing, toneSoft } from '../../../ui';
 
 const GLASS_L = 0.25;
 
 export interface WaterCardProps {
   glasses: number;
   targetL: number;
+  /** Litri in più del giorno (es. calcio: sudore da reintegrare). */
+  extraL?: number;
+  extraReason?: string;
   onAdd: (delta: number) => void;
 }
 
-/** Acqua: bicchieri da 250 ml verso l'obiettivo. Tocca un bicchiere per arrivare fin lì. */
-export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
+/**
+ * Acqua: bicchieri da 250 ml verso l'obiettivo. Tocca un bicchiere per arrivare fin lì.
+ * Oltre 6 bicchieri vanno su più righe, così ogni bersaglio resta largo almeno 44 px.
+ */
+export function WaterCard({ glasses, targetL: baseL, extraL = 0, extraReason, onAdd }: WaterCardProps) {
   const reduce = useReducedMotion();
+  const targetL = baseL + extraL;
   const target = Math.max(1, Math.round(targetL / GLASS_L));
+  const rows = Math.ceil(target / 6);
+  const perRow = Math.ceil(target / rows);
   const reached = glasses >= target;
   const extra = Math.max(0, glasses - target);
 
@@ -30,7 +40,7 @@ export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
     <Card padding="none" as="section" aria-labelledby="oggi-acqua">
       <div className="p-4">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: toneSoft('palestra', 16), color: toneInk('palestra') }}>
+          <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: toneSoft('palestra', 16), boxShadow: toneRing('palestra'), color: toneInk('palestra') }}>
             <GlassWater size={19} strokeWidth={2.2} />
           </span>
           <div className="min-w-0 flex-1">
@@ -39,6 +49,7 @@ export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
             </h3>
             <p className="t-footnote text-ink-2">
               {fmtLiters(glasses * GLASS_L)} su {fmtLiters(targetL)}
+              {extraL > 0 && extraReason ? <span className="text-ink-3"> · {extraReason}</span> : null}
             </p>
           </div>
           {reached ? (
@@ -53,7 +64,7 @@ export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
           )}
         </div>
 
-        <div className="mt-4 flex gap-[5px]" role="group" aria-label="Bicchieri d’acqua">
+        <div className="mt-4 grid gap-x-[5px] gap-y-2" style={{ gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` }} role="group" aria-label="Bicchieri d’acqua">
           {Array.from({ length: target }, (_, i) => {
             const full = i < glasses;
             return (
@@ -63,21 +74,9 @@ export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
                 aria-label={`${plural(i + 1, 'bicchiere', 'bicchieri')}`}
                 aria-pressed={full}
                 onClick={() => setTo(i + 1)}
-                className="group relative h-10 flex-1 touch-manipulation"
+                className="group relative h-11 touch-manipulation"
               >
-                <span
-                  aria-hidden
-                  className="absolute inset-0 overflow-hidden rounded-b-[9px] rounded-t-[4px] bg-ink-soft transition-transform duration-150 group-active:scale-90"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, 88% 100%, 12% 100%)' }}
-                >
-                  <motion.span
-                    className="absolute inset-x-0 bottom-0"
-                    style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${toneColor('palestra')} 80%, white), ${toneColor('palestra')})` }}
-                    initial={false}
-                    animate={{ height: full ? '100%' : '0%' }}
-                    transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 260, damping: 26, delay: full ? 0 : 0 }}
-                  />
-                </span>
+                <Glass full={full} reduce={Boolean(reduce)} />
               </button>
             );
           })}
@@ -91,6 +90,37 @@ export function WaterCard({ glasses, targetL, onAdd }: WaterCardProps) {
         </div>
       </div>
     </Card>
+  );
+}
+
+/** Bicchiere disegnato: contorno sempre visibile (anche nel tema chiaro), acqua che sale quando è pieno. */
+function Glass({ full, reduce }: { full: boolean; reduce: boolean }) {
+  const id = useId();
+  const shape = 'M2 1.5 H22 L19.6 38.5 Q19.4 40 17.9 40 H6.1 Q4.6 40 4.4 38.5 Z';
+  return (
+    <svg aria-hidden viewBox="0 0 24 41.5" preserveAspectRatio="none" className="absolute inset-x-[3px] inset-y-0 h-full w-[calc(100%-6px)] transition-transform duration-150 group-active:scale-90">
+      <defs>
+        <clipPath id={id}>
+          <path d={shape} />
+        </clipPath>
+        <linearGradient id={`${id}-w`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={`color-mix(in srgb, ${toneColor('palestra')} 75%, white)`} />
+          <stop offset="1" stopColor={toneColor('palestra')} />
+        </linearGradient>
+      </defs>
+      <path d={shape} fill="var(--card-2)" />
+      <g clipPath={`url(#${id})`}>
+        <motion.rect
+          x="0"
+          width="24"
+          fill={`url(#${id}-w)`}
+          initial={false}
+          animate={{ y: full ? 0 : 41.5, height: full ? 41.5 : 0 }}
+          transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 260, damping: 26 }}
+        />
+      </g>
+      <path d={shape} fill="none" stroke={full ? 'transparent' : 'var(--line-strong)'} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
@@ -118,7 +148,7 @@ export function SweetsCard({ week, today, planned, onAdd }: SweetsCardProps) {
     <Card padding="none" as="section" aria-labelledby="oggi-dolci">
       <div className="p-4">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: toneSoft('riposo', 16), color: toneInk('riposo') }}>
+          <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[11px]" style={{ background: toneSoft('riposo', 16), boxShadow: toneRing('riposo'), color: toneInk('riposo') }}>
             <Cookie size={19} strokeWidth={2.2} />
           </span>
           <div className="min-w-0 flex-1">

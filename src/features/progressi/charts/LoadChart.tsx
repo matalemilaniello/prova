@@ -78,7 +78,7 @@ export function LoadChart({ weeks }: { weeks: LoadWeek[] }) {
           </LegendItem>
         </>
       }
-      footnote="La soglia è il 120% della media delle 4 settimane precedenti: oltre, il rischio di sovraccarico sale."
+      footnote="La soglia è il 120% della media delle 4 settimane precedenti: i picchi improvvisi di carico si associano a più infortuni, meglio salire per gradi."
     >
       <div ref={ref}>
         {hasData && (

@@ -3,19 +3,36 @@
  *
  * Ogni giorno segue la settimana tipo del piano predefinito:
  * lunedì calcio (partita), martedì palestra (A), mercoledì calcio (calcetto), giovedì calcio (allenamento),
- * venerdì palestra (B), sabato leggero (C facoltativa), domenica riposo.
- * Le porzioni si adattano al tipo di giorno (vedi `carbFactor`): con i valori di `recipeNutrition` ogni giornata
- * resta entro ±8% delle kcal obiettivo, con proteine ≥ 125 g, fibre ≥ 28 g e almeno 5 porzioni di frutta e verdura
- * (verificato da `menu.test.ts`).
+ * venerdì palestra (B), sabato leggero (C facoltativa), domenica riposo. La domenica è anche la vigilia della
+ * partita: porzioni e obiettivo sono quelli di un giorno di calcio (vedi `effectiveDayType`).
+ *
+ * Con i valori di `recipeNutrition` ogni giornata resta entro ±8% delle kcal obiettivo, con proteine ≥ 125 g,
+ * carboidrati e grassi entro il 15% dell'obiettivo, grassi ≥ 20% dell'energia, fibre tra 28 e 45 g (40 g quando
+ * la sera c'è il calcio), almeno 5 porzioni di frutta e verdura e al massimo una porzione di legumi
+ * (verificato da `menu.test.ts`): chi mangiava poche fibre non passa a 50 g da un giorno all'altro.
  *
  * Nei giorni di calcio la merenda è un pre-calcio digeribile (verso le 18:30) e la cena è una cena di recupero
  * veloce, quasi sempre pronta dalla domenica. Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto
- * principale, uova 3 volte, carne rossa una volta.
+ * principale (nei giorni di calcio solo le lenticchie rosse decorticate, a pranzo), uova 3 volte,
+ * carne rossa una volta. Gli spuntini si ripetono di proposito: meno prodotti da comprare.
  *
  * `prep` sono le attività della domenica che precede la settimana (60-90 minuti in tutto): servono i pasti
- * da lunedì a sabato. La domenica si cucina sul momento.
+ * da lunedì a sabato. La domenica si cucina sul momento, oppure si usa una porzione dal freezer.
  */
 import type { MenuWeek } from '../domain/types';
+
+/** Timer di una pentola, del forno o della padella durante la preparazione della domenica. */
+export interface PrepTimer {
+  label: string;
+  minutes: number;
+}
+
+/** Guida passo per passo di un'attività della preparazione (lettore a schermo intero). */
+export interface PrepGuide {
+  steps: string[];
+  /** Cotture da cronometrare, anche in parallelo. */
+  timers?: PrepTimer[];
+}
 
 export const MENU_ROTATION: MenuWeek[] = [
   // ───────────────────────── Settimana 1 ─────────────────────────
@@ -35,9 +52,9 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'porridge-cacao-banana',
-          spuntino: 'crackers-grana-pera',
+          spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-ceci-rosmarino',
-          merenda: 'skyr-frutti-bosco-avena',
+          merenda: 'fiocchi-latte-pomodorini',
           cena: 'salmone-patate-broccoli',
         },
       },
@@ -55,7 +72,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'cappuccino-fette-skyr',
-          spuntino: 'panino-tacchino-mela',
+          spuntino: 'skyr-mela-mandorle',
           pranzo: 'pasta-ragu-lenticchie',
           merenda: 'pre-frullato-banana',
           cena: 'riso-saltato-uova-piselli',
@@ -65,7 +82,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'yogurt-greco-muesli-kiwi',
-          spuntino: 'ceci-tostati-arancia',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-lenticchie-zucchine-feta',
           merenda: 'yogurt-cacao-pera',
           cena: 'pollo-paprika-peperoni',
@@ -88,7 +105,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-ricotta-spinaci',
           merenda: 'yogurt-cacao-pera',
-          cena: 'tacchino-limone-patate',
+          cena: 'tacchino-riso-carote',
         },
       },
     ],
@@ -104,14 +121,14 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-pollo',
         title: 'Cuoci il petto di pollo in padella',
         minutes: 20,
-        yields: "Pollo per la vaschetta di lunedì e l'insalata di riso di mercoledì",
+        yields: "Pollo per la vaschetta di lunedì; quello per l'insalata di riso di mercoledì va in freezer",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate'],
       },
       {
         id: 's1-ragu',
         title: 'Prepara il ragù di lenticchie',
         minutes: 25,
-        yields: 'Ragù per il pranzo di giovedì, più tre porzioni in freezer',
+        yields: 'Quattro porzioni in freezer: giovedì a pranzo, la domenica dopo a cena e due di scorta',
         recipeIds: ['pasta-ragu-lenticchie'],
       },
       {
@@ -123,10 +140,10 @@ export const MENU_ROTATION: MenuWeek[] = [
       },
       {
         id: 's1-sacchetti',
-        title: 'Porziona gli spuntini da portare',
+        title: 'Porziona la frutta secca degli spuntini',
         minutes: 5,
-        yields: 'Sacchetti di ceci tostati, mandorle e noci per tutta la settimana',
-        recipeIds: ['ceci-tostati-arancia', 'skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
+        yields: 'Sacchetti di mandorle e noci per gli spuntini da portare di tutta la settimana',
+        recipeIds: ['skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
       },
     ],
   },
@@ -149,8 +166,8 @@ export const MENU_ROTATION: MenuWeek[] = [
         meals: {
           colazione: 'pane-ricotta-miele',
           spuntino: 'frittatine-spinaci',
-          pranzo: 'pasta-lenticchie-zucchine-feta',
-          merenda: 'pane-cioccolato-kefir',
+          pranzo: 'pasta-ceci-rosmarino',
+          merenda: 'skyr-frutti-bosco-avena',
           cena: 'merluzzo-pizzaiola-couscous',
         },
       },
@@ -159,7 +176,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         meals: {
           colazione: 'cappuccino-fette-skyr',
           spuntino: 'panino-tacchino-mela',
-          pranzo: 'farro-salmone-zucchine',
+          pranzo: 'bowl-riso-salmone-edamame',
           merenda: 'pre-gallette-banana',
           cena: 'box-riso-pollo-zucchine',
         },
@@ -177,19 +194,19 @@ export const MENU_ROTATION: MenuWeek[] = [
       // Venerdì · palestra B alle 17:00
       {
         meals: {
-          colazione: 'overnight-oats-frutti-bosco',
-          spuntino: 'ceci-tostati-arancia',
-          pranzo: 'pasta-ceci-rosmarino',
-          merenda: 'yogurt-cacao-pera',
+          colazione: 'porridge-cacao-banana',
+          spuntino: 'yogurt-greco-noci-clementine',
+          pranzo: 'pasta-lenticchie-zucchine-feta',
+          merenda: 'pane-cioccolato-kefir',
           cena: 'pollo-paprika-peperoni',
         },
       },
       // Sabato · leggero
       {
         meals: {
-          colazione: 'porridge-cacao-banana',
+          colazione: 'yogurt-greco-muesli-kiwi',
           spuntino: 'skyr-mela-mandorle',
-          pranzo: 'piadina-tacchino-hummus',
+          pranzo: 'tacchino-riso-carote',
           merenda: 'pane-cioccolato-kefir',
           cena: 'minestrone-ditalini-borlotti',
         },
@@ -197,11 +214,11 @@ export const MENU_ROTATION: MenuWeek[] = [
       // Domenica · riposo
       {
         meals: {
-          colazione: 'yogurt-greco-muesli-kiwi',
+          colazione: 'pane-ricotta-miele',
           spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'straccetti-manzo-rucola',
           merenda: 'fiocchi-latte-pomodorini',
-          cena: 'vellutata-zucca-lenticchie',
+          cena: 'pasta-ragu-lenticchie',
         },
       },
     ],
@@ -214,11 +231,11 @@ export const MENU_ROTATION: MenuWeek[] = [
         recipeIds: ['frittatine-spinaci'],
       },
       {
-        id: 's2-patate-farro',
-        title: 'Lessa patate e farro, in due pentole',
-        minutes: 25,
-        yields: 'Patate per la cena di lunedì, farro per il pranzo di mercoledì',
-        recipeIds: ['patate-salmone-affumicato', 'farro-salmone-zucchine'],
+        id: 's2-patate',
+        title: 'Lessa le patate',
+        minutes: 20,
+        yields: 'Patate per la cena di recupero di lunedì: in frigo, dopo la partita si scaldano in 2 minuti',
+        recipeIds: ['patate-salmone-affumicato'],
       },
       {
         id: 's2-pollo-riso',
@@ -236,11 +253,98 @@ export const MENU_ROTATION: MenuWeek[] = [
       },
       {
         id: 's2-sacchetti',
-        title: 'Porziona gli spuntini da portare',
+        title: 'Porziona la frutta secca degli spuntini',
         minutes: 5,
-        yields: 'Sacchetti di ceci tostati, mandorle e noci per tutta la settimana',
-        recipeIds: ['ceci-tostati-arancia', 'skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
+        yields: 'Sacchetti di mandorle e noci per gli spuntini da portare di tutta la settimana',
+        recipeIds: ['skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
       },
     ],
   },
 ];
+
+/**
+ * Guida delle attività della domenica, per id dell'attività: passaggi brevi e timer delle cotture.
+ * Le cotture lunghe partono per prime; mentre vanno, il lettore propone l'attività successiva.
+ */
+export const PREP_GUIDE: Record<string, PrepGuide> = {
+  's1-riso': {
+    steps: [
+      "Metti sul fuoco due pentole d'acqua salata: il riso integrale cuoce circa 30 minuti, il basmati 11.",
+      'Scola e allarga il riso su un vassoio: deve raffreddarsi in fretta.',
+      "Entro un'ora la porzione di lunedì va in frigo, le altre in freezer in sacchetti piatti.",
+    ],
+    timers: [
+      { label: 'Riso integrale', minutes: 30 },
+      { label: 'Riso basmati', minutes: 11 },
+    ],
+  },
+  's1-pollo': {
+    steps: [
+      'Taglia il petto di pollo a bocconcini.',
+      "Cuocilo in padella antiaderente con un filo d'olio, girandolo, finché dentro non è più rosa.",
+      'Fai raffreddare: la parte per lunedì in frigo, quella per mercoledì in freezer.',
+    ],
+    timers: [{ label: 'Pollo in padella', minutes: 8 }],
+  },
+  's1-ragu': {
+    steps: [
+      "Rosola il soffritto con l'olio per 2 minuti.",
+      "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d'acqua; cuoci finché le lenticchie si sfaldano.",
+      'Dividi in 4 porzioni e congelale tutte.',
+    ],
+    timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
+  },
+  's1-box': {
+    steps: [
+      'Salta le zucchine a rondelle nella padella del pollo.',
+      'Componi la vaschetta da microonde con riso, pollo e zucchine, chiudila e mettila in frigo.',
+    ],
+    timers: [{ label: 'Zucchine', minutes: 4 }],
+  },
+  's1-sacchetti': {
+    steps: [
+      'Prepara un sacchetto per ogni spuntino da portare: mezza manciata di mandorle o di noci.',
+      'Tienili in un contenitore vicino allo zaino.',
+    ],
+  },
+  's2-frittatine': {
+    steps: [
+      'Accendi il forno a 180 °C.',
+      'Sbatti uova e albumi con gli spinaci scongelati e strizzati, il formaggio grattugiato e un pizzico di sale.',
+      'Versa nei pirottini da muffin e inforna.',
+      'Fai raffreddare e conserva in frigo, in un contenitore chiuso.',
+    ],
+    timers: [{ label: 'Frittatine in forno', minutes: 19 }],
+  },
+  's2-patate': {
+    steps: [
+      "Patate a pezzi in acqua fredda salata, poi sul fuoco: dal bollore finché la forchetta entra senza sforzo.",
+      'Scola, fai raffreddare e metti in frigo in un contenitore.',
+    ],
+    timers: [{ label: 'Patate', minutes: 18 }],
+  },
+  's2-pollo-riso': {
+    steps: [
+      "Riso basmati in acqua salata.",
+      "Intanto il pollo a bocconcini in padella con un filo d'olio, finché dentro non è più rosa.",
+      'Raffredda in fretta: pollo e riso per lunedì in frigo, il resto in freezer a porzioni.',
+    ],
+    timers: [
+      { label: 'Riso basmati', minutes: 11 },
+      { label: 'Pollo in padella', minutes: 8 },
+    ],
+  },
+  's2-box': {
+    steps: [
+      'Salta le zucchine a rondelle nella padella del pollo.',
+      'Componi la vaschetta con riso, pollo e zucchine e mettila in freezer: mercoledì mattina passa in frigo.',
+    ],
+    timers: [{ label: 'Zucchine', minutes: 4 }],
+  },
+  's2-sacchetti': {
+    steps: [
+      'Prepara un sacchetto per ogni spuntino da portare: mezza manciata di mandorle o di noci.',
+      'Tienili in un contenitore vicino allo zaino.',
+    ],
+  },
+};

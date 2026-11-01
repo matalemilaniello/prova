@@ -7,7 +7,7 @@ export interface SectionTitleProps {
   action?: ReactNode | { label: string; onPress: () => void };
   /** Testo secondario sotto il titolo. */
   subtitle?: ReactNode;
-  /** 'label' (maiuscoletto mono, default) o 'title' (Barlow Condensed). */
+  /** 'label' (etichetta da tabellone in Barlow Condensed maiuscolo, default) o 'title' (titolo di sezione). */
   variant?: 'label' | 'title';
   as?: 'h2' | 'h3';
   id?: string;
@@ -29,15 +29,15 @@ export function SectionTitle({ children, action, subtitle, variant = 'label', as
     ) : (
       (action as ReactNode)
     );
+  // Griglia: titolo e azione sulla stessa linea di base, il sottotitolo sotto su tutta la larghezza.
+  // Così l'azione resta sempre accanto al titolo, anche con un sottotitolo su più righe.
   return (
-    <div className={cn('flex items-end justify-between gap-3 px-1', className)}>
-      <div className="min-w-0">
-        <Tag id={id} className={variant === 'label' ? 't-label text-ink-3' : 't-title-2 text-ink'}>
-          {children}
-        </Tag>
-        {subtitle && <p className="t-footnote mt-1 text-ink-2">{subtitle}</p>}
-      </div>
-      {act && <div className="shrink-0 whitespace-nowrap">{act}</div>}
+    <div className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 px-1', className)}>
+      <Tag id={id} className={cn('min-w-0', variant === 'label' ? 't-label text-ink-3' : 't-title-2 text-ink')}>
+        {children}
+      </Tag>
+      {act ? <div className="shrink-0 justify-self-end whitespace-nowrap">{act}</div> : <span aria-hidden />}
+      {subtitle && <p className="t-footnote col-span-2 mt-1 text-ink-2">{subtitle}</p>}
     </div>
   );
 }

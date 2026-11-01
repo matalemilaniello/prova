@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Check, ChevronDown, Flame } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronDown, Flame } from 'lucide-react';
 import type { ExerciseLog } from '../../../domain/types';
 import { haptic } from '../../../lib/haptics';
 import { ProgressBar, cn, springSnappy } from '../../../ui';
-import { doseLabel, estimateMinutes, type PlayerItem } from '../lib';
+import { doseLabel, estimateMinutes, exerciseFor, type PlayerItem } from '../lib';
 
 export interface WarmupStepProps {
   title: string;
@@ -25,7 +25,7 @@ export function WarmupStep({ title, items, logs, onToggle }: WarmupStepProps) {
   return (
     <div className="flex flex-col gap-5 pb-6 pt-2">
       <header className="flex flex-col gap-3">
-        <p className="t-label flex items-center gap-1.5 text-calcio-ink">
+        <p className="t-label flex items-center gap-1.5 text-accent-ink">
           <Flame size={13} strokeWidth={2.4} aria-hidden />
           {title}
         </p>
@@ -34,7 +34,7 @@ export function WarmupStep({ title, items, logs, onToggle }: WarmupStepProps) {
           Circa {minutes} minuti, di fila e senza fretta. Tocca un esercizio per le indicazioni, il cerchio per spuntarlo.
         </p>
         <div className="flex items-center gap-3">
-          <ProgressBar value={items.length ? done / items.length : 0} tone="calcio" size="sm" className="flex-1" label={`${done} esercizi su ${items.length}`} />
+          <ProgressBar value={items.length ? done / items.length : 0} tone="good" size="sm" className="flex-1" label={`${done} esercizi su ${items.length}`} />
           <span className="t-mono text-[0.75rem] text-ink-3">
             {done}/{items.length}
           </span>
@@ -85,7 +85,13 @@ export function WarmupStep({ title, items, logs, onToggle }: WarmupStepProps) {
                       <span className="t-mono mr-1.5 text-[0.75rem] font-medium text-ink-3">{i + 1}</span>
                       {ex?.name ?? it.item.exerciseId}
                     </span>
-                    <span className="t-mono mt-0.5 block text-[0.75rem] text-calcio-ink">{doseLabel(it.item)}</span>
+                    {it.replacedFrom && (
+                      <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
+                        <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
+                        al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
+                      </span>
+                    )}
+                    <span className="t-mono mt-0.5 block text-[0.75rem] text-ink-3">{doseLabel(it.item)}</span>
                   </span>
                   <ChevronDown size={18} strokeWidth={2.2} className={cn('shrink-0 text-ink-3 transition-transform duration-200', expanded && 'rotate-180')} aria-hidden />
                 </button>
@@ -99,6 +105,7 @@ export function WarmupStep({ title, items, logs, onToggle }: WarmupStepProps) {
                     transition={{ type: 'spring', stiffness: 420, damping: 40 }}
                   >
                     <div className="flex flex-col gap-1.5 border-t border-line px-4 pb-3.5 pt-3">
+                      {it.replacedReason && <p className="t-footnote font-medium text-warn-ink">{it.replacedReason}.</p>}
                       {it.item.note && <p className="t-footnote font-medium text-ink">{it.item.note}</p>}
                       {ex?.cues.map((c, ci) => (
                         <p key={ci} className="t-footnote flex gap-2 text-ink-2">

@@ -56,8 +56,8 @@ function TabBar({ route }: { route: Route }) {
                 >
                   <span className="relative block h-[3px] w-7 rounded-b-full bg-accent shadow-[0_0_12px_2px_var(--accent-glow)]" />
                   <span
-                    className="absolute top-0 h-10 w-16"
-                    style={{ background: 'radial-gradient(60% 100% at 50% 0%, var(--accent-soft), transparent 75%)' }}
+                    className="absolute top-0 h-11 w-16"
+                    style={{ background: 'radial-gradient(60% 100% at 50% 0%, var(--tab-light), transparent 75%)' }}
                   />
                 </motion.span>
               )}
@@ -71,13 +71,14 @@ function TabBar({ route }: { route: Route }) {
                 }}
                 className={cn(
                   'relative flex flex-1 flex-col items-center justify-center gap-[3px] pt-1 transition-colors duration-200',
-                  active ? 'text-accent-ink' : 'text-ink-3 hover:text-ink-2',
+                  active ? 'text-[var(--tab-active-label)]' : 'text-ink-3 hover:text-ink-2',
                 )}
               >
                 <motion.span
                   animate={reduce ? undefined : { scale: active ? 1 : 0.94, y: active ? -1 : 0 }}
                   transition={spring}
                   className="grid place-items-center"
+                  style={active ? { color: 'var(--tab-active-icon)' } : undefined}
                 >
                   <Icon size={24} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
                 </motion.span>

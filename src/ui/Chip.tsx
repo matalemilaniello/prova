@@ -31,7 +31,7 @@ export function Chip({ selected, onChange, children, icon, tone = 'accent', disa
         onChange(!selected);
       }}
       className={cn(
-        'inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[0.9375rem] font-semibold transition-colors duration-150 disabled:opacity-40',
+        'inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[0.9375rem] font-semibold transition-colors duration-150 disabled:opacity-50',
         !selected && 'bg-control text-ink-2 shadow-[inset_0_0_0_1px_var(--control-line)]',
         className,
       )}

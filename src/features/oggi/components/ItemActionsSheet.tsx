@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeftRight, Check, ChefHat, ClipboardList, HeartPulse, Minus, Play, RotateCcw, Store, Timer } from 'lucide-react';
-import type { ItemStatus, MealSlot, TimelineItem } from '../../../domain/types';
-import type { StatusSource } from '../../../engine/timeline';
+import { ArrowLeftRight, Check, ChefHat, ClipboardList, Flag, HeartPulse, ListChecks, Minus, Play, RotateCcw, ShoppingBasket, Store, Timer } from 'lucide-react';
+import type { DayType, HHMM, ItemStatus, MealSlot } from '../../../domain/types';
+import type { DayItem, StatusSource } from '../../../engine/timeline';
 import { haptic } from '../../../lib/haptics';
-import { Button, Chip, Field, ListGroup, ListRow, Sheet, TextArea, cn, spring, springSnappy, toneColor, toneInk, toneSoft, type Tone } from '../../../ui';
+import { Button, Chip, Field, ListGroup, ListRow, Sheet, TextArea, cn, spring, springSnappy, toneColor, toneInk, toneRing, toneSoft, type Tone } from '../../../ui';
 import { replaceSuggestions } from '../kinds';
 import { StatusMark } from './StatusMark';
 
 export interface ItemActionsSheetProps {
-  item: TimelineItem | null;
+  item: DayItem | null;
+  dayType: DayType;
   status?: ItemStatus;
+  /** La voce della notte non si può ancora segnare: da che ora sì. */
+  lockedUntil?: HHMM | null;
   source: StatusSource | null;
   note?: string;
   onClose: () => void;
-  onSet: (item: TimelineItem, status: ItemStatus | null, note?: string) => void;
-  onOpenDetail: (item: TimelineItem) => void;
+  onSet: (item: DayItem, status: ItemStatus | null, note?: string) => void;
+  onOpenDetail: (item: DayItem) => void;
   /** Apre il piano B al bar sul pasto della voce. */
   onPlanB: (slot?: MealSlot) => void;
 }
@@ -29,7 +32,7 @@ const CHOICES: { status: ItemStatus; label: string; icon: typeof Check; tone: To
 /** Foglio delle opzioni di una voce: fatto, sostituito con nota, saltato, da fare, e le azioni della voce. */
 export function ItemActionsSheet(props: ItemActionsSheetProps) {
   // Tiene l'ultima voce durante l'animazione di chiusura.
-  const last = useRef<TimelineItem | null>(null);
+  const last = useRef<DayItem | null>(null);
   if (props.item) last.current = props.item;
   const item = props.item ?? last.current;
   return (
@@ -49,7 +52,7 @@ export function ItemActionsSheet(props: ItemActionsSheetProps) {
   );
 }
 
-function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlanB }: ItemActionsSheetProps & { item: TimelineItem }) {
+function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet, onOpenDetail, onPlanB }: ItemActionsSheetProps & { item: DayItem }) {
   const [replacing, setReplacing] = useState(status === 'sostituito');
   const [text, setText] = useState(note ?? '');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +66,10 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
   }, [replacing, status]);
 
   const choose = (s: ItemStatus) => {
+    if (lockedUntil && s !== 'saltato') {
+      haptic('warning');
+      return;
+    }
     if (s === 'sostituito') {
       haptic('selection');
       setReplacing(true);
@@ -86,7 +93,7 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
     };
     switch (item.kind) {
       case 'pasto':
-        return item.ref ? <ListRow key="detail" icon={ChefHat} iconTone="leggero" title="Apri la ricetta" subtitle="Porzioni, passaggi e alternative" onPress={go} /> : null;
+        return item.ref ? <ListRow key="detail" icon={ChefHat} iconTone={dayType} title="Apri la ricetta" subtitle="Porzioni, passaggi e alternative" onPress={go} /> : null;
       case 'palestra':
         return <ListRow key="detail" icon={Play} iconTone="palestra" title="Apri la seduta" subtitle="Esercizi, serie e carichi suggeriti" onPress={go} />;
       case 'calcio':
@@ -103,20 +110,26 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
       case 'controllo':
         return <ListRow key="detail" icon={ClipboardList} iconTone="accent" title={source ? 'Modifica il controllo' : 'Compila il controllo'} onPress={go} />;
       case 'fisio':
-        return <ListRow key="detail" icon={HeartPulse} iconTone="palestra" title="Vedi gli esercizi" onPress={go} />;
+        return <ListRow key="detail" icon={HeartPulse} iconTone="neutral" title="Vedi gli esercizi" onPress={go} />;
+      case 'spesa':
+        return <ListRow key="detail" icon={ShoppingBasket} iconTone="neutral" title="Apri la lista della spesa" subtitle="Per reparto, con le spunte" onPress={go} />;
+      case 'preparazione':
+        return <ListRow key="detail" icon={ListChecks} iconTone="accent" title="Apri la preparazione" subtitle="Attività, minuti e resa" onPress={go} />;
+      case 'revisione':
+        return <ListRow key="detail" icon={Flag} iconTone="accent" title="Apri il referto della settimana" onPress={go} />;
       default:
         return null;
     }
   })();
 
   const planB =
-    item.kind === 'pasto' && (item.slot === 'spuntino' || item.slot === 'merenda') ? (
+    item.kind === 'pasto' ? (
       <ListRow
         key="planb"
         icon={Store}
         iconTone="accent"
         title="Piano B al bar"
-        subtitle="Cosa prendere se non hai il pasto con te"
+        subtitle={item.slot === 'colazione' ? 'Cornetto e cappuccino? Ecco cosa scegliere' : 'Cosa prendere se non hai il pasto con te'}
         onPress={() => {
           onClose();
           onPlanB(item.slot);
@@ -144,9 +157,12 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
 
   return (
     <div className="flex flex-col gap-5 pb-2">
+      {lockedUntil && (
+        <p className="t-footnote px-1 text-ink-2">Si segna dalle {lockedUntil}, quando posi davvero il telefono.</p>
+      )}
       {source === 'registro' && (
         <div className="flex items-center gap-2.5 px-1">
-          <StatusMark item={item} status={status} size={22} />
+          <StatusMark item={item} dayType={dayType} status={status} size={22} />
           <p className="t-footnote text-ink-2">Segnata in automatico dalla registrazione.</p>
         </div>
       )}
@@ -155,16 +171,18 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
         {CHOICES.map((c) => {
           const on = replacing ? c.status === 'sostituito' : status === c.status;
           const color = c.tone === 'neutral' ? 'var(--ink-2)' : toneColor(c.tone);
+          const locked = Boolean(lockedUntil) && c.status !== 'saltato';
           return (
             <motion.button
               key={c.status}
               type="button"
               role="radio"
               aria-checked={status === c.status}
-              whileTap={{ scale: 0.96 }}
+              aria-disabled={locked || undefined}
+              whileTap={locked ? undefined : { scale: 0.96 }}
               transition={springSnappy}
               onClick={() => choose(c.status)}
-              className={cn('flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[18px] bg-card px-2 shadow-card transition-shadow duration-200')}
+              className={cn('flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[18px] bg-card px-2 shadow-card transition-shadow duration-200', locked && 'opacity-45')}
               style={on ? { boxShadow: `inset 0 0 0 2px ${color}`, background: c.tone === 'neutral' ? 'var(--card)' : toneSoft(c.tone, 10) } : undefined}
             >
               <span
@@ -172,6 +190,7 @@ function Body({ item, status, source, note, onClose, onSet, onOpenDetail, onPlan
                 className="grid size-10 place-items-center rounded-full"
                 style={{
                   background: c.tone === 'neutral' ? 'var(--ink-soft)' : on ? color : toneSoft(c.tone, 18),
+                  boxShadow: c.tone === 'neutral' || on ? undefined : toneRing(c.tone),
                   color: c.tone === 'neutral' ? 'var(--ink-2)' : on ? `var(--on-${c.tone})` : toneInk(c.tone),
                 }}
               >

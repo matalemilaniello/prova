@@ -16,22 +16,25 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <AnimatePresence mode="wait" initial={false}>
-        {onboarded ? (
-          <motion.div key="app" className="h-dvh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <AppShell />
-          </motion.div>
-        ) : (
-          <motion.div key="benvenuto" className="h-dvh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <ErrorBoundary area="benvenuto">
-              <Suspense fallback={<ScreenSkeleton />}>
-                <BenvenutoScreen />
-              </Suspense>
-            </ErrorBoundary>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <OverlayHost />
+      {/* Ultimo livello: qualunque errore lascia sempre la via per esportare i dati o ripartire. */}
+      <ErrorBoundary area="app" root>
+        <AnimatePresence mode="wait" initial={false}>
+          {onboarded ? (
+            <motion.div key="app" className="h-dvh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+              <AppShell />
+            </motion.div>
+          ) : (
+            <motion.div key="benvenuto" className="h-dvh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+              <ErrorBoundary area="benvenuto">
+                <Suspense fallback={<ScreenSkeleton />}>
+                  <BenvenutoScreen />
+                </Suspense>
+              </ErrorBoundary>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <OverlayHost />
+      </ErrorBoundary>
       <ToastHost />
       <div className="ritmo-status-scrim" aria-hidden />
     </MotionConfig>

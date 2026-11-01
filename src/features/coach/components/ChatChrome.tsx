@@ -8,7 +8,7 @@ import type { CoachDaySummary } from '../../../engine/coachContext';
 import { fmtHours, fmtKcal, plural } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { modelLabel } from '../../../lib/claude';
-import { Button, cn, DayTypeBadge, DemoBadge, IconButton, Pill, staggerItem } from '../../../ui';
+import { Button, cn, DayTypeBadge, DemoBadge, IconButton, Pill, staggerItem, toneRing } from '../../../ui';
 import type { Suggestion } from '../suggestions';
 import { CoachAvatar } from './CoachAvatar';
 
@@ -28,16 +28,18 @@ export function ChatHeader({
 }) {
   return (
     <header className="absolute inset-x-0 top-0 z-20">
-      {/* Più coprente della barra standard: sotto scorre testo, non solo colore. */}
+      {/* Quasi opaca: sotto scorre testo, non solo colore, e la sfocatura non c'è ovunque. */}
       <div
         aria-hidden
         className="absolute inset-0 border-b border-[var(--bar-line)]"
         style={{
-          background: 'color-mix(in srgb, var(--bg-elev) 90%, transparent)',
+          background: 'color-mix(in srgb, var(--bg-elev) 97%, transparent)',
           backdropFilter: 'saturate(180%) blur(28px)',
           WebkitBackdropFilter: 'saturate(180%) blur(28px)',
         }}
       />
+      {/* Sfumatura sotto il bordo: il testo che scorre sparisce prima di toccare la barra. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-4" style={{ background: 'linear-gradient(var(--bg-elev), transparent)' }} />
       <div
         className="relative flex items-end"
         style={{
@@ -170,7 +172,7 @@ export function ActivateStrip({ onActivate }: { onActivate: () => void }) {
       className="flex items-center gap-3 py-3"
       style={{ paddingLeft: 'calc(var(--gutter) + var(--safe-left))', paddingRight: 'calc(var(--gutter) - 4px + var(--safe-right))' }}
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink" style={{ boxShadow: toneRing('accent') }}>
         <KeyRound size={19} strokeWidth={2.2} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
@@ -202,7 +204,7 @@ export function SuggestionGrid({ items, onPick, className }: { items: Suggestion
             }}
             className="flex min-h-[96px] flex-col justify-between gap-3 rounded-[18px] bg-card p-3.5 text-left shadow-card"
           >
-            <span className="grid size-8 place-items-center rounded-[10px] bg-accent-soft text-accent-ink">
+            <span className="grid size-8 place-items-center rounded-[10px] bg-accent-soft text-accent-ink" style={{ boxShadow: toneRing('accent') }}>
               <Icon size={17} strokeWidth={2.2} aria-hidden />
             </span>
             <span className="t-callout font-semibold leading-snug text-ink">{s.text}</span>

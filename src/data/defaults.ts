@@ -19,7 +19,7 @@ import type {
 import { todayISO, weekStart } from '../engine/dates';
 
 /** Versione della forma dei dati salvati (AppData.version e persist di zustand). */
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 /** Chiave di localStorage. */
 export const STORAGE_KEY = 'ritmo:v1';
@@ -58,10 +58,10 @@ export function isProfileComplete(p: Profile): boolean {
 }
 
 export const DEFAULT_TARGETS: Record<DayType, MacroTarget> = {
-  calcio: { kcal: 2800, proteinG: 135, fatG: 80, carbG: 385, fiberG: 30 },
-  palestra: { kcal: 2600, proteinG: 135, fatG: 80, carbG: 335, fiberG: 30 },
-  leggero: { kcal: 2450, proteinG: 132, fatG: 80, carbG: 300, fiberG: 30 },
-  riposo: { kcal: 2300, proteinG: 130, fatG: 80, carbG: 265, fiberG: 30 },
+  calcio: { kcal: 2800, proteinG: 135, fatG: 80, carbG: 385, fiberG: 35 },
+  palestra: { kcal: 2600, proteinG: 135, fatG: 80, carbG: 335, fiberG: 35 },
+  leggero: { kcal: 2450, proteinG: 132, fatG: 80, carbG: 300, fiberG: 35 },
+  riposo: { kcal: 2300, proteinG: 130, fatG: 80, carbG: 265, fiberG: 35 },
 };
 
 /** Settimana tipo, dal lunedì (0) alla domenica (6). */

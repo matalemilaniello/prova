@@ -11,13 +11,17 @@ import type { Plan, Profile, ScheduleDay, Weekday } from '../../domain/types';
 import { DEFAULT_PROFILE, defaultPlan } from '../../data/defaults';
 import { navigate } from '../../app/router';
 import { getUrlParam } from '../../app/urlParams';
-import { currentDate, todayISO, weekStart } from '../../engine/dates';
+import { currentDate, nowHHMM, todayISO, weekStart } from '../../engine/dates';
+import { planDayISO } from '../../engine/sleep';
 import { computeTargets } from '../../engine/targets';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
-import { Button, cn, useKeyboardInset } from '../../ui';
+import { Button, Floodlights, cn, useKeyboardInset } from '../../ui';
+import { useSessionDraft } from '../allenamento/draft';
+import { canSuggestInstall } from '../impostazioni/install';
 import { hasErrors, validateBody } from '../impostazioni/lib';
 import { clearDraft, loadDraft, saveDraft } from './draft';
+import { RestoreSheet } from './RestoreSheet';
 import { StepReady, StepSleep, StepWatch, StepWeek, StepWelcome, StepYou } from './steps';
 
 const STEPS = 5;
@@ -41,6 +45,8 @@ export default function BenvenutoScreen() {
   const [plan, setPlanState] = useState<Plan>(init.plan);
   const [showErrors, setShowErrors] = useState(false);
   const [nudge, setNudge] = useState(0);
+  const [restoring, setRestoring] = useState(false);
+  const [install] = useState(canSuggestInstall);
   const reduce = useReducedMotion();
   const kb = useKeyboardInset();
   const year = currentDate().getFullYear();
@@ -99,10 +105,14 @@ export default function BenvenutoScreen() {
   };
 
   const finish = () => {
-    const today = todayISO();
+    // La giornata del piano (alle 00:30 è ancora ieri), come in Oggi.
+    const now = currentDate();
+    const today = planDayISO(now, plan);
     const cleanProfile: Profile = { ...profile, name: profile.name?.trim() || undefined, expertise: profile.expertise?.trim() || undefined };
-    const finalPlan: Plan = { ...plan, targets, startDate: weekStart(today) };
+    // Primo avvio: le voci prima di adesso non contano e la prima settimana della revisione parte da qui.
+    const finalPlan: Plan = { ...plan, targets, startDate: weekStart(today), firstUse: plan.firstUse ?? { date: today, time: nowHHMM(now) } };
     clearDraft();
+    useSessionDraft.getState().clear();
     haptic('success');
     navigate('oggi');
     useApp.getState().completeOnboarding(cleanProfile, finalPlan);
@@ -110,6 +120,7 @@ export default function BenvenutoScreen() {
 
   const tryDemo = () => {
     clearDraft();
+    useSessionDraft.getState().clear();
     haptic('light');
     navigate('oggi');
     useApp.getState().loadDemo();
@@ -172,12 +183,12 @@ export default function BenvenutoScreen() {
             aria-label={`Passo ${Math.min(step + 1, STEPS)} di ${STEPS}`}
           >
             <div className="mx-auto w-full max-w-[520px]">
-              {step === 0 && <StepWelcome plan={plan} />}
+              {step === 0 && <StepWelcome plan={plan} install={install} onRestore={() => setRestoring(true)} />}
               {step === 1 && <StepYou {...stepProps} errors={errors} showErrors={showErrors} />}
               {step === 2 && <StepWeek {...stepProps} />}
               {step === 3 && <StepSleep {...stepProps} />}
               {step === 4 && <StepWatch {...stepProps} />}
-              {step === READY && <StepReady profile={profile} plan={plan} targets={targets} />}
+              {step === READY && <StepReady profile={profile} plan={plan} targets={targets} install={install} />}
             </div>
           </motion.section>
         </AnimatePresence>
@@ -209,6 +220,7 @@ export default function BenvenutoScreen() {
           )}
         </div>
       </footer>
+      {restoring && <RestoreSheet onClosed={() => setRestoring(false)} />}
     </div>
   );
 }
@@ -219,10 +231,11 @@ function Progress({ step }: { step: number }) {
     <div className="flex flex-1 gap-1.5" role="progressbar" aria-label="Avanzamento del benvenuto" aria-valuemin={1} aria-valuemax={STEPS} aria-valuenow={Math.min(step + 1, STEPS)}>
       {Array.from({ length: STEPS }, (_, i) => (
         <span key={i} className="relative h-1 flex-1 overflow-hidden rounded-full bg-ink-soft">
+          {/* Segmenti in ambra pieno: ambra trasparente sul blu diventa oliva. */}
           <motion.span
             className="absolute inset-y-0 left-0 rounded-full bg-accent"
             initial={false}
-            animate={{ width: i <= step ? '100%' : '0%', opacity: i < step ? 0.55 : 1 }}
+            animate={{ width: i <= step ? '100%' : '0%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
           />
         </span>
@@ -231,18 +244,14 @@ function Progress({ step }: { step: number }) {
   );
 }
 
-/** Luce dei riflettori e righe del campo sullo sfondo; la luce si sposta un poco a ogni passo. */
+/**
+ * Riflettori e righe del campo sullo sfondo: le luci si accendono un poco a ogni passo, mentre il piano prende
+ * forma, e al riepilogo arrivano a piena luce con un bagliore breve.
+ */
 function Backdrop({ step }: { step: number }) {
-  const reduce = useReducedMotion();
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <motion.div
-        className="absolute -left-[30%] -top-[30%] h-[70%] w-[160%]"
-        style={{ background: 'radial-gradient(50% 50% at 50% 50%, var(--accent-soft), transparent 70%)' }}
-        initial={false}
-        animate={reduce ? undefined : { x: (step - 2.5) * 14, opacity: step === READY ? 1 : 0.75 }}
-        transition={{ type: 'spring', stiffness: 60, damping: 20 }}
-      />
+      <Floodlights intensity={0.2 + (0.8 * step) / READY} flare={step === READY ? 1 : false} pitch={false} height={460} />
       <svg className={cn('absolute -bottom-24 left-1/2 w-[720px] -translate-x-1/2')} viewBox="0 0 720 360" fill="none">
         <circle cx="360" cy="360" r="120" stroke="var(--pitch-line)" strokeWidth="2" />
         <line x1="0" y1="360" x2="720" y2="360" stroke="var(--pitch-line)" strokeWidth="2" />

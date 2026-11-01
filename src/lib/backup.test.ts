@@ -53,6 +53,38 @@ describe('backup', () => {
     if (!res.ok) expect(res.error).not.toMatch(/—/);
   });
 
+  it('rifiuta un backup con una sezione rovinata e dice quale', () => {
+    const broken = (patch: Record<string, unknown>) => parseBackup(JSON.stringify({ ...sample(), ...patch }));
+    expect(broken({ dayLogs: { '2026-10-31': 'ciao' } })).toMatchObject({ ok: false, code: 'formato', error: expect.stringContaining('Il diario del 31 ottobre è danneggiato') });
+    expect(broken({ dayLogs: [] })).toMatchObject({ ok: false, error: expect.stringContaining('Il diario è danneggiato') });
+    expect(broken({ checkIns: { '2026-10-28': 71.8 } })).toMatchObject({ ok: false, error: expect.stringContaining('controllo del mattino del 28 ottobre') });
+    expect(broken({ workoutLogs: [{ id: 'w', date: '2026-10-27', sessionId: 'A', exercises: 'tante' }] })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('La seduta del 27 ottobre è danneggiata'),
+    });
+    expect(broken({ workoutLogs: { a: 1 } })).toMatchObject({ ok: false, error: expect.stringContaining('sedute') });
+    expect(broken({ footballLogs: [null] })).toMatchObject({ ok: false });
+    expect(broken({ chat: 'ciao' })).toMatchObject({ ok: false, error: expect.stringContaining('coach') });
+    expect(broken({ settings: [] })).toMatchObject({ ok: false });
+    const d = sample();
+    expect(parseBackup(JSON.stringify({ ...d, profile: { ...d.profile, painSites: 'Tibia' } }))).toMatchObject({ ok: false, error: expect.stringContaining('zone di dolore') });
+    expect(parseBackup(JSON.stringify({ ...d, plan: { ...d.plan, week: [1, 2] } }))).toMatchObject({ ok: false, error: expect.stringContaining('settimana') });
+    // Spiega anche come rimediare, senza trattini lunghi.
+    const res = broken({ dayLogs: { '2026-10-31': 3 } });
+    if (!res.ok) {
+      expect(res.error).toContain('Prova con un backup precedente');
+      expect(res.error).not.toMatch(/—/);
+    }
+  });
+
+  it('accetta le sezioni assenti: si completano all’importazione', () => {
+    const d = sample() as unknown as Record<string, unknown>;
+    delete d.workoutLogs;
+    delete d.chat;
+    delete d.checkIns;
+    expect(parseBackup(JSON.stringify(d)).ok).toBe(true);
+  });
+
   it('riassume dati parziali senza errori', () => {
     expect(summarizeData({})).toMatchObject({ dayLogs: 0, workouts: 0, onboarded: false, from: undefined });
   });

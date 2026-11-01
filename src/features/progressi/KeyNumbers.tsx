@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { Goal } from '../../domain/types';
-import type { PeriodStats } from '../../engine/review';
+import { MIN_WEIGH_INS, type PeriodStats } from '../../engine/review';
 import { fmtHours } from '../../lib/format';
 import { Card, Stat, type StatDelta } from '../../ui';
 import { weightTone } from './charts/WeightChart';
@@ -40,7 +40,9 @@ function Stable({ children = 'stabile' }: { children?: ReactNode }) {
  * aderenza e fibre stimate. Una sola card divisa in quattro, come i riepiloghi di Salute.
  */
 export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) {
-  const hasPrevWeight = stats.weightAvg !== null && stats.weightPrevAvg !== null;
+  // Con meno di 4 pesate la variazione è rumore: si dice quante ne mancano.
+  const enoughWeights = stats.weighIns >= MIN_WEIGH_INS;
+  const hasPrevWeight = enoughWeights && stats.weightAvg !== null && stats.weightPrevAvg !== null;
   const wDelta = hasPrevWeight
     ? delta(stats.weightAvg! - stats.weightPrevAvg!, 'kg', 1, (v) => weightTone(goal, v, stats.weightPrevAvg!))
     : null;
@@ -73,7 +75,9 @@ export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) 
       decimals={1}
       unit="kg"
       delta={wDelta ?? undefined}
-      caption={wDelta ? undefined : hasPrevWeight ? <Stable /> : stats.weighIns ? `${stats.weighIns} ${stats.weighIns === 1 ? 'pesata' : 'pesate'}` : 'Nessuna pesata'}
+      caption={
+        wDelta ? undefined : hasPrevWeight ? <Stable /> : !enoughWeights ? `servono ${MIN_WEIGH_INS} pesate${stats.weighIns ? `, ${stats.weighIns === 1 ? 'fatta 1' : `fatte ${stats.weighIns}`}` : ''}` : `${stats.weighIns} pesate`
+      }
     />,
     <Stat
       key="sonno"

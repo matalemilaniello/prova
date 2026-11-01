@@ -18,7 +18,11 @@
   --line-strong: #2d4063;
   --ink: #eef2f8;
   --ink-2: #a9b5ca;
-  --ink-3: #6e7e99;
+  /* Terziario: AA (≥ 4,5:1) su bg, card, card-2 e fogli. */
+  --ink-3: #8796b0;
+  /* Solo decorativo (chevron, linee, segnaposto tenui): non per testo da leggere. */
+  --ink-4: #6e7e99;
+  --card-3: #1c2c4a;
   --accent: #f5c04a;
   --accent-ink: #f5c04a;
   --on-accent: #1b1405;
@@ -49,28 +53,46 @@
   --on-riposo: #140b33;
   --seg-thumb: #2b3c5e;
   --sheet-bg: #0f1a2c;
-  --control: rgb(238 242 248 / 0.08);
-  --control-line: rgb(255 255 255 / 0.07);
-  --field: rgb(255 255 255 / 0.045);
+  /* Neutri traslucidi tinti di blu: sopra il blu notte restano blu, mai grigi. */
+  --control: rgb(150 180 240 / 0.1);
+  --control-line: rgb(150 180 240 / 0.1);
+  --field: rgb(150 180 240 / 0.06);
 
-  /* Derivati */
-  --accent-soft: rgb(245 192 74 / 0.14);
+  /*
+   * Derivati. L'ambra è luce: si usa per ciò che la emette (azione primaria, lampade, cifre, bordi di 1 px),
+   * mai come riempimento tenue, perché ambra diluita sul blu diventa grigio oliva. I fondi "tenui" dei toni
+   * caldi (accento, calcio, attenzione) sono quindi una superficie blu: il colore va su testo, icona e anello.
+   */
+  --warm-tint: #1d2c48;
+  --accent-soft: var(--warm-tint);
   --accent-glow: rgb(245 192 74 / 0.32);
   --good-soft: rgb(76 195 138 / 0.14);
-  --warn-soft: rgb(240 165 72 / 0.15);
+  --warn-soft: var(--warm-tint);
   --bad-soft: rgb(242 112 106 / 0.15);
-  --ink-soft: rgb(238 242 248 / 0.07);
+  --ink-soft: rgb(140 170 230 / 0.09);
   --scrim: rgb(3 7 14 / 0.62);
-  --bar-bg: rgb(12 21 36 / 0.84);
-  --bar-line: rgb(255 255 255 / 0.06);
+  --bar-bg: rgb(12 21 36 / 0.96);
+  --bar-line: rgb(150 180 240 / 0.08);
   --card-shadow: 0 0 0 0 transparent;
   --sheet-shadow: 0 -12px 40px rgb(0 0 0 / 0.45);
   --focus: #f5c04a;
-  --skeleton: rgb(255 255 255 / 0.06);
-  --skeleton-shine: rgb(255 255 255 / 0.1);
-  /* Luce dei riflettori in cima alle schermate */
-  --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(245 192 74 / 0.09), transparent 62%);
-  --pitch-line: rgb(255 255 255 / 0.035);
+  --skeleton: rgb(150 180 240 / 0.07);
+  --skeleton-shine: rgb(150 180 240 / 0.12);
+  /* Luce dei riflettori: bianco caldo da due lampade negli angoli alti (vedi Floodlights). */
+  --floodlight:
+    radial-gradient(60% 42% at 10% -6%, rgb(255 240 210 / 0.1), transparent 70%),
+    radial-gradient(60% 42% at 90% -6%, rgb(255 240 210 / 0.1), transparent 70%);
+  --light-warm: 255 240 210;
+  --lamp: #fff3d6;
+  --lamp-halo: rgb(255 236 200 / 0.55);
+  --cone-blend: screen;
+  --cone-strength: 1;
+  --glow-warm: rgb(255 240 210 / 0.09);
+  --pitch-line: rgb(190 210 255 / 0.05);
+  --ring-track: rgb(140 170 230 / 0.12);
+  --tab-active-icon: var(--accent);
+  --tab-active-label: var(--accent);
+  --tab-light: rgb(245 192 74 / 0.24);
 }
 
 :root[data-theme='chiaro'] {
@@ -84,7 +106,9 @@
   --line-strong: #c9d2e0;
   --ink: #0d1a2c;
   --ink-2: #4b5a72;
-  --ink-3: #7d8ba3;
+  --ink-3: #5f6c84;
+  --ink-4: #7d8ba3;
+  --card-3: #e8edf4;
   --accent: #e3a21f;
   --accent-ink: #8a5a00;
   --on-accent: #1b1405;
@@ -124,15 +148,28 @@
   --bad-soft: rgb(201 55 44 / 0.1);
   --ink-soft: rgb(13 26 44 / 0.05);
   --scrim: rgb(13 26 44 / 0.38);
-  --bar-bg: rgb(255 255 255 / 0.85);
+  --bar-bg: rgb(255 255 255 / 0.95);
   --bar-line: rgb(13 26 44 / 0.08);
   --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
   --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
   --focus: #8a5a00;
   --skeleton: rgb(13 26 44 / 0.06);
   --skeleton-shine: rgb(13 26 44 / 0.1);
-  --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(227 162 31 / 0.12), transparent 62%);
-  --pitch-line: rgb(13 26 44 / 0.04);
+  --floodlight:
+    radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
+    radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
+  --light-warm: 227 162 31;
+  --lamp: #c9d2e0;
+  --lamp-halo: rgb(227 162 31 / 0);
+  --cone-blend: normal;
+  --cone-strength: 0.5;
+  --glow-warm: initial;
+  --warm-tint: initial;
+  --pitch-line: rgb(13 26 44 / 0.05);
+  --ring-track: var(--line);
+  --tab-active-icon: var(--accent);
+  --tab-active-label: var(--ink);
+  --tab-light: rgb(227 162 31 / 0.2);
 }
 
 @media (prefers-color-scheme: light) {
@@ -146,7 +183,9 @@
     --line-strong: #c9d2e0;
     --ink: #0d1a2c;
     --ink-2: #4b5a72;
-    --ink-3: #7d8ba3;
+    --ink-3: #5f6c84;
+    --ink-4: #7d8ba3;
+    --card-3: #e8edf4;
     --accent: #e3a21f;
     --accent-ink: #8a5a00;
     --on-accent: #1b1405;
@@ -185,15 +224,28 @@
     --bad-soft: rgb(201 55 44 / 0.1);
     --ink-soft: rgb(13 26 44 / 0.05);
     --scrim: rgb(13 26 44 / 0.38);
-    --bar-bg: rgb(255 255 255 / 0.85);
+    --bar-bg: rgb(255 255 255 / 0.95);
     --bar-line: rgb(13 26 44 / 0.08);
     --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
     --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
     --focus: #8a5a00;
     --skeleton: rgb(13 26 44 / 0.06);
     --skeleton-shine: rgb(13 26 44 / 0.1);
-    --floodlight: radial-gradient(120% 60% at 50% -12%, rgb(227 162 31 / 0.12), transparent 62%);
-    --pitch-line: rgb(13 26 44 / 0.04);
+    --floodlight:
+      radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
+      radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
+    --light-warm: 227 162 31;
+    --lamp: #c9d2e0;
+    --lamp-halo: rgb(227 162 31 / 0);
+    --cone-blend: normal;
+    --cone-strength: 0.5;
+    --glow-warm: initial;
+    --warm-tint: initial;
+    --pitch-line: rgb(13 26 44 / 0.05);
+    --ring-track: var(--line);
+    --tab-active-icon: var(--accent);
+    --tab-active-label: var(--ink);
+    --tab-light: rgb(227 162 31 / 0.2);
   }
 }
 

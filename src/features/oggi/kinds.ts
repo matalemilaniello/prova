@@ -1,27 +1,35 @@
 /**
- * Aspetto e comportamento delle voci della timeline: icona, colore e azione del tocco sul corpo della voce.
+ * Aspetto e comportamento delle voci della giornata: icona, colore e azione del tocco sul corpo della voce.
+ *
+ * Colori: il tipo di giorno veste i pasti (la merenda del giorno di partita è del colore del calcio, non del
+ * verde acqua di un giorno leggero); calcio, palestra e notte hanno il loro colore; il resto è neutro.
  */
+import type { CSSProperties, ComponentType } from 'react';
 import {
   Apple,
   BedDouble,
+  ChefHat,
   ClipboardCheck,
+  ClipboardList,
   Coffee,
   Dumbbell,
   Drumstick,
   HeartPulse,
   Pill,
   Sandwich,
+  ShoppingBasket,
   SmartphoneCharging,
   Soup,
-  Trophy,
   UtensilsCrossed,
   Zap,
-  type LucideIcon,
 } from 'lucide-react';
-import type { TimelineItem } from '../../domain/types';
-import type { AnyTone } from '../../ui';
+import type { DayType } from '../../domain/types';
+import type { DayItem } from '../../engine/timeline';
+import { BallIcon, type AnyTone } from '../../ui';
 
-export function itemIcon(item: TimelineItem): LucideIcon {
+export type ItemIcon = ComponentType<{ size?: number | string; strokeWidth?: number | string; className?: string; style?: CSSProperties }>;
+
+export function itemIcon(item: DayItem): ItemIcon {
   switch (item.kind) {
     case 'controllo':
       return ClipboardCheck;
@@ -30,13 +38,19 @@ export function itemIcon(item: TimelineItem): LucideIcon {
     case 'palestra':
       return Dumbbell;
     case 'calcio':
-      return Trophy;
+      return BallIcon;
     case 'fisio':
       return HeartPulse;
     case 'coprifuoco':
       return SmartphoneCharging;
     case 'letto':
       return BedDouble;
+    case 'spesa':
+      return ShoppingBasket;
+    case 'preparazione':
+      return ChefHat;
+    case 'revisione':
+      return ClipboardList;
     case 'minima':
       if (item.id === 'minima:proteine') return Drumstick;
       if (item.id === 'minima:frutto') return Apple;
@@ -58,16 +72,20 @@ export function itemIcon(item: TimelineItem): LucideIcon {
   }
 }
 
-export function itemTone(item: TimelineItem): AnyTone {
+/** Colore della voce: i pasti prendono il tipo di giorno; integratori e fisioterapista restano neutri. */
+export function itemTone(item: DayItem, dayType: DayType): AnyTone {
   switch (item.kind) {
     case 'controllo':
+    case 'preparazione':
+    case 'revisione':
       return 'accent';
     case 'pasto':
-      return 'leggero';
+      return dayType;
     case 'integratori':
-      return 'warn';
-    case 'palestra':
     case 'fisio':
+    case 'spesa':
+      return 'neutral';
+    case 'palestra':
       return 'palestra';
     case 'calcio':
       return 'calcio';
@@ -75,14 +93,14 @@ export function itemTone(item: TimelineItem): AnyTone {
     case 'letto':
       return 'riposo';
     case 'minima':
-      if (item.id === 'minima:integratori') return 'warn';
+      if (item.id === 'minima:integratori') return 'neutral';
       if (item.id === 'minima:telefono') return 'riposo';
-      return 'leggero';
+      return dayType;
   }
 }
 
 /** Il tocco sul corpo della voce apre qualcosa (ricetta, seduta, calcio…) invece di segnarla. */
-export function opensDetail(item: TimelineItem): boolean {
+export function opensDetail(item: DayItem): boolean {
   switch (item.kind) {
     case 'pasto':
       return Boolean(item.ref);
@@ -90,6 +108,9 @@ export function opensDetail(item: TimelineItem): boolean {
     case 'calcio':
     case 'controllo':
     case 'fisio':
+    case 'spesa':
+    case 'preparazione':
+    case 'revisione':
       return true;
     default:
       return false;
@@ -97,7 +118,7 @@ export function opensDetail(item: TimelineItem): boolean {
 }
 
 /** Etichetta dell'azione che apre il dettaglio. */
-export function detailLabel(item: TimelineItem): string {
+export function detailLabel(item: DayItem): string {
   switch (item.kind) {
     case 'pasto':
       return 'Ricetta';
@@ -109,13 +130,19 @@ export function detailLabel(item: TimelineItem): string {
       return 'Compila';
     case 'fisio':
       return 'Esercizi';
+    case 'spesa':
+      return 'Apri la lista';
+    case 'preparazione':
+      return 'Apri';
+    case 'revisione':
+      return 'Inizia';
     default:
       return 'Apri';
   }
 }
 
 /** Suggerimenti rapidi per la nota di "sostituito". */
-export function replaceSuggestions(item: TimelineItem): string[] {
+export function replaceSuggestions(item: DayItem): string[] {
   switch (item.kind) {
     case 'pasto':
       return item.slot === 'spuntino' || item.slot === 'merenda'
@@ -127,6 +154,10 @@ export function replaceSuggestions(item: TimelineItem): string[] {
       return ['Ho giocato meno', 'Solo riscaldamento', 'Corsa al posto del calcio'];
     case 'fisio':
       return ['Solo una parte', 'Fatti in palestra'];
+    case 'spesa':
+      return ['Spesa online', 'Solo una parte', 'Al mercato'];
+    case 'preparazione':
+      return ['Solo una parte', 'Fatta sabato', 'Piatti pronti di qualità'];
     case 'coprifuoco':
     case 'minima':
       return ['Più tardi del previsto'];
@@ -134,3 +165,6 @@ export function replaceSuggestions(item: TimelineItem): string[] {
       return [];
   }
 }
+
+/** Etichette da tabellone: Barlow Condensed maiuscolo, spaziato. Il mono resta per orari e dati. */
+export const BOARD_LABEL = 'font-display text-[0.8125rem] font-semibold uppercase leading-none tracking-[0.12em]';

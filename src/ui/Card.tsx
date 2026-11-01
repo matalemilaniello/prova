@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { haptic } from '../lib/haptics';
 import { cn } from './cn';
 import { springSnappy } from './motion';
-import { toneColor, type AnyTone } from './tones';
+import { toneColor, toneEdge, type AnyTone } from './tones';
 
 export type CardVariant = 'default' | 'nested' | 'outline' | 'highlight' | 'ghost';
 
@@ -14,7 +14,7 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'onDrag' | 
    */
   variant?: CardVariant;
   padding?: 'none' | 'sm' | 'md' | 'lg';
-  /** Colora la luce della variante highlight o una sottile barra laterale sulle altre. */
+  /** Colora la luce della variante highlight; sulle altre accende una sottile luce di bordo in alto. */
   tone?: AnyTone;
   /** Rende la card toccabile (button) con feedback di pressione. */
   onPress?: () => void;
@@ -39,22 +39,28 @@ export const Card = forwardRef<HTMLElement, CardProps>(function Card(
   ref,
 ) {
   const accent = tone ? toneColor(tone) : 'var(--accent)';
+  // Highlight: luce bianco calda dall'alto (nel tema chiaro, una velatura del tono), luce di bordo in alto e
+  // anello di 1 px nel colore del tono. Le altre varianti con tono hanno solo la luce di bordo.
   const glow =
     variant === 'highlight' ? (
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-[inherit]"
         style={{
-          background: `radial-gradient(130% 90% at 85% -20%, color-mix(in srgb, ${accent} 22%, transparent), transparent 60%)`,
-          boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${accent} 26%, transparent)`,
+          background: `radial-gradient(120% 70% at 85% -25%, var(--glow-warm, color-mix(in srgb, ${accent} 20%, transparent)), transparent 60%)`,
+          boxShadow: `inset 0 1px 0 0 color-mix(in srgb, ${accent} 50%, transparent), inset 0 0 0 1px color-mix(in srgb, ${accent} 22%, transparent)`,
         }}
       />
-    ) : tone ? (
-      <span aria-hidden className="pointer-events-none absolute inset-y-4 left-0 w-[3px] rounded-r-full" style={{ background: accent }} />
+    ) : tone && variant !== 'ghost' ? (
+      <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit]" style={{ boxShadow: toneEdge(tone, 45) }} />
     ) : null;
 
+  const st: CSSProperties = {
+    ...(variant === 'highlight' && (tone ?? 'accent') === 'accent' ? { boxShadow: '0 18px 50px -24px var(--accent-glow)' } : null),
+    ...style,
+  };
+
   const cls = cn('relative isolate rounded-card text-ink', VARIANT[variant], PAD[padding], className);
-  const st: CSSProperties = { ...style };
 
   if (onPress) {
     return (

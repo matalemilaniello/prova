@@ -8,8 +8,8 @@ import type { WorkoutLog } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { formatMonth, weekIndexSince } from '../../engine/dates';
 import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
-import { sessionLoad } from '../../engine/training';
-import { useNow, useToday } from '../../state/hooks';
+import { introLevel, sessionLoad } from '../../engine/training';
+import { useNow, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Card, DayTypeBadge, EmptyState, ListGroup, ListRow, Screen, SectionTitle } from '../../ui';
 import { HistorySection, PhysioSection, SessionsSection, StrengthSection } from './components/Sections';
@@ -17,15 +17,16 @@ import { NextSessionCard, ResumeCard } from './components/NextSessionCard';
 import { WeekCard } from './components/WeekCard';
 import { WorkoutDetailSheet } from './components/WorkoutDetailSheet';
 import { draftDoneSets, useSessionDraft } from './draft';
-import { buildPlayerPlan, plannedSets } from './lib';
+import { buildPlayerPlan, exerciseFor, plannedSets, shortName } from './lib';
 import { PhysioEditorSheet } from './PhysioEditor';
 import { relativeDayShort, useTraining } from './useTraining';
 
 export default function AllenamentoScreen() {
-  const today = useToday();
+  const today = usePlanDay();
   const now = useNow(30_000).getTime();
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
+  const workoutLogs = useApp((s) => s.workoutLogs);
   const open = useUi((s) => s.open);
   const toast = useUi((s) => s.toast);
   const draft = useSessionDraft((s) => s.draft);
@@ -35,8 +36,13 @@ export default function AllenamentoScreen() {
 
   const draftTotal = useMemo(() => {
     const s = draft ? SESSIONS[draft.sessionId] : undefined;
-    return s ? plannedSets(buildPlayerPlan(s, physio, plan, draft!.date).items) : 0;
-  }, [draft, physio, plan]);
+    if (!s) return 0;
+    // Come nel lettore: gli esercizi del fisioterapista contano solo se li stai facendo.
+    const items = buildPlayerPlan(s, physio, plan, draft!.date, { intro: introLevel(s.id, workoutLogs) }).items;
+    const physioItems = items.filter((i) => i.physio);
+    const physioDone = physioItems.some((it) => draft!.logs[it.key]?.sets.some((x) => x.done));
+    return plannedSets(items.filter((i) => !i.physio)) + (physioDone ? plannedSets(physioItems) : 0);
+  }, [draft, physio, plan, workoutLogs]);
 
   const week = weekIndexSince(plan.startDate, today) + 1;
   const eyebrow = week > 0 ? `${formatMonth(today)} · settimana ${week}` : formatMonth(today);
@@ -57,19 +63,22 @@ export default function AllenamentoScreen() {
   };
 
   return (
-    <Screen title="Allenamento" eyebrow={eyebrow} subtitle={subtitle}>
+    <Screen title="Allenamento" eyebrow={eyebrow} subtitle={subtitle} light={{ intensity: 0.2 + 0.8 * data.weekProgress }}>
       {!draft && data.todayLogs.length > 0 && (
         <ListGroup>
-          {data.todayLogs.map((w) => (
-            <ListRow
-              key={w.id}
-              icon={CircleCheck}
-              iconTone="good"
-              title={`${SESSIONS[w.sessionId]?.name ?? 'Seduta'} fatta oggi`}
-              subtitle={`${w.durationMin} min · RPE ${w.rpe} · ${fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA${data.recordsById[w.id] ? ` · ${data.recordsById[w.id] === 1 ? '1 record' : `${data.recordsById[w.id]} record`}` : ''}`}
-              onPress={() => setDetail({ log: w, open: true })}
-            />
-          ))}
+          {data.todayLogs.map((w) => {
+            const rec = data.recordById[w.id];
+            return (
+              <ListRow
+                key={w.id}
+                icon={CircleCheck}
+                iconTone="good"
+                title={`${SESSIONS[w.sessionId]?.name ?? 'Seduta'} fatta oggi`}
+                subtitle={`${w.durationMin} min · RPE ${w.rpe} · ${fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA${rec ? ` · record: ${shortName(exerciseFor(rec.exerciseId, physio)?.name ?? rec.exerciseId, rec.exerciseId)}` : ''}`}
+                onPress={() => setDetail({ log: w, open: true })}
+              />
+            );
+          })}
         </ListGroup>
       )}
       {draft ? (
@@ -83,7 +92,7 @@ export default function AllenamentoScreen() {
           onDiscard={discardDraft}
         />
       ) : data.next ? (
-        <NextSessionCard next={data.next} after={data.after} today={today} gate={data.gate} onStart={() => startSession(data.next!.sessionId, data.next!.daysAway === 0 ? data.next!.date : today)} />
+        <NextSessionCard next={data.next} after={data.after} today={today} gate={data.gate} intro={data.nextIntro} onStart={() => startSession(data.next!.sessionId, data.next!.daysAway === 0 ? data.next!.date : today)} />
       ) : (
         <Card padding="none">
           <EmptyState
@@ -120,7 +129,8 @@ export default function AllenamentoScreen() {
 
       <HistorySection
         history={data.history}
-        recordsById={data.recordsById}
+        recordById={data.recordById}
+        physio={physio}
         onOpen={(log) => setDetail({ log, open: true })}
         onStart={() => startSession(data.next?.sessionId ?? 'A')}
       />

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { defaultAppData } from '../data/defaults';
-import { emptyDayLog, latestWeight, migrateData, normalizeData, pickData, useApp, useUi } from './store';
+import { emptyDayLog, latestWeight, migrateData, normalizeData, persistedData, pickData, useApp, useUi } from './store';
 
 describe('store', () => {
   beforeEach(() => {
@@ -122,5 +122,99 @@ describe('store', () => {
     expect(useUi.getState().toasts.find((t) => t.id === id)?.tone).toBe('good');
     useUi.getState().dismissToast(id);
     expect(useUi.getState().toasts.find((t) => t.id === id)).toBeUndefined();
+  });
+
+  it('un backup danneggiato in una sezione si ripara invece di bloccare l’app', () => {
+    const base = pickData(defaultAppData('2026-11-09'));
+    const broken = {
+      ...base,
+      onboarded: true,
+      profile: { ...base.profile, painSites: 'Tibia', heightCm: '175', startWeightKg: 'tanti' },
+      plan: {
+        ...base.plan,
+        targets: { ...base.plan.targets, palestra: { kcal: '2700', proteinG: null } },
+        week: [{ weekday: 0, dayType: 'boh', football: { kind: 'tennis' } }, 'x'],
+        sleep: { wake: '7:00', current: '00:30' },
+        supplements: [{ id: 'c', name: 'Creatina' }, 3],
+      },
+      dayLogs: {
+        '2026-10-31': { date: '2026-10-31' },
+        '2026-11-01': { status: { 'pasto:pranzo': 'fatto', x: 'forse' }, waterGlasses: '3', recipeSwaps: { pranzo: 'r1', boh: 'r2' }, extra: 1 },
+        ciao: { status: {} },
+      },
+      checkIns: { '2026-11-01': { weightKg: '70,4', pain: { Tibia: '2', Gomito: 'alto' }, bedTime: '25:00' }, '2026-11-02': 5 },
+      workoutLogs: [
+        { id: 'w1', date: '2026-11-01', sessionId: 'A' },
+        { id: 'w2', date: '2026-11-02', exercises: [{ exerciseId: 'panca', sets: 'tre' }, { nome: 'x' }] },
+        { date: '2026-11-03' },
+        null,
+      ],
+      footballLogs: [{ id: 'f1', date: '2026-11-02', kind: 'partita', rpe: '7' }, { id: 'f2', date: 'ieri', kind: 'partita' }],
+      reviews: [{ weekStart: '2026-11-02' }, { weekStart: 3 }],
+      physio: { exercises: [{ id: 'p', name: 'Ponte' }, {}], prescriptions: [{ exerciseId: 'p', repMin: 12, repMax: 8 }] },
+      shoppingChecked: { '2026-11-02': ['a', 2], x: ['b'] },
+      chat: [{ id: 'm', role: 'assistant' }, { id: 'n', role: 'sistema', text: 'x' }],
+      settings: { theme: 'viola', coachModel: '' },
+    };
+    const n = normalizeData(broken);
+    expect(n.profile.painSites).toEqual([]);
+    expect(n.profile.heightCm).toBe(175);
+    expect(n.profile.startWeightKg).toBe(0);
+    expect(n.plan.targets.palestra.kcal).toBe(2700);
+    expect(n.plan.targets.palestra.proteinG).toBe(base.plan.targets.palestra.proteinG);
+    expect(n.plan.week).toHaveLength(7);
+    expect(n.plan.week[0].dayType).toBe('calcio');
+    expect(n.plan.week[0].football).toBeUndefined();
+    expect(n.plan.sleep.wake).toBe(base.plan.sleep.wake);
+    expect(n.plan.sleep.current).toBe('00:30');
+    expect(n.plan.supplements).toHaveLength(1);
+    expect(n.plan.supplements[0].active).toBe(true);
+    expect(n.dayLogs['2026-10-31'].status).toEqual({});
+    expect(n.dayLogs['2026-11-01'].status).toEqual({ 'pasto:pranzo': 'fatto' });
+    expect(n.dayLogs['2026-11-01'].waterGlasses).toBe(3);
+    expect(n.dayLogs['2026-11-01'].recipeSwaps).toEqual({ pranzo: 'r1' });
+    expect((n.dayLogs['2026-11-01'] as unknown as { extra: number }).extra).toBe(1);
+    expect(n.dayLogs.ciao).toBeUndefined();
+    expect(n.checkIns['2026-11-01'].weightKg).toBeCloseTo(70.4);
+    expect(n.checkIns['2026-11-01'].pain).toEqual({ Tibia: 2 });
+    expect(n.checkIns['2026-11-01'].bedTime).toBeUndefined();
+    expect(n.checkIns['2026-11-02']).toBeUndefined();
+    expect(n.workoutLogs.map((w) => w.id)).toEqual(['w1', 'w2']);
+    expect(n.workoutLogs[0].exercises).toEqual([]);
+    expect(n.workoutLogs[1].exercises).toEqual([{ exerciseId: 'panca', sets: [] }]);
+    expect(n.footballLogs.map((f) => [f.id, f.rpe])).toEqual([['f1', 7]]);
+    expect(n.reviews).toHaveLength(1);
+    expect(n.reviews[0].acceptedProposals).toEqual([]);
+    expect(n.physio.exercises).toHaveLength(1);
+    expect(n.physio.prescriptions[0].repMax).toBe(12);
+    expect(n.shoppingChecked).toEqual({ '2026-11-02': ['a'] });
+    expect(n.chat).toHaveLength(1);
+    expect(n.chat[0].text).toBe('');
+    expect(n.settings.theme).toBe('sistema');
+    expect(n.settings.coachModel).toBeTruthy();
+    // L'import lo accetta e lo stato resta usabile.
+    expect(useApp.getState().importData(broken)).toBe(true);
+    expect(useApp.getState().getDayLog('2026-10-31').status).toEqual({});
+  });
+
+  it('migrazione 1 → 2: fibre da 30 a 35 g, i valori cambiati restano', () => {
+    const base = pickData(defaultAppData('2026-11-09'));
+    const v1 = {
+      ...base,
+      version: 1,
+      plan: { ...base.plan, targets: { ...base.plan.targets, calcio: { ...base.plan.targets.calcio, fiberG: 30 }, riposo: { ...base.plan.targets.riposo, fiberG: 28 } } },
+    };
+    const m = migrateData(v1, 1);
+    expect(m.plan.targets.calcio.fiberG).toBe(35);
+    expect(m.plan.targets.riposo.fiberG).toBe(28);
+    expect(m.version).toBe(2);
+  });
+
+  it('in localStorage restano solo le foto più recenti della chat', () => {
+    const base = pickData(defaultAppData('2026-11-09'));
+    const chat = Array.from({ length: 7 }, (_, i) => ({ id: `m${i}`, role: 'user' as const, text: `t${i}`, image: `data:${i}`, createdAt: '' }));
+    const out = persistedData({ ...base, chat });
+    expect(out.chat.filter((m) => m.image).map((m) => m.id)).toEqual(['m3', 'm4', 'm5', 'm6']);
+    expect(out.chat.map((m) => m.text)).toEqual(chat.map((m) => m.text));
   });
 });

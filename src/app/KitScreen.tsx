@@ -17,8 +17,8 @@ import {
   Settings,
   Share,
   ShoppingBasket,
+  Sparkles,
   Trash2,
-  Trophy,
 } from 'lucide-react';
 import type { DayType, ThemePref } from '../domain/types';
 import { todayISO } from '../engine/dates';
@@ -32,6 +32,8 @@ import {
   CheckRow,
   DayTypeBadge,
   EmptyState,
+  Floodlights,
+  BallIcon,
   Field,
   FullScreenModal,
   IconButton,
@@ -114,6 +116,13 @@ export default function KitScreen() {
   const [note, setNote] = useState('');
   const [ticker, setTicker] = useState(1840);
   const [ring, setRing] = useState(0.72);
+  const [lights, setLights] = useState<'spenti' | 'meta' | 'pieni' | 'coprifuoco'>('meta');
+  const [flare, setFlare] = useState(0);
+  const lightProps = {
+    intensity: lights === 'spenti' ? 0 : lights === 'pieni' ? 1 : 0.5,
+    curfew: lights === 'coprifuoco',
+    flare,
+  };
   const [sheet, setSheet] = useState(false);
   const [modal, setModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -131,6 +140,7 @@ export default function KitScreen() {
       onBack={goBack}
       bottom="safe"
       contentClassName="gap-9"
+      light={lightProps}
     >
       <Segmented<ThemePref>
         aria-label="Tema"
@@ -155,6 +165,34 @@ export default function KitScreen() {
         </div>
       </Block>
 
+      <Block
+        title="Riflettori"
+        note="L'elemento firma: due batterie di lampade, coni di luce bianco calda e le righe del campo. L'intensità segue la giornata; a giornata chiusa un bagliore breve, dopo il coprifuoco la luce cala verso il lilla."
+      >
+        <div className="relative h-[200px] overflow-hidden rounded-card bg-bg ring-1 ring-inset ring-[var(--bar-line)]">
+          <Floodlights {...lightProps} height={200} />
+          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
+            <span className="t-label text-ink-3">Sabato 31</span>
+            <span className="t-num text-[2rem] text-accent-ink">7/9</span>
+          </div>
+        </div>
+        <Segmented
+          aria-label="Riflettori"
+          value={lights}
+          onChange={setLights}
+          size="sm"
+          options={[
+            { value: 'spenti', label: 'Spenti' },
+            { value: 'meta', label: 'A metà' },
+            { value: 'pieni', label: 'Pieni' },
+            { value: 'coprifuoco', label: 'Coprifuoco' },
+          ]}
+        />
+        <Button variant="secondary" icon={Sparkles} onClick={() => setFlare((n) => n + 1)}>
+          Giornata chiusa
+        </Button>
+      </Block>
+
       <Block title="Tipografia">
         <Card padding="lg" className="flex flex-col gap-3">
           <span className="t-label text-ink-3">Etichetta di sezione</span>
@@ -166,7 +204,7 @@ export default function KitScreen() {
           </p>
           <div className="flex items-baseline gap-4">
             <span className="t-num text-[3rem] text-accent-ink">2.600</span>
-            <span className="t-mono text-ink-2">kcal · 07:30 · 6 h 40</span>
+            <span className="t-mono whitespace-nowrap text-ink-2">kcal · 07:30 · 6&nbsp;h&nbsp;40</span>
           </div>
         </Card>
       </Block>
@@ -520,7 +558,7 @@ export default function KitScreen() {
           {(['recipe', 'checkin', 'session', 'football', 'barPlanB'] as const).map((t) => (
             <ListRow
               key={t}
-              icon={t === 'session' ? Dumbbell : t === 'football' ? Trophy : t === 'checkin' ? Droplet : t === 'barPlanB' ? Coffee : ShoppingBasket}
+              icon={t === 'session' ? Dumbbell : t === 'football' ? BallIcon : t === 'checkin' ? Droplet : t === 'barPlanB' ? Coffee : ShoppingBasket}
               iconTone={t === 'session' ? 'palestra' : t === 'football' ? 'calcio' : 'accent'}
               title={{ recipe: 'Ricetta', checkin: 'Controllo del mattino', session: 'Seduta', football: 'Calcio', barPlanB: 'Piano B al bar' }[t]}
               onPress={() => {

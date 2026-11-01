@@ -1,7 +1,7 @@
 /**
  * Avvio: legge i parametri dell'URL per anteprime e screenshot (§4) prima del primo disegno.
  * ?today=YYYY-MM-DD e ?now=HH:MM fissano l'orologio; ?demo=1 carica i dati di esempio;
- * ?onboarding=1 mostra il benvenuto; ?theme=scuro|chiaro forza il tema; ?overlay=… apre un pannello.
+ * ?onboarding=1 mostra il benvenuto; ?theme=scuro|chiaro (o dark|light) forza il tema; ?overlay=… apre un pannello.
  */
 import type { AppData, FootballKind, ISODate, Overlay, TimelineItem } from '../domain/types';
 import { RECIPES } from '../data/recipes';
@@ -9,7 +9,7 @@ import { SESSIONS } from '../data/sessions';
 import { addDays, isHHMM, isISODate, setNowProvider, todayISO, weekdayOf } from '../engine/dates';
 import { mealsForDate } from '../engine/menu';
 import { useApp, useUi } from '../state/store';
-import { isStandalone } from './env';
+import { isStandalone, requestPersistentStorage } from './env';
 import { applyTheme, resolveTheme, setThemeOverride } from './theme';
 import { getUrlParam } from './urlParams';
 
@@ -100,12 +100,23 @@ export function boot() {
   // Installata sulla schermata Home: serve per la velatura sotto la barra di stato (tema chiaro).
   if (isStandalone()) document.documentElement.dataset.standalone = 'true';
 
-  const theme = getUrlParam('theme');
+  const q = getUrlParam('theme');
+  const theme = q === 'dark' ? 'scuro' : q === 'light' ? 'chiaro' : q;
   if (theme === 'scuro' || theme === 'chiaro') setThemeOverride(theme);
   applyTheme(resolveTheme(useApp.getState().settings.theme));
 
   if (getUrlParam('demo') === '1') useApp.getState().loadDemo(todayISO());
   if (getUrlParam('onboarding') === '1') useApp.setState({ onboarded: false });
+
+  // Dati protetti dal browser (non si cancellano da soli quando serve spazio), dopo il benvenuto.
+  if (useApp.getState().onboarded) void requestPersistentStorage();
+  else {
+    const off = useApp.subscribe((s) => {
+      if (!s.onboarded) return;
+      off();
+      void requestPersistentStorage();
+    });
+  }
 
   const overlay = getUrlParam('overlay');
   if (overlay) {

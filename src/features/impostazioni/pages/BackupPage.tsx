@@ -2,9 +2,9 @@
  * Backup: esporta in JSON (download, condivisione o appunti) e importa da file o testo incollato,
  * con validazione e anteprima prima di sostituire i dati.
  */
-import { useMemo, useRef, useState } from 'react';
-import { ClipboardPaste, Copy, Download, FileUp, Share, ShieldAlert, Upload } from 'lucide-react';
-import { APP_VERSION, IS_PREVIEW } from '../../../app/env';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ClipboardPaste, Copy, Download, FileUp, HardDrive, Share, ShieldAlert, ShieldCheck, Upload } from 'lucide-react';
+import { APP_VERSION, IS_PREVIEW, getStoragePersistence, requestPersistentStorage, type StoragePersistence } from '../../../app/env';
 import { todayISO } from '../../../engine/dates';
 import {
   backupFileName,
@@ -25,33 +25,16 @@ import {
 } from '../../../lib/backup';
 import { fmtDateLong, fmtDateShort, fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { pickData, useApp, useUi } from '../../../state/store';
+import { normalizeData, pickData, storageFull, useApp, useUi } from '../../../state/store';
+import { useSessionDraft } from '../../allenamento/draft';
 import { Button, Callout, Card, Pill, Sheet, TextArea, Toggle } from '../../../ui';
+import { StatGrid } from '../components/BackupStats';
 import { FormRow, InlineReveal } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
 import { ManualCopySheet } from './PromemoriaPage';
 import { Page, type PageProps } from './Page';
 
 const MIME = 'application/json';
-
-function StatGrid({ s }: { s: BackupSummary }) {
-  const items = [
-    { label: 'Giorni di diario', value: s.dayLogs },
-    { label: 'Controlli', value: s.checkIns },
-    { label: 'Sedute e calcio', value: s.workouts + s.football },
-    { label: 'Revisioni', value: s.reviews },
-  ];
-  return (
-    <dl className="grid grid-cols-2 gap-2">
-      {items.map((it) => (
-        <div key={it.label} className="flex flex-col gap-0.5 rounded-[14px] bg-card-2 px-3.5 py-3">
-          <dd className="t-num text-[1.75rem] text-ink">{fmtNumber(it.value)}</dd>
-          <dt className="t-footnote text-ink-2">{it.label}</dt>
-        </div>
-      ))}
-    </dl>
-  );
-}
 
 const isoDay = (iso: string) => iso.slice(0, 10);
 
@@ -69,6 +52,16 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
   const [pending, setPending] = useState<{ data: Record<string, unknown>; summary: BackupSummary; exportedAt?: string; n: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const shareable = useMemo(() => !IS_PREVIEW && canShareFiles(), []);
+  // Il browser può cancellare da solo i dati di un sito quando manca spazio, se non sono protetti.
+  const [persist, setPersist] = useState<StoragePersistence>(getStoragePersistence);
+  useEffect(() => {
+    let alive = true;
+    void requestPersistentStorage().then((p) => alive && setPersist(p));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const full = storageFull();
 
   const summary = summarizeData(data);
   const text = useMemo(() => serializeBackup(createBackup(data, { includeCoachKey: withKey && hasKey, appVersion: APP_VERSION })), [data, withKey, hasKey]);
@@ -111,6 +104,14 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
       haptic('error');
       return;
     }
+    // Prova a leggerlo davvero, come farà l'importazione, prima di proporre di sostituire i dati.
+    try {
+      normalizeData(res.data);
+    } catch {
+      setError('Il backup è danneggiato e non si riesce a leggere. Prova con un backup precedente.');
+      haptic('error');
+      return;
+    }
     setError(null);
     setPending((p) => ({ data: res.data, summary: res.summary, exportedAt: res.exportedAt, n: (p?.n ?? 0) + 1 }));
   };
@@ -126,6 +127,20 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
 
   return (
     <Page title="Backup" subtitle="I dati vivono solo su questo telefono. Un backup ogni tanto li mette al sicuro." onBack={onBack} backLabel={backLabel}>
+      {full && (
+        <Callout
+          tone="bad"
+          icon={HardDrive}
+          title="Memoria del browser piena"
+          action={
+            <Button size="sm" variant="ghost" icon={IS_PREVIEW ? Copy : Download} onClick={download}>
+              Esporta un backup
+            </Button>
+          }
+        >
+          Le ultime modifiche potrebbero non restare dopo la chiusura. Esporta subito un backup, poi libera spazio: le foto della chat sono la parte più pesante.
+        </Callout>
+      )}
       <section className="flex flex-col gap-2" aria-labelledby="esporta-label">
         <h3 id="esporta-label" className="t-label px-1 text-ink-3">
           Esporta
@@ -167,6 +182,16 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
         <p className="t-footnote px-1 text-ink-3">
           {lastAt ? `Ultimo backup: ${fmtDateLong(isoDay(lastAt))}.` : 'Non hai ancora fatto un backup da questo telefono.'} Salvalo in File o in iCloud Drive.
         </p>
+        {persist === 'protetta' ? (
+          <p className="t-footnote flex items-center gap-1.5 px-1 text-good-ink">
+            <ShieldCheck aria-hidden size={15} strokeWidth={2.3} className="shrink-0" />
+            Dati protetti dal browser: non li cancella da solo.
+          </p>
+        ) : (
+          !IS_PREVIEW && (
+            <p className="t-footnote px-1 text-ink-3">Il browser può cancellare i dati quando manca spazio: fai un backup ogni settimana, per esempio dopo la revisione.</p>
+          )
+        )}
       </section>
 
       {IS_PREVIEW && (
@@ -236,6 +261,8 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
           onConfirm={() => {
             const ok = useApp.getState().importData(pending.data);
             if (ok) {
+              // Una seduta lasciata a metà apparteneva ai dati di prima.
+              useSessionDraft.getState().clear();
               haptic('success');
               toast('Backup importato', 'good');
               setPasted('');

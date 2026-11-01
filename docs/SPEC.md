@@ -221,8 +221,8 @@ senza modificare `store.ts` (evita conflitti tra chi lavora in parallelo).
 - Profilo: sesso 'M', anno di nascita vuoto da chiedere, altezza e peso da chiedere, obiettivo
   'ricomposizione', zone di dolore suggerite (l'utente sceglie): Tibia, Gomito, Ginocchio, Flessori,
   Adduttori, Caviglia, Schiena, Spalla. Acqua 2,5 l.
-- Obiettivi per tipo di giorno: calcio 2.800 kcal (P 135, G 80, C 385, fibre 30); palestra 2.600 (135/80/335/30);
-  leggero 2.450 (132/80/300/30); riposo 2.300 (130/80/265/30). Una funzione in `engine/targets.ts` li
+- Obiettivi per tipo di giorno: calcio 2.800 kcal (P 135, G 80, C 385, fibre 35); palestra 2.600 (135/80/335/35);
+  leggero 2.450 (132/80/300/35); riposo 2.300 (130/80/265/35). Una funzione in `engine/targets.ts` li
   ricalcola da sesso, età, altezza e peso (Mifflin-St Jeor × fattore di attività per tipo di giorno, proteine
   1,9 g/kg, grassi ~28% kcal, carboidrati il resto) quando l'utente lo chiede nell'onboarding.
 - Settimana: lun calcio (partita 21:00, 90 min, fisio), mar palestra (A alle 17:00), mer calcio (calcetto 21:00,
@@ -248,19 +248,31 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
 - `nutrition.ts` · `carbFactor(dayType)` (calcio 1.25, palestra 1, leggero 0.9, riposo 0.75),
   `lineGrams(line, dayType)`, `recipeNutrition(recipe, dayType): Nutrients`, `recipeVegPortions`,
   `formatPortion(line, dayType)` → "1 pugno e mezzo · ≈ 225 g" (arrotonda le porzioni a mezze unità),
-  `dayNutrition(date, state)` somma i pasti del giorno (con eventuali sostituzioni di ricetta).
+  `dayNutrition(date, state)` somma i pasti del giorno (con eventuali sostituzioni di ricetta). Le righe
+  `carbScaled` seguono anche gli obiettivi del piano (`dayCarbScale`): +150 kcal nel piano, +150 kcal nel piatto.
 - `menu.ts` · `menuWeekFor(iso, planStart)` (rotazione su `MENU_ROTATION`), `mealsForDate(iso, state)`:
-  restituisce per ogni slot la ricetta effettiva (sostituzioni comprese) e il tipo di giorno.
-- `sleep.ts` · `bedtimeFor(iso, plan)` (usa `plan.sleep.current`), `curfewFor`, `sleepHours(bed, wake)`,
-  `nightsOnTarget(checkIns, plan, dates)`.
+  restituisce per ogni slot la ricetta effettiva (sostituzioni comprese) e il tipo di giorno delle porzioni
+  (`effectiveDayType`: la vigilia della partita mangia come un giorno di calcio).
+- `sleep.ts` · `bedtimeFor(iso, plan)` (usa `plan.sleep.current`; nelle sere di calcio non prima di fine calcio
+  + 30 min di cena + 75 min, es. 00:15 dopo la partita delle 21:00), `curfewFor`, `sleepHours(bed, wake)`,
+  `nightsOnTarget(checkIns, plan, dates)` (ogni controllo si confronta con la sera prima), `dayCutoffMin` e
+  `planDayISO` (la giornata cambia 90 minuti prima della sveglia: tutte le schermate usano `usePlanDay()`).
 - `timeline.ts` · `buildTimeline(iso, state): TimelineItem[]` ordinata per orario:
   controllo del mattino (sveglia + 5 min), integratori (con la colazione), i 5 pasti, palestra (se prevista),
-  calcio, esercizi del fisio, coprifuoco, a letto. Nei giorni di partita/calcetto/allenamento serale: merenda
+  calcio, esercizi del fisio (solo se l'utente li ha inseriti: altrimenti Oggi mostra una riga che invita a
+  inserirli e non conta), coprifuoco, a letto. Nei giorni di partita/calcetto/allenamento serale: merenda
   pre-calcio ~2 h 30 prima, cena di recupero dopo il calcio (se il calcio finisce dopo le 21:30 la cena è
-  "cena di recupero, leggera e veloce"). In modalità minima restituisce solo 4 voci `minima:*`
-  (proteine a ogni pasto, almeno un frutto, integratori, telefono fuori dalla camera).
+  "cena di recupero, veloce e digeribile"). In modalità minima restituisce le 4 voci `minima:*`
+  (proteine a ogni pasto, almeno un frutto, integratori, telefono fuori dalla camera); calcio e palestra
+  restano come appuntamenti che non contano.
+  `buildDay(iso, state)` è quello che mostra Oggi: la timeline più i riti del fine settimana (spesa il sabato,
+  preparazione e revisione la domenica), con lo stato ricavato da `shoppingChecked`, `prepDone` e `reviews`.
+  Le voci prima del primo avvio (`Plan.firstUse`) non contano. Coprifuoco, letto e telefono fuori si segnano
+  solo da un'ora prima del coprifuoco (quelle dei giorni passati sempre).
   `dayAdherence(iso, state)`: fatto = 1, sostituito = 0,5, saltato o non segnato = 0, su tutte le voci tranne
-  `letto`; `daySuccessful`: aderenza ≥ 70% oppure giornata minima con 4 voci su 4. `streak(state, today)`.
+  `letto`; `daySuccessful`: aderenza ≥ 70% oppure giornata minima con 4 voci su 4. `streak(state, today)` e
+  `streakInfo`: con 5 giornate riuscite in una settimana si guadagna un jolly (al massimo uno da parte), che
+  salva la serie alla prossima giornata non riuscita; la giornata salvata non si somma ma non spezza.
 - `shopping.ts` · `shoppingList(weekStartIso, state)`: somma i grammi di tutti gli ingredienti della settimana
   (tipo di giorno compreso, sostituzioni comprese), applica `buyFactor`, raggruppa per `ShopCategory`,
   arrotonda in modo umano ("≈ 600 g", "6 uova", "2 confezioni da 400 g"), separa i prodotti da dispensa.
@@ -271,6 +283,12 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   `loadAlert(weekStart, state)` (settimana > 120% della media delle 4 precedenti; serve almeno 2 settimane di
   storico), `painGate(state, iso)` (regola di Silbernagel adattata: dolore ≤ soglia ok; sopra soglia o in
   peggioramento → "mantieni o riduci", e suggerisci alternative `elbowFriendly` quando la zona è il gomito).
+  Con `workoutLogs` e `footballLogs` conta anche il dolore registrato a fine seduta (entro 2 giorni) e il
+  giorno dopo una seduta o un calcio (il dolore del mattino sale di almeno 1 punto). Per le zone sotto il
+  ginocchio gli impatti (balzi, salti, partita) hanno soglia min(soglia, 2): `gate.impact`.
+  `introLevel`: nelle prime 2 esecuzioni di una seduta una serie in meno e un RIR in più (non per le sedute
+  già leggere). Nel catalogo degli esercizi `impact` e `startKg` (carichi di partenza) stanno in un tipo
+  locale, non nel contratto.
 - `review.ts` · `weekStats(weekStart, state)` (peso medio e variazione, pesate, aderenza, sonno medio,
   notti in orario, fibre e proteine stimate dai pasti fatti, dolore medio per zona e tendenza, carico, dolci
   fuori programma) e `proposals(weekStart, state): Proposal[]` con queste regole:
@@ -284,10 +302,13 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   - scarico: ogni 6-8 settimane dall'inizio, o prima con sonno < 6 h per 3 notti e dolore in aumento.
 - `ics.ts` · genera un file `.ics` (RFC 5545, CRLF, righe ripiegate a 75 ottetti, `TZID=Europe/Rome` con
   VTIMEZONE) con eventi settimanali ricorrenti (`RRULE:FREQ=WEEKLY;BYDAY=…`) e `VALARM` all'orario:
-  integratori e colazione, pranzo, palestra, esercizi del fisio, coprifuoco, revisione della domenica alle 18:00.
-  L'utente sceglie quali.
-- `coachContext.ts` · costruisce il contesto per il coach (profilo, piano, giornata di oggi con stati,
-  ultimi 7 controlli, dolori, ultime sedute, menù di oggi con valori) in testo compatto.
+  controllo del mattino (sveglia + 5 min), integratori e colazione, pranzo, palestra, esercizi del fisio (solo
+  se inseriti), coprifuoco, revisione della domenica alle 18:00. L'utente sceglie quali. Il coprifuoco segue
+  la scala del sonno: una serie con `UNTIL` per ogni settimana, l'ultimo gradino senza fine; nelle sere di
+  calcio vale l'orario dopo la partita. `calendarStatus` dice se il file aggiunto è ancora allineato al piano.
+- `coachContext.ts` · costruisce il contesto per il coach (profilo, piano, giornata di oggi con stati e riti
+  del fine settimana, ultimi 7 controlli, dolori, ultime sedute, menù di oggi con valori, scalino della
+  settimana) in testo compatto. Le zone di dolore non entrano nel prompt di sistema, solo nel contesto.
 
 ## 8. Contenuti (in `src/data/`)
 
@@ -470,3 +491,14 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
 - `Overlay` di tipo `barPlanB` con `slot?: MealSlot` (integrazione): il piano B aperto dalla voce spuntino o
   merenda di Oggi mostra subito quel pasto invece di quello dell'ora attuale. Senza il campo il comportamento
   è quello di prima.
+- `DATA_VERSION` 2 (fondamenta): la migrazione porta l'obiettivo di fibre da 30 a 35 g dove era rimasto
+  il valore predefinito. `normalizeData` ripara ogni sezione (voci illeggibili scartate, numeri ricavati
+  anche da stringhe) e conserva i campi sconosciuti, così i campi facoltativi aggiunti qui non si perdono.
+- `Plan.firstUse?: { date: ISODate; time: HHMM }` (Oggi, Progressi, integrazione): primo avvio, scritto alla
+  fine del benvenuto (non con i dati di esempio). Le voci di quel giorno prima di quell'ora non contano, la
+  serie e le notti partono da lì e la prima settimana della revisione non giudica i giorni precedenti.
+  Senza il campo vale l'inizio del piano (o il primo giorno con qualcosa di segnato).
+- `WeeklyReview.step?: { id: 'frutta-spuntino' | 'verdura-cena' | 'acqua' | 'dolci' | 'caffe'; title: string }`
+  (Progressi): lo scalino della settimana scelto nella revisione. Vale la settimana dopo; Oggi ne mostra i 7
+  giorni e il conteggio verso 5. Frutta, verdura e caffè si segnano con la voce di diario `scalino`, che non
+  entra nell'aderenza; acqua e dolci si contano dal diario.

@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Moon } from 'lucide-react';
-import type { SleepPlan } from '../../../domain/types';
+import type { Plan, SleepPlan } from '../../../domain/types';
 import { minToHHMM, nightMinutes } from '../../../engine/dates';
-import { isOnTarget, sleepHours } from '../../../engine/sleep';
+import { isOnTargetFor, sleepHours } from '../../../engine/sleep';
 import { fmtDateCompact, fmtDelta, fmtHours } from '../../../lib/format';
 import { Segmented } from '../../../ui';
 import type { SleepPoint } from '../series';
@@ -21,6 +21,8 @@ type Mode = 'ore' | 'orari';
 export interface SleepChartProps {
   points: SleepPoint[];
   sleep: SleepPlan;
+  /** Settimana del piano: nelle sere di calcio l'orario in orario è quello dopo la partita. */
+  week?: Plan['week'];
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
@@ -51,7 +53,7 @@ function DateAxis({ points, xAt, geo }: { points: SleepPoint[]; xAt: (i: number)
  * "Orari": ogni notte è una barra da quando sei andato a letto alla sveglia, con l'orario obiettivo
  * e quello della fase attuale: si vede l'orario a letto che si anticipa settimana dopo settimana.
  */
-export function SleepChart({ points, sleep }: SleepChartProps) {
+export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
   const [mode, setMode] = useState<Mode>('ore');
   const { ref, geo } = useGeometry(HEIGHT, { top: 14, right: 44, bottom: 24, left: 8 });
   const reduce = useReducedMotion();
@@ -190,7 +192,7 @@ export function SleepChart({ points, sleep }: SleepChartProps) {
           </>
         )
       }
-      footnote={mode === 'orari' ? `In orario: a letto entro 15 minuti dalla fase attuale. Ogni settimana con 5 notti in orario la fase si anticipa di ${sleep.stepMin} minuti.` : undefined}
+      footnote={mode === 'orari' ? `In orario: a letto entro 15 minuti dalla fase attuale (dopo il calcio serale, dall’orario previsto per quella sera). Ogni settimana con 5 notti in orario la fase si anticipa di ${sleep.stepMin} minuti.` : undefined}
     >
       <div ref={ref}>
         {hasData && (
@@ -227,7 +229,7 @@ export function SleepChart({ points, sleep }: SleepChartProps) {
                     if (!p.bed || !p.wake) return null;
                     const top = yT(nightMinutes(p.bed));
                     const bottom = yT(nightMinutes(p.wake));
-                    const ok = isOnTarget(p.bed, { sleep } as Parameters<typeof isOnTarget>[1]);
+                    const ok = isOnTargetFor(p.bed, p.date, { sleep, week });
                     const active = scrub.index === i;
                     return (
                       <motion.rect

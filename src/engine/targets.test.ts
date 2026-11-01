@@ -27,7 +27,7 @@ describe('obiettivi', () => {
     expect(t.palestra.fatG).toBe(80);
     expect(t.palestra.carbG).toBe(335);
     expect(t.calcio.carbG).toBe(385);
-    expect(t.riposo.fiberG).toBe(30);
+    expect(t.riposo.fiberG).toBe(35);
   });
 
   it('i macro tornano con le kcal (±20 kcal di arrotondamento)', () => {
@@ -43,7 +43,7 @@ describe('obiettivi', () => {
       expect(Number.isFinite(d.kcal)).toBe(true);
       expect(d.kcal).toBeGreaterThan(1500);
     }
-    expect(ageFrom(0, NOW)).toBe(30);
+    expect(ageFrom(0, NOW)).toBe(32);
   });
 
   it('obiettivo dimagrimento riduce le calorie', () => {

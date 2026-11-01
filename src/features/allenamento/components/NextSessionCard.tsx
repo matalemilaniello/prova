@@ -1,16 +1,15 @@
 import { motion } from 'motion/react';
-import { Clock, Layers, ListOrdered, Play, RotateCcw, TrendingUp } from 'lucide-react';
+import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
-import { SESSIONS } from '../../../data/sessions';
+import { SESSIONS, estimateSessionMin } from '../../../data/sessions';
 import { gateForExercise, lastLogFor, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
 import { capitalize, fmtMinutes } from '../../../lib/format';
 import { useApp } from '../../../state/store';
 import { useNowHHMM } from '../../../state/hooks';
 import { compareHHMM, formatDayLong } from '../../../engine/dates';
 import { Button, Callout, Card, Pill, ProgressRing, cn, staggerItem } from '../../../ui';
-import { EXERCISES } from '../../../data/exercises';
 import type { SessionDraft } from '../draft';
-import { sessionTone } from '../lib';
+import { buildPlayerPlan, estimateMinutes, plannedSets, sessionTone } from '../lib';
 import { SessionGlyph } from './SessionGlyph';
 import { relativeDayShort } from '../useTraining';
 
@@ -19,21 +18,29 @@ export interface NextSessionCardProps {
   after: PlannedSession | null;
   today: ISODate;
   gate: PainGate;
+  /** Fase di ingresso della seduta (prima o seconda esecuzione), null dopo. */
+  intro?: 1 | 2 | null;
   onStart: () => void;
 }
 
 /** La prossima seduta in evidenza: quando, quanto dura, cosa sale di carico, avviso del dolore. */
-export function NextSessionCard({ next, after, today, gate, onStart }: NextSessionCardProps) {
+export function NextSessionCard({ next, after, today, gate, intro = null, onStart }: NextSessionCardProps) {
   const history = useApp((s) => s.workoutLogs);
   const plan = useApp((s) => s.plan);
+  const physio = useApp((s) => s.physio);
   const nowHHMM = useNowHHMM();
   const session = SESSIONS[next.sessionId];
   if (!session) return null;
-  const items = session.blocks.flatMap((b) => b.items);
-  const sets = items.reduce((s, it) => s + it.sets, 0);
-  const increases = items.filter(
-    (it) => suggestNext(it, lastLogFor(it.exerciseId, history), { gate: gateForExercise(EXERCISES[it.exerciseId], gate) }).kind === 'aumenta',
+  // Numeri della seduta senza il blocco del fisioterapista, con la dose di oggi (fase di ingresso compresa).
+  const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
+  const own = pplan.items.filter((i) => !i.physio);
+  const sets = plannedSets(own);
+  const minutes = intro ? Math.round((session.estMin * estimateMinutes(own.map((i) => i.item))) / Math.max(1, estimateSessionMin(session))) : session.estMin;
+  const increases = own.filter(
+    (it) => suggestNext(it.base, lastLogFor(it.base.exerciseId, history), { gate: gateForExercise(it.exercise, gate), intro: Boolean(intro) }).kind === 'aumenta',
   ).length;
+  const swapped = own.find((i) => i.replacedFrom);
+  const showGate = gate.level !== 'ok' || Boolean(swapped);
   const when = capitalize(relativeDayShort(next.date, today));
   const late = next.daysAway === 0 && Boolean(next.time) && compareHHMM(nowHHMM, next.time!) >= 0;
   const tone = sessionTone(session.id, plan);
@@ -66,8 +73,8 @@ export function NextSessionCard({ next, after, today, gate, onStart }: NextSessi
 
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           {[
-            { icon: Clock, text: `${session.estMin} min` },
-            { icon: ListOrdered, text: `${items.length} esercizi` },
+            { icon: Clock, text: `${minutes} min` },
+            { icon: ListOrdered, text: `${own.length} esercizi` },
             { icon: Layers, text: `${sets} serie` },
             ...(increases > 0 ? [{ icon: TrendingUp, text: `${increases} in aumento`, good: true }] : []),
           ].map((m, i) => (
@@ -78,9 +85,19 @@ export function NextSessionCard({ next, after, today, gate, onStart }: NextSessi
           ))}
         </ul>
 
-        {gate.level !== 'ok' && (
+        {intro && (
+          <p className="t-footnote -mt-1 flex items-start gap-2 text-ink-2">
+            <Sprout size={15} strokeWidth={2.3} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
+            <span>
+              <span className="font-semibold text-ink">{intro === 1 ? 'Prima volta con questa seduta.' : 'Seconda volta con questa seduta.'}</span> Una serie in meno
+              e una ripetizione di riserva in più, per arrivare fresco alla partita.
+            </span>
+          </p>
+        )}
+
+        {showGate && (
           <Callout tone={gate.level === 'riduci' ? 'bad' : 'warn'} title={gate.title}>
-            {gate.message}
+            {gate.level === 'ok' ? `Nel riscaldamento i balzi diventano ${swapped?.exercise?.name.toLowerCase() ?? 'un esercizio senza volo'}, il resto come previsto.` : gate.message}
           </Callout>
         )}
 
@@ -90,7 +107,7 @@ export function NextSessionCard({ next, after, today, gate, onStart }: NextSessi
 
         {next.optional && after && (
           <p className="t-footnote -mt-1 text-balance text-center text-ink-3">
-            Se sei stanco, saltala: la prossima è la {SESSIONS[after.sessionId]?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} {relativeDayShort(after.date, today)}.
+            Se la salti, la prossima è la {SESSIONS[after.sessionId]?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} {relativeDayShort(after.date, today)}.
           </p>
         )}
       </div>

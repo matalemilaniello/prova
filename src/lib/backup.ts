@@ -10,6 +10,7 @@
  */
 import type { AppData, ISODate } from '../domain/types';
 import { DATA_VERSION } from '../data/defaults';
+import { formatDayLong, isISODate } from '../engine/dates';
 
 export const BACKUP_KIND = 'ritmo-backup';
 export const BACKUP_FORMAT = 1;
@@ -161,10 +162,57 @@ export function parseBackup(text: string): ParseBackupResult {
     return fail('versione', 'Il backup viene da una versione più recente di Ritmo. Aggiorna l’app e riprova.');
   }
   const plan = data.plan as Record<string, unknown>;
-  if (plan.week !== undefined && !Array.isArray(plan.week)) {
-    return fail('formato', 'La settimana del piano non è leggibile: il backup è danneggiato.');
+  if (plan.week !== undefined && (!Array.isArray(plan.week) || !plan.week.every(isObj))) {
+    return fail('formato', damaged('La settimana del piano è danneggiata'));
   }
+  const broken = brokenSection(data);
+  if (broken) return fail('formato', damaged(broken));
   return { ok: true, data, summary: summarizeData(data), exportedAt, appVersion };
+}
+
+const damaged = (what: string) => `${what}: il backup non si può importare. Prova con un backup precedente.`;
+
+/** "31 ottobre", oppure la chiave così com'è se non è una data. */
+const dayText = (key: unknown) => (isISODate(key) ? formatDayLong(key).replace(/^\S+\s/, '') : null);
+
+/**
+ * La prima sezione rovinata del backup, descritta per l'utente ("Il diario del 31 ottobre è danneggiato"),
+ * oppure null. Le sezioni assenti vanno bene (si completano con i valori predefiniti); quelle presenti devono
+ * avere la forma giusta, perché importare sostituisce tutto e una voce scartata in silenzio andrebbe persa.
+ */
+export function brokenSection(data: Record<string, unknown>): string | null {
+  const profile = data.profile as Record<string, unknown>;
+  if (profile.painSites !== undefined && (!Array.isArray(profile.painSites) || !profile.painSites.every((s) => typeof s === 'string'))) {
+    return 'Le zone di dolore del profilo sono danneggiate';
+  }
+
+  const byDate = (key: 'dayLogs' | 'checkIns', label: (day: string | null) => string): string | null => {
+    const v = data[key];
+    if (v === undefined) return null;
+    if (!isObj(v)) return label(null);
+    for (const [k, entry] of Object.entries(v)) if (!isObj(entry)) return label(dayText(k));
+    return null;
+  };
+  const diary = byDate('dayLogs', (d) => (d ? `Il diario del ${d} è danneggiato` : 'Il diario è danneggiato'));
+  if (diary) return diary;
+  const checks = byDate('checkIns', (d) => (d ? `Il controllo del mattino del ${d} è danneggiato` : 'I controlli del mattino sono danneggiati'));
+  if (checks) return checks;
+
+  const list = (key: keyof AppData, ok: (e: Record<string, unknown>) => boolean, label: (day: string | null) => string): string | null => {
+    const v = data[key];
+    if (v === undefined) return null;
+    if (!Array.isArray(v)) return label(null);
+    for (const e of v) if (!isObj(e) || !ok(e)) return label(isObj(e) ? dayText(e.date) : null);
+    return null;
+  };
+  return (
+    list('workoutLogs', (e) => Array.isArray(e.exercises), (d) => (d ? `La seduta del ${d} è danneggiata` : 'Le sedute registrate sono danneggiate')) ??
+    list('footballLogs', () => true, (d) => (d ? `Il calcio del ${d} è danneggiato` : 'Le partite registrate sono danneggiate')) ??
+    list('reviews', () => true, () => 'Le revisioni della domenica sono danneggiate') ??
+    list('chat', () => true, () => 'La conversazione con il coach è danneggiata') ??
+    (data.physio !== undefined && !isObj(data.physio) ? 'Gli esercizi del fisioterapista sono danneggiati' : null) ??
+    (data.settings !== undefined && !isObj(data.settings) ? 'Le impostazioni sono danneggiate' : null)
+  );
 }
 
 // ───────────────────────── Dimensioni ─────────────────────────

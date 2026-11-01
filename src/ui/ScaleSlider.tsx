@@ -23,6 +23,10 @@ export interface ScaleSliderProps {
   highLabel?: string;
   /** Soglia da evidenziare sulla pista (es. soglia del dolore). */
   threshold?: number;
+  /** Valore di riferimento (es. quello di ieri): un piccolo anello vuoto sulla pista. */
+  ghost?: number;
+  /** Come leggere il riferimento ai lettori di schermo, es. "ieri" (default "l'ultima volta"). */
+  ghostLabel?: string;
   /** Descrizione del valore per i lettori di schermo e sotto il numero (es. "lieve"). */
   describe?: (v: number) => string;
   hideLabel?: boolean;
@@ -40,7 +44,8 @@ export function scaleColor(v: number, min: number, max: number, scheme: ScaleSch
   const t = (v - min) / Math.max(1, max - min);
   if (scheme === 'neutral') return 'var(--accent)';
   const x = scheme === 'pain' ? t : 1 - t;
-  if (x <= 0.25) return 'var(--good)';
+  // Energia: da 7 su 10 è già buona (verde); dolore: verde solo fino a 2-3.
+  if (x <= (scheme === 'energy' ? 0.35 : 0.25)) return 'var(--good)';
   if (x <= 0.6) return 'var(--warn)';
   return 'var(--bad)';
 }
@@ -57,6 +62,8 @@ export function ScaleSlider({
   lowLabel,
   highLabel,
   threshold,
+  ghost,
+  ghostLabel = 'l’ultima volta',
   describe,
   hideLabel,
   className,
@@ -92,7 +99,8 @@ export function ScaleSlider({
       </div>
       <div className="relative h-11">
         <div className="absolute inset-x-[15px] top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full" aria-hidden>
-          <div className="absolute inset-0 opacity-30" style={{ background: GRADIENT[scheme] }} />
+          {/* Pista vuota neutra (i colori diluiti sul blu diventano fango); il colore è solo nella parte piena. */}
+          <div className="absolute inset-0 bg-[var(--ring-track)]" />
           <div
             className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-150"
             style={{ width: set ? `${pct}%` : 0, background: GRADIENT[scheme], backgroundSize: `${(100 / Math.max(pct, 1)) * 100}% 100%` }}
@@ -100,7 +108,7 @@ export function ScaleSlider({
         </div>
         <div className="pointer-events-none absolute inset-x-[15px] top-1/2 flex -translate-y-1/2 justify-between" aria-hidden>
           {Array.from({ length: ticks }, (_, i) => (
-            <span key={i} className="h-1 w-1 rounded-full bg-bg/60" />
+            <span key={i} className="h-1 w-1 rounded-full bg-[var(--bg)] opacity-60" />
           ))}
         </div>
         {threshold !== undefined && (
@@ -108,6 +116,13 @@ export function ScaleSlider({
             aria-hidden
             className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-ink-2"
             style={{ left: `calc(15px + (100% - 30px) * ${(threshold - min) / (max - min)})` }}
+          />
+        )}
+        {ghost !== undefined && Number.isFinite(ghost) && (
+          <span
+            aria-hidden
+            className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink-3 bg-[var(--bg)]"
+            style={{ left: `calc(15px + (100% - 30px) * ${(Math.min(max, Math.max(min, ghost)) - min) / (max - min)})` }}
           />
         )}
         <input
@@ -118,7 +133,7 @@ export function ScaleSlider({
           step={step}
           value={v}
           aria-label={hideLabel ? label : undefined}
-          aria-valuetext={set ? `${v}${describe ? `, ${describe(v)}` : ''}` : 'non indicato'}
+          aria-valuetext={`${set ? `${v}${describe ? `, ${describe(v)}` : ''}` : 'non indicato'}${ghost !== undefined ? `; ${ghostLabel} ${ghost}` : ''}`}
           onChange={(e) => {
             const n = Number(e.target.value);
             if (n !== value) haptic('selection');

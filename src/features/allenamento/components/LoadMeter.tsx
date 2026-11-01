@@ -61,7 +61,10 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
               animate={{ width: pct(projected) }}
               transition={{ type: 'spring', stiffness: 140, damping: 24, delay: 0.1 }}
               style={{
-                background: `repeating-linear-gradient(-45deg, color-mix(in srgb, ${projOver ? 'var(--warn)' : color} 42%, transparent) 0 4px, color-mix(in srgb, ${projOver ? 'var(--warn)' : color} 16%, transparent) 4px 8px)`,
+                // Tratteggio neutro: l'ambra diluita sul blu diventerebbe grigio oliva. Oltre la soglia, righe di luce calda piene.
+                background: projOver
+                  ? 'repeating-linear-gradient(-45deg, color-mix(in srgb, var(--warn) 70%, transparent) 0 3px, transparent 3px 7px)'
+                  : 'repeating-linear-gradient(-45deg, color-mix(in srgb, var(--ink-2) 40%, transparent) 0 3px, transparent 3px 7px)',
               }}
             />
           )}
@@ -89,7 +92,10 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
             swatch={
               <span
                 className="block size-2.5 rounded-full"
-                style={{ background: `repeating-linear-gradient(-45deg, color-mix(in srgb, ${color} 60%, transparent) 0 2px, transparent 2px 4px)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 50%, transparent)` }}
+                style={{
+                  background: `repeating-linear-gradient(-45deg, color-mix(in srgb, ${projOver ? 'var(--warn)' : 'var(--ink-2)'} 60%, transparent) 0 1.5px, transparent 1.5px 3.5px)`,
+                  boxShadow: `inset 0 0 0 1px ${projOver ? 'var(--warn)' : 'var(--ink-3)'}`,
+                }}
               />
             }
           >

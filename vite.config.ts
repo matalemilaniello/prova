@@ -29,6 +29,23 @@ function htmlHead(singleFile: boolean): Plugin {
   };
 }
 
+/**
+ * Nell'anteprima in un unico file non c'è il service worker: il modulo virtuale della PWA diventa un
+ * segnaposto che non fa nulla (src/app/pwa.ts non viene comunque eseguito, ma deve potersi risolvere).
+ */
+function pwaStub(): Plugin {
+  const id = 'virtual:pwa-register';
+  return {
+    name: 'ritmo:pwa-stub',
+    resolveId(source) {
+      return source === id ? `\0${id}` : null;
+    },
+    load(resolved) {
+      return resolved === `\0${id}` ? 'export function registerSW() { return async () => {}; }' : null;
+    },
+  };
+}
+
 export default defineConfig(({ command, mode, isPreview }) => {
   const singleFile = mode === 'preview';
   const pagesBase = '/prova/';
@@ -46,11 +63,13 @@ export default defineConfig(({ command, mode, isPreview }) => {
       tailwindcss(),
       htmlHead(singleFile),
       ...(singleFile
-        ? [viteSingleFile({ removeViteModuleLoader: true })]
+        ? [pwaStub(), viteSingleFile({ removeViteModuleLoader: true })]
         : [
             VitePWA({
-              registerType: 'autoUpdate',
-              injectRegister: 'auto',
+              // L'aggiornamento parte quando l'utente tocca "Aggiorna" (src/app/pwa.ts): una pagina aperta non
+              // perde mai i file che deve ancora caricare.
+              registerType: 'prompt',
+              injectRegister: false,
               includeAssets: ['favicon.svg', 'favicon.png', 'icons/apple-touch-icon.png'],
               manifest: {
                 id: pagesBase,

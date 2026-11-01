@@ -14,6 +14,7 @@ import { sleepSteps } from '../lib';
 const W = 320;
 const H = 132;
 const PAD = { l: 6, r: 6, t: 26, b: 24 };
+/** Etichette da tabellone: Barlow Condensed maiuscolo (il mono resta per gli orari). */
 const CAPS = { textTransform: 'uppercase', letterSpacing: '0.06em' } as const;
 
 export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?: string }) {
@@ -98,7 +99,7 @@ export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?
         <text x={x(0)} y={y(steps[0].bed) - 10} className="font-mono" fontSize="11" fontWeight="500" fill="var(--ink)">
           {sleep.current}
         </text>
-        <text x={x(0)} y={H - 6} className="font-mono" fontSize="9.5" fill="var(--ink-3)" style={CAPS}>
+        <text x={x(0)} y={H - 6} className="font-display" fontSize="11" fontWeight="600" fill="var(--ink-3)" style={CAPS}>
           Questa settimana
         </text>
         {!atTarget && (
@@ -107,7 +108,7 @@ export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?
           </text>
         )}
         {!atTarget && (
-          <text x={W - PAD.r} y={H - 6} textAnchor="end" className="font-mono" fontSize="9.5" fill="var(--ink-3)" style={CAPS}>
+          <text x={W - PAD.r} y={H - 6} textAnchor="end" className="font-display" fontSize="11" fontWeight="600" fill="var(--ink-3)" style={CAPS}>
             {weeks === 1 ? 'Tra 1 settimana' : `Tra ${weeks} settimane`}
           </text>
         )}

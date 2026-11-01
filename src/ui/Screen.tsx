@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { haptic } from '../lib/haptics';
 import { cn } from './cn';
 import { DemoBadge } from './DemoBadge';
+import { Floodlights, type FloodlightsProps } from './Floodlights';
 import { useApp } from '../state/store';
 
 export interface ScreenProps {
@@ -22,6 +23,11 @@ export interface ScreenProps {
   toolbar?: ReactNode;
   /** Spazio in fondo: 'tabbar' (default, sopra la barra delle schede) o 'safe' (solo la safe area). */
   bottom?: 'tabbar' | 'safe';
+  /**
+   * Riflettori dietro l'intestazione (elemento firma): intensità 0-1 (default 0,5), tono che tinge il bordo
+   * dei coni, `flare` per il bagliore di giornata chiusa, `curfew` dopo il coprifuoco. `false` li spegne.
+   */
+  light?: Pick<FloodlightsProps, 'intensity' | 'tone' | 'flare' | 'curfew' | 'pitch'> | false;
   /** Classi del contenitore dei contenuti (default: colonna con spazi da 24 px). */
   contentClassName?: string;
   className?: string;
@@ -49,6 +55,7 @@ export function Screen({
   backLabel = 'Indietro',
   toolbar,
   bottom = 'tabbar',
+  light,
   contentClassName,
   className,
   children,
@@ -105,8 +112,8 @@ export function Screen({
         </div>
       </div>
 
-      <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-y-contain" data-scroll-container>
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px]" style={{ background: 'var(--floodlight)' }} />
+      <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden overscroll-y-contain" data-scroll-container>
+        {light !== false && <Floodlights intensity={0.5} {...(light || {})} />}
         <motion.header
           className={cn('relative pb-5', onBack ? 'pt-[calc(var(--safe-top)+52px)]' : 'pt-[calc(var(--safe-top)+14px)]')}
           style={{ ...sidePad, opacity: largeOpacity }}
@@ -121,7 +128,7 @@ export function Screen({
             <h1 className="t-large-title min-w-0 text-ink">{title}</h1>
             {actions && <div className="-mr-1 flex shrink-0 items-center gap-2">{actions}</div>}
           </div>
-          {subtitle && <div className="t-callout mt-2 text-ink-2">{subtitle}</div>}
+          {subtitle && <div className="t-callout mt-2 text-pretty text-ink-2">{subtitle}</div>}
         </motion.header>
 
         {toolbar && (

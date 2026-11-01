@@ -12,17 +12,19 @@ import {
   Plus,
   Repeat,
   Sparkles,
+  Sprout,
   TrendingDown,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import type { Exercise, ExerciseLog, SetLog } from '../../../domain/types';
 import { IS_PREVIEW } from '../../../app/env';
+import { startLoads } from '../../../data/exercises';
 import { formatShort, formatWeekdayShort } from '../../../engine/dates';
 import { bestSet, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Callout, Card, IconButton, Pill, cn, spring, springSnappy } from '../../../ui';
+import { Button, Callout, Card, IconButton, Pill, cn, spring, springSnappy, toneInk, toneRing, toneSoft } from '../../../ui';
 import { BigStepper } from './BigStepper';
 import { doseLabel, kgLabel, repsUnit, restLabel, weightStep, type PlayerItem } from '../lib';
 
@@ -85,6 +87,11 @@ function ExerciseStepBase(props: ExerciseStepProps) {
   const canSwap = !pitem.physio && (pitem.exercise?.alternatives?.length ?? 0) > 0;
   const videoUrl = exercise?.videoQuery && !IS_PREVIEW ? `https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.videoQuery)}` : null;
   const blockLabel = `${pitem.blockTitle} · ${pitem.indexInBlock + 1} di ${pitem.blockSize}`;
+  // Prima volta con un esercizio con carico: tre carichi di partenza tipici al posto di decine di tocchi.
+  const starts = !last && doneCount === 0 && showWeight ? startLoads(exercise) : [];
+  // Con due manubri il carico si registra per manubrio.
+  const perDumbbell = /\bmanubri\b/i.test(exercise?.equipment ?? '');
+  const rir = suggestion.rir ?? item.rir;
 
   // Dopo aver segnato una serie la successiva entra in vista (il riquadro del recupero ha finito di salire).
   const rootRef = useRef<HTMLDivElement>(null);
@@ -127,7 +134,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
           <Pill tone={pitem.physio ? 'leggero' : 'palestra'} size="md">
             {doseLabel(item)}
           </Pill>
-          {item.rir !== undefined && <Pill size="md">RIR {item.rir}</Pill>}
+          {rir !== undefined && <Pill size="md">RIR {rir}</Pill>}
           <Pill size="md">Recupero {restLabel(item.restSec)}</Pill>
           {swapped && (
             <Pill tone="accent" size="md" icon={ArrowLeftRight}>
@@ -149,7 +156,13 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             ) : undefined
           }
         >
-          {painFlag.alternatives.length ? 'Le alternative adatte sono in cima alla lista.' : 'Riduci il carico e fermati se il dolore sale.'}
+          {painFlag.alternatives.length
+            ? painFlag.kind === 'impatto'
+              ? 'Le varianti senza salti sono in cima alla lista.'
+              : 'Le alternative adatte sono in cima alla lista.'
+            : painFlag.kind === 'impatto'
+              ? 'Saltalo oggi: passa al prossimo esercizio.'
+              : 'Riduci il carico e fermati se il dolore sale.'}
         </Callout>
       )}
 
@@ -195,14 +208,14 @@ function ExerciseStepBase(props: ExerciseStepProps) {
         <div className="flex items-start gap-2.5 border-t border-[var(--control-line)] px-3.5 py-2.5">
           <span
             className="mt-px grid size-6 shrink-0 place-items-center rounded-full"
-            style={{ background: `color-mix(in srgb, var(--${k.tone === 'neutral' ? 'ink-2' : k.tone}) 18%, transparent)`, color: `var(--${k.tone === 'neutral' ? 'ink-2' : `${k.tone}-ink`})` }}
+            style={{ background: toneSoft(k.tone, 16), boxShadow: toneRing(k.tone), color: toneInk(k.tone) }}
             aria-hidden
           >
             <k.icon size={14} strokeWidth={2.6} />
           </span>
           <p className="t-footnote min-w-0 text-ink-2">
             <span className="font-semibold text-ink">
-              Oggi {suggestion.weightKg > 0 ? `${kgLabel(suggestion.weightKg)} × ` : ''}
+              Oggi {suggestion.weightKg > 0 ? `${kgLabel(suggestion.weightKg)}${perDumbbell ? ' per manubrio' : ''} × ` : ''}
               {suggestion.sets.map((s) => s.reps).join(', ')}
               {item.unit === 'secondi' ? '\u00a0s' : ''}
             </span>
@@ -210,6 +223,14 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             {suggestion.reason}
           </p>
         </div>
+        {suggestion.intro && (
+          <div className="flex items-start gap-2.5 border-t border-[var(--control-line)] px-3.5 py-2.5">
+            <span className="mt-px grid size-6 shrink-0 place-items-center rounded-full" style={{ background: toneSoft('good', 16), boxShadow: toneRing('good'), color: toneInk('good') }} aria-hidden>
+              <Sprout size={14} strokeWidth={2.6} />
+            </span>
+            <p className="t-footnote min-w-0 text-ink-2">{suggestion.intro}.</p>
+          </div>
+        )}
       </section>
 
       {/* Serie */}
@@ -245,6 +266,8 @@ function ExerciseStepBase(props: ExerciseStepProps) {
                         target={suggestion.sets[i]?.reps ?? suggestion.reps}
                         showWeight={showWeight}
                         holdSide={holdSide}
+                        starts={starts}
+                        perDumbbell={perDumbbell}
                         onChange={(patch) => props.onSetChange(i, patch)}
                         onShowWeight={props.onShowWeight}
                         onCancelEdit={() => props.onEdit(null)}
@@ -359,6 +382,8 @@ function OpenSet({
   target,
   showWeight,
   holdSide,
+  starts,
+  perDumbbell,
   onChange,
   onShowWeight,
   onCancelEdit,
@@ -373,6 +398,9 @@ function OpenSet({
   target: number;
   showWeight: boolean;
   holdSide: number;
+  /** Carichi di partenza da proporre (prima volta con l'esercizio). */
+  starts: readonly number[];
+  perDumbbell: boolean;
   onChange: (patch: Partial<SetLog>) => void;
   onShowWeight: () => void;
   onCancelEdit: () => void;
@@ -413,6 +441,39 @@ function OpenSet({
           </span>
         )}
       </div>
+      {starts.length > 0 && !editing && (
+        <div className="relative mt-3 flex flex-col gap-2">
+          <p className="t-footnote text-ink-2">
+            <span className="font-semibold text-ink">Carico di partenza</span>
+            {perDumbbell ? ', per manubrio' : ''}: scegli quello che ti lascia {item.rir ?? 2} ripetizioni di riserva.
+          </p>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Carico di partenza">
+            {starts.map((kg) => {
+              const on = set.weightKg === kg;
+              return (
+                <motion.button
+                  key={kg}
+                  type="button"
+                  aria-pressed={on}
+                  whileTap={{ scale: 0.95 }}
+                  transition={springSnappy}
+                  onClick={() => {
+                    haptic('selection');
+                    onChange({ weightKg: kg });
+                  }}
+                  className={cn(
+                    't-num h-11 rounded-[12px] text-[1.25rem] transition-colors',
+                    on ? 'bg-card text-accent-ink shadow-[inset_0_0_0_1.5px_var(--accent),0_0_14px_-6px_var(--accent)]' : 'bg-ink-soft text-ink shadow-[inset_0_0_0_1px_var(--control-line)]',
+                  )}
+                >
+                  {fmtNumber(kg, 1)}
+                  <span className={cn('t-mono ml-0.5 text-[0.6875rem]', on ? 'text-accent-ink' : 'text-ink-3')}>kg</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className={cn('relative mt-3 grid gap-3', showWeight ? 'grid-cols-2' : 'grid-cols-1')}>
         {showWeight && (
           <BigStepper
@@ -436,6 +497,14 @@ function OpenSet({
           className={showWeight ? undefined : 'mx-auto w-full max-w-[220px]'}
         />
       </div>
+      {showWeight && starts.length === 0 && (perDumbbell || set.weightKg === 0) && (
+        <p className="t-caption relative mt-2 text-balance text-center text-ink-3">
+          {[perDumbbell ? 'Carico di ogni manubrio' : '', set.weightKg === 0 ? 'tocca il numero per scriverlo' : '']
+            .filter(Boolean)
+            .join(', ')
+            .replace(/^t/, 'T')}
+        </p>
+      )}
       <div className="relative mt-1 flex flex-wrap justify-center gap-x-6">
         {!showWeight && (
           <button type="button" onClick={onShowWeight} className="hit-44 t-footnote mt-2 font-semibold text-accent-ink">

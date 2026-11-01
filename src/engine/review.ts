@@ -23,11 +23,11 @@
  */
 import type { AppData, Goal, ISODate, Plan, Proposal, WeeklyReview } from '../domain/types';
 import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
-import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekdayOf, weekIndexSince, weekStart as weekStartOf } from './dates';
-import { mealsForDate } from './menu';
+import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
+import { effectiveDayType, mealsForDate } from './menu';
 import { recipeNutrition, recipeVegPortions } from './nutrition';
-import { atSleepTarget, checkInSleepHours, isOnTarget, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
-import { adherenceSummary, isSuccessful } from './timeline';
+import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
+import { adherenceSummary, countingStart, firstUseOf, isSuccessful } from './timeline';
 import { loadStatus, type LoadStatus } from './training';
 
 // ───────────────────────── Costanti ─────────────────────────
@@ -143,6 +143,8 @@ export interface PeriodStats {
   sleepNights: number;
   sleepAvgH: number | null;
   prevSleepAvgH: number | null;
+  /** Notti che contano (dal primo giorno con Ritmo): il denominatore di "notti in orario". */
+  countedNights: number;
   nightsWithBedtime: number;
   nightsOnTarget: number;
   shortNights: number;
@@ -158,6 +160,8 @@ export interface PeriodStats {
   energyAvg: number | null;
   // Dolore
   pain: PainSiteStats[];
+  /** Primo giorno che conta (vedi `reviewStart`). */
+  startDate: ISODate | null;
 }
 
 export interface PeriodOptions {
@@ -178,26 +182,55 @@ function sleepValues(state: ReviewState, dates: ISODate[]): number[] {
   return dates.map((d) => checkInSleepHours(state.checkIns[d])).filter(isNum);
 }
 
-function inPlan(state: ReviewState, d: ISODate): boolean {
-  return !state.plan.startDate || d >= state.plan.startDate;
+/** Primo giorno con qualcosa di segnato: voci, acqua, dolci, controlli, sedute o calcio. */
+export function firstActivityDate(state: Pick<AppData, 'dayLogs' | 'checkIns' | 'workoutLogs' | 'footballLogs'>): ISODate | null {
+  let first: ISODate | null = null;
+  const see = (d: ISODate | undefined) => {
+    if (d && (first === null || d < first)) first = d;
+  };
+  for (const [d, log] of Object.entries(state.dayLogs ?? {})) {
+    if (!log) continue;
+    if (Object.keys(log.status ?? {}).length || log.minimal || (log.waterGlasses ?? 0) > 0 || (log.sweets ?? 0) > 0) see(d);
+  }
+  for (const d of Object.keys(state.checkIns ?? {})) see(d);
+  for (const w of state.workoutLogs ?? []) see(w.date);
+  for (const f of state.footballLogs ?? []) see(f.date);
+  return first;
 }
 
-/** Giorni di cui contano aderenza e pasti: passati e dentro il piano. */
-function closedDays(state: ReviewState, dates: ISODate[], today?: ISODate): ISODate[] {
-  return dates.filter((d) => inPlan(state, d) && (!today || d < today));
+/**
+ * Primo giorno che conta nei numeri della revisione: il primo avvio dell'app (`Plan.firstUse`) se c'è,
+ * altrimenti il primo giorno con qualcosa di segnato, mai prima dell'inizio del piano. Il piano parte il
+ * lunedì della settimana del benvenuto: chi comincia il mercoledì non viene giudicato su lunedì e martedì.
+ */
+export function reviewStart(state: ReviewState): ISODate | null {
+  const planStart = countingStart(state.plan);
+  if (firstUseOf(state.plan)) return planStart;
+  const first = firstActivityDate(state);
+  if (first && (!planStart || first > planStart)) return first;
+  return planStart;
 }
 
+/** Giorni di cui contano aderenza e pasti: passati e dal primo giorno con Ritmo. */
+function closedDays(start: ISODate | null, dates: ISODate[], today?: ISODate): ISODate[] {
+  return dates.filter((d) => (!start || d >= start) && (!today || d < today));
+}
+
+/** Aderenza dei giorni chiusi. Un giorno senza voci che contano (tutte prima del primo avvio) è senza dati. */
 function adherenceOf(state: ReviewState, dates: ISODate[]) {
   let sum = 0;
   let ok = 0;
   let minimal = 0;
+  let days = 0;
   for (const d of dates) {
     const s = adherenceSummary(d, state);
+    if (s.total === 0) continue;
+    days++;
     sum += s.score;
     if (isSuccessful(s)) ok++;
     if (s.minimal) minimal++;
   }
-  return { avg: dates.length ? sum / dates.length : null, successful: ok, minimal };
+  return { avg: days ? sum / days : null, successful: ok, minimal, days };
 }
 
 export interface DayIntake {
@@ -243,7 +276,8 @@ function intakeOf(state: ReviewState, dates: ISODate[]) {
 }
 
 function targetAvg(state: ReviewState, dates: ISODate[], key: 'fiberG' | 'proteinG'): number {
-  const vals = dates.map((d) => state.plan.targets[state.plan.week.find((w) => w.weekday === weekdayOf(d))?.dayType ?? 'palestra']?.[key]);
+  // Obiettivo del giorno come in Oggi: la vigilia della partita vale come un giorno di calcio.
+  const vals = dates.map((d) => state.plan.targets[effectiveDayType(d, state.plan)]?.[key]);
   return Math.round(mean(vals.filter(isNum)) ?? state.plan.targets.palestra[key]);
 }
 
@@ -292,9 +326,11 @@ function painStats(state: ReviewState, site: string, dates: ISODate[], prevDates
  */
 export function periodStats(dates: ISODate[], prevDates: ISODate[], state: ReviewState, opts: PeriodOptions = {}): PeriodStats {
   const { today } = opts;
+  const start = reviewStart(state);
   const upTo = (ds: ISODate[]) => (today ? ds.filter((d) => d <= today) : ds);
   const cur = upTo(dates);
   const prev = upTo(prevDates);
+  const counted = cur.filter((d) => !start || d >= start);
 
   // Peso
   const w = weights(state, cur);
@@ -318,8 +354,8 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
   }
 
   // Aderenza
-  const closed = closedDays(state, cur, today);
-  const closedPrev = closedDays(state, prev, today);
+  const closed = closedDays(start, cur, today);
+  const closedPrev = closedDays(start, prev, today);
   const adh = adherenceOf(state, closed);
   const adhPrev = adherenceOf(state, closedPrev);
 
@@ -328,11 +364,12 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
   const sleepPrev = sleepValues(state, prev);
   let nightsWithBedtime = 0;
   let nightsOn = 0;
-  for (const d of cur) {
+  for (const d of counted) {
     const bed = state.checkIns[d]?.bedTime;
     if (!bed) continue;
     nightsWithBedtime++;
-    if (isOnTarget(bed, state.plan)) nightsOn++;
+    // Ogni controllo si confronta con l'orario della sera prima (dopo la partita vale 00:15).
+    if (isOnTargetFor(bed, d, state.plan)) nightsOn++;
   }
 
   // Pasti
@@ -349,7 +386,7 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     weightDelta: weightDelta === null ? null : Math.round(weightDelta * 100) / 100,
     weightDeltaPct,
     weightDeltaSource,
-    adherenceDays: closed.length,
+    adherenceDays: adh.days,
     adherence: adh.avg,
     prevAdherence: adhPrev.avg,
     successfulDays: adh.successful,
@@ -357,6 +394,7 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     sleepNights: sleep.length,
     sleepAvgH: mean(sleep),
     prevSleepAvgH: mean(sleepPrev),
+    countedNights: counted.length,
     nightsWithBedtime,
     nightsOnTarget: nightsOn,
     shortNights: sleep.filter((h) => h < SHORT_NIGHT_H).length,
@@ -369,6 +407,7 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     proteinTargetG: targetAvg(state, cur.length ? cur : dates, 'proteinG'),
     energyAvg: energy.length ? round1(mean(energy) ?? 0) : null,
     pain: painSites(state, [...cur, ...prev]).map((s) => painStats(state, s, cur, prev)),
+    startDate: start,
   };
 }
 
@@ -388,6 +427,12 @@ export interface WeekStats extends PeriodStats {
   sweets: number;
   sweetsPlanned: number;
   sweetsExtra: number;
+  /** La settimana contiene il primo giorno con Ritmo: si racconta, non si giudica. */
+  firstWeek: boolean;
+  /** Giorni con Ritmo nella settimana (dal primo giorno, fino a oggi). */
+  daysWithRitmo: number;
+  /** Voci segnate nella settimana (fatte o sostituite). */
+  itemsMarked: number;
 }
 
 /** I numeri della settimana che parte da `weekStart` (allineato al lunedì), confrontati con la precedente. */
@@ -401,6 +446,13 @@ export function weekStats(weekStart: ISODate, state: ReviewState, opts: PeriodOp
   const status = loadStatus(ws, state);
   const sweets = dates.reduce((s, d) => s + (state.dayLogs[d]?.sweets ?? 0), 0);
   const planned = state.plan.sweetsPerWeek ?? 0;
+  const start = base.startDate;
+  const upTo = opts.today && opts.today < weekEnd ? opts.today : weekEnd;
+  const withRitmo = dates.filter((d) => (!start || d >= start) && d <= upTo);
+  const itemsMarked = withRitmo.reduce(
+    (n, d) => n + Object.entries(state.dayLogs[d]?.status ?? {}).filter(([k, v]) => k !== STEP_ITEM_ID && (v === 'fatto' || v === 'sostituito')).length,
+    0,
+  );
   return {
     ...base,
     weekStart: ws,
@@ -414,6 +466,9 @@ export function weekStats(weekStart: ISODate, state: ReviewState, opts: PeriodOp
     sweets,
     sweetsPlanned: planned,
     sweetsExtra: Math.max(0, sweets - planned),
+    firstWeek: Boolean(start) && start! >= ws && start! <= weekEnd,
+    daysWithRitmo: withRitmo.length,
+    itemsMarked,
   };
 }
 
@@ -426,6 +481,10 @@ function sleepProposal(stats: WeekStats, plan: Plan): Proposal {
   const nights = stats.nightsOnTarget;
   const limit = addMinutes(current, ON_TARGET_TOLERANCE_MIN);
   const counted = stats.nightsWithBedtime;
+  // Denominatore: le notti con Ritmo della settimana (7 a regime, meno nella prima settimana).
+  const of = Math.max(stats.countedNights, counted);
+  const onTarget = `${nights} ${nights === 1 ? 'notte' : 'notti'} su ${of}`;
+  const curfew = (t: string) => addMinutes(t, -curfewLeadMin);
   if (counted === 0) {
     return {
       id: 'sonno',
@@ -440,13 +499,13 @@ function sleepProposal(stats: WeekStats, plan: Plan): Proposal {
           id: 'sonno',
           area: 'sonno',
           title: `Obiettivo raggiunto: a letto alle ${target}`,
-          reason: `${nights} notti su 7 a letto entro le ${limit}. Tieni questo orario: il ritmo ormai è tuo.`,
+          reason: `${onTarget} a letto entro le ${limit}. Tieni questo orario: il ritmo ormai è tuo.`,
         }
       : {
           id: 'sonno',
           area: 'sonno',
           title: `Tieni l’orario delle ${current}`,
-          reason: `${nights} notti su 7 in orario. Telefono fuori dalla camera alle ${addMinutes(current, -curfewLeadMin)}.`,
+          reason: `${onTarget} in orario. Telefono fuori dalla camera alle ${curfew(current)}.`,
         };
   }
   if (nights >= NIGHTS_TO_ADVANCE) {
@@ -456,15 +515,23 @@ function sleepProposal(stats: WeekStats, plan: Plan): Proposal {
       id: 'sonno',
       area: 'sonno',
       title: `A letto alle ${next}`,
-      reason: `${nights} notti su 7 a letto entro le ${limit}: anticipa di ${step} minuti. Coprifuoco del telefono alle ${addMinutes(next, -curfewLeadMin)}.`,
+      reason: `${onTarget} a letto entro le ${limit}: anticipa di ${step} minuti. Coprifuoco del telefono alle ${curfew(next)}.`,
       apply: { type: 'sleepCurrent', value: next },
+    };
+  }
+  if (stats.firstWeek && of < 7) {
+    return {
+      id: 'sonno',
+      area: 'sonno',
+      title: `Resta a letto alle ${current}`,
+      reason: `Prima settimana: ${onTarget} entro le ${limit}. Da lunedì contano tutte e 7: con ${NIGHTS_TO_ADVANCE} in orario l’orario avanza di ${stepMin} minuti. Telefono fuori alle ${curfew(current)}.`,
     };
   }
   return {
     id: 'sonno',
     area: 'sonno',
     title: `Resta a letto alle ${current}`,
-    reason: `${nights} ${nights === 1 ? 'notte' : 'notti'} su 7 entro le ${limit}: ne servono ${NIGHTS_TO_ADVANCE} per anticipare. Telefono fuori alle ${addMinutes(current, -curfewLeadMin)}.`,
+    reason: `${onTarget} entro le ${limit}: ne servono ${NIGHTS_TO_ADVANCE} per anticipare. Telefono fuori alle ${curfew(current)}.`,
   };
 }
 
@@ -496,6 +563,17 @@ const GOAL_WORD: Record<Goal, string> = {
   mantenimento: 'il mantenimento',
 };
 
+/** Settimane dall'inizio del piano in cui l'aumento di peso può essere acqua richiamata dalla creatina. */
+export const CREATINE_WATER_WEEKS = 4;
+
+/** Creatina attiva nel piano e nelle prime settimane: il peso sale per l'acqua intracellulare, non per il grasso. */
+export function creatineLoading(weekStart: ISODate, plan: Pick<Plan, 'supplements' | 'startDate'>): boolean {
+  const active = (plan.supplements ?? []).some((x) => x.active && (x.id === 'creatina' || /creatin/i.test(x.name)));
+  if (!active || !plan.startDate) return false;
+  const w = weekIndexSince(plan.startDate, weekStart);
+  return w >= 0 && w < CREATINE_WATER_WEEKS;
+}
+
 function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
   if (stats.weighIns < MIN_WEIGH_INS) {
     return {
@@ -520,6 +598,15 @@ function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
       title: `+${KCAL_UP} kcal al giorno`,
       reason: `${avg}${change} ${ref}: un calo così rapido per ${GOAL_WORD[goal]} rischia di costare muscolo. Le calorie in più arrivano dai carboidrati.`,
       apply: { type: 'kcalDelta', value: kcal },
+    };
+  }
+  if (kcal < 0 && delta > 0 && creatineLoading(stats.weekStart, state.plan)) {
+    // Nelle prime settimane la creatina richiama acqua nei muscoli (circa 0,5-1 kg): non è grasso.
+    return {
+      id: 'calorie',
+      area: 'calorie',
+      title: 'Calorie invariate',
+      reason: `${stats.weightAvg !== null ? `Peso medio ${fmtKg(stats.weightAvg)}, in salita` : 'Peso in salita'} di ${fmtKg(Math.round(delta * 10) / 10)} (${pct1(pct)}) ${ref}: nelle prime settimane di creatina è soprattutto acqua nei muscoli. Calorie invariate, ricontrolliamo tra una settimana.`,
     };
   }
   if (kcal < 0) {
@@ -701,4 +788,283 @@ export function targetSleepHours(plan: Pick<Plan, 'sleep'>): number {
 /** Testo compatto di una durata media di sonno, o un trattino. */
 export function fmtSleepAvg(h: number | null): string {
   return h === null ? '–' : fmtHours(h);
+}
+
+// ───────────────────────── Scalino della settimana ─────────────────────────
+//
+// Un solo obiettivo piccolo e misurabile alla volta, scelto dai dati della settimana più debole: chi parte
+// da poca frutta e verdura non passa da zero al menù completo in un giorno. Si propone nella revisione,
+// si salva nella revisione (campo facoltativo `step`) e vale per la settimana dopo; Oggi lo mostra con il
+// conteggio dei giorni. Acqua e dolci si contano da soli dal diario; gli altri si segnano con un tocco
+// (voce `scalino` nel diario del giorno, che non conta nell'aderenza).
+
+export type WeeklyStepId = 'frutta-spuntino' | 'verdura-cena' | 'acqua' | 'caffe' | 'dolci';
+
+export interface WeeklyStepDef {
+  id: WeeklyStepId;
+  /** "Un frutto allo spuntino" */
+  title: string;
+  /** Come si fa, in una frase. */
+  how: string;
+  /** Perché conta, in una frase con il dato scientifico essenziale. */
+  why: string;
+  /** Come si conta: dal diario (acqua, dolci) o con un tocco in Oggi. */
+  measure: 'acqua' | 'dolci' | 'manuale';
+}
+
+/** Voce del diario con cui Oggi segna lo scalino del giorno (fuori dalla timeline, non conta nell'aderenza). */
+export const STEP_ITEM_ID = 'scalino';
+/** Giorni su 7 che rendono riuscito lo scalino. */
+export const STEP_TARGET_DAYS = 5;
+/** Bicchieri da 250 ml dello scalino dell'acqua (o l'obiettivo del profilo, se più basso). */
+export const STEP_WATER_GLASSES = 8;
+
+export const WEEKLY_STEP_IDS: WeeklyStepId[] = ['frutta-spuntino', 'verdura-cena', 'acqua', 'dolci', 'caffe'];
+
+/** Bicchieri dello scalino dell'acqua per questo profilo. */
+export function stepWaterGlasses(profile: Pick<AppData['profile'], 'waterTargetL'> | undefined): number {
+  const target = Math.round(((profile?.waterTargetL ?? 0) > 0 ? profile!.waterTargetL : 2.5) / 0.25);
+  return Math.max(4, Math.min(STEP_WATER_GLASSES, target));
+}
+
+export function weeklyStepDef(id: WeeklyStepId, state?: Pick<ReviewState, 'profile' | 'plan'>): WeeklyStepDef {
+  const glasses = stepWaterGlasses(state?.profile);
+  const planned = state?.plan.sweetsPerWeek ?? 3;
+  const snack = state?.plan.mealTimes.spuntino ?? '10:30';
+  switch (id) {
+    case 'frutta-spuntino':
+      return {
+        id,
+        title: 'Un frutto allo spuntino',
+        how: `Ogni giorno un frutto intero allo spuntino delle ${snack}: banana, mela o mandarini si portano in tasca, anche a scuola.`,
+        why: 'Ogni porzione di frutta e verdura in più, fino a 5 al giorno, si associa a meno infiammazione e a un microbiota più vario.',
+        measure: 'manuale',
+      };
+    case 'verdura-cena':
+      return {
+        id,
+        title: 'Verdura a ogni cena',
+        how: 'Mezzo piatto di verdura a cena, due pugni: surgelata, in busta o una vellutata pronta vanno benissimo.',
+        why: 'È la porzione che si perde per prima fuori casa: con la cena coperta le fibre salgono di 5-6 g al giorno.',
+        measure: 'manuale',
+      };
+    case 'acqua':
+      return {
+        id,
+        title: `${glasses} bicchieri d’acqua al giorno`,
+        how: `Un bicchiere a ogni pasto e uno a metà mattina e a metà pomeriggio: ${glasses} bicchieri da 250 ml, segnati nel contatore di Oggi.`,
+        why: 'Una disidratazione anche lieve, intorno al 2% del peso, riduce resistenza e lucidità in campo.',
+        measure: 'acqua',
+      };
+    case 'dolci':
+      return {
+        id,
+        title: 'Nessun dolce fuori programma',
+        how: `I ${planned} dolci previsti restano; gli altri si rimandano. Se arriva la voglia, yogurt greco con frutta o due quadretti di cioccolato fondente.`,
+        why: 'Gli zuccheri aggiunti fuori pasto tolgono spazio a fibre e proteine e alimentano la voglia del giorno dopo.',
+        measure: 'dolci',
+      };
+    case 'caffe':
+      return {
+        id,
+        title: 'Ultimo caffè entro le 14',
+        how: 'Il secondo caffè dopo pranzo, non a merenda: nel pomeriggio, se serve, decaffeinato o un tè deteinato.',
+        why: 'La caffeina ha un’emivita media di circa 5 ore: un caffè alle 17 a mezzanotte è ancora per più di un terzo in circolo e alleggerisce il sonno profondo.',
+        measure: 'manuale',
+      };
+  }
+}
+
+/** Scalino salvato in una revisione (campo facoltativo `step`, annotato in SPEC.md). */
+export interface SavedWeeklyStep {
+  id: WeeklyStepId;
+  title: string;
+}
+
+export type WeeklyReviewWithStep = WeeklyReview & { step?: SavedWeeklyStep };
+
+const isStepId = (v: unknown): v is WeeklyStepId => typeof v === 'string' && (WEEKLY_STEP_IDS as string[]).includes(v);
+
+/** Scalino di una revisione, se c'è ed è valido. */
+export function reviewStep(review: WeeklyReview | undefined): SavedWeeklyStep | null {
+  const st = (review as WeeklyReviewWithStep | undefined)?.step;
+  if (!st || typeof st !== 'object' || !isStepId(st.id)) return null;
+  return { id: st.id, title: typeof st.title === 'string' && st.title ? st.title : weeklyStepDef(st.id).title };
+}
+
+export type StepDayState = 'fatto' | 'mancato' | 'in-corso' | 'futuro' | 'prima';
+
+/** Stato dello scalino in un giorno. Oggi resta "in corso" finché non è fatto (o, per i dolci, finché non finisce). */
+export function stepDayState(id: WeeklyStepId, date: ISODate, state: ReviewState, today: ISODate, start: ISODate | null = null): StepDayState {
+  if (date > today) return 'futuro';
+  if (start && date < start) return 'prima';
+  const log = state.dayLogs[date];
+  const isToday = date === today;
+  switch (id) {
+    case 'acqua': {
+      const ok = (log?.waterGlasses ?? 0) >= stepWaterGlasses(state.profile);
+      return ok ? 'fatto' : isToday ? 'in-corso' : 'mancato';
+    }
+    case 'dolci': {
+      const ws = weekStartOf(date);
+      let cum = 0;
+      for (let d = ws; d <= date; d = addDays(d, 1)) cum += state.dayLogs[d]?.sweets ?? 0;
+      const over = (log?.sweets ?? 0) > 0 && cum > (state.plan.sweetsPerWeek ?? 0);
+      if (over) return 'mancato';
+      return isToday ? 'in-corso' : 'fatto';
+    }
+    default:
+      return log?.status?.[STEP_ITEM_ID] === 'fatto' ? 'fatto' : isToday ? 'in-corso' : 'mancato';
+  }
+}
+
+export interface WeeklyStepStatus {
+  step: WeeklyStepDef;
+  /** Lunedì della settimana in cui vale lo scalino. */
+  weekStart: ISODate;
+  days: { date: ISODate; state: StepDayState }[];
+  done: number;
+  target: number;
+  todayState: StepDayState;
+  /** Si segna con un tocco in Oggi (frutta, verdura, caffè); acqua e dolci si contano dal diario. */
+  manual: boolean;
+}
+
+/** Avanzamento di uno scalino nella settimana che parte da `weekStart`. */
+export function stepProgress(id: WeeklyStepId, weekStart: ISODate, state: ReviewState, today: ISODate): WeeklyStepStatus {
+  const ws = weekStartOf(weekStart);
+  const start = reviewStart(state);
+  const step = weeklyStepDef(id, state);
+  const days = weekDates(ws).map((date) => ({ date, state: stepDayState(id, date, state, today, start) }));
+  const todayEntry = days.find((d) => d.date === today);
+  return {
+    step,
+    weekStart: ws,
+    days,
+    done: days.filter((d) => d.state === 'fatto').length,
+    target: STEP_TARGET_DAYS,
+    todayState: todayEntry?.state ?? 'futuro',
+    manual: step.measure === 'manuale',
+  };
+}
+
+/**
+ * Scalino attivo nella settimana di `today`: quello scelto nella revisione della settimana prima.
+ * Per Oggi (riquadro con il conteggio dei giorni) e per il coach. Null se non ce n'è uno.
+ */
+export function weeklyStepStatus(today: ISODate, state: ReviewState): WeeklyStepStatus | null {
+  const ws = weekStartOf(today);
+  const st = reviewStep(reviewFor(addDays(ws, -7), state.reviews));
+  return st ? stepProgress(st.id, ws, state, today) : null;
+}
+
+export interface StepOption {
+  id: WeeklyStepId;
+  title: string;
+  /** Il dato della settimana che lo motiva. */
+  reason: string;
+  /** Quanto è debole la settimana su questo punto (0-1). */
+  gap: number;
+}
+
+export interface StepSuggestion {
+  /** Scalino consigliato. */
+  suggested: StepOption;
+  /** Tutti gli scalini, il consigliato per primo. */
+  options: StepOption[];
+  /** Scalino della settimana rivista e come è andato. */
+  previous: { id: WeeklyStepId; title: string; done: number; target: number; consolidated: boolean } | null;
+}
+
+/** Il pasto è stato sostituito o saltato (o non segnato) nei giorni chiusi: quante volte. */
+function mealMisses(state: ReviewState, dates: ISODate[], slot: 'spuntino' | 'cena'): number {
+  return dates.filter((d) => {
+    const log = state.dayLogs[d];
+    if (!log || log.minimal) return false;
+    const st = log.status[`pasto:${slot}`];
+    return st === 'sostituito' || st === 'saltato';
+  }).length;
+}
+
+/**
+ * Scalino da proporre per la settimana dopo `weekStart`, scelto sul punto più debole della settimana:
+ * frutta e verdura dai pasti segnati, acqua dal contatore, dolci fuori programma, qualità del sonno
+ * (per il caffè). Lo scalino della settimana rivista, se non è riuscito (meno di 5 giorni), si ripete;
+ * se è riuscito si sale al prossimo.
+ */
+export function proposeWeeklyStep(weekStart: ISODate, state: ReviewState, opts: PeriodOptions & { stats?: WeekStats } = {}): StepSuggestion {
+  const ws = weekStartOf(weekStart);
+  const stats = opts.stats ?? weekStats(ws, state, opts);
+  const today = opts.today ?? addDays(ws, 6);
+  const start = stats.startDate;
+  const closed = closedDays(start, stats.dates, opts.today && opts.today <= addDays(ws, 6) ? opts.today : addDays(ws, 7));
+  const glasses = stepWaterGlasses(state.profile);
+
+  // Dati della settimana.
+  const water = closed.map((d) => state.dayLogs[d]?.waterGlasses ?? 0);
+  const waterAvg = mean(water);
+  const veg = stats.nutritionDays >= MIN_NUTRITION_DAYS ? stats.vegPortionsAvg : null;
+  const snackMiss = mealMisses(state, closed, 'spuntino');
+  const dinnerMiss = mealMisses(state, closed, 'cena');
+  const quality = stats.dates.map((d) => state.checkIns[d]?.sleepQuality).filter(isNum);
+  const qualityAvg = mean(quality);
+
+  const options: StepOption[] = WEEKLY_STEP_IDS.map((id) => {
+    const def = weeklyStepDef(id, state);
+    let gap = 0;
+    let reason = def.why;
+    switch (id) {
+      case 'frutta-spuntino':
+      case 'verdura-cena': {
+        const misses = id === 'frutta-spuntino' ? snackMiss : dinnerMiss;
+        const vegGap = veg !== null ? Math.max(0, (5 - veg) / 5) : 0;
+        gap = Math.min(1, vegGap * 0.8 + (closed.length ? (misses / closed.length) * 0.6 : 0));
+        if (veg !== null && veg < 5)
+          reason = `Circa ${fmtNumber(veg, 1)} porzioni di frutta e verdura al giorno dai pasti segnati${misses ? `, ${id === 'frutta-spuntino' ? 'spuntino' : 'cena'} fuori menù ${misses} ${misses === 1 ? 'volta' : 'volte'}` : ''}. ${def.why}`;
+        else if (misses) reason = `${id === 'frutta-spuntino' ? 'Spuntino' : 'Cena'} fuori menù ${misses} ${misses === 1 ? 'volta' : 'volte'} questa settimana. ${def.why}`;
+        break;
+      }
+      case 'acqua':
+        if (waterAvg !== null) {
+          gap = Math.max(0, (glasses - waterAvg) / glasses);
+          if (waterAvg < glasses) reason = `In media ${fmtNumber(waterAvg, 1)} bicchieri al giorno questa settimana, ne servono ${glasses}. ${def.why}`;
+        }
+        break;
+      case 'dolci':
+        if (stats.sweetsExtra > 0) {
+          gap = Math.min(1, 0.35 + stats.sweetsExtra / Math.max(1, stats.sweetsPlanned) / 2);
+          reason = `${stats.sweets} dolci su ${stats.sweetsPlanned} previsti questa settimana. ${def.why}`;
+        }
+        break;
+      case 'caffe':
+        if (qualityAvg !== null && qualityAvg <= 3.2) {
+          gap = Math.min(1, (4 - qualityAvg) / 3);
+          reason = `Qualità del sonno in media ${fmtNumber(qualityAvg, 1)} su 5 questa settimana. ${def.why}`;
+        } else gap = 0.05;
+        break;
+    }
+    return { id, title: def.title, reason, gap: Math.round(gap * 100) / 100 };
+  });
+
+  // Scalino della settimana rivista.
+  const prevSaved = reviewStep(reviewFor(addDays(ws, -7), state.reviews));
+  let previous: StepSuggestion['previous'] = null;
+  if (prevSaved) {
+    const pr = stepProgress(prevSaved.id, ws, state, today);
+    previous = { id: prevSaved.id, title: pr.step.title, done: pr.done, target: pr.target, consolidated: pr.done >= pr.target };
+  }
+
+  const ranked = [...options].sort((a, b) => b.gap - a.gap || WEEKLY_STEP_IDS.indexOf(a.id) - WEEKLY_STEP_IDS.indexOf(b.id));
+  let suggested = ranked[0];
+  if (previous && !previous.consolidated) {
+    const same = options.find((o) => o.id === previous!.id)!;
+    suggested = {
+      ...same,
+      reason: `Questa settimana è riuscito ${previous.done} ${previous.done === 1 ? 'giorno' : 'giorni'} su 7: ripetilo e diventa un’abitudine, poi si sale. ${weeklyStepDef(same.id, state).why}`,
+    };
+  } else if (previous?.consolidated && suggested.id === previous.id) {
+    suggested = ranked.find((o) => o.id !== previous!.id) ?? suggested;
+  }
+  const rest = options.filter((o) => o.id !== suggested.id).sort((a, b) => b.gap - a.gap || WEEKLY_STEP_IDS.indexOf(a.id) - WEEKLY_STEP_IDS.indexOf(b.id));
+  return { suggested, options: [suggested, ...rest], previous };
 }

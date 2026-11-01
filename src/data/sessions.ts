@@ -21,6 +21,11 @@
  * atterraggio stabile o mobilità della caviglia. In A, seduta di parte superiore il giorno dopo la partita,
  * scioglie le gambe e prepara spalle e gomito alle spinte.
  *
+ * Fase di ingresso (engine/training.ts, introLevel): nelle prime 2 esecuzioni di ogni seduta il lettore
+ * propone una serie in meno e una ripetizione di riserva in più. Chi arriva da allenamenti senza programma
+ * evita così l'indolenzimento dei primi Nordic e affondi bulgari, che ha il picco a 48-72 ore: proprio il
+ * lunedì della partita.
+ *
  * Progressione doppia: quando tutte le serie arrivano a `repMax` con lo stesso carico, si aggiunge
  * `incrementKg` e si riparte da `repMin`. Incrementi: manubri 1-2 kg (per manubrio), bilanciere e
  * trap bar 2,5 kg, macchine e cavi 2,5-5 kg.
@@ -113,14 +118,14 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
           { exerciseId: 'apertura-chiusura-anca-in-marcia', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 15, progression: 'nessuna', perSide: true },
           { exerciseId: 'affondi-in-camminata-con-rotazione', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 15, progression: 'nessuna', perSide: true },
           { exerciseId: 'equilibrio-su-una-gamba-a-stella', sets: 1, repMin: 20, repMax: 30, unit: 'secondi', restSec: 15, progression: 'nessuna', perSide: true },
-          { exerciseId: 'balzi-del-pattinatore', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true, note: "Se la tibia supera 3 su 10, fai solo l'equilibrio" },
+          { exerciseId: 'balzi-del-pattinatore', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true, note: "Atterraggi morbidi e silenziosi. Con la tibia sopra 2 su 10 diventano passi laterali con l'elastico" },
         ],
       },
       {
         title: 'Blocco principale',
         items: [
           { exerciseId: 'stacco-trap-bar', sets: 3, repMin: 4, repMax: 6, unit: 'reps', rir: 2, restSec: 150, progression: 'doppia', incrementKg: 2.5, note: 'Prima 2 serie di avvicinamento leggere. Se la presa irrita il gomito, usa le fasce' },
-          { exerciseId: 'nordic-hamstring-curl', sets: 2, repMin: 4, repMax: 6, unit: 'reps', restSec: 120, progression: 'nessuna', note: 'In stagione basta poco volume per mantenere la forza eccentrica' },
+          { exerciseId: 'nordic-hamstring-curl', sets: 2, repMin: 4, repMax: 6, unit: 'reps', restSec: 120, progression: 'nessuna', note: 'Prime 2 settimane: 1 × 4-5, oppure la variante assistita con elastico. Poi in stagione basta poco volume per mantenere la forza eccentrica' },
           { exerciseId: 'affondo-bulgaro-manubri', sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2, perSide: true },
           { exerciseId: 'hip-thrust-bilanciere', sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2.5 },
         ],
@@ -132,7 +137,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
           { exerciseId: 'tibiale-anteriore-seduto', sets: 2, repMin: 12, repMax: 15, unit: 'reps', rir: 2, restSec: 30, progression: 'doppia', incrementKg: 1 },
           { exerciseId: 'dead-bug', sets: 2, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true },
           { exerciseId: 'pallof-press', sets: 2, repMin: 8, repMax: 10, unit: 'reps', rir: 2, restSec: 30, progression: 'doppia', incrementKg: 2.5, perSide: true },
-          { exerciseId: 'tyler-twist', sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 30, progression: 'nessuna' },
+          { exerciseId: 'tyler-twist', sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 30, progression: 'nessuna', note: "Nel protocollo originale (Tyler e colleghi, 2010) si fa ogni giorno: se il fisioterapista è d'accordo, aggiungilo tra gli esercizi del fisioterapista" },
         ],
       },
     ],
@@ -143,8 +148,8 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
     subtitle: 'Corpo intero leggero e mobilità',
     estMin: 38,
     focus:
-      'Facoltativa, a due giorni dalla partita: carichi leggeri con 3 ripetizioni di riserva ' +
-      'e mobilità per anche e caviglie. Se sei stanco, saltala.',
+      'A due giorni dalla partita: carichi leggeri con 3 ripetizioni di riserva ' +
+      'e mobilità per anche e caviglie.',
     blocks: [
       {
         title: 'Riscaldamento',

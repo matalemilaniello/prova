@@ -2,7 +2,7 @@ import { ClipboardCheck } from 'lucide-react';
 import type { ISODate, WeeklyReview } from '../../domain/types';
 import { formatWeekRange } from '../../engine/dates';
 import { reviewScore, skinfoldSum } from '../../engine/review';
-import { capitalize, fmtDelta, fmtNumber } from '../../lib/format';
+import { capitalize, fmtCm, fmtDelta, fmtNumber } from '../../lib/format';
 import { ListGroup, ListRow } from '../../ui';
 
 /** Revisioni salvate, dalla più recente: voto medio, vita e variazione, proposte accettate. */
@@ -19,10 +19,10 @@ export function ReviewHistory({ reviews, onOpen, limit = 6 }: { reviews: WeeklyR
         const parts = [`voto medio ${fmtNumber(reviewScore(r), 1, true)}`];
         if (r.waistCm !== undefined) {
           const d = older?.waistCm !== undefined ? ` (${fmtDelta(r.waistCm - older.waistCm, 'cm', 1)})` : '';
-          parts.push(`vita ${fmtNumber(r.waistCm, 1)} cm${d}`);
+          parts.push(`vita ${fmtCm(r.waistCm)}${d}`);
         }
         const folds = skinfoldSum(r);
-        if (folds !== null) parts.push(`pliche ${fmtNumber(folds, 1)} mm`);
+        if (folds !== null) parts.push(`pliche ${fmtNumber(folds, 1)}\u00a0mm`);
         const n = r.acceptedProposals.length;
         return (
           <ListRow

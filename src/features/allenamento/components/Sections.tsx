@@ -4,11 +4,11 @@ import { ChevronRight, Dumbbell, HeartPulse, Plus, Trophy } from 'lucide-react';
 import type { AppData, ISODate, Plan, WorkoutLog } from '../../../domain/types';
 import { SESSION_LIST } from '../../../data/sessions';
 import { formatWeekdayShort, fromISO } from '../../../engine/dates';
-import { sessionLoad, workoutVolume } from '../../../engine/training';
+import { sessionLoad, workoutVolume, type PersonalRecord } from '../../../engine/training';
 import { fmtDelta, fmtNumber, WEEKDAY_LONG } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Card, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem } from '../../../ui';
-import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone } from '../lib';
+import { Button, Card, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
+import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone, shortName } from '../lib';
 import { agoLabel, type StrengthRow } from '../useTraining';
 import { SessionGlyph } from './SessionGlyph';
 
@@ -73,7 +73,7 @@ export function PhysioSection({ physio, plan, onEdit }: { physio: AppData['physi
           <div className="flex items-center gap-3 border-b border-line px-4 py-3">
             <span
               className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-              style={{ background: 'color-mix(in srgb, var(--leggero) 18%, transparent)', color: 'var(--leggero)' }}
+              style={{ background: toneSoft('leggero', 16), boxShadow: toneRing('leggero'), color: toneInk('leggero') }}
               aria-hidden
             >
               <HeartPulse size={17} strokeWidth={2.2} />
@@ -169,12 +169,15 @@ export function StrengthSection({ rows, physio }: { rows: StrengthRow[]; physio:
 
 export function HistorySection({
   history,
-  recordsById,
+  recordById,
+  physio,
   onOpen,
   onStart,
 }: {
   history: WorkoutLog[];
-  recordsById: Record<string, number>;
+  /** Record ancora imbattuto della seduta (uno al massimo), per id. */
+  recordById: Record<string, PersonalRecord | null>;
+  physio: AppData['physio'];
   onOpen: (log: WorkoutLog) => void;
   onStart: () => void;
 }) {
@@ -188,7 +191,7 @@ export function HistorySection({
       {history.length ? (
         <ul className="overflow-hidden rounded-card bg-card shadow-card">
           {shown.map((w, i) => {
-            const prs = recordsById[w.id] ?? 0;
+            const rec = recordById[w.id];
             const vol = workoutVolume(w);
             return (
               <motion.li key={w.id} {...staggerItem(i)} className={cn(i > 0 && 'border-t border-line')}>
@@ -207,18 +210,16 @@ export function HistorySection({
                     <span className="t-num text-[1.25rem] text-ink">{fromISO(w.date).getDate()}</span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="t-callout font-semibold text-ink">Seduta {w.sessionId}</span>
-                      {prs > 0 && (
-                        <Pill tone="accent" icon={Trophy}>
-                          {prs === 1 ? '1 record' : `${prs} record`}
-                        </Pill>
-                      )}
-                    </span>
+                    <span className="t-callout block font-semibold text-ink">Seduta {w.sessionId}</span>
                     <span className="t-footnote mt-0.5 block text-ink-2 tabular">
                       {w.durationMin} min · RPE {w.rpe} · {fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA
                       {vol > 0 ? ` · ${fmtNumber(Math.round(vol))} kg` : ''}
                     </span>
+                    {rec && (
+                      <Pill tone="accent" icon={Trophy} className="mt-1.5 min-w-0 shrink!">
+                        Record: {shortName(exerciseFor(rec.exerciseId, physio)?.name ?? rec.exerciseId, rec.exerciseId)}
+                      </Pill>
+                    )}
                   </span>
                   <ChevronRight size={18} strokeWidth={2.2} className="-mr-1 shrink-0 text-ink-3" aria-hidden />
                 </motion.button>

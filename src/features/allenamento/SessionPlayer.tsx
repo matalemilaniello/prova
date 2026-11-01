@@ -16,6 +16,7 @@ import { SESSIONS } from '../../data/sessions';
 import { weekStart } from '../../engine/dates';
 import {
   gateForExercise,
+  introLevel,
   lastEntryFor,
   loadStatus,
   painFlagFor,
@@ -29,7 +30,7 @@ import {
 } from '../../engine/training';
 import { haptic } from '../../lib/haptics';
 import { uid } from '../../lib/id';
-import { useToday } from '../../state/hooks';
+import { usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, EmptyState, FullScreenModal, IconButton, spring } from '../../ui';
 import { draftDoneSets, useSessionDraft, type SessionDraft } from './draft';
@@ -117,7 +118,7 @@ const stepItems = (st: PlayerStep): PlayerItem[] => (st.kind === 'warmup' ? st.i
 
 function Player({ session, date, onClose }: { session: WorkoutSession; date: ISODate; onClose: () => void }) {
   const reduce = useReducedMotion();
-  const today = useToday();
+  const today = usePlanDay();
   const toast = useUi((s) => s.toast);
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
@@ -129,8 +130,15 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   const mine: SessionDraft | null = draft && draft.sessionId === session.id && draft.date === date ? draft : null;
   const other: SessionDraft | null = draft && !mine ? draft : null;
 
-  const pplan = useMemo(() => buildPlayerPlan(session, physio, plan, date), [session, physio, plan, date]);
-  const gate = useMemo(() => painGate({ plan, checkIns, profile }, date), [plan, checkIns, profile, date]);
+  // Storico all'apertura: la seduta salvata alla fine non deve cambiare la fase di ingresso né la regola del
+  // dolore mentre si guarda il riepilogo.
+  const [historyAtOpen] = useState(history);
+  const [intro] = useState(() => introLevel(session.id, history));
+  const gate = useMemo(
+    () => painGate({ plan, checkIns, profile, workoutLogs: historyAtOpen, footballLogs }, date),
+    [plan, checkIns, profile, historyAtOpen, footballLogs, date],
+  );
+  const pplan = useMemo(() => buildPlayerPlan(session, physio, plan, date, { gate, intro }), [session, physio, plan, date, gate, intro]);
   const catalog = useMemo(() => ({ ...EXERCISES, ...Object.fromEntries(physio.exercises.map((e) => [e.id, e])) }), [physio.exercises]);
   const planned = plannedSessionFor(date, plan);
   const lastSession = useMemo(
@@ -150,7 +158,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   const [rpe, setRpe] = useState<number | undefined>(undefined);
   const [pain, setPain] = useState<Record<string, number | undefined>>({});
   const [notes, setNotes] = useState('');
-  const [saved, setSaved] = useState<{ log: WorkoutLog; records: PersonalRecord[]; status: LoadStatus } | null>(null);
+  const [saved, setSaved] = useState<{ log: WorkoutLog; records: PersonalRecord[]; status: LoadStatus; planned: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const resumed = useRef(false);
@@ -179,23 +187,30 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       const id = currentIdOf(it);
       const ex = catalog[id];
       const last = lastEntryFor(id, history)?.log ?? null;
-      return suggestNext({ ...it.item, exerciseId: id }, last, { gate: gateForExercise(ex, gate) });
+      return suggestNext({ ...it.base, exerciseId: id }, last, { gate: gateForExercise(ex, gate), intro: !it.physio && Boolean(pplan.intro) });
     },
-    [catalog, currentIdOf, gate, history],
+    [catalog, currentIdOf, gate, history, pplan.intro],
   );
 
   const suggestions = useMemo(() => Object.fromEntries(pplan.items.map((it) => [it.key, suggestionFor(it)])), [pplan.items, suggestionFor]);
 
   const initialLog = useCallback(
     (it: PlayerItem, exerciseId = it.item.exerciseId): ExerciseLog => {
-      const s = exerciseId === it.item.exerciseId ? suggestions[it.key] : suggestNext({ ...it.item, exerciseId }, lastEntryFor(exerciseId, history)?.log ?? null, { gate: gateForExercise(catalog[exerciseId], gate) });
+      const s =
+        exerciseId === it.item.exerciseId
+          ? suggestions[it.key]
+          : suggestNext({ ...it.base, exerciseId }, lastEntryFor(exerciseId, history)?.log ?? null, {
+              gate: gateForExercise(catalog[exerciseId], gate),
+              intro: !it.physio && Boolean(pplan.intro),
+            });
+      const swappedFrom = exerciseId !== it.item.exerciseId ? it.item.exerciseId : it.replacedFrom;
       return {
         exerciseId,
         sets: s.sets.map((t) => ({ weightKg: t.weightKg, reps: t.reps, done: false })),
-        ...(exerciseId !== it.item.exerciseId ? { swappedFrom: it.item.exerciseId } : {}),
+        ...(swappedFrom ? { swappedFrom } : {}),
       };
     },
-    [suggestions, history, catalog, gate],
+    [suggestions, history, catalog, gate, pplan.intro],
   );
 
   const logOf = useCallback((it: PlayerItem) => logs[it.key] ?? initialLog(it), [logs, initialLog]);
@@ -305,8 +320,11 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
     setPhase('run');
   };
 
-  const totalPlanned = plannedSets(pplan.items);
   const doneSets = draftDoneSets(mine);
+  // Gli esercizi del fisioterapista contano nel totale solo se li fai qui.
+  const physioItems = pplan.items.filter((i) => i.physio);
+  const physioDone = physioItems.some((it) => mine?.logs[it.key]?.sets.some((s) => s.done));
+  const totalPlanned = plannedSets(pplan.items.filter((i) => !i.physio)) + (physioDone ? plannedSets(physioItems) : 0);
   const measuredMin = mine ? Math.max(1, Math.round((now - mine.startedAt) / 60000)) : 0;
 
   const toFinish = () => {
@@ -363,7 +381,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
     useSessionDraft.getState().clear();
     const status = loadStatus(weekStart(date), { workoutLogs: [...history, log], footballLogs });
     haptic('success');
-    setSaved({ log, records, status });
+    setSaved({ log, records, status, planned: totalPlanned });
     setDir(1);
     setPhase('summary');
   };
@@ -646,7 +664,9 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       </div>
     );
   } else if (phase === 'summary' && saved) {
-    body = <SummaryStep log={saved.log} sessionName={session.name} setsPlanned={totalPlanned} records={saved.records} status={saved.status} physio={physio} />;
+    body = (
+      <SummaryStep log={saved.log} sessionName={session.name} setsPlanned={saved.planned} records={saved.records} status={saved.status} physio={physio} history={historyAtOpen} />
+    );
   }
 
   return (
@@ -660,6 +680,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       aria-label={session.name}
       headerRight={phase === 'run' ? <IconButton icon={ListOrdered} label="Tutti gli esercizi" variant="tinted" onClick={() => setSheet('overview')} /> : undefined}
       footer={footer}
+      // Il riepilogo è il momento della seduta: i riflettori si accendono a piena luce.
+      light={phase === 'summary' ? { intensity: 0.8, tone: 'palestra', flare: true } : undefined}
     >
       <div ref={anchorRef} aria-hidden />
       <AnimatePresence mode="wait" initial={false} custom={dir}>

@@ -7,6 +7,7 @@ import { SESSION_LIST } from '../../data/sessions';
 import { addDays, daysBetween, formatDayLong, formatWeekday, weekDates, weekStart, weekdayOf } from '../../engine/dates';
 import {
   e1rmHistory,
+  introLevel,
   loadStatus,
   nextPlannedSession,
   painGate,
@@ -15,10 +16,11 @@ import {
   type E1rmPoint,
   type LoadStatus,
   type PainGate,
+  type PersonalRecord,
   type PlannedSession,
 } from '../../engine/training';
 import { useApp } from '../../state/store';
-import { strengthRecords } from './lib';
+import { headlineRecord } from './lib';
 
 export interface WeekDayInfo {
   iso: ISODate;
@@ -53,8 +55,12 @@ export interface TrainingData {
   gate: PainGate;
   todayLogs: WorkoutLog[];
   history: WorkoutLog[];
-  /** Record per id di seduta registrata. */
-  recordsById: Record<string, number>;
+  /** Record ancora imbattuto da mostrare, per id di seduta registrata (uno al massimo). */
+  recordById: Record<string, PersonalRecord | null>;
+  /** Fase di ingresso della prossima seduta (1 o 2), null se già superata. */
+  nextIntro: 1 | 2 | null;
+  /** Avanzamento della settimana: attività fatte su quelle previste (facoltative escluse), 0-1. */
+  weekProgress: number;
   strength: StrengthRow[];
   nextMatch: { date: ISODate; event: FootballEvent } | null;
 }
@@ -108,10 +114,25 @@ export function useTraining(today: ISODate): TrainingData {
     const planned = plannedLoadRemaining(ws, state, today).load;
     const next = nextPlannedSession(today, state);
     const after = next ? nextPlannedSession(today, state, { after: next.date, skipOptional: true }) : null;
-    const gate = painGate({ plan, checkIns, profile }, today);
+    const gate = painGate({ plan, checkIns, profile, workoutLogs, footballLogs }, today);
     const history = workoutLogs.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    const recordsById: Record<string, number> = {};
-    for (const w of history) recordsById[w.id] = strengthRecords(w, workoutLogs, physio).length;
+    const recordById: Record<string, PersonalRecord | null> = {};
+    for (const w of history) recordById[w.id] = headlineRecord(w, workoutLogs, physio);
+    const nextIntro = next ? introLevel(next.sessionId, workoutLogs) : null;
+    let expected = 0;
+    let doneCount = 0;
+    for (const d of days) {
+      if (d.gym && !d.gym.optional) {
+        expected++;
+        if (d.gym.log) doneCount++;
+      } else if (d.gym?.log) doneCount++;
+      if (d.football) {
+        expected++;
+        if (d.football.log) doneCount++;
+      }
+      doneCount += d.extra.length;
+    }
+    const weekProgress = expected ? Math.min(1, doneCount / expected) : 0;
 
     const since = addDays(today, -28);
     const strength: StrengthRow[] = KEY_LIFTS.map((id) => {
@@ -140,7 +161,9 @@ export function useTraining(today: ISODate): TrainingData {
       gate,
       todayLogs: workoutLogs.filter((w) => w.date === today),
       history,
-      recordsById,
+      recordById,
+      nextIntro,
+      weekProgress,
       strength,
       nextMatch,
     };

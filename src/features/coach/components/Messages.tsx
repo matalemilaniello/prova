@@ -53,6 +53,8 @@ export interface MessageRowProps {
   errorKind?: string;
   /** Il messaggio è appena arrivato: entra con un'animazione. */
   fresh?: boolean;
+  /** Ha risposto un altro modello (fallback lato server): il suo nome. */
+  answeredBy?: string;
 }
 
 export const MessageRow = memo(function MessageRow({
@@ -66,6 +68,7 @@ export const MessageRow = memo(function MessageRow({
   onBarPlan,
   errorKind,
   fresh,
+  answeredBy,
 }: MessageRowProps) {
   const reduce = useReducedMotion();
   const enter = fresh && !reduce ? { initial: { opacity: 0, y: 10, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 }, transition: spring } : {};
@@ -107,7 +110,7 @@ export const MessageRow = memo(function MessageRow({
           >
             <p className="flex items-center gap-1.5 text-[0.9375rem] font-semibold text-bad-ink">
               <CircleAlert size={17} strokeWidth={2.3} aria-hidden />
-              Risposta non arrivata
+              {errorKind === 'interrotta-rete' ? 'Risposta incompleta' : 'Risposta non arrivata'}
             </p>
             <p className="t-footnote mt-1 text-ink-2">{m.text}</p>
             <div className="-mb-1 mt-2 flex flex-wrap gap-2">
@@ -122,7 +125,7 @@ export const MessageRow = memo(function MessageRow({
                     Cambia chiave
                   </BubbleAction>
                 )
-              ) : errorKind === 'offline' || errorKind === 'rete' ? (
+              ) : errorKind === 'offline' || errorKind === 'rete' || errorKind === 'interrotta-rete' ? (
                 onBarPlan && (
                   <BubbleAction icon={<Coffee size={15} strokeWidth={2.4} aria-hidden />} onClick={onBarPlan}>
                     Piano B al bar
@@ -164,6 +167,7 @@ export const MessageRow = memo(function MessageRow({
         >
           <RichText text={m.text} />
         </div>
+        {answeredBy && <p className="t-caption mt-1 px-1 text-ink-3">Risposta di {answeredBy}</p>}
         {m.stop === 'interrotta' && <p className="t-caption mt-1 px-1 text-ink-3">Risposta interrotta</p>}
         {m.stop === 'limite' && (
           <div className="mt-1.5 flex items-center gap-2 px-1">

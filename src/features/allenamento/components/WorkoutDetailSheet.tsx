@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeftRight, Trash2, Trophy } from 'lucide-react';
+import { ArrowLeftRight, Trash2, TrendingUp, Trophy } from 'lucide-react';
 import type { AppData, WorkoutLog } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
 import { formatDayLong } from '../../../engine/dates';
@@ -8,7 +8,7 @@ import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Pill, Sheet, cn, scaleColor } from '../../../ui';
-import { exerciseFor, kgLabel, strengthRecords } from '../lib';
+import { exerciseFor, headlineRecord, kgLabel, strengthRecords } from '../lib';
 import { setsSummary } from '../player/ExerciseStep';
 
 export interface WorkoutDetailSheetProps {
@@ -25,6 +25,8 @@ export function WorkoutDetailSheet({ log, open, onClose, physio }: WorkoutDetail
   const [confirm, setConfirm] = useState(false);
   if (!log) return null;
   const session = SESSIONS[log.sessionId];
+  // Il trofeo va solo al record ancora imbattuto della seduta; gli altri miglioramenti sono progressi.
+  const top = headlineRecord(log, history, physio)?.exerciseId ?? null;
   const prs = new Set(strengthRecords(log, history, physio).map((r) => r.exerciseId));
   const unitOf = (id: string): 'reps' | 'secondi' =>
     (session?.blocks.flatMap((b) => b.items).find((i) => i.exerciseId === id)?.unit ??
@@ -39,7 +41,9 @@ export function WorkoutDetailSheet({ log, open, onClose, physio }: WorkoutDetail
   const painEntries = Object.entries(log.pain ?? {});
   // Il riscaldamento si riassume in una riga: conta che sia stato fatto, non i dettagli.
   const warmIds = new Set(session?.blocks.filter((b) => /riscaldamento/i.test(b.title)).flatMap((b) => b.items.map((i) => i.exerciseId)) ?? []);
-  const warm = log.exercises.filter((e) => warmIds.has(e.exerciseId) && !e.swappedFrom);
+  // Conta anche l'esercizio di riscaldamento sostituito in automatico (es. i balzi con la tibia alta).
+  const warmCategory = (id: string) => /riscaldamento|mobilita/.test(exerciseFor(id, physio)?.category ?? '');
+  const warm = log.exercises.filter((e) => (e.swappedFrom ? warmIds.has(e.swappedFrom) && warmCategory(e.exerciseId) : warmIds.has(e.exerciseId)));
   const main = log.exercises.filter((e) => !warm.includes(e));
 
   const remove = () => {
@@ -122,11 +126,15 @@ export function WorkoutDetailSheet({ log, open, onClose, physio }: WorkoutDetail
                     <span className="t-footnote mt-0.5 block text-ink-2 tabular">{setsSummary(ex.sets, unitOf(ex.exerciseId)) || 'nessuna serie'}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
-                    {prs.has(ex.exerciseId) && (
+                    {top === ex.exerciseId ? (
                       <Pill tone="accent" icon={Trophy}>
                         Record
                       </Pill>
-                    )}
+                    ) : prs.has(ex.exerciseId) ? (
+                      <Pill tone="good" icon={TrendingUp}>
+                        Migliorato
+                      </Pill>
+                    ) : null}
                     {best && best.e1rm > 0 && <span className="t-caption text-ink-3 tabular">1RM {kgLabel(Math.round(best.e1rm * 2) / 2)}</span>}
                   </span>
                 </li>

@@ -6,6 +6,7 @@ import { BookOpen, Check, Clock, Undo2 } from 'lucide-react';
 import type { DayType, ISODate, MealSlot } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { swapOptions, type MealEntry } from '../../engine/menu';
+import { FOODS } from '../../data/foods';
 import { recipeNutrition } from '../../engine/nutrition';
 import { fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
@@ -52,16 +53,18 @@ export interface SwapSheetProps {
   slot: MealSlot;
   entry: MealEntry;
   dayType: DayType;
+  /** Scala del piano per le righe di carboidrati (`dayCarbScale`), così i valori sono quelli del menù. */
+  scale?: number;
   /** Titolo del pasto ("Merenda pre-partita"). */
   title?: string;
 }
 
-export function SwapSheet({ open, onClose, date, slot, entry, dayType, title }: SwapSheetProps) {
+export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title }: SwapSheetProps) {
   const baseId = entry.plannedId || entry.recipeId;
   const options = swapOptions(baseId, slot, 6).filter((r) => r.id !== entry.recipeId);
   const planned = entry.swapped && entry.plannedId ? RECIPES[entry.plannedId] : undefined;
   const list = planned ? [planned, ...options.filter((r) => r.id !== planned.id)] : options;
-  const cur = recipeNutrition(entry.recipe, dayType);
+  const cur = recipeNutrition(entry.recipe, dayType, FOODS, scale);
 
   const choose = (id: string) => {
     applySwap(date, slot, entry, id);
@@ -91,7 +94,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, title }: 
       )}
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
         {list.map((r, i) => {
-          const n = recipeNutrition(r, dayType);
+          const n = recipeNutrition(r, dayType, FOODS, scale);
           const dk = Math.round(n.kcal - cur.kcal);
           const dp = Math.round(n.proteinG - cur.proteinG);
           const isPlanned = planned?.id === r.id;

@@ -1,13 +1,14 @@
-import { Dumbbell, Leaf, Moon, Trophy } from 'lucide-react';
+import { Dumbbell, Leaf, Moon } from 'lucide-react';
 import type { DayType } from '../domain/types';
 import { DAY_TYPE_LABEL } from '../lib/format';
+import { BallIcon } from './BallIcon';
 import { Pill } from './Pill';
 import { cn } from './cn';
 import { toneColor, toneInk } from './tones';
 import type { IconLike } from './icon';
 
 export const DAY_TYPE_ICON: Record<DayType, IconLike> = {
-  calcio: Trophy,
+  calcio: BallIcon,
   palestra: Dumbbell,
   leggero: Leaf,
   riposo: Moon,
@@ -31,7 +32,11 @@ export function DayTypeBadge({ dayType, variant = 'soft', size = 'sm', label, sh
   if (variant === 'dot') {
     return (
       <span className={cn('inline-flex items-center gap-1.5 font-semibold', size === 'sm' ? 'text-[0.8125rem]' : 'text-[0.9375rem]', className)} style={{ color: toneInk(dayType) }}>
-        <span aria-hidden className="size-2 rounded-full" style={{ background: toneColor(dayType), boxShadow: `0 0 10px ${toneColor(dayType)}` }} />
+        <span
+          aria-hidden
+          className="size-2 rounded-full"
+          style={{ background: toneColor(dayType), boxShadow: `0 0 0 3px color-mix(in srgb, ${toneColor(dayType)} 18%, transparent), 0 0 10px ${toneColor(dayType)}` }}
+        />
         {text}
       </span>
     );

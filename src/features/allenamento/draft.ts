@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { ExerciseLog, ISODate } from '../../domain/types';
-import { safeStorage } from '../../state/store';
+import { DATA_REPLACED_EVENT, SESSION_DRAFT_KEY, safeStorage } from '../../state/store';
 
 export interface RestState {
   /** Fine del recupero (ms dall'epoca). */
@@ -39,7 +39,7 @@ interface DraftStore {
   clear: () => void;
 }
 
-export const DRAFT_KEY = 'ritmo:seduta-in-corso';
+export const DRAFT_KEY = SESSION_DRAFT_KEY;
 
 export const useSessionDraft = create<DraftStore>()(
   persist(
@@ -62,6 +62,11 @@ export const useSessionDraft = create<DraftStore>()(
     },
   ),
 );
+
+// Dati di esempio, importazione o azzeramento: la seduta in corso apparteneva ai dati di prima.
+if (typeof window !== 'undefined') {
+  window.addEventListener(DATA_REPLACED_EVENT, () => useSessionDraft.getState().clear());
+}
 
 /** Serie fatte nella bozza. */
 export function draftDoneSets(d: SessionDraft | null): number {

@@ -19,7 +19,7 @@ Funziona offline e tiene tutti i dati sul telefono.
 3. Scorri e scegli **Aggiungi alla schermata Home**, poi **Aggiungi**.
 4. Apri Ritmo dall'icona: parte a schermo intero, come un'app, e funziona anche senza rete.
 
-Gli aggiornamenti arrivano da soli: alla riapertura successiva l'app usa la versione nuova.
+Quando esce una versione nuova, Ritmo mostra in alto "Nuova versione pronta": tocca **Aggiorna** e l'app si ricarica con la versione nuova. Se lo ignori, la versione nuova parte la prima volta che riapri l'app dopo averla chiusa del tutto.
 
 ## Comandi
 

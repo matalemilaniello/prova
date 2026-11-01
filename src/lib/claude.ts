@@ -10,7 +10,8 @@
  * - pensiero adattivo (`thinking: { type: 'adaptive' }`) e `output_config.effort` sui modelli che li hanno;
  *   su Claude Opus 5.5 il pensiero è sempre attivo e l'effort è il controllo della profondità;
  * - fallback lato server in caso di rifiuto per policy: `fallbacks: 'default'` con la beta
- *   `server-side-fallback-2026-07-01` (sui modelli che non li supportano la richiesta gira da sola);
+ *   `server-side-fallback-2026-07-01`, solo sui modelli che li hanno (Opus da 5, Sonnet da 5.5, Fable;
+ *   Haiku no: la guida chiede di non mandare il parametro);
  * - `stop_reason: 'refusal'` controllato prima di leggere il testo;
  * - errori tipizzati (`AuthenticationError`, `RateLimitError`, `APIConnectionError`…) e `error.type`;
  * - cache del prompt di sistema (`cache_control: { type: 'ephemeral' }`).
@@ -92,6 +93,8 @@ export interface ModelSupport {
   adaptiveThinking: boolean;
   /** Accetta `output_config.effort`. */
   effort: boolean;
+  /** Ha i fallback lato server (`fallbacks: 'default'`): sui modelli che non li hanno il parametro non si manda. */
+  fallback: boolean;
 }
 
 /**
@@ -100,20 +103,21 @@ export interface ModelSupport {
  */
 export function modelSupport(model: string): ModelSupport {
   const p = parseModel(model);
-  if (!p) return { adaptiveThinking: false, effort: false };
+  if (!p) return { adaptiveThinking: false, effort: false, fallback: false };
   const v = p.version + 1e-9;
   switch (p.family) {
     case 'opus':
-      return { adaptiveThinking: v >= 4.6, effort: v >= 4.5 };
+      return { adaptiveThinking: v >= 4.6, effort: v >= 4.5, fallback: v >= 5 };
     case 'sonnet':
-      return { adaptiveThinking: v >= 4.6, effort: v >= 4.6 };
+      return { adaptiveThinking: v >= 4.6, effort: v >= 4.6, fallback: v >= 5.5 };
     case 'haiku':
-      return { adaptiveThinking: v >= 5.5, effort: v >= 5.5 };
+      // Nessun fallback lato server per Haiku: con il parametro un rifiuto resta un rifiuto o diventa un 400.
+      return { adaptiveThinking: v >= 5.5, effort: v >= 5.5, fallback: false };
     case 'fable':
     case 'mythos':
-      return { adaptiveThinking: v >= 5, effort: v >= 5 };
+      return { adaptiveThinking: v >= 5, effort: v >= 5, fallback: v >= 5 };
     default:
-      return { adaptiveThinking: false, effort: false };
+      return { adaptiveThinking: false, effort: false, fallback: false };
   }
 }
 
@@ -214,6 +218,7 @@ export type CoachErrorKind =
   | 'tempo'
   | 'richiesta'
   | 'vuota'
+  | 'interrotta-rete'
   | 'sconosciuto';
 
 export interface CoachErrorInfo {
@@ -258,6 +263,10 @@ const ERRORS: Record<CoachErrorKind, Omit<CoachErrorInfo, 'kind'>> = {
     retryable: true,
   },
   vuota: { message: 'Il coach non ha scritto niente. Riprova, magari aggiungendo un dettaglio.', retryable: true },
+  'interrotta-rete': {
+    message: 'La connessione si è interrotta durante la risposta. Il testo arrivato resta qui sopra.',
+    retryable: true,
+  },
   sconosciuto: { message: 'Qualcosa non ha funzionato. Riprova tra poco.', retryable: true },
 };
 
@@ -303,6 +312,19 @@ export function classifyError(sdk: Pick<Sdk, 'APIError' | 'APIConnectionError' |
   }
   if (isOffline()) return 'offline';
   return 'sconosciuto';
+}
+
+/**
+ * Errore durante lo streaming: se una parte del testo era già arrivata e l'errore non viene dall'API
+ * (stream chiuso a metà, connessione caduta), è una risposta interrotta dalla rete, non un errore ignoto.
+ */
+export function streamErrorKind(
+  sdk: Parameters<typeof classifyError>[0],
+  err: unknown,
+  partial: string,
+): CoachErrorKind {
+  if (partial.trim() && (err instanceof sdk.APIConnectionError || !(err instanceof sdk.APIError))) return 'interrotta-rete';
+  return classifyError(sdk, err);
 }
 
 // ───────────────────────── SDK ─────────────────────────
@@ -381,8 +403,7 @@ export async function streamCoachReply(o: CoachStreamOptions): Promise<CoachRepl
       {
         model,
         max_tokens: COACH_MAX_TOKENS,
-        betas: [FALLBACK_BETA],
-        fallbacks: 'default',
+        ...(support.fallback ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : {}),
         system: [
           { type: 'text', text: o.system, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: o.context },
@@ -429,7 +450,7 @@ export async function streamCoachReply(o: CoachStreamOptions): Promise<CoachRepl
     if (err instanceof sdk.APIUserAbortError || o.signal?.aborted) {
       return { text: text.trim(), stop: 'interrotta', model: null, fallback: false };
     }
-    throw new CoachError(errorInfo(classifyError(sdk, err)), text.trim(), err);
+    throw new CoachError(errorInfo(streamErrorKind(sdk, err, text)), text.trim(), err);
   }
 }
 

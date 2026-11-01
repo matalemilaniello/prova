@@ -9,7 +9,7 @@ import { IS_PREVIEW } from '../../../app/env';
 import { CONSOLE_KEYS_URL, CONSOLE_LIMITS_URL, CONSOLE_URL, isLikelyApiKey, maskKey, modelLabel, normalizeKey, verifyKey } from '../../../lib/claude';
 import { haptic } from '../../../lib/haptics';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, cn, Field, TextInput } from '../../../ui';
+import { Button, Callout, Card, cn, Field, TextInput, toneRing } from '../../../ui';
 
 // ───────────────────────── Passi ─────────────────────────
 
@@ -41,7 +41,7 @@ export function SetupSteps() {
       {STEPS.map((s, i) => (
         <li key={s.title} className="relative flex gap-3.5 pb-5 last:pb-0">
           {i < STEPS.length - 1 && <span aria-hidden className="absolute bottom-0 left-[15px] top-9 w-px bg-line" />}
-          <span className="t-num grid size-[31px] shrink-0 place-items-center rounded-full bg-accent-soft text-[1.0625rem] text-accent-ink shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_30%,transparent)]">
+          <span className="t-num grid size-[31px] shrink-0 place-items-center rounded-full bg-accent-soft text-[1.0625rem] text-accent-ink" style={{ boxShadow: toneRing('accent') }}>
             {i + 1}
           </span>
           <div className="min-w-0 flex-1 pt-[3px]">

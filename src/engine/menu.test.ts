@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData, MenuWeek } from '../domain/types';
 import { defaultPlan } from '../data/defaults';
-import { dayTypeFor, mealsForDate, menuDayFor, menuWeekFor, rotationIndexFor } from './menu';
+import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate, menuDayFor, menuWeekFor, rotationIndexFor } from './menu';
 import { dayNutrition, dayNutritionDetail } from './nutrition';
 
 const week = (tag: string): MenuWeek => ({
@@ -73,5 +73,28 @@ describe('rotazione del menù', () => {
     expect(d.dayType).toBe('palestra');
     expect(d.total.kcal).toBeCloseTo(dayNutrition('2026-11-10', state).kcal, 6);
     expect(dayNutrition('2026-11-10', state, { onlyDone: true }).kcal).toBe(0);
+  });
+});
+
+describe('vigilia della partita', () => {
+  it('la domenica prima della partita del lunedì mangia come un giorno di calcio', () => {
+    // 2026-11-15 è domenica (riposo nella settimana tipo), lunedì 16 c'è la partita.
+    expect(dayTypeFor('2026-11-15', plan)).toBe('riposo');
+    expect(isMatchEve('2026-11-15', plan)).toBe(true);
+    expect(effectiveDayType('2026-11-15', plan)).toBe('calcio');
+    const m = mealsForDate('2026-11-15', state, rotation);
+    expect(m.dayType).toBe('calcio');
+    expect(m.scheduledDayType).toBe('riposo');
+    expect(m.matchEve).toBe(true);
+  });
+
+  it('negli altri giorni il tipo resta quello del piano', () => {
+    expect(effectiveDayType('2026-11-14', plan)).toBe('leggero');
+    expect(isMatchEve('2026-11-14', plan)).toBe(false);
+    expect(effectiveDayType('2026-11-16', plan)).toBe('calcio');
+    expect(isMatchEve('', plan)).toBe(false);
+    // Senza partita il lunedì, la domenica torna di riposo.
+    const noMatch = { ...plan, week: plan.week.map((d) => (d.weekday === 0 ? { ...d, football: undefined } : d)) };
+    expect(effectiveDayType('2026-11-15', noMatch)).toBe('riposo');
   });
 });

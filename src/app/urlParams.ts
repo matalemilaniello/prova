@@ -1,6 +1,6 @@
 /**
  * Parametri dell'URL per anteprime e screenshot:
- * ?demo=1 · ?theme=scuro|chiaro · ?overlay=recipe|checkin|session|football|barPlanB · ?onboarding=1 ·
+ * ?demo=1 · ?theme=scuro|chiaro (anche dark|light) · ?overlay=recipe|checkin|session|football|barPlanB · ?onboarding=1 ·
  * ?tab=… · ?today=YYYY-MM-DD · ?now=HH:MM
  */
 import { useMemo } from 'react';

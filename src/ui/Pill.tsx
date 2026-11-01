@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { cn } from './cn';
 import { renderIcon, type IconLike } from './icon';
-import { toneColor, toneInk, toneOn, toneSoft, type AnyTone } from './tones';
+import { toneColor, toneInk, toneOn, toneRing, toneSoft, type AnyTone } from './tones';
 
 export interface PillProps {
   tone?: AnyTone;
-  /** soft: fondo tenue (default) · solid: fondo pieno · outline: solo bordo. */
+  /** soft: fondo tenue con anello di 1 px (default) · solid: fondo pieno · outline: solo bordo. */
   variant?: 'soft' | 'solid' | 'outline';
   size?: 'sm' | 'md';
   icon?: IconLike;
@@ -23,7 +23,9 @@ export function Pill({ tone = 'neutral', variant = 'soft', size = 'sm', icon, do
       ? { background: color, color: toneOn(tone) }
       : variant === 'outline'
         ? { boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 45%, transparent)`, color: toneInk(tone) }
-        : { background: toneSoft(tone, 16), color: toneInk(tone) };
+        : tone === 'neutral'
+          ? { background: toneSoft(tone, 16), color: toneInk(tone) }
+          : { background: toneSoft(tone, 16), color: toneInk(tone), boxShadow: toneRing(tone, 26) };
   return (
     <span
       className={cn(

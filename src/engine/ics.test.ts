@@ -3,7 +3,10 @@ import type { AppData, Plan } from '../domain/types';
 import { defaultPlan } from '../data/defaults';
 import {
   BYDAY,
+  bedtimeStages,
   buildIcs,
+  calendarSignature,
+  calendarStatus,
   escapeText,
   firstOccurrence,
   foldLine,
@@ -12,8 +15,12 @@ import {
   reminderEvents,
   REMINDER_KINDS,
   remindersIcs,
+  romeOffsetMin,
+  romeToUtcStamp,
+  stageBedtime,
   unfold,
   utcStamp,
+  type CalendarFileRecord,
   type ReminderEvent,
 } from './ics';
 
@@ -97,20 +104,68 @@ describe('eventi dal piano', () => {
     expect(new Set(ev.map((e) => e.uid)).size).toBe(3);
   });
 
-  it('fisioterapista solo nei giorni segnati, dopo pranzo', () => {
-    const ev = reminderEvents(state(), ['fisio'], START);
+  it('fisioterapista solo nei giorni segnati, dopo pranzo, e solo con gli esercizi inseriti', () => {
+    const physio = {
+      exercises: [],
+      prescriptions: [{ exerciseId: 'polpacci-eccentrici', sets: 3, repMin: 15, repMax: 15, unit: 'reps' as const, restSec: 60, progression: 'nessuna' as const }],
+    };
+    const ev = reminderEvents(state({}, physio), ['fisio'], START);
     const days = ev.flatMap((e) => e.days).sort();
     expect(days).toEqual([0, 2]);
     for (const e of ev) expect(e.time >= '15:00' && e.time <= '16:30').toBe(true);
+    expect(ev[0].description).toMatch(/^1 esercizio, circa \d+ minuti/);
+    expect(reminderEvents(state(), ['fisio'], START)).toEqual([]);
   });
 
-  it('coprifuoco ogni giorno, anche dopo mezzanotte', () => {
-    const late = state({ sleep: { ...defaultPlan(START).sleep, current: '00:15', curfewLeadMin: 30 } });
+  it('coprifuoco ogni giorno, con la scala del sonno a gradini settimanali', () => {
+    const late = state({ sleep: { ...defaultPlan(START).sleep, current: '00:15', target: '23:30', curfewLeadMin: 30 } });
     const ev = reminderEvents(late, ['coprifuoco'], START);
-    expect(ev).toHaveLength(1);
-    expect(ev[0].days).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(ev[0].time).toBe('23:45');
-    expect(ev[0].description).toContain('00:15');
+    const first = ev.filter((e) => e.stage?.index === 0);
+    expect(first).toHaveLength(1);
+    expect(first[0].days).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(first[0].time).toBe('23:45');
+    expect(first[0].description).toContain('A letto alle 00:15');
+    expect(first[0].description).toContain('settimana 1 di 4');
+    expect(first[0].until).toEqual({ date: '2026-11-09', time: '05:44' });
+    // Gradini: 00:15 → 00:00 → 23:45 → 23:30, l'ultimo senza fine.
+    const beds = [...new Set(ev.map((e) => e.stage?.bed))];
+    expect(beds).toEqual(['00:15', '00:00', '23:45', '23:30']);
+    const last = ev.filter((e) => e.stage?.index === 3);
+    expect(last.every((e) => !e.until)).toBe(true);
+    expect(last[0].from).toBe('2026-11-23');
+    expect(last.find((e) => e.days.length > 1)?.time).toBe('23:00');
+    expect(new Set(ev.map((e) => e.uid)).size).toBe(ev.length);
+  });
+
+  it('dopo mezzanotte il coprifuoco suona il giorno dopo del calendario', () => {
+    // Fase 00:45, coprifuoco 00:15: la notte di lunedì suona martedì alle 00:15.
+    const ev = reminderEvents(state(), ['coprifuoco'], START);
+    const first = ev.find((e) => e.stage?.index === 0)!;
+    expect(first.time).toBe('00:15');
+    expect(first.planDays).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(first.from).toBe('2026-11-03');
+    const ics = buildIcs([first], { start: START, now: NOW });
+    expect(unfold(ics)).toContain('DTSTART;TZID=Europe/Rome:20261103T001500');
+  });
+
+  it('con l’orario a letto già all’obiettivo il coprifuoco è una serie sola, senza fine', () => {
+    const done = state({ sleep: { ...defaultPlan(START).sleep, current: '23:30', target: '23:30' } });
+    const all = reminderEvents(done, ['coprifuoco'], START);
+    expect(all.every((e) => !e.until && !e.from)).toBe(true);
+    // Le sere di calcio il letto si sposta dopo la cena di recupero: lunedì 00:15, coprifuoco 23:45.
+    expect(all.find((e) => e.days.includes(0))?.time).toBe('23:45');
+    const normal = all.find((e) => e.time === '23:00');
+    expect(normal?.days).toEqual([1, 4, 5, 6]);
+    expect(normal?.uid).toBe('ritmo-coprifuoco-sera-tu');
+    expect(normal?.description).not.toContain('Scala del sonno');
+  });
+
+  it('controllo del mattino 5 minuti dopo la sveglia, ogni giorno', () => {
+    const [ev] = reminderEvents(state(), ['controllo'], START);
+    expect(ev.time).toBe('07:20');
+    expect(ev.days).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(ev.description).toContain('peso');
+    expect(ev.uid).toBe('ritmo-controllo-mattino');
   });
 
   it('revisione la domenica alle 18:00', () => {
@@ -187,7 +242,7 @@ describe('file .ics', () => {
     for (const e of evs) {
       expect(e.ALARM).toBe('yes');
       expect(e['DTSTART;TZID=Europe/Rome']).toMatch(/^\d{8}T\d{6}$/);
-      expect(e.RRULE).toMatch(/^FREQ=WEEKLY;BYDAY=(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*$/);
+      expect(e.RRULE).toMatch(/^FREQ=WEEKLY;BYDAY=(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*(;UNTIL=\d{8}T\d{6}Z)?$/);
       expect(e.DTSTAMP).toBe('20261031T101500Z');
       expect(e.UID).toMatch(/@ritmo\.app$/);
     }
@@ -199,7 +254,7 @@ describe('file .ics', () => {
     for (const e of vevents(ics)) {
       const s = e['DTSTART;TZID=Europe/Rome'];
       const d = new Date(Number(s.slice(0, 4)), Number(s.slice(4, 6)) - 1, Number(s.slice(6, 8)), 12);
-      const days = e.RRULE.split('BYDAY=')[1].split(',').map((x) => map[x]);
+      const days = e.RRULE.split('BYDAY=')[1].split(';')[0].split(',').map((x) => map[x]);
       expect(days).toContain(d.getDay());
     }
   });
@@ -218,9 +273,94 @@ describe('file .ics', () => {
     expect(buildIcs(bad, { start: START, now: NOW })).not.toContain('BEGIN:VEVENT');
   });
 
+  it('i gradini del coprifuoco si passano il testimone senza buchi né sovrapposizioni', () => {
+    const steps = vevents(remindersIcs(state(), ['coprifuoco'], { start: START, now: NOW })).filter((e) => !/-(mo|we)-g/.test(e.UID));
+    // Un gradino a settimana (le sere di calcio hanno serie a parte quando il letto si sposta).
+    expect(steps).toHaveLength(6);
+    // Gradino 1: fino alla notte di domenica 8 novembre (00:15 di lunedì 9), UNTIL alle 05:44 locali = 04:44 UTC.
+    expect(steps[0].RRULE).toContain('UNTIL=20261109T044400Z');
+    expect(steps[0]['DTSTART;TZID=Europe/Rome']).toBe('20261103T001500');
+    // Gradino 2: dalla notte di lunedì 9 (martedì 10 alle 00:00).
+    expect(steps[1]['DTSTART;TZID=Europe/Rome']).toBe('20261110T000000');
+    // Ultimo gradino, all'obiettivo: senza UNTIL.
+    expect(steps.at(-1)?.RRULE).not.toContain('UNTIL');
+  });
+
+  it('un gradino che finirebbe prima di cominciare non si scrive', () => {
+    const ev: ReminderEvent = { uid: 'x', kind: 'coprifuoco', summary: 'X', description: '', time: '23:00', durationMin: 5, days: [0], until: { date: '2026-11-09', time: '05:44' } };
+    // Creato domenica 8: il lunedì dopo è già oltre la fine.
+    expect(buildIcs([ev], { start: '2026-11-08', now: NOW })).not.toContain('BEGIN:VEVENT');
+  });
+
+  it('converte l’ora di Roma in UTC con l’ora legale', () => {
+    expect(romeToUtcStamp('2026-11-09', '05:44')).toBe('20261109T044400Z');
+    expect(romeToUtcStamp('2026-07-06', '05:44')).toBe('20260706T034400Z');
+    expect(romeOffsetMin('2026-03-29', '01:59')).toBe(60);
+    expect(romeOffsetMin('2026-03-29', '03:00')).toBe(120);
+    expect(romeOffsetMin('2026-10-25', '02:30')).toBe(120);
+    expect(romeOffsetMin('2026-10-25', '03:00')).toBe(60);
+  });
+
   it('rispetta l’ora legale: lo stesso orario locale prima e dopo il cambio', () => {
     // 25 ottobre 2026 è l'ultima domenica di ottobre: l'evento resta alle 18:00 locali grazie al TZID.
     const out = remindersIcs(state(), ['revisione'], { start: '2026-10-20', now: NOW });
     expect(out).toContain('DTSTART;TZID=Europe/Rome:20261025T180000');
+  });
+});
+
+describe('scala del sonno e stato del file nel calendario', () => {
+  const sleep = { current: '00:45', target: '23:30', stepMin: 15 };
+
+  it('costruisce i gradini attraverso la mezzanotte e trova quello della settimana', () => {
+    expect(bedtimeStages(sleep)).toEqual(['00:45', '00:30', '00:15', '00:00', '23:45', '23:30']);
+    expect(bedtimeStages({ ...sleep, current: '23:00' })).toEqual(['23:00']);
+    expect(bedtimeStages({ ...sleep, current: '00:40' }).at(-1)).toBe('23:30');
+    expect(stageBedtime(sleep, '2026-11-04', '2026-11-08')).toBe('00:45');
+    expect(stageBedtime(sleep, '2026-11-04', '2026-11-09')).toBe('00:30');
+    expect(stageBedtime(sleep, '2026-11-04', '2027-03-01')).toBe('23:30');
+    expect(stageBedtime(sleep, '2026-11-04', '2026-10-20')).toBe('00:45');
+  });
+
+  const kinds = ['controllo', 'coprifuoco'] as const;
+  const base = state();
+  const file: CalendarFileRecord = { at: '2026-11-04', kinds: [...kinds], sig: calendarSignature(base, [...kinds]), sleep };
+  const withBed = (current: string) => ({ ...base, plan: { ...base.plan, sleep: { ...base.plan.sleep, current } } });
+  const review = (weekStart: string) => ({ weekStart, votes: { energia: 7, digestione: 7, umore: 7, campo: 7 }, acceptedProposals: [] });
+
+  it('senza file non c’è niente da aggiornare', () => {
+    expect(calendarStatus(null, base, '2026-11-04')).toEqual({ state: 'assente' });
+  });
+
+  it('resta aggiornato se il piano scende la scala come previsto', () => {
+    expect(calendarStatus(file, base, '2026-11-06').state).toBe('aggiornato');
+    expect(calendarStatus(file, { ...withBed('00:30'), reviews: [review('2026-11-02')] }, '2026-11-11').state).toBe('aggiornato');
+  });
+
+  it('la domenica, dopo la revisione, va bene anche il gradino della settimana dopo', () => {
+    expect(calendarStatus(file, withBed('00:30'), '2026-11-08').state).toBe('aggiornato');
+    expect(calendarStatus(file, withBed('00:30'), '2026-11-07').state).toBe('da-aggiornare');
+  });
+
+  it('prima della revisione della settimana chiusa va bene ancora il gradino di prima', () => {
+    expect(calendarStatus(file, base, '2026-11-10').state).toBe('aggiornato');
+  });
+
+  it('se la revisione non anticipa, il calendario è avanti: da aggiornare', () => {
+    const res = calendarStatus(file, { ...base, reviews: [review('2026-11-02')] }, '2026-11-10');
+    expect(res).toEqual({ state: 'da-aggiornare', at: '2026-11-04', reason: 'sonno', bed: '00:30' });
+  });
+
+  it('un cambio di orari, settimana o promemoria scelti rende il file vecchio', () => {
+    const meals = { ...base, plan: { ...base.plan, mealTimes: { ...base.plan.mealTimes, colazione: '07:45' } } };
+    expect(calendarStatus(file, meals, '2026-11-05')).toMatchObject({ state: 'da-aggiornare', reason: 'piano' });
+    expect(calendarStatus(file, base, '2026-11-05', ['controllo'])).toMatchObject({ state: 'da-aggiornare', reason: 'piano' });
+    // Le calorie non entrano nel calendario.
+    const kcal = { ...base, plan: { ...base.plan, targets: { ...base.plan.targets, calcio: { ...base.plan.targets.calcio, kcal: 2950 } } } };
+    expect(calendarStatus(file, kcal, '2026-11-05').state).toBe('aggiornato');
+  });
+
+  it('senza coprifuoco né integratori della sera l’orario a letto non conta', () => {
+    const f2: CalendarFileRecord = { ...file, kinds: ['controllo'], sig: calendarSignature(base, ['controllo']) };
+    expect(calendarStatus(f2, withBed('00:00'), '2026-11-05').state).toBe('aggiornato');
   });
 });

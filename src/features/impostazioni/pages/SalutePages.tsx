@@ -1,8 +1,10 @@
 /** Salute: zone di dolore con soglia, esercizi del fisioterapista. */
-import { Activity, Hand, ShieldCheck, TrendingDown } from 'lucide-react';
+import { Activity, ClipboardCheck, Footprints, Hand, ShieldCheck, TrendingDown } from 'lucide-react';
+import { IMPACT_PAIN_THRESHOLD } from '../../../engine/training';
 import PhysioEditor from '../../allenamento/PhysioEditor';
 import { useApp } from '../../../state/store';
-import { Card, ScaleSlider, toneInk, toneSoft, type AnyTone } from '../../../ui';
+import { Card, ScaleSlider, type AnyTone } from '../../../ui';
+import { tileStyle } from '../components/controls';
 import { PainSitesPicker } from '../components/Pickers';
 import { painLabel } from '../lib';
 import { Page, type PageProps } from './Page';
@@ -18,7 +20,21 @@ const RULES: { icon: typeof Activity; tone: AnyTone; title: string; text: (t: nu
     icon: TrendingDown,
     tone: 'warn',
     title: 'Sopra la soglia o in peggioramento',
-    text: () => 'L’app propone di mantenere o ridurre il carico e di sentire il fisioterapista.',
+    text: (t) => `Carichi dell’ultima volta, senza aumenti. Oltre ${Math.max(5, t + 2)} su 10 si scende del 10% e ti chiede di scrivere al fisioterapista.`,
+  },
+  {
+    icon: ClipboardCheck,
+    tone: 'riposo',
+    title: 'A fine seduta e il giorno dopo',
+    text: (t) =>
+      `Il dolore che segni a fine seduta, se supera ${t}, frena la seduta successiva. Se il mattino dopo una seduta o una partita il dolore sale rispetto al giorno prima, niente aumenti.`,
+  },
+  {
+    icon: Footprints,
+    tone: 'leggero',
+    title: 'Sotto il ginocchio',
+    text: (t) =>
+      `Per tibia, caviglia, polpaccio e tendine d’Achille balzi, salti e partita si fermano già sopra ${Math.min(t, IMPACT_PAIN_THRESHOLD)} su 10. Gli impatti caricano molto queste zone, e lungo la tibia il dolore può venire dall’osso, che chiede più prudenza di un tendine.`,
   },
   {
     icon: Hand,
@@ -73,7 +89,7 @@ export function DolorePage({ onBack, backLabel }: PageProps) {
           <ul className="flex flex-col">
             {RULES.map((r, i) => (
               <li key={r.title} className={i > 0 ? 'relative flex gap-3 px-4 py-3.5 before:absolute before:left-[58px] before:right-0 before:top-0 before:h-px before:bg-line' : 'flex gap-3 px-4 py-3.5'}>
-                <span aria-hidden className="grid size-[30px] shrink-0 place-items-center rounded-[9px]" style={{ background: toneSoft(r.tone, 18), color: toneInk(r.tone) }}>
+                <span aria-hidden className="grid size-[30px] shrink-0 place-items-center rounded-[9px]" style={tileStyle(r.tone)}>
                   <r.icon size={17} strokeWidth={2.2} />
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
@@ -84,7 +100,7 @@ export function DolorePage({ onBack, backLabel }: PageProps) {
             ))}
           </ul>
         </Card>
-        <p className="t-footnote px-1 text-ink-3">Regola ispirata al modello di monitoraggio del dolore di Silbernagel per i tendini. Non è una diagnosi: con dolore che peggiora, fermati e chiedi a chi ti segue.</p>
+        <p className="t-footnote px-1 text-ink-3">Regola ispirata al modello di monitoraggio del dolore di Silbernagel per i tendini, più prudente negli impatti sotto il ginocchio. Non è una diagnosi: con dolore che peggiora, fermati e chiedi a chi ti segue.</p>
       </section>
     </Page>
   );

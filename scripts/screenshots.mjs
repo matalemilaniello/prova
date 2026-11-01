@@ -9,7 +9,8 @@
  * - Viewport 390×844 (iPhone), deviceScaleFactor 2, attende i font.
  * - Dati di esempio (?demo=1); il benvenuto usa ?onboarding=1 su uno stato pulito.
  * - Controlla l'overflow orizzontale a 390 e a 360 px e raccoglie gli errori della console.
- * - --only accetta nomi o prefissi: "settimana" include settimana-spesa e settimana-preparazione.
+ * - --only accetta nomi o prefissi: "settimana" include settimana-spesa e settimana-preparazione,
+ *   "impostazioni" tutte le sezioni (impostazioni-profilo, …), "benvenuto" i passi 2-6.
  * - --full salva anche la versione a tutta altezza di ogni schermata (il kit la salva sempre).
  * - --strict esce con codice 1 se ci sono errori della pagina o overflow.
  * - --width cambia la larghezza delle immagini (predefinita 390, iPhone 12-16); i file prendono il suffisso -360.
@@ -59,16 +60,24 @@ if (!existsSync(htmlPath)) {
 mkdirSync(outDir, { recursive: true });
 
 /** @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number }[]} */
+const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+
 const VIEWS = [
   { name: 'benvenuto', query: { onboarding: '1' }, fresh: true },
+  // Passi del benvenuto (2-6; il 6 è il riepilogo "Il tuo piano è pronto").
+  ...[2, 3, 4, 5, 6].map((n) => ({ name: `benvenuto-${n}`, query: { onboarding: '1', step: String(n) }, fresh: true, wait: 800 })),
   { name: 'oggi', hash: 'oggi' },
   { name: 'settimana', hash: 'settimana', query: { tab: 'menu' } },
   { name: 'settimana-spesa', hash: 'settimana', query: { tab: 'spesa' } },
   { name: 'settimana-preparazione', hash: 'settimana', query: { tab: 'preparazione' } },
+  { name: 'settimana-guida', hash: 'settimana', query: { tab: 'preparazione', guida: '1' }, wait: 900 },
   { name: 'allenamento', hash: 'allenamento' },
   { name: 'coach', hash: 'coach' },
+  { name: 'coach-attivazione', hash: 'coach', query: { coach: 'setup' } },
   { name: 'progressi', hash: 'progressi' },
+  { name: 'progressi-revisione', hash: 'progressi', query: { view: 'revisione' }, wait: 900 },
   { name: 'impostazioni', hash: 'impostazioni' },
+  ...SETTINGS_PAGES.map((sezione) => ({ name: `impostazioni-${sezione}`, hash: 'impostazioni', query: { sezione }, wait: 700 })),
   { name: 'kit', hash: 'kit', tall: true },
   { name: 'recipe', hash: 'oggi', query: { overlay: 'recipe' }, wait: 900 },
   { name: 'checkin', hash: 'oggi', query: { overlay: 'checkin' }, wait: 900 },

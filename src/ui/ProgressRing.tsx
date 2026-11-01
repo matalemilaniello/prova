@@ -87,7 +87,7 @@ export function ProgressRing({
             </linearGradient>
           </defs>
         )}
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink-soft)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-track)" strokeWidth={stroke} />
 
         <motion.circle
           cx={size / 2}

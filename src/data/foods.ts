@@ -85,6 +85,15 @@ const FOOD_LIST: Food[] = [
     buyLabel: 'confezione da 500 g',
   },
   {
+    id: 'couscous',
+    name: 'Cous cous, rinvenuto',
+    category: 'Pane e cereali',
+    per100g: { kcal: 110, proteinG: 3.8, carbG: 22, fatG: 0.2, fiberG: 1.4 },
+    unitGrams: { pugno: 150, cucchiaio: 20 },
+    buyFactor: 0.4,
+    buyLabel: 'confezione da 500 g',
+  },
+  {
     id: 'couscous-integrale',
     name: 'Cous cous integrale, rinvenuto',
     category: 'Pane e cereali',
@@ -201,7 +210,8 @@ const FOOD_LIST: Food[] = [
     id: 'lenticchie-rosse',
     name: 'Lenticchie rosse decorticate, cotte',
     category: 'Legumi',
-    per100g: { kcal: 110, proteinG: 8.5, carbG: 16, fatG: 0.5, fiberG: 3.5 },
+    // Secche ≈ 350 kcal e 24,5 g di proteine per 100 g; resa della cottura ≈ 2,5, coerente con buyFactor 0,4.
+    per100g: { kcal: 140, proteinG: 9.8, carbG: 20.5, fatG: 0.6, fiberG: 4.3 },
     unitGrams: { 'mano a coppa': 80, cucchiaio: 15 },
     buyFactor: 0.4,
     buyLabel: 'confezione da 500 g',
@@ -676,7 +686,7 @@ const FOOD_LIST: Food[] = [
   },
   {
     id: 'burro-arachidi',
-    name: 'Crema 100% arachidi',
+    name: 'Crema di arachidi 100%',
     category: 'Dispensa',
     per100g: { kcal: 612, proteinG: 26, carbG: 11, fatG: 50, fiberG: 7 },
     unitGrams: { pollice: 15, cucchiaio: 15, cucchiaino: 6 },

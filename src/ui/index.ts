@@ -1,6 +1,6 @@
 /** Design system di Ritmo. Documentazione: docs/UI.md. */
 export { cn } from './cn';
-export { toneColor, toneInk, toneOn, toneSoft, type Tone, type AnyTone } from './tones';
+export { toneColor, toneInk, toneOn, toneSoft, toneRing, toneEdge, type Tone, type AnyTone } from './tones';
 export { spring, springSoft, springSnappy, fade, fadeUp, staggerItem, PRESS_SCALE } from './motion';
 export { renderIcon, type IconLike } from './icon';
 export { useFocusTrap } from './useFocusTrap';
@@ -14,6 +14,8 @@ export { IconButton, type IconButtonProps } from './IconButton';
 export { Pressable, type PressableProps } from './Pressable';
 export { Pill, type PillProps } from './Pill';
 export { DayTypeBadge, DAY_TYPE_ICON, type DayTypeBadgeProps } from './DayTypeBadge';
+export { BallIcon } from './BallIcon';
+export { Floodlights, type FloodlightsProps } from './Floodlights';
 export { ProgressRing, type ProgressRingProps } from './ProgressRing';
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
 export { Sheet, type SheetProps } from './Sheet';

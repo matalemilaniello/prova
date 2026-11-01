@@ -13,6 +13,7 @@ import {
   CoachError,
   DEFAULT_MODEL,
   errorInfo,
+  modelLabel,
   streamCoachReply,
   tidyReply,
   type CoachErrorKind,
@@ -46,6 +47,8 @@ export interface CoachChat {
   announcement: string;
   /** Id dei messaggi arrivati in questa sessione (entrano con un'animazione). */
   freshIds: Set<string>;
+  /** Risposte date da un altro modello per un fallback lato server: id del messaggio → nome del modello. */
+  answeredBy: Record<string, string>;
   send: (text: string, image?: OutgoingImage) => void;
   retry: (errorMessage: ChatMessage) => void;
   continueReply: () => void;
@@ -57,6 +60,7 @@ export function useCoachChat(): CoachChat {
   const [errorKinds, setErrorKinds] = useState<Record<string, CoachErrorKind>>({});
   const [announcement, setAnnouncement] = useState('');
   const [freshIds, setFreshIds] = useState<Set<string>>(() => new Set());
+  const [answeredBy, setAnsweredBy] = useState<Record<string, string>>({});
   const abortRef = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const textRef = useRef('');
@@ -109,6 +113,10 @@ export function useCoachChat(): CoachChat {
       });
       cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
+      if (reply.fallback && reply.model) {
+        const label = modelLabel(reply.model);
+        setAnsweredBy((m) => ({ ...m, [id]: label }));
+      }
       if (reply.stop === 'rifiuto') {
         addMessage({ id, role: 'assistant', text: '', stop: 'rifiuto' });
         setAnnouncement('Il coach non ha risposto a questa domanda.');
@@ -175,5 +183,5 @@ export function useCoachChat(): CoachChat {
     haptic('selection');
   }, []);
 
-  return { draft, busy: draft !== null, errorKinds, announcement, freshIds, send, retry, continueReply, stop };
+  return { draft, busy: draft !== null, errorKinds, announcement, freshIds, answeredBy, send, retry, continueReply, stop };
 }

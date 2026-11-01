@@ -1,41 +1,45 @@
-import type { ReactNode } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { Check, ChefHat, ClipboardList, Ellipsis, MoonStar, Play, Timer } from 'lucide-react';
-import type { DayType, HHMM, TimelineItem } from '../../../domain/types';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { BedDouble, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Timer } from 'lucide-react';
+import type { DayType, HHMM } from '../../../domain/types';
 import { RECIPES } from '../../../data/recipes';
 import { SESSIONS } from '../../../data/sessions';
 import { recipeNutrition } from '../../../engine/nutrition';
-import type { AdherenceSummary, NowPick } from '../../../engine/timeline';
-import { fmtKcal, fmtMinutes } from '../../../lib/format';
-import { Button, Card, IconButton, cn, spring, toneColor, toneInk, toneSoft, type AnyTone } from '../../../ui';
-import { itemIcon, itemTone } from '../kinds';
+import type { AdherenceSummary, DayItem, NowPick, StreakInfo } from '../../../engine/timeline';
+import { fmtKcal, fmtMinutes, fmtPercent, plural } from '../../../lib/format';
+import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk } from '../../../ui';
+import { BOARD_LABEL, itemIcon, itemTone } from '../kinds';
 
 export interface NowCardProps {
   pick: NowPick | null;
   dayType: DayType;
   summary: AdherenceSummary;
+  successful: boolean;
+  streak: StreakInfo;
   curfew: HHMM;
   bed: HHMM;
   /** Minuti al coprifuoco (negativo se passato). */
   curfewIn: number;
-  onMark: (item: TimelineItem) => void;
-  onOpen: (item: TimelineItem) => void;
-  onOptions: (item: TimelineItem) => void;
-}
-
-/** Righe del campo: cerchio di centrocampo e linea di metà campo, appena accennati. */
-function PitchLines({ tone }: { tone: AnyTone }) {
-  const c = `color-mix(in srgb, ${toneColor(tone)} 15%, transparent)`;
-  return (
-    <svg aria-hidden className="pointer-events-none absolute -right-[72px] -top-[104px]" width="230" height="230" viewBox="0 0 230 230" fill="none">
-      <circle cx="115" cy="115" r="78" stroke={c} strokeWidth="1.5" />
-    </svg>
-  );
+  /** La voce non si può ancora segnare: da che ora sì (coprifuoco onesto). */
+  lockedUntil: HHMM | null;
+  /** Dal coprifuoco meno 15 minuti la voce del telefono apre il rito della sera. */
+  ritual: boolean;
+  /** Primo giorno d'uso: conta da adesso. */
+  firstDay: boolean;
+  /** Voce "A letto" ancora da segnare, per la riga secondaria della giornata chiusa. */
+  bedItem?: DayItem;
+  bedLocked: HHMM | null;
+  /** La giornata si è appena chiusa in questa sessione: la serie scorre. */
+  justCompleted: boolean;
+  onMark: (item: DayItem) => void;
+  onOpen: (item: DayItem) => void;
+  onOptions: (item: DayItem) => void;
+  onRitual: () => void;
 }
 
 function stateLabel(pick: NowPick): string {
   const d = pick.deltaMin;
-  if (pick.item.kind === 'minima' && pick.state === 'adesso') return 'Da fare oggi';
+  if (pick.item.kind === 'minima' && pick.item.id !== 'minima:telefono' && pick.state === 'adesso') return 'Da fare oggi';
   if (pick.state === 'adesso') return d < -2 ? `Adesso · da ${fmtMinutes(-d)}` : 'Adesso';
   if (pick.state === 'prossima') return d <= 240 ? `Prossima · tra ${fmtMinutes(d)}` : 'Prossima';
   return 'Da segnare';
@@ -48,7 +52,7 @@ interface Content {
   meta: string[];
 }
 
-function contentFor(item: TimelineItem, dayType: DayType, curfewIn: number, bed: HHMM): Content {
+function contentFor(item: DayItem, dayType: DayType, curfewIn: number, bed: HHMM): Content {
   switch (item.kind) {
     case 'pasto': {
       const recipe = item.ref ? RECIPES[item.ref] : undefined;
@@ -87,32 +91,74 @@ function contentFor(item: TimelineItem, dayType: DayType, curfewIn: number, bed:
       return { kicker: item.title, headline: item.detail ?? item.title, meta: ['Con il pasto'] };
     case 'minima':
       return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: [] };
+    case 'spesa':
+      return { kicker: 'Sabato', headline: item.title, sub: 'La lista somma tutti i pasti della settimana prossima, divisa per reparto.', meta: ['Lista pronta'] };
+    case 'preparazione':
+      return {
+        kicker: 'Domenica',
+        headline: item.title,
+        sub: 'Una volta sola: pranzi e basi pronti per i giorni di scuola.',
+        meta: (item.detail ?? '').split(' · ').filter(Boolean),
+      };
+    case 'revisione':
+      return {
+        kicker: 'Domenica',
+        headline: 'Il referto della settimana',
+        sub: 'Voti, peso, sonno, dolori e carico: il piano si corregge da qui.',
+        meta: ['10 minuti'],
+      };
   }
 }
 
 /** Card "Adesso": la prossima voce da fare, grande, con l'azione principale a portata di pollice. */
-export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark, onOpen, onOptions }: NowCardProps) {
-  if (!pick) return <DoneCard summary={summary} curfew={curfew} bed={bed} curfewIn={curfewIn} />;
+export function NowCard(props: NowCardProps) {
+  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, firstDay, onMark, onOpen, onOptions, onRitual } = props;
+  if (!pick) return <DoneCard {...props} />;
   const { item } = pick;
-  const tone = itemTone(item);
+  const tone = itemTone(item, dayType);
   const Icon = itemIcon(item);
   const c = contentFor(item, dayType, curfewIn, bed);
   const late = pick.state === 'in-ritardo';
   const allDay = item.kind === 'minima' && item.id !== 'minima:telefono' && pick.state === 'adesso';
+  const ink = tone === 'neutral' ? 'var(--ink-2)' : toneInk(tone);
 
   let primary: ReactNode;
   let secondary: ReactNode = null;
-  if (item.kind === 'palestra') {
+  let note: string | null = null;
+  const markBtn = (variant: 'primary' | 'secondary') => (
+    <Button
+      size="lg"
+      variant={variant}
+      icon={Check}
+      className={variant === 'primary' ? 'min-w-0 flex-1 px-4' : 'px-5'}
+      haptic={variant === 'primary' ? 'success' : undefined}
+      onClick={() => onMark(item)}
+      aria-label={variant === 'secondary' ? `Segna fatto: ${item.title}` : undefined}
+    >
+      Fatto
+    </Button>
+  );
+
+  if (lockedUntil && !ritual) {
+    primary = (
+      <Button size="lg" variant="secondary" icon={MoonStar} className="min-w-0 flex-1 px-4" disabled>
+        {`Dalle ${lockedUntil}`}
+      </Button>
+    );
+    note = `Si segna dalle ${lockedUntil}, quando posi davvero il telefono.`;
+  } else if (ritual) {
+    primary = (
+      <Button size="lg" icon={MoonStar} className="min-w-0 flex-1 px-4" onClick={onRitual}>
+        Rito della sera
+      </Button>
+    );
+  } else if (item.kind === 'palestra') {
     primary = (
       <Button size="lg" icon={Play} className="min-w-0 flex-1 px-4" onClick={() => onOpen(item)}>
         Inizia
       </Button>
     );
-    secondary = (
-      <Button size="lg" variant="secondary" icon={Check} className="px-5" onClick={() => onMark(item)} aria-label={`Segna fatto: ${item.title}`}>
-        Fatto
-      </Button>
-    );
+    secondary = markBtn('secondary');
   } else if (item.kind === 'calcio') {
     primary = (
       <Button size="lg" icon={Timer} className="flex-1" onClick={() => onOpen(item)}>
@@ -125,12 +171,21 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
         Compila
       </Button>
     );
-  } else {
+  } else if (item.kind === 'revisione') {
     primary = (
-      <Button size="lg" icon={Check} className="min-w-0 flex-1 px-4" haptic="success" onClick={() => onMark(item)}>
-        Fatto
+      <Button size="lg" icon={Flag} className="min-w-0 flex-1 px-4" onClick={() => onOpen(item)}>
+        Apri il referto
       </Button>
     );
+  } else if (item.kind === 'spesa' || item.kind === 'preparazione') {
+    primary = markBtn('primary');
+    secondary = (
+      <Button size="lg" variant="secondary" icon={item.kind === 'spesa' ? ShoppingBasket : ListChecks} className="px-5" onClick={() => onOpen(item)}>
+        {item.kind === 'spesa' ? 'Lista' : 'Attività'}
+      </Button>
+    );
+  } else {
+    primary = markBtn('primary');
     if (item.kind === 'pasto' && item.ref) {
       secondary = (
         <Button size="lg" variant="secondary" icon={ChefHat} className="px-5" onClick={() => onOpen(item)}>
@@ -147,8 +202,15 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
   }
 
   return (
-    <Card variant="highlight" tone={tone} padding="none" as="section" aria-labelledby="oggi-adesso" className="isolate">
-      <PitchLines tone={tone} />
+    <Card variant="highlight" tone={tone} padding="none" as="section" aria-labelledby="oggi-adesso">
+      {firstDay && (
+        <div className="relative flex items-center gap-2.5 border-b border-line px-5 py-3">
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />
+          <p className="t-footnote min-w-0 text-ink-2">
+            <span className="font-semibold text-ink">Primo giorno: conta da adesso.</span> Le voci di stamattina non pesano.
+          </p>
+        </div>
+      )}
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={item.id}
@@ -159,7 +221,7 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
           transition={spring}
         >
           <div className="flex items-center justify-between gap-3">
-            <h2 id="oggi-adesso" className="t-label flex items-center gap-2" style={{ color: late ? 'var(--warn-ink)' : toneInk(tone) }}>
+            <h2 id="oggi-adesso" className={cn(BOARD_LABEL, 'flex items-center gap-2')} style={{ color: late ? 'var(--warn-ink)' : ink }}>
               {pick.state === 'adesso' && (
                 <span aria-hidden className="relative flex size-2">
                   <span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: toneColor(tone) }} />
@@ -169,7 +231,7 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
               {stateLabel(pick)}
             </h2>
             <div className="-mr-1 flex shrink-0 items-center gap-2">
-              <span className="t-mono rounded-full px-2.5 py-1 text-[0.8125rem] font-medium text-ink" style={{ background: toneSoft(tone, 14) }}>
+              <span className="t-mono rounded-full bg-card-2 px-2.5 py-1 text-[0.8125rem] font-medium text-ink shadow-[inset_0_0_0_1px_var(--line)]">
                 {late ? `era alle ${item.time}` : allDay ? 'in giornata' : item.time}
               </span>
               <IconButton icon={Ellipsis} label={`Altre opzioni: ${item.title}`} size="sm" variant="tinted" onClick={() => onOptions(item)} />
@@ -177,7 +239,11 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
           </div>
 
           <div className="mt-4 flex items-center gap-2.5">
-            <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-[10px]" style={{ background: toneSoft(tone, 18), color: toneInk(tone) }}>
+            <span
+              aria-hidden
+              className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-card-2"
+              style={{ color: ink, boxShadow: `inset 0 0 0 1px ${tone === 'neutral' ? 'var(--line-strong)' : `color-mix(in srgb, ${toneColor(tone)} 55%, transparent)`}` }}
+            >
               <Icon size={17} strokeWidth={2.3} />
             </span>
             <p className="t-callout min-w-0 truncate font-semibold text-ink-2">{c.kicker}</p>
@@ -187,7 +253,7 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
           {c.meta.length > 0 && (
             <ul className="mt-3.5 flex flex-wrap gap-1.5" aria-label="Dettagli">
               {c.meta.map((m) => (
-                <li key={m} className="t-footnote inline-flex h-7 items-center rounded-full bg-ink-soft px-2.5 font-medium text-ink-2">
+                <li key={m} className="t-mono inline-flex h-7 items-center rounded-full px-2.5 text-[0.75rem] font-medium text-ink-2 shadow-[inset_0_0_0_1px_var(--line)]">
                   {m}
                 </li>
               ))}
@@ -198,33 +264,87 @@ export function NowCard({ pick, dayType, summary, curfew, bed, curfewIn, onMark,
             {primary}
             {secondary}
           </div>
+          {note && <p className="t-footnote mt-2.5 text-ink-3">{note}</p>}
         </motion.div>
       </AnimatePresence>
     </Card>
   );
 }
 
-/** Tutto segnato: chiusura sobria della giornata. */
-function DoneCard({ summary, curfew, bed, curfewIn }: { summary: AdherenceSummary; curfew: HHMM; bed: HHMM; curfewIn: number }) {
+/** Giornata chiusa: tutte le voci che contano sono segnate. La serie scorre, "A letto" resta a portata. */
+function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem, bedLocked, justCompleted, onMark }: NowCardProps) {
+  const reduce = useReducedMotion();
   const empty = summary.total === 0;
+  const target = streak.days;
+  const [shown, setShown] = useState(() => (justCompleted && streak.includesToday ? Math.max(0, target - 1) : target));
+  useEffect(() => {
+    if (shown === target) return;
+    const id = window.setTimeout(() => setShown(target), reduce ? 0 : 520);
+    return () => window.clearTimeout(id);
+  }, [target, shown, reduce]);
+
   return (
-    <Card variant="highlight" tone="good" padding="lg" as="section" aria-labelledby="oggi-adesso" className="isolate">
-      <PitchLines tone="good" />
-      <motion.div className="relative" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-        <h2 id="oggi-adesso" className="t-label text-good-ink">
-          {empty ? 'Giornata libera' : 'Giornata completa'}
+    <Card variant="highlight" tone={successful ? 'good' : 'neutral'} padding="none" as="section" aria-labelledby="oggi-adesso">
+      {justCompleted && !reduce && (
+        <motion.span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(90% 80% at 50% 0%, rgb(255 248 230 / 0.16), transparent 70%)' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 0.35] }}
+          transition={{ duration: 1.6, ease: 'easeOut' }}
+        />
+      )}
+      <motion.div className="relative p-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
+        <h2 id="oggi-adesso" className={cn(BOARD_LABEL, successful ? 'text-good-ink' : 'text-ink-2')}>
+          {empty ? 'Giornata libera' : successful ? 'Giornata completa' : 'Giornata chiusa'}
         </h2>
-        <div className="mt-4 flex items-center gap-3.5">
-          <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-full bg-good text-[var(--on-good)] shadow-[0_0_24px_-4px_var(--good)]">
-            {empty ? <MoonStar size={24} strokeWidth={2.2} /> : <Check size={26} strokeWidth={3} />}
-          </span>
+        <div className="mt-4 flex items-center gap-4">
+          <motion.span
+            aria-hidden
+            className={cn(
+              'grid size-14 shrink-0 place-items-center rounded-full',
+              successful ? 'bg-good text-[var(--on-good)] shadow-[0_0_28px_-4px_var(--good)]' : 'bg-card-2 text-ink-2 shadow-[inset_0_0_0_1px_var(--line-strong)]',
+            )}
+            initial={justCompleted && !reduce ? { scale: 0.6 } : false}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 16 }}
+          >
+            {empty ? <MoonStar size={26} strokeWidth={2.2} /> : <Check size={28} strokeWidth={3} />}
+          </motion.span>
           <div className="min-w-0">
             <p className="t-title text-ink">{empty ? 'Niente in programma' : 'Tutto segnato'}</p>
-            <p className={cn('t-callout mt-1 text-ink-2')}>
-              {curfewIn > 0 ? `Telefono fuori alle ${curfew}, a letto alle ${bed}.` : `A letto alle ${bed}. Domani si riparte.`}
-            </p>
+            {!empty &&
+              (successful ? (
+                <p className="t-callout mt-0.5 flex items-baseline gap-1.5 text-ink-2">
+                  Serie di
+                  <NumberTicker value={shown} className="t-num text-[1.375rem] leading-none text-accent-ink" />
+                  {plural(target, 'giorno', 'giorni', false)}
+                </p>
+              ) : (
+                <p className="t-callout mt-0.5 text-ink-2">Aderenza {fmtPercent(summary.score)}: sotto il 70%. Domani si riparte.</p>
+              ))}
           </div>
         </div>
+
+        {bedItem ? (
+          <button
+            type="button"
+            onClick={() => onMark(bedItem)}
+            className="t-callout mt-5 flex min-h-12 w-full items-center gap-3 rounded-control bg-card-2 px-4 text-left shadow-[inset_0_0_0_1px_var(--line)] transition-transform duration-150 active:scale-[0.98]"
+            aria-label={bedLocked ? `A letto alle ${bed}. Si segna dalle ${bedLocked}` : `A letto alle ${bed}: segna fatto`}
+          >
+            <BedDouble size={18} strokeWidth={2.2} aria-hidden className="shrink-0 text-riposo-ink" />
+            <span className="min-w-0 flex-1 font-medium text-ink">
+              A letto alle <span className="t-mono">{bed}</span>
+            </span>
+            <span className="t-footnote shrink-0 font-semibold text-accent-ink">{bedLocked ? `Dalle ${bedLocked}` : 'Segna'}</span>
+          </button>
+        ) : (
+          <p className="t-callout mt-4 text-ink-2">
+            {curfewIn > 0 ? `Telefono fuori alle ${curfew}, a letto alle ${bed}.` : `Buonanotte. Domani si riparte.`}
+          </p>
+        )}
       </motion.div>
     </Card>
   );
