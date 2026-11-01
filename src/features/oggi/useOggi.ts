@@ -62,6 +62,11 @@ export interface OggiData {
    * di proposito (`STARTER_FIBER_SHARE`, circa 28 g su 35), come nel Menù di Settimana.
    */
   valuesTarget: MacroTarget;
+  /**
+   * Nota dei valori del giorno nei giorni di avvio, la stessa del Menù di Settimana: le fibre salgono per gradi e, a
+   * partita e vigilia, pasta, riso e pane alzati fino a 6 g/kg ne portano qualcuna in più. Null negli altri giorni.
+   */
+  valuesNote: string | null;
   items: DayItem[];
   status: Record<string, ItemStatus>;
   summary: AdherenceSummary;
@@ -202,6 +207,12 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     () => (starterDay ? { ...target, fiberG: Math.round(target.fiberG * STARTER_FIBER_SHARE) } : target),
     [starterDay, target],
   );
+  const valuesNote = useMemo(() => {
+    if (!starterDay) return null;
+    const ref = valuesTarget.fiberG;
+    const more = planned.matchCarbs && Math.round(planned.total.fiberG) > ref + 2 ? `, qualcuna in più con i carboidrati della ${planned.matchCarbs.when}` : '';
+    return `Fibre in aumento graduale: per ora circa ${ref}\u00a0g${more}.`;
+  }, [starterDay, valuesTarget, planned]);
 
   const weekSweets = useMemo(() => {
     let n = 0;
@@ -253,6 +264,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     matchEve,
     target,
     valuesTarget,
+    valuesNote,
     items,
     status,
     summary,

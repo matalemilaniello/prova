@@ -563,39 +563,39 @@ export default function OggiScreen() {
       {showCheckIn && <CheckInPrompt morning={nowM < 12 * 60} onOpen={() => open({ type: 'checkin', date: today })} />}
 
       <div className="flex flex-col gap-1.5">
-      <NowCard
-        pick={data.now}
-        dayType={data.dayType}
-        summary={summary}
-        successful={successful}
-        streak={data.streak}
-        curfew={curfew}
-        bed={bed}
-        curfewIn={curfewIn}
-        lockedUntil={data.now ? lockedUntil(data.now.item) : null}
-        lockedAction={lockedAction}
-        ritual={Boolean(data.now && phonePending && data.now.item.id === phonePending.id && ritualWindow)}
-        mealValues={data.planned.bySlot}
-        bedItem={data.bedItem}
-        bedLocked={data.bedItem ? lockedUntil(data.bedItem) : null}
-        justCompleted={justCompleted}
-        shopping={data.shopping}
-        onPlanB={openPlanB}
-        onMark={(item) => markDone(item, { toast: item.kind !== 'letto' })}
-        onOpen={openDetail}
-        onOptions={onOptions}
-        onRitual={() => setRitualOpen(true)}
-      />
-      {/* Le voci di ieri ancora aperte: una riga sotto Adesso, il mattino resta della colazione. */}
-      {data.yesterdayOpen.length > 0 && (
-        <RecoverLink
-          text={yesterdayText(data.yesterdayOpen.length)}
-          action="Sistema"
-          onPress={() =>
-            openRecover(yesterday, data.yesterdayOpen, 'Sistema ieri', 'Una dimenticanza non spezza la serie. Annulli tutto con una sola notifica.')
-          }
+        <NowCard
+          pick={data.now}
+          dayType={data.dayType}
+          summary={summary}
+          successful={successful}
+          streak={data.streak}
+          curfew={curfew}
+          bed={bed}
+          curfewIn={curfewIn}
+          lockedUntil={data.now ? lockedUntil(data.now.item) : null}
+          lockedAction={lockedAction}
+          ritual={Boolean(data.now && phonePending && data.now.item.id === phonePending.id && ritualWindow)}
+          mealValues={data.planned.bySlot}
+          bedItem={data.bedItem}
+          bedLocked={data.bedItem ? lockedUntil(data.bedItem) : null}
+          justCompleted={justCompleted}
+          shopping={data.shopping}
+          onPlanB={openPlanB}
+          onMark={(item) => markDone(item, { toast: item.kind !== 'letto' })}
+          onOpen={openDetail}
+          onOptions={onOptions}
+          onRitual={() => setRitualOpen(true)}
         />
-      )}
+        {/* Le voci di ieri ancora aperte: una riga sotto Adesso, il mattino resta della colazione. */}
+        {data.yesterdayOpen.length > 0 && (
+          <RecoverLink
+            text={yesterdayText(data.yesterdayOpen.length)}
+            action="Sistema"
+            onPress={() =>
+              openRecover(yesterday, data.yesterdayOpen, 'Sistema ieri', 'Una dimenticanza non spezza la serie. Annulli tutto con una sola notifica.')
+            }
+          />
+        )}
       </div>
 
       {showCurfew && <CurfewCard minutes={curfewIn} curfew={curfew} bed={bed} ritual={ritualWindow} onRitual={() => setRitualOpen(true)} />}
@@ -681,7 +681,7 @@ export default function OggiScreen() {
 
       {/* Il primo giorno, con dei pasti già passati prima dell'avvio, i valori del menù intero non dicono niente. */}
       {data.fullMenu && (
-        <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} />
+        <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} note={data.valuesNote} />
       )}
       <TipCard
         date={today}

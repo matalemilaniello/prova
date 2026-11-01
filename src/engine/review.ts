@@ -1218,7 +1218,7 @@ export function weeklyStepDef(id: WeeklyStepId, state?: Pick<ReviewState, 'profi
       return {
         id,
         title: 'Un frutto allo spuntino',
-        how: `Ogni giorno un frutto intero allo spuntino delle ${snack}: banana, mela o mandarini si portano in tasca, anche al lavoro.`,
+        how: `Ogni giorno un frutto intero allo spuntino delle ${snack}: una mela o una banana si portano in tasca, anche al lavoro.`,
         why: 'Ogni porzione di frutta e verdura in più, fino a 5 al giorno, si associa a meno infiammazione e a un microbiota più vario.',
         measure: 'manuale',
       };

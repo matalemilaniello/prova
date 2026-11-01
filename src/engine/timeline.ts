@@ -287,7 +287,7 @@ function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
       time: t.spuntino,
       kind: 'minima',
       title: 'Almeno un frutto',
-      detail: 'Intero e senza preparazione: mela, banana, clementine',
+      detail: 'Intero e senza preparazione: mela, pera o banana',
     },
     {
       id: 'minima:integratori',

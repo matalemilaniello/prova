@@ -17,6 +17,12 @@ interface MealSchedule {
 /** Lo stato che serve alle funzioni della timeline usate qui (i registri sono facoltativi). */
 export type DayState = Pick<AppData, 'plan' | 'dayLogs'> & Partial<AppData>;
 
+/**
+ * Quello che decide l'orario della spesa di avvio oltre al piano: gli esercizi del fisioterapista e le sedute fatte
+ * (la seduta dura come in Allenamento, con la fase di ingresso). Senza, giorno e orario possono non coincidere con Oggi.
+ */
+export type StarterShoppingState = Partial<Pick<AppData, 'physio' | 'workoutLogs'>>;
+
 interface TimelineDayItem {
   id: string;
   time: HHMM;
@@ -29,7 +35,7 @@ interface TimelineDayItem {
 type TimelineModule = {
   mealSchedule?: (day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>) => Record<MealSlot, MealSchedule>;
   daySuccessful?: (iso: ISODate, state: AppData) => boolean;
-  starterShopping?: (plan: Pick<Plan, 'startDate' | 'mealTimes'>) => { date: ISODate; time: HHMM } | null;
+  starterShopping?: (plan: Pick<Plan, 'startDate' | 'mealTimes'>, state?: StarterShoppingState) => { date: ISODate; time: HHMM } | null;
   firstShopping?: (state: DayState) => { id: string; date: ISODate; time: HHMM } | null;
   buildDay?: (iso: ISODate, state: DayState) => TimelineDayItem[];
   derivedStatus?: (iso: ISODate, state: DayState, item: TimelineDayItem) => string | undefined;
@@ -226,10 +232,13 @@ export function portionShort(
   return { lead: `${named ?? SCALED_FOODS_LABEL} `, pct: `${factor > 1 ? '+' : '−'}${fmtNumber(pct)}%`, tail: ` ${who}.` };
 }
 
-/** Giorno e orario della spesa di avvio (la voce di Oggi), se il motore della timeline la prevede. */
-export function starterShoppingSafe(plan: Plan): { date: ISODate; time: HHMM } | null {
+/**
+ * Giorno e orario della spesa di avvio (la voce di Oggi), se il motore della timeline la prevede. Passa gli esercizi
+ * del fisioterapista e le sedute: la spesa non si sovrappone alla seduta né agli esercizi, come in Oggi.
+ */
+export function starterShoppingSafe(plan: Plan, state: StarterShoppingState = {}): { date: ISODate; time: HHMM } | null {
   try {
-    return timeline.starterShopping?.(plan) ?? null;
+    return timeline.starterShopping?.(plan, state) ?? null;
   } catch {
     return null;
   }
@@ -240,8 +249,8 @@ export function starterShoppingSafe(plan: Plan): { date: ISODate; time: HHMM } |
  * cade in quella settimana. Da lì si contano i giorni in cui il fresco regge in frigo. Undefined altrimenti (la
  * lista usa il sabato della prima spesa o il sabato prima del lunedì).
  */
-export function shoppingDateFor(plan: Plan, monday: ISODate): ISODate | undefined {
-  const s = starterShoppingSafe(plan);
+export function shoppingDateFor(plan: Plan, monday: ISODate, state: StarterShoppingState = {}): ISODate | undefined {
+  const s = starterShoppingSafe(plan, state);
   return s && weekStart(s.date) === monday ? s.date : undefined;
 }
 
@@ -263,7 +272,7 @@ export function firstShoppingSafe(state: DayState): FirstShoppingInfo | null {
     const shop =
       timeline.firstShopping?.(state) ??
       (() => {
-        const s = starterShoppingSafe(state.plan);
+        const s = starterShoppingSafe(state.plan, state);
         return s ? { id: 'rito:spesa-avvio', date: s.date, time: s.time } : null;
       })();
     if (!shop) return null;

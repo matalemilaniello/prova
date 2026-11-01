@@ -38,6 +38,9 @@ export default function SettimanaScreen() {
   const today = usePlanDay();
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
+  // Esercizi del fisioterapista e sedute: decidono l'orario della spesa di avvio, come in Oggi.
+  const physio = useApp((s) => s.physio);
+  const workoutLogs = useApp((s) => s.workoutLogs);
   // Piano, diario, controlli e profilo: le porzioni della spesa sono quelle del menù, minimo di partita compreso.
   const nutrition = useNutritionState();
   const initialTab = useUrlParam('tab');
@@ -50,7 +53,10 @@ export default function SettimanaScreen() {
   const [manualOffset, setManualOffset] = useState<number | null>(() => (weekParam === 'prossima' ? 1 : null));
   const weekend = isWeekend(today);
   // Chi comincia il venerdì sera fa la prima spesa sabato, con la lista della settimana dopo (e il fine settimana).
-  const nextLead = useMemo(() => shoppingLeadSafe(addDays(weekStart(today), 7), { plan, dayLogs }), [today, plan, dayLogs]);
+  const nextLead = useMemo(
+    () => shoppingLeadSafe(addDays(weekStart(today), 7), { plan, dayLogs, physio, workoutLogs }),
+    [today, plan, dayLogs, physio, workoutLogs],
+  );
   const offsetFor = (t: Tab) => manualOffset ?? ((weekend || nextLead) && t !== 'menu' ? 1 : 0);
   const offset = offsetFor(tab);
   const [picked, setPicked] = useState<ISODate>(today);
@@ -80,10 +86,10 @@ export default function SettimanaScreen() {
   const shopMonday = addDays(thisMonday, offsetFor('spesa') * 7);
   const shopFrom = shoppingFromDate(plan, shopMonday);
   const list = useMemo(
-    () => shoppingList(shopMonday, nutrition, { fromDate: shopFrom, lead: shoppingLeadSafe(shopMonday, { plan, dayLogs }) }),
-    [shopMonday, shopFrom, nutrition, plan, dayLogs],
+    () => shoppingList(shopMonday, nutrition, { fromDate: shopFrom, lead: shoppingLeadSafe(shopMonday, { plan, dayLogs, physio, workoutLogs }) }),
+    [shopMonday, shopFrom, nutrition, plan, dayLogs, physio, workoutLogs],
   );
-  const lead = useMemo(() => shoppingLeadSafe(monday, { plan, dayLogs }), [monday, plan, dayLogs]);
+  const lead = useMemo(() => shoppingLeadSafe(monday, { plan, dayLogs, physio, workoutLogs }), [monday, plan, dayLogs, physio, workoutLogs]);
   const checked = useApp((s) => s.shoppingChecked[shopMonday] ?? EMPTY);
   const prepMonday = addDays(thisMonday, offsetFor('preparazione') * 7);
   const prepDone = useApp((s) => s.prepDone[prepMonday] ?? EMPTY);
@@ -153,7 +159,7 @@ export default function SettimanaScreen() {
 
   // Dalla nota dei giorni di avvio: la spesa di avvio, nella settimana in cui cade.
   const openStarterShopping = () => {
-    const shop = starterShoppingSafe(plan);
+    const shop = starterShoppingSafe(plan, { physio, workoutLogs });
     if (shop) {
       const o = Math.round(daysBetween(thisMonday, weekStart(shop.date)) / 7);
       setManualOffset(Math.max(minOffset, Math.min(MAX_AHEAD, o)));

@@ -88,6 +88,12 @@ const VIEWS = [
   { name: 'oggi-primo-giorno', hash: 'oggi', weekday: 2, now: '15:35', firstDay: '15:30', wait: 900 },
   // Il secondo mattino: benvenuto martedì alle 14:30, mercoledì (calcetto) alle 07:40, con le voci di ieri aperte.
   { name: 'oggi-giorno-2', hash: 'oggi', weekday: 2, now: '07:40', firstDay: '14:30', firstDayAgo: 1, wait: 900, fold: true },
+  // Le altre schede da utente nuovo: secondo giorno dopo un primo avvio il martedì alle 14:30 (giorni di avvio).
+  { name: 'nuovo-settimana', hash: 'settimana', query: { tab: 'menu' }, weekday: 2, now: '18:10', firstDay: '14:30', firstDayAgo: 1, wait: 900 },
+  { name: 'nuovo-settimana-spesa', hash: 'settimana', query: { tab: 'spesa' }, weekday: 2, now: '18:10', firstDay: '14:30', firstDayAgo: 1, wait: 900 },
+  { name: 'nuovo-allenamento', hash: 'allenamento', weekday: 2, now: '18:10', firstDay: '14:30', firstDayAgo: 1, wait: 900 },
+  { name: 'nuovo-coach', hash: 'coach', weekday: 2, now: '18:10', firstDay: '14:30', firstDayAgo: 1, wait: 900 },
+  { name: 'nuovo-progressi', hash: 'progressi', weekday: 2, now: '18:10', firstDay: '14:30', firstDayAgo: 1, wait: 900 },
   { name: 'settimana', hash: 'settimana', query: { tab: 'menu' } },
   { name: 'settimana-spesa', hash: 'settimana', query: { tab: 'spesa' } },
   { name: 'settimana-preparazione', hash: 'settimana', query: { tab: 'preparazione' } },

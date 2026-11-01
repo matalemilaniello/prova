@@ -81,7 +81,9 @@ function spanText(dates: ISODate[], mealCount: number, opts: { lead: boolean; st
 
 export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
   // La spesa di avvio cade quando cade: il fresco si conta da quel giorno, non dal sabato.
-  const shopDate = useMemo(() => shoppingDateFor(state.plan, weekStart), [state.plan, weekStart]);
+  const physio = useApp((s) => s.physio);
+  const workoutLogs = useApp((s) => s.workoutLogs);
+  const shopDate = useMemo(() => shoppingDateFor(state.plan, weekStart, { physio, workoutLogs }), [state.plan, weekStart, physio, workoutLogs]);
   const list = useMemo(() => shoppingList(weekStart, state, { fromDate, lead, shopDate }), [weekStart, state, fromDate, lead, shopDate]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);

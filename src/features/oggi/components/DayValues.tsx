@@ -110,6 +110,8 @@ export interface DayValuesProps {
   eaten: DayNutritionDetail;
   target: MacroTarget;
   minimal: boolean;
+  /** Riga sotto la legenda del dettaglio (nei giorni di avvio: perché il riferimento delle fibre è più basso). */
+  note?: string | null;
 }
 
 /**
@@ -118,7 +120,7 @@ export interface DayValuesProps {
  * ("2.716 di 2.800"): prima del primo pasto segnato il numero è il previsto dal menù, con l'anello tratteggiato,
  * poi il già mangiato, con l'arco sull'obiettivo. Il tocco apre il dettaglio: il menù contro l'obiettivo, con la tacca.
  */
-export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
+export function DayValues({ planned, eaten, target, minimal, note }: DayValuesProps) {
   const [open, setOpen] = useState(false);
   const reduce = useReducedMotion();
   const id = useId();
@@ -230,6 +232,7 @@ export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
                   Obiettivo
                 </span>
               </div>
+              {note && <p className="t-caption mt-2.5 text-ink-3">{note}</p>}
             </div>
           </motion.div>
         )}
