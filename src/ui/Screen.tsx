@@ -27,7 +27,7 @@ export interface ScreenProps {
    * Riflettori dietro l'intestazione (elemento firma): intensità 0-1 (default 0,5), tono che tinge il bordo
    * dei coni, `flare` per il bagliore di giornata chiusa, `curfew` dopo il coprifuoco. `false` li spegne.
    */
-  light?: Pick<FloodlightsProps, 'intensity' | 'tone' | 'flare' | 'curfew' | 'pitch'> | false;
+  light?: Pick<FloodlightsProps, 'intensity' | 'tone' | 'flare' | 'curfew' | 'pitch' | 'lamps'> | false;
   /** Classi del contenitore dei contenuti (default: colonna con spazi da 24 px). */
   contentClassName?: string;
   className?: string;
@@ -115,7 +115,7 @@ export function Screen({
       <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden overscroll-y-contain" data-scroll-container>
         {light !== false && <Floodlights intensity={0.5} {...(light || {})} />}
         <motion.header
-          className={cn('relative pb-5', onBack ? 'pt-[calc(var(--safe-top)+52px)]' : 'pt-[calc(var(--safe-top)+14px)]')}
+          className={cn('relative pb-5', onBack ? 'pt-[calc(var(--safe-top)+52px)]' : 'pt-[calc(var(--safe-top)+24px)]')}
           style={{ ...sidePad, opacity: largeOpacity }}
         >
           {(eyebrow || demo) && (

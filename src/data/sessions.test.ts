@@ -164,6 +164,7 @@ describe('catalogo degli esercizi', () => {
       'polpacci-in-piedi-macchina',
       'polpacci-seduto',
       'tibiale-anteriore-seduto',
+      'sollevamenti-punte-pallina',
       'isometria-estensori-polso',
       'tyler-twist',
       'stacco-trap-bar',
@@ -280,6 +281,9 @@ describe('sedute', () => {
       expect(s.estMin, s.id).toBeLessThanOrEqual(hi);
       // La funzione esportata per l'interfaccia usa lo stesso modello.
       expect(estimateSessionMin(s), s.id).toBe(Math.round(est));
+      // L'anteprima mostra i minuti di ogni blocco: la loro somma è la durata in testa.
+      const blocks = s.blocks.reduce((tot, b) => tot + Math.round(blockMin(b.items)), 0);
+      expect(blocks, `${s.id}: blocchi ${blocks} min, estMin ${s.estMin}`).toBe(s.estMin);
     }
   });
 });
@@ -337,7 +341,10 @@ describe('regole tecniche della settimana', () => {
       ['core anti-rotazione', ['pallof-press']],
     ];
     for (const [what, ids] of need) expect(usedIn(ids, mandatory).length, what).toBeGreaterThanOrEqual(1);
-    expect(usedIn(['tibiale-anteriore-seduto', 'tibiale-al-muro'], mandatory).length, 'tibiale anteriore').toBe(2);
+    // Per la gamba sotto il ginocchio: tibiale posteriore in A (con il soleo), tibiale anteriore in B (e in C).
+    expect(usedIn(['sollevamenti-punte-pallina'], [A]).length, 'tibiale posteriore in A').toBe(1);
+    expect(usedIn(['tibiale-anteriore-seduto', 'tibiale-al-muro'], mandatory).length, 'tibiale anteriore').toBe(1);
+    expect(usedIn(['tibiale-anteriore-seduto', 'tibiale-al-muro'], [A]).length, 'A senza tibiale anteriore').toBe(0);
     expect(usedIn(['tyler-twist', 'eccentrico-estensori-polso'], mandatory).length, 'eccentrico del polso').toBe(2);
   });
 

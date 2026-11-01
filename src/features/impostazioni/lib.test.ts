@@ -7,13 +7,18 @@ import {
   hasErrors,
   initials,
   kcalFromMacros,
+  matchEveCount,
+  matchEveNote,
   mealOrderIssues,
   nextGymSession,
   normalizeSite,
   painLabel,
+  shortTimeInBed,
   sleepSteps,
   sortSupplements,
+  suggestedBedtime,
   suggestDayType,
+  targetDayCounts,
   validateBody,
   weekSummary,
 } from './lib';
@@ -47,6 +52,18 @@ describe('settimana', () => {
     ]);
   });
 
+  it('conta la vigilia della partita tra i giorni che mangiano come il calcio', () => {
+    // Domenica di riposo, partita il lunedì: la domenica usa l'obiettivo del calcio.
+    expect(targetDayCounts(DEFAULT_WEEK)).toEqual({ calcio: 4, palestra: 2, leggero: 1, riposo: 0 });
+    expect(matchEveCount(DEFAULT_WEEK)).toBe(1);
+    expect(matchEveNote(DEFAULT_WEEK)).toBe('La domenica, vigilia della partita, mangia come un giorno di calcio');
+    // Senza partita il lunedì la domenica torna di riposo.
+    const noMatch = DEFAULT_WEEK.map((d) => (d.weekday === 0 ? { ...d, football: undefined } : d));
+    expect(targetDayCounts(noMatch)).toEqual({ calcio: 3, palestra: 2, leggero: 1, riposo: 1 });
+    expect(matchEveCount(noMatch)).toBe(0);
+    expect(matchEveNote(noMatch)).toBeNull();
+  });
+
   it('descrive le attività del giorno', () => {
     expect(dayActivities(DEFAULT_WEEK[0]).map((a) => a.label)).toEqual(['Partita 21:00', 'Fisioterapista']);
     expect(dayActivities(DEFAULT_WEEK[5])[0].label).toBe('Seduta C 11:00, facoltativa');
@@ -76,9 +93,21 @@ describe('pasti, sonno, macro', () => {
 
   it('costruisce la scala del sonno attraverso la mezzanotte', () => {
     const steps = sleepSteps(DEFAULT_SLEEP);
-    expect(steps.map((s) => s.bed)).toEqual(['00:45', '00:30', '00:15', '00:00', '23:45', '23:30']);
+    expect(steps.map((s) => s.bed)).toEqual(['00:45', '00:30', '00:15', '00:00', '23:45', '23:30', '23:15']);
     expect(sleepSteps({ ...DEFAULT_SLEEP, current: '23:00' })).toHaveLength(1);
-    expect(sleepSteps({ ...DEFAULT_SLEEP, stepMin: 20 }).at(-1)?.bed).toBe('23:30');
+    expect(sleepSteps({ ...DEFAULT_SLEEP, stepMin: 20 }).at(-1)?.bed).toBe('23:15');
+  });
+
+  it('suggerisce 8 ore a letto quando l’obiettivo ne lascia meno', () => {
+    expect(suggestedBedtime('07:15')).toBe('23:15');
+    expect(suggestedBedtime('06:30')).toBe('22:30');
+    expect(suggestedBedtime('08:00')).toBe('00:00');
+    expect(shortTimeInBed(DEFAULT_SLEEP)).toBe(false); // 23:15 → 07:15: 8 ore
+    expect(shortTimeInBed({ ...DEFAULT_SLEEP, target: '23:45' })).toBe(true); // 7 h 30
+    expect(shortTimeInBed({ ...DEFAULT_SLEEP, target: '22:45' })).toBe(false);
+    // Già prima dell'obiettivo: conta l'orario attuale.
+    expect(shortTimeInBed({ ...DEFAULT_SLEEP, current: '23:00', target: '23:45' })).toBe(false);
+    expect(shortTimeInBed({ ...DEFAULT_SLEEP, current: '23:30', target: '23:45', wake: '06:30' })).toBe(true);
   });
 
   it('fa tornare i conti tra calorie e macro', () => {

@@ -11,7 +11,7 @@ import { Activity, AlarmClock, BedDouble, Check, Scale, Zap } from 'lucide-react
 import type { CheckIn, HHMM, ISODate } from '../../domain/types';
 import { addDays, addMinutes, daysBetween, formatDayLong, formatRelativeDay, hhmmToMin, minToHHMM, nightMinutes, todayISO } from '../../engine/dates';
 import { buildTimeline } from '../../engine/timeline';
-import { bedtimeFor, isOnTargetFor, sleepHours } from '../../engine/sleep';
+import { bedtimeFor, estimatedSleepLabel, isOnTargetFor, sleepHours } from '../../engine/sleep';
 import { capitalize, fmtDelta, fmtHours, fmtKg, fmtMinutes } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
@@ -189,7 +189,7 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
       const hasBed = buildTimeline(yesterday, app).some((i) => i.id === 'letto');
       if (hasBed) app.setItemStatus(yesterday, 'letto', 'fatto');
     }
-    useUi.getState().toast(hours !== undefined ? `Controllo salvato · ${fmtHours(hours)} di sonno` : 'Controllo salvato', 'good');
+    useUi.getState().toast(hours !== undefined ? `Controllo salvato · ${fmtHours(hours)} a letto` : 'Controllo salvato', 'good');
     onClose();
   };
 
@@ -217,7 +217,7 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
           action={
             weighed ? (
               <button type="button" onClick={() => setWeighed(false)} className="hit-44 t-footnote shrink-0 font-semibold text-accent-ink">
-                Non pesato
+                Salta oggi
               </button>
             ) : undefined
           }
@@ -318,10 +318,13 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
                 className="overflow-hidden"
               >
                 <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] bg-card-2 px-4 py-3">
-                  <p className="flex items-baseline gap-1.5">
-                    <span className="t-num text-[1.75rem] text-ink">{fmtHours(hours)}</span>
-                    <span className="t-footnote text-ink-2">di sonno</span>
-                  </p>
+                  <div className="min-w-0">
+                    <p className="flex items-baseline gap-1.5">
+                      <span className="t-num text-[1.75rem] text-ink">{fmtHours(hours)}</span>
+                      <span className="t-footnote text-ink-2">a letto</span>
+                    </p>
+                    {bed && wake && <p className="t-caption text-ink-3">{estimatedSleepLabel(bed, wake)}</p>}
+                  </div>
                   {onTarget ? (
                     <Pill tone="good" icon={Check}>
                       In orario

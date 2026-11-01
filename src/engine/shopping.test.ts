@@ -4,6 +4,7 @@ import { defaultPlan } from '../data/defaults';
 import { FOODS } from '../data/foods';
 import { RECIPES } from '../data/recipes';
 import { weekDates } from './dates';
+import { emptyDayLog as emptyLog } from '../state/store';
 import { effectiveDayType } from './menu';
 import { lineGrams } from './nutrition';
 import {
@@ -263,6 +264,39 @@ describe('conservazione di carne e pesce freschi', () => {
     expect(text).toContain('APPENA A CASA');
     expect(text).toContain('- Petto di pollo: congela le porzioni per mercoledì');
     expect(shoppingText(list, { includeFreezer: false })).not.toContain('APPENA A CASA');
+  });
+});
+
+describe('giorni di avvio', () => {
+  /** Primo avvio domenica 1º novembre alle 21: tutta la settimana dal 2 è di avvio (vedi `isStarterDay`). */
+  const starterPlan = { ...plan, firstUse: { date: '2026-11-01', time: '21:00' } } as AppData['plan'];
+  const batch = Object.values(RECIPES).find((r) => r.batch && r.ingredients.some((l) => l.foodId === 'pollo'))!;
+
+  it('riconosce la spesa di avvio e i suoi giorni', () => {
+    const list = shoppingList('2026-11-02', { plan: starterPlan, dayLogs: {} });
+    expect(list.starter).toBe(true);
+    expect(list.starterDates).toEqual(weekDates('2026-11-02'));
+    // Nei giorni di avvio il menù non ha ricette da preparazione.
+    expect(list.items.every((i) => i.uses.every((u) => !RECIPES[u.recipeId]?.batch))).toBe(true);
+    // La settimana dopo è una spesa normale.
+    const next = shoppingList('2026-11-09', { plan: starterPlan, dayLogs: {} });
+    expect(next.starter).toBe(false);
+    expect(next.starterDates).toEqual([]);
+  });
+
+  it('senza preparazione niente è cucinato in anticipo: la carne di metà settimana va congelata da cruda', () => {
+    // Anche scegliendo a mano una ricetta da preparazione, nei giorni di avvio si cucina sul momento.
+    const dayLogs: AppData['dayLogs'] = {};
+    for (const d of weekDates('2026-11-02')) dayLogs[d] = { ...emptyLog(d), recipeSwaps: { cena: batch.id } };
+    const pollo = shoppingList('2026-11-02', { plan: starterPlan, dayLogs }).items.find((i) => i.foodId === 'pollo')!;
+    expect(pollo.uses.some((u) => u.ahead)).toBe(false);
+    expect(pollo.freezeDates?.[0]).toBe('2026-11-04');
+  });
+
+  it('senza primo avvio (dati di esempio) non ci sono giorni di avvio', () => {
+    const list = shoppingList('2026-11-02', state());
+    expect(list.starter).toBe(false);
+    expect(list.starterDates).toEqual([]);
   });
 });
 

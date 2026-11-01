@@ -44,7 +44,7 @@ export function FinishStep(p: FinishStepProps) {
         <h2 className="t-title text-ink">Com'è andata la {p.sessionName.replace(/^Seduta/, 'seduta')}?</h2>
         <p className="t-callout text-ink-2">
           {p.setsDone} serie su {p.setsPlanned}
-          {p.volume > 0 ? `, ${fmtNumber(Math.round(p.volume))} kg sollevati` : ''}. Tre risposte e hai finito.
+          {p.volume > 0 ? `, ${fmtNumber(Math.round(p.volume))}\u00a0kg sollevati` : ''}. Tre risposte e hai finito.
         </p>
       </header>
 

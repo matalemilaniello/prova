@@ -105,22 +105,31 @@ export function dateRange(from: ISODate, to: ISODate): ISODate[] {
 
 // ───────────────────────── Formattazione delle date ─────────────────────────
 
-const fmtLong = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-const fmtShort = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' });
+const fmtShortMonth = new Intl.DateTimeFormat('it-IT', { month: 'short' });
 const fmtWeekdayLong = new Intl.DateTimeFormat('it-IT', { weekday: 'long' });
 const fmtWeekdayShort = new Intl.DateTimeFormat('it-IT', { weekday: 'short' });
 const fmtMonthLong = new Intl.DateTimeFormat('it-IT', { month: 'long' });
 
 const clean = (s: string) => s.replace(/\.$/, '').replace(/\s+/g, ' ').trim();
 
-/** "martedì 10 novembre" */
-export function formatDayLong(iso: ISODate): string {
-  return clean(fmtLong.format(fromISO(iso)));
+/** Indicatore ordinale maschile: in italiano il primo del mese si scrive "1º" ("domenica 1º novembre"). */
+export const ORDINAL_FIRST = '1º';
+
+/** Numero del giorno come si scrive in una data: "1º", "2", … "31". */
+export function dayOfMonthLabel(n: number): string {
+  return n === 1 ? ORDINAL_FIRST : String(n);
 }
 
-/** "10 nov" */
+/** "martedì 10 novembre", "domenica 1º novembre" */
+export function formatDayLong(iso: ISODate): string {
+  const d = fromISO(iso);
+  return `${fmtWeekdayLong.format(d)} ${dayOfMonthLabel(d.getDate())} ${fmtMonthLong.format(d)}`;
+}
+
+/** "10 nov", "1º nov" */
 export function formatShort(iso: ISODate): string {
-  return clean(fmtShort.format(fromISO(iso)));
+  const d = fromISO(iso);
+  return `${dayOfMonthLabel(d.getDate())} ${clean(fmtShortMonth.format(d))}`;
 }
 
 /** "martedì" */
@@ -133,10 +142,10 @@ export function formatWeekdayShort(iso: ISODate): string {
   return clean(fmtWeekdayShort.format(fromISO(iso)));
 }
 
-/** "Martedì 10": titolo della giornata. */
+/** "Martedì 10", "Domenica 1º": titolo della giornata. */
 export function formatDayTitle(iso: ISODate): string {
   const w = formatWeekday(iso);
-  return `${w.charAt(0).toUpperCase()}${w.slice(1)} ${fromISO(iso).getDate()}`;
+  return `${w.charAt(0).toUpperCase()}${w.slice(1)} ${dayOfMonthLabel(fromISO(iso).getDate())}`;
 }
 
 /** "novembre" */
@@ -144,12 +153,31 @@ export function formatMonth(iso: ISODate): string {
   return fmtMonthLong.format(fromISO(iso));
 }
 
-/** "10-16 novembre" oppure "28 ottobre - 3 novembre". */
+/**
+ * Settimana compatta per etichette e titoli: "9-15 novembre", "26 ottobre-1º novembre" (trattino senza spazi,
+ * come negli intervalli di numeri). Nelle frasi usa `formatWeekSpan`.
+ */
 export function formatWeekRange(weekStartIso: ISODate): string {
   const a = fromISO(weekStart(weekStartIso));
   const b = fromISO(addDays(weekStart(weekStartIso), 6));
-  if (a.getMonth() === b.getMonth()) return `${a.getDate()}-${b.getDate()} ${fmtMonthLong.format(b)}`;
-  return `${a.getDate()} ${fmtMonthLong.format(a)} - ${b.getDate()} ${fmtMonthLong.format(b)}`;
+  if (a.getMonth() === b.getMonth()) return `${dayOfMonthLabel(a.getDate())}-${b.getDate()} ${fmtMonthLong.format(b)}`;
+  return `${dayOfMonthLabel(a.getDate())} ${fmtMonthLong.format(a)}-${dayOfMonthLabel(b.getDate())} ${fmtMonthLong.format(b)}`;
+}
+
+/** Davanti a 8 e 11 (e 80-89, per i numeri in genere) la preposizione si elide: "dall’8", "all’11". */
+const elides = (n: number) => n === 8 || n === 11;
+
+/**
+ * Settimana in una frase: "dal 9 al 15 novembre", "dal 26 ottobre al 1º novembre", "dall’8 al 14 marzo",
+ * "dal 5 all’11 aprile".
+ */
+export function formatWeekSpan(weekStartIso: ISODate): string {
+  const a = fromISO(weekStart(weekStartIso));
+  const b = fromISO(addDays(weekStart(weekStartIso), 6));
+  const from = `${elides(a.getDate()) ? 'dall’' : 'dal '}${dayOfMonthLabel(a.getDate())}`;
+  const to = `${elides(b.getDate()) ? 'all’' : 'al '}${dayOfMonthLabel(b.getDate())}`;
+  if (a.getMonth() === b.getMonth()) return `${from} ${to} ${fmtMonthLong.format(b)}`;
+  return `${from} ${fmtMonthLong.format(a)} ${to} ${fmtMonthLong.format(b)}`;
 }
 
 /** "oggi", "ieri", "domani", altrimenti "martedì 10 novembre". */

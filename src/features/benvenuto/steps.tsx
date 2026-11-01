@@ -3,38 +3,24 @@
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import {
-  Activity,
-  AlarmClock,
-  BedDouble,
-  CalendarCheck2,
-  Check,
-  Dumbbell,
-  Hand,
-  Lock,
-  Moon,
-  Pill as PillIcon,
-  Smartphone,
-  Sparkles,
-  Target,
-  TrendingUp,
-  ArchiveRestore,
-} from 'lucide-react';
+import { AlarmClock, ArchiveRestore, BedDouble, CalendarCheck2, Check, Hand, Lock, Smartphone, Sparkles, Target, TrendingUp } from 'lucide-react';
 import type { DayType, MacroTarget, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { computeTargets } from '../../engine/targets';
-import { currentDate } from '../../engine/dates';
+import { currentDate, formatDayLong } from '../../engine/dates';
 import { curfewFor } from '../../engine/sleep';
-import { DAY_TYPE_LABEL, DAY_TYPES, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt, plural } from '../../lib/format';
-import { useNowHHMM, useToday } from '../../state/hooks';
-import { BallIcon, Callout, Card, DayTypeBadge, Field, ListGroup, ListRow, NumberTicker, Segmented, TextInput, cn, staggerItem, toneColor, toneInk, toneSoft } from '../../ui';
+import { DAY_TYPE_LABEL, DAY_TYPES, fmtNumber, plural } from '../../lib/format';
+import { useNow } from '../../state/hooks';
+import { Callout, Card, DayTypeBadge, Field, ListGroup, NumberTicker, Segmented, TextInput, cn, staggerItem, toneColor, toneInk, toneSoft } from '../../ui';
 import { ChoiceCards, FormRow, InlineNumber, TimePill, tileStyle } from '../impostazioni/components/controls';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { PainSitesPicker } from '../impostazioni/components/Pickers';
-import { SleepStairs } from '../impostazioni/components/SleepStairs';
+import { SleepStairs, SleepTargetHint } from '../impostazioni/components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../impostazioni/components/SupplementEditor';
 import { DayEditorSheet, WeekDayList, WeekRibbon } from '../impostazioni/components/WeekEditor';
-import { GOAL_OPTIONS, dayTypeCounts, hasErrors, matchEveNote, nextGymSession, relativeWeekday, sleepSteps, validateBody, type ProfileErrors } from '../impostazioni/lib';
+import { GOAL_OPTIONS, dayTypeCounts, hasErrors, matchEveCount, matchEveNote, sleepSteps, targetDayCounts, validateBody, type ProfileErrors } from '../impostazioni/lib';
 import { DayDial } from './DayDial';
+import { finalizePlan, firstWeekSteps, startInfo } from './firstWeek';
+import { FirstWeekList } from './FirstWeekList';
 
 export interface StepProps {
   profile: Profile;
@@ -191,7 +177,7 @@ export function StepYou({ profile, setProfile, errors, showErrors }: StepProps &
       <EstimateCard targets={targets} />
 
       <Field label="Competenze" optional hint="Il coach adatta il tono: niente spiegazioni da principiante.">
-        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => setProfile({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista, medico dello sport" maxLength={80} />
+        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => setProfile({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista" maxLength={80} />
       </Field>
     </div>
   );
@@ -281,9 +267,12 @@ export function StepSleep({ plan, setPlan }: StepProps) {
           <TimePill label="Obiettivo dell’orario a letto" value={s.target} onChange={(target) => set({ target })} />
         </FormRow>
       </ListGroup>
-      <Card padding="lg">
-        <SleepStairs sleep={s} />
-      </Card>
+      <div className="flex flex-col gap-2.5">
+        <Card padding="lg">
+          <SleepStairs sleep={s} />
+        </Card>
+        <SleepTargetHint sleep={s} onApply={(target) => set({ target })} />
+      </div>
       <section className="flex flex-col gap-2" aria-labelledby="coprifuoco-label">
         <h3 id="coprifuoco-label" className="t-label px-1 text-ink-3">
           Telefono fuori dalla camera
@@ -383,26 +372,42 @@ function ReadyBadge() {
 }
 
 export function StepReady({ profile, plan, targets, install }: Pick<StepProps, 'profile' | 'plan'> & { targets: Record<DayType, MacroTarget>; install?: boolean }) {
-  const today = useToday();
-  const now = useNowHHMM();
-  const next = nextGymSession(plan, today, now);
-  const curfew = curfewFor('', plan);
-  const weeks = sleepSteps(plan.sleep).length - 1;
-  const counts = Object.fromEntries(dayTypeCounts(plan.week).map((c) => [c.type, c.count])) as Partial<Record<DayType, number>>;
-  const active = plan.supplements.filter((s) => s.active);
-  const footballDays = plan.week.filter((d) => d.football).map((d) => WEEKDAY_SHORT[d.weekday]);
-  // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo).
+  // Lo stesso piano che si salva toccando "Comincia da oggi": inizio di lunedì e primo avvio adesso.
+  const now = useNow(30_000);
+  const final = useMemo(() => finalizePlan(plan, targets, now), [plan, targets, now]);
+  const steps = useMemo(() => firstWeekSteps(final, profile.painSites), [final, profile.painSites]);
+  const start = startInfo(final);
+  const first = final.firstUse?.date ?? final.startDate;
+  const counts = targetDayCounts(plan.week);
+  // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo), e lì si contano.
   const eveNote = matchEveNote(plan.week);
   const name = profile.name?.trim().split(/\s+/)[0];
+  // I giorni di avvio finiscono il giorno prima dell'inizio ("fino ad allora") o dentro la settimana 1 (chi
+  // comincia di domenica non ha tempo per la preparazione: ricette veloci anche la prima settimana).
+  const until = start.starterUntil;
+  const intro = start.startsLater
+    ? until && until < start.startDate
+      ? `Il piano parte ${formatDayLong(start.startDate)}: fino ad allora ricette veloci, senza preparazione.`
+      : `Il piano parte ${formatDayLong(start.startDate)}.${until ? ` Fino a ${formatDayLong(until)} ricette veloci, senza preparazione.` : ''}`
+    : `Si comincia adesso, senza niente da recuperare.${until ? ` Fino a ${formatDayLong(until)} ricette veloci, senza preparazione.` : ''}`;
 
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col items-start gap-5">
         <ReadyBadge />
         <StepHeader eyebrow={name ? `Tutto pronto, ${name}` : 'Tutto pronto'} title="Il tuo piano è pronto">
-          Questi sono i numeri di partenza. Ogni domenica la revisione li aggiusta con i tuoi dati.
+          {intro}
         </StepHeader>
       </div>
+
+      {steps.length > 0 && (
+        <section className="flex flex-col gap-2" aria-labelledby="prima-settimana-label">
+          <h3 id="prima-settimana-label" className="t-label px-1 text-ink-3">
+            La prima settimana
+          </h3>
+          <FirstWeekList steps={steps} first={first} />
+        </section>
+      )}
 
       <section className="flex flex-col gap-2" aria-labelledby="kcal-label">
         <h3 id="kcal-label" className="t-label px-1 text-ink-3">
@@ -415,7 +420,7 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
                 <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 size-24 rounded-full" style={{ background: `radial-gradient(circle, ${toneSoft(t, 22)}, transparent 70%)` }} />
                 <div className="relative flex items-center justify-between gap-2">
                   <DayTypeBadge dayType={t} variant="dot" />
-                  <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessuno'}</span>
+                  <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t], 'giorno', 'giorni') : 'nessuno'}</span>
                 </div>
                 <div className="relative flex items-baseline gap-1">
                   <NumberTicker value={targets[t].kcal} duration={0.9} className="t-num text-[2rem] text-ink" />
@@ -430,30 +435,11 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
             </motion.div>
           ))}
         </div>
-        {eveNote && (
-          <p className="t-footnote px-1 text-pretty text-ink-3">{`${eveNote}: ${fmtNumber(targets.calcio.kcal)} kcal, per arrivare in campo con il glicogeno pieno.`}</p>
-        )}
+        <p className="t-footnote px-1 text-pretty text-ink-3">
+          {eveNote ? `${eveNote} e ${matchEveCount(plan.week) > 1 ? 'contano' : 'conta'} tra quelli, per arrivare in campo con il glicogeno pieno. ` : ''}
+          Sono i numeri di partenza: ogni domenica la revisione li aggiusta con i tuoi dati.
+        </p>
       </section>
-
-      <ListGroup title="La prima settimana">
-        <ListRow
-          icon={Dumbbell}
-          iconTone="palestra"
-          title="Prima seduta"
-          subtitle={next ? `${relativeWeekday(next.inDays, WEEKDAY_LONG[next.weekday])} alle ${next.time}${next.optional ? ', facoltativa' : ''}` : undefined}
-          value={next ? next.name : 'Nessuna in programma'}
-        />
-        <ListRow icon={BallIcon} iconTone="calcio" title="Calcio" value={footballDays.length ? listIt(footballDays) : 'Nessuno'} />
-        <ListRow
-          icon={Moon}
-          iconTone="riposo"
-          title="A letto questa settimana"
-          subtitle={`Telefono fuori alle ${curfew}${weeks ? `, obiettivo ${plan.sleep.target} in ${plural(weeks, 'settimana', 'settimane')}` : ''}`}
-          value={<span className="t-num text-[1.25rem] text-ink">{plan.sleep.current}</span>}
-        />
-        <ListRow icon={PillIcon} iconTone="leggero" title="Integratori" value={active.length ? plural(active.length, 'attivo', 'attivi') : 'Nessuno'} />
-        <ListRow icon={Activity} iconTone="bad" title="Zone monitorate" value={profile.painSites.length ? listIt(profile.painSites) : 'Nessuna'} />
-      </ListGroup>
 
       {install && (
         <InstallCard note="Installata, Ritmo parte da capo: i dati scritti in Safari restano a Safari. Installala adesso e rifai questi passi dall’icona, bastano due minuti." />

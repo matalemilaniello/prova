@@ -19,7 +19,7 @@ export interface PainSeries {
   site: string;
   points: PainPoint[];
   tone: AnyTone;
-  /** Media della settimana e tendenza (dalla revisione). */
+  /** Media degli ultimi 7 giorni e tendenza (dai numeri della revisione). */
   avg: number | null;
   trend: Trend | null;
 }
@@ -45,15 +45,15 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
   const rising = series.some((s) => s.trend === 'su');
 
   const label = hasData
-    ? `Dolore per zona, media di 3 giorni, scala da 0 a 10. ${series
-        .map((s) => `${s.site}: media della settimana ${s.avg !== null ? fmtNumber(s.avg, 1) : 'non disponibile'}${s.trend === 'su' ? ', in aumento' : s.trend === 'giu' ? ', in calo' : ''}`)
+    ? `Dolore per zona, scala da 0 a 10, linea con la media di 3 giorni. ${series
+        .map((s) => `${s.site}: media di 7 giorni ${s.avg !== null ? fmtNumber(s.avg, 1) : 'non disponibile'}${s.trend === 'su' ? ', in aumento' : s.trend === 'giu' ? ', in calo' : ''}`)
         .join('. ')}. Soglia ${threshold}.`
     : 'Nessun dolore registrato';
 
   return (
     <ChartCard
       title="Dolore"
-      subtitle="Per zona, media di 3 giorni"
+      subtitle="Per zona, da 0 a 10"
       badge={
         hasData ? (
           over ? (
@@ -98,7 +98,7 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
           </span>
         );
       })}
-      footnote={sel === null ? 'Il valore accanto a ogni zona è la media degli ultimi 7 giorni.' : undefined}
+      footnote={sel === null ? 'Linea: media di 3 giorni. Numero accanto alla zona: media di 7 giorni.' : undefined}
     >
       <div ref={ref}>
         {hasData && (
@@ -135,7 +135,13 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
                 <g key={s.site} aria-hidden>
                   {s.points.map((p, i) =>
                     p.value === null ? null : (
-                      <circle key={p.date} cx={xAt(i)} cy={y(p.value)} r={sel === i ? 3.5 : 1.8} style={{ fill: color, opacity: sel === i ? 1 : 0.35 }} />
+                      <circle
+                        key={p.date}
+                        cx={xAt(i)}
+                        cy={y(p.value)}
+                        r={sel === i ? 3.5 : 2}
+                        style={sel === i ? { fill: color } : { fill: 'var(--card)', stroke: color, strokeWidth: 1 }}
+                      />
                     ),
                   )}
                   {segs.map((seg, k) => (

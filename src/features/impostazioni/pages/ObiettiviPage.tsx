@@ -12,7 +12,7 @@ import { latestWeight, useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, DayTypeBadge, ListGroup, NumberTicker, Sheet, cn, springSnappy, staggerItem, toneColor, toneInk } from '../../../ui';
 import { FormRow, MiniStepper, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
-import { carbsToMatch, dayTypeCounts, kcalFromMacros, matchEveNote } from '../lib';
+import { carbsToMatch, kcalFromMacros, matchEveCount, matchEveNote, targetDayCounts } from '../lib';
 import { Page, type PageProps } from './Page';
 
 /** Barra delle macro in proporzione alle kcal (proteine, carboidrati, grassi), nel colore del tipo di giorno. */
@@ -44,7 +44,9 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
   const checkIns = useApp((s) => s.checkIns);
   const [editing, setEditing] = useState<{ type: DayType; n: number } | null>(null);
   const [recalc, setRecalc] = useState(0);
-  const counts = Object.fromEntries(dayTypeCounts(week).map((c) => [c.type, c.count])) as Partial<Record<DayType, number>>;
+  // Giorni che usano ogni obiettivo: la vigilia della partita mangia come il calcio e conta lì.
+  const counts = targetDayCounts(week);
+  const eves = matchEveCount(week);
   const eveNote = matchEveNote(week);
   const complete = isProfileComplete(profile);
   const weight = latestWeight({ checkIns, profile });
@@ -60,7 +62,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
             <div className="flex min-w-0 flex-col gap-0.5">
               <h2 className="t-headline text-ink">Ricalcola dal profilo</h2>
               <p className="t-footnote text-ink-2">
-                Mifflin-St Jeor con {ageFrom(profile.birthYear, currentDate())} anni, {fmtNumber(profile.heightCm)} cm e {fmtKg(weight)}; proteine 1,9 g per kg, grassi 28%.
+                Mifflin-St Jeor con {ageFrom(profile.birthYear, currentDate())}{'\u00a0'}anni, {fmtNumber(profile.heightCm)}{'\u00a0'}cm e {fmtKg(weight)}; proteine 1,9{'\u00a0'}g per kg, grassi 28%.
               </p>
             </div>
           </div>
@@ -83,7 +85,9 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <DayTypeBadge dayType={t} />
-                    <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t]!, 'giorno', 'giorni') : 'nessun giorno'}</span>
+                    <span className="t-label text-[0.75rem] text-ink-2">
+                      {counts[t] ? `${plural(counts[t], 'giorno', 'giorni')}${t === 'calcio' && eves ? (eves === 1 ? ', vigilia compresa' : ', vigilie comprese') : ''}` : 'nessun giorno'}
+                    </span>
                   </div>
                   <ChevronRight size={18} strokeWidth={2.2} className="text-ink-3" aria-hidden />
                 </div>
@@ -112,7 +116,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
           );
         })}
         <p className="t-footnote px-1 text-pretty text-ink-3">
-          {eveNote ? `${eveNote}: obiettivo e porzioni del calcio. ` : ''}La revisione della domenica può proporre di spostare le calorie: la variazione passa dai carboidrati, proteine e grassi restano fermi.
+          {eveNote ? `${eveNote}, per arrivare in campo con il glicogeno pieno. ` : ''}La revisione della domenica può proporre di spostare le calorie: la variazione passa dai carboidrati, proteine e grassi restano fermi.
         </p>
       </section>
 
@@ -221,7 +225,7 @@ function RecalcSheet({ onClosed }: { onClosed: () => void }) {
       open={open}
       onClose={close}
       title="Nuovi obiettivi"
-      subtitle={`Con ${fmtKg(weight)}, ${fmtNumber(profile.heightCm)} cm e ${ageFrom(profile.birthYear, currentDate())} anni.`}
+      subtitle={`Con ${fmtKg(weight)}, ${fmtNumber(profile.heightCm)}\u00a0cm e ${ageFrom(profile.birthYear, currentDate())}\u00a0anni.`}
       footer={
         <Button fullWidth size="lg" onClick={apply} disabled={same}>
           {same ? 'Sono già questi' : 'Applica i nuovi obiettivi'}

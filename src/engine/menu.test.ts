@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData, MenuWeek } from '../domain/types';
-import { defaultPlan } from '../data/defaults';
-import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate, menuDayFor, menuWeekFor, rotationIndexFor } from './menu';
+import { defaultPlan, planStartFor } from '../data/defaults';
+import { MENU_ROTATION } from '../data/menu';
+import { RECIPES } from '../data/recipes';
+import {
+  dayTypeFor,
+  effectiveDayType,
+  isMatchEve,
+  isStarterDay,
+  mealsForDate,
+  menuDayFor,
+  menuWeekFor,
+  rotationIndexFor,
+  starterEnd,
+  starterRecipeFor,
+} from './menu';
 import { dayNutrition, dayNutritionDetail } from './nutrition';
 
 const week = (tag: string): MenuWeek => ({
@@ -96,5 +109,69 @@ describe('vigilia della partita', () => {
     // Senza partita il lunedì, la domenica torna di riposo.
     const noMatch = { ...plan, week: plan.week.map((d) => (d.weekday === 0 ? { ...d, football: undefined } : d)) };
     expect(effectiveDayType('2026-11-15', noMatch)).toBe('riposo');
+  });
+});
+
+describe('primo avvio', () => {
+  it('il piano parte di lunedì: questa settimana fino al giovedì, poi la prossima', () => {
+    expect(planStartFor('2026-11-09')).toBe('2026-11-09'); // lunedì
+    expect(planStartFor('2026-11-12')).toBe('2026-11-09'); // giovedì
+    expect(planStartFor('2026-11-13')).toBe('2026-11-16'); // venerdì
+    expect(planStartFor('2026-11-15')).toBe('2026-11-16'); // domenica sera: lunedì è la settimana 1
+  });
+
+  it('giorni di avvio dal primo avvio al lunedì che trova fatta la preparazione', () => {
+    const withFirst = (date: string) => ({ ...plan, firstUse: { date, time: '21:30' } }) as AppData['plan'];
+    // Mercoledì: fino a domenica compresa, poi c'è la domenica per preparare.
+    expect(starterEnd(withFirst('2026-11-11'))).toBe('2026-11-16');
+    expect(isStarterDay('2026-11-10', withFirst('2026-11-11'))).toBe(false);
+    expect(isStarterDay('2026-11-11', withFirst('2026-11-11'))).toBe(true);
+    expect(isStarterDay('2026-11-15', withFirst('2026-11-11'))).toBe(true);
+    expect(isStarterDay('2026-11-16', withFirst('2026-11-11'))).toBe(false);
+    // Domenica sera: niente preparazione possibile, l'avvio copre anche la settimana dopo.
+    expect(starterEnd(withFirst('2026-11-15'))).toBe('2026-11-23');
+    expect(isStarterDay('2026-11-20', withFirst('2026-11-15'))).toBe(true);
+    // Senza primo avvio (dati di esempio, piani vecchi): nessun giorno di avvio.
+    expect(starterEnd(plan)).toBeNull();
+    expect(isStarterDay('2026-11-11', plan)).toBe(false);
+  });
+
+  it('nei giorni di avvio le ricette da preparazione lasciano il posto a un’alternativa veloce', () => {
+    const batch = Object.values(RECIPES).filter((r) => r.batch);
+    expect(batch.length).toBeGreaterThan(0);
+    for (const r of batch) {
+      for (const slot of r.slots) {
+        const alt = RECIPES[starterRecipeFor(r.id, slot)];
+        expect(alt.batch).toBeFalsy();
+        expect(alt.slots).toContain(slot);
+      }
+    }
+    const quick = Object.values(RECIPES).find((r) => !r.batch)!;
+    expect(starterRecipeFor(quick.id, quick.slots[0])).toBe(quick.id);
+
+    // Sul menù vero: dal primo avvio nessun pasto richiede la preparazione della domenica.
+    const start = planStartFor('2026-11-15');
+    const p = { ...defaultPlan(start), startDate: start, firstUse: { date: '2026-11-15', time: '21:00' } } as AppData['plan'];
+    const s = { plan: p, dayLogs: {} };
+    let replaced = 0;
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(2026, 10, 15 + i, 12);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const m = mealsForDate(iso, s);
+      expect(m.starter).toBe(true);
+      for (const e of m.meals) {
+        expect(e.recipe?.batch).toBeFalsy();
+        if (e.starterOf) {
+          replaced++;
+          expect(RECIPES[e.starterOf]?.batch).toBe(true);
+          expect(e.swapped).toBe(false);
+        }
+      }
+    }
+    if (MENU_ROTATION.some((w) => w.days.some((d) => Object.values(d.meals).some((id) => id && RECIPES[id]?.batch)))) {
+      expect(replaced).toBeGreaterThan(0);
+    }
+    // Dal lunedì dopo torna il menù con la preparazione.
+    expect(mealsForDate('2026-11-23', s).starter).toBe(false);
   });
 });

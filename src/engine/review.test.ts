@@ -4,10 +4,16 @@ import { defaultAppData } from '../data/defaults';
 import { buildDemo } from '../demo/seed';
 import { addDays, weekDates } from './dates';
 import { mealsForDate } from './menu';
+import { buildDay } from './timeline';
 import { recipeNutrition } from './nutrition';
 import {
   acceptable,
   creatineLoading,
+  firstReviewDate,
+  firstReviewWeek,
+  isReviewableWeek,
+  periodStats,
+  planWeekNumber,
   dayIntake,
   proposeWeeklyStep,
   reviewStart,
@@ -112,6 +118,7 @@ describe('sonno', () => {
 
   it('si ferma all’obiettivo, anche con un passo più corto', () => {
     const d = base();
+    d.plan.sleep.target = '23:30';
     d.plan.sleep.current = '23:40';
     bedtimes(d, W2, ['23:45', '23:30', '23:50', '23:40', '23:35', null, '23:55']);
     const p = byId(proposals(W2, d), 'sonno')!;
@@ -469,7 +476,8 @@ describe('proposte e revisioni', () => {
     expect(previousReview('2026-11-16', [r2, r1])?.weekStart).toBe(W2);
     expect(previousReview(W2, [r2, r1])?.weekStart).toBe(W1);
     expect(reviewFor('2026-11-12', [r1, r2])?.weekStart).toBe(W2);
-    expect(targetSleepHours(base().plan)).toBeCloseTo(7.75);
+    // Obiettivo predefinito 23:15 con la sveglia delle 07:15: 8 ore a letto.
+    expect(targetSleepHours(base().plan)).toBeCloseTo(8);
   });
 
   it('dati di esempio: numeri sensati e proposte valide', () => {
@@ -541,6 +549,74 @@ describe('prima settimana', () => {
     expect(s.firstWeek).toBe(false);
     expect(s.adherenceDays).toBe(7);
     expect(s.countedNights).toBe(7);
+  });
+});
+
+describe('prima revisione dopo il benvenuto', () => {
+  /** Benvenuto in `date` alle `time`; il piano parte dal lunedì di quella settimana. */
+  function startedOn(date: ISODate, time = '21:30'): AppData {
+    const d = base(date);
+    d.plan.startDate = weekDates(date)[0] ?? date;
+    (d.plan as AppData['plan'] & { firstUse?: { date: string; time: string } }).firstUse = { date, time };
+    return d;
+  }
+  const SUN = addDays(W1, 6); // domenica 8 novembre
+
+  it('chi comincia domenica sera non rivede una settimana mai vissuta', () => {
+    const d = startedOn(SUN);
+    expect(firstReviewWeek(d.plan)).toBe(W2);
+    expect(firstReviewDate(d.plan)).toBe(addDays(W2, 6));
+    // Domenica stessa e il lunedì dopo: nessuna revisione da fare, nessuna proposta.
+    expect(reviewAvailable(SUN, d.plan)).toBe(false);
+    expect(reviewAvailable(W2, d.plan)).toBe(false);
+    expect(isReviewableWeek(W1, d.plan)).toBe(false);
+    expect(proposals(W1, d, { today: W2 })).toEqual([]);
+    // La domenica dopo si rivede la prima settimana vera, come prima settimana.
+    expect(reviewAvailable(addDays(W2, 6), d.plan)).toBe(true);
+    const s = weekStats(W2, d, { today: addDays(W2, 6) });
+    expect(s.firstWeek).toBe(true);
+    expect(s.weekNumber).toBe(1);
+    expect(proposals(W2, d, { today: addDays(W2, 6) }).length).toBeGreaterThan(0);
+  });
+
+  it('la prima sera senza nulla di segnato non è una giornata a zero', () => {
+    const d = startedOn(SUN);
+    const days = weekDates(W1);
+    const s = periodStats(days, weekDates(addDays(W1, -7)), d, { today: W2 });
+    expect(s.adherenceDays).toBe(0);
+    expect(s.adherence).toBeNull();
+    // Se la sera qualcosa è segnato, conta.
+    const curfew = buildDay(SUN, d).find((it) => it.kind === 'coprifuoco');
+    expect(curfew).toBeDefined();
+    d.dayLogs[SUN] = { date: SUN, status: { [curfew!.id]: 'fatto' }, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} };
+    expect(periodStats(days, [], d, { today: W2 }).adherenceDays).toBe(1);
+  });
+
+  it('il sabato vale come la domenica: due giorni non bastano', () => {
+    const d = startedOn(addDays(W1, 5), '10:00');
+    expect(firstReviewWeek(d.plan)).toBe(W2);
+    expect(planWeekNumber(SUN, d.plan)).toBe(0);
+    expect(planWeekNumber(W2, d.plan)).toBe(1);
+  });
+
+  it('dal venerdì in poi la prima settimana si rivede, con quei giorni', () => {
+    const d = startedOn(addDays(W1, 4), '18:00');
+    expect(firstReviewWeek(d.plan)).toBe(W1);
+    expect(reviewAvailable(SUN, d.plan)).toBe(true);
+    expect(weekStats(W1, d, { today: SUN }).weekNumber).toBe(1);
+  });
+
+  it('se il piano parte il lunedì dopo, conta l’inizio del piano', () => {
+    const d = startedOn(addDays(W1, 3));
+    d.plan.startDate = W2;
+    expect(firstReviewWeek(d.plan)).toBe(W2);
+    expect(reviewAvailable(SUN, d.plan)).toBe(false);
+  });
+
+  it('senza primo avvio (dati di esempio) vale l’inizio del piano', () => {
+    const d = base('2026-10-05');
+    expect(firstReviewWeek(d.plan)).toBe('2026-10-05');
+    expect(planWeekNumber('2026-11-02', d.plan)).toBe(5);
   });
 });
 

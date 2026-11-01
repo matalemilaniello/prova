@@ -1,21 +1,26 @@
 /**
  * La "scala del sonno": l'orario a letto che si anticipa di un passo a settimana fino all'obiettivo.
  * Grafico SVG disegnato a mano, in scala, leggibile in entrambi i temi.
+ * Le ore sono tempo a letto, non sonno: del tempo a letto se ne dorme l'85-90% (`estimatedSleep`).
  */
 import { useId } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import type { SleepPlan } from '../../../domain/types';
+import { BedDouble } from 'lucide-react';
+import type { HHMM, SleepPlan } from '../../../domain/types';
 import { nightMinutes } from '../../../engine/dates';
-import { sleepHours } from '../../../engine/sleep';
+import { estimatedSleepLabel, sleepHours } from '../../../engine/sleep';
 import { fmtHours } from '../../../lib/format';
-import { cn, toneColor, toneInk } from '../../../ui';
-import { sleepSteps } from '../lib';
+import { Button, Callout, cn, toneColor, toneInk } from '../../../ui';
+import { shortTimeInBed, sleepSteps, suggestedBedtime } from '../lib';
 
 const W = 320;
 const H = 132;
 const PAD = { l: 6, r: 6, t: 26, b: 24 };
 /** Etichette da tabellone: Barlow Condensed maiuscolo (il mono resta per gli orari). */
 const CAPS = { textTransform: 'uppercase', letterSpacing: '0.06em' } as const;
+
+/** "6 h 30" tutto su una riga: `fmtHours` usa già spazi indivisibili. */
+const hours = (h: number) => fmtHours(h);
 
 export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?: string }) {
   const id = useId().replace(/:/g, '');
@@ -45,9 +50,11 @@ export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?
   const riposo = toneColor('riposo');
   const good = toneColor('good');
 
+  const goalBed = atTarget ? sleep.current : sleep.target;
+  const goalSleep = estimatedSleepLabel(goalBed, sleep.wake);
   const label = atTarget
-    ? `Orario a letto ${sleep.current}: sei già all’obiettivo, ${fmtHours(now)} di sonno.`
-    : `Da ${sleep.current} a ${sleep.target} in ${weeks} settimane, da ${fmtHours(now)} a ${fmtHours(goal)} di sonno.`;
+    ? `Orario a letto ${sleep.current}: sei già all’obiettivo, ${hours(now)} a letto ogni notte, ${goalSleep}.`
+    : `Da ${sleep.current} a ${sleep.target} in ${weeks} settimane: da ${hours(now)} a ${hours(goal)} a letto ogni notte. All’obiettivo, ${goalSleep}.`;
 
   return (
     <figure className={cn('flex flex-col gap-3', className)}>
@@ -115,14 +122,44 @@ export function SleepStairs({ sleep, className }: { sleep: SleepPlan; className?
       </svg>
       <figcaption className="t-footnote text-ink-2">
         {atTarget ? (
-          <>Sei già all’obiettivo: {fmtHours(now)} di sonno a notte. L’orario resta questo.</>
+          <>
+            Sei già all’obiettivo: <strong className="font-semibold text-ink">{hours(now)}</strong> a letto ogni notte, {goalSleep}. L’orario resta questo.
+          </>
         ) : (
           <>
-            Da <strong className="font-semibold text-ink">{fmtHours(now)}</strong> a{' '}
-            <strong className="font-semibold text-ink">{fmtHours(goal)}</strong> di sonno a notte, un passo di {sleep.stepMin} minuti a settimana.
+            Da <strong className="font-semibold text-ink">{hours(now)}</strong> a{' '}
+            <strong className="font-semibold text-ink">{hours(goal)}</strong> a letto ogni notte, un passo di {sleep.stepMin} minuti a settimana. All’obiettivo,{' '}
+            {goalSleep}.
           </>
         )}
       </figcaption>
     </figure>
+  );
+}
+
+/**
+ * Suggerimento sotto la scala del sonno quando l'obiettivo lascia meno di 8 ore a letto (con 7 h 30 se ne
+ * dormono circa 6 h 30, lo dice già la didascalia del grafico). Con `onApply` offre di spostare l'obiettivo
+ * all'orario giusto per la sveglia.
+ */
+export function SleepTargetHint({ sleep, onApply, className }: { sleep: SleepPlan; onApply?: (target: HHMM) => void; className?: string }) {
+  if (!shortTimeInBed(sleep)) return null;
+  const better = suggestedBedtime(sleep.wake);
+  return (
+    <Callout
+      tone="accent"
+      icon={BedDouble}
+      title="Per circa 7 ore di sonno servono 8 ore a letto"
+      className={className}
+      action={
+        onApply ? (
+          <Button variant="secondary" size="sm" onClick={() => onApply(better)}>
+            Obiettivo alle {better}
+          </Button>
+        ) : undefined
+      }
+    >
+      Con la sveglia alle {sleep.wake} vuol dire a letto alle {better}, perché del tempo a letto si dorme tra l’85 e il 90%.
+    </Callout>
   );
 }

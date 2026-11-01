@@ -4,7 +4,7 @@
  * Nomi come si dicono in una palestra italiana, 2-3 indicazioni tecniche imperative per esercizio.
  * Pensato per un calciatore amatoriale che va in palestra, con i sovraccarichi tipici di chi gioca (flessori,
  * gamba sotto il ginocchio, gomito nelle spinte): la prevenzione segue le evidenze disponibili
- * (Nordic hamstring curl, Copenhagen, polpacci e soleo pesanti, tibiale anteriore, carico progressivo
+ * (Nordic hamstring curl, Copenhagen, polpacci e soleo pesanti, tibiale posteriore e anteriore, carico progressivo
  * degli estensori del polso, core anti-estensione e anti-rotazione) e il riscaldamento riprende la
  * struttura del FIFA 11+ adattata alla palestra.
  *
@@ -220,20 +220,6 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     elbowFriendly: true,
     alternatives: ['affondi-in-camminata-con-rotazione', 'allungamento-flessori-anca'],
     videoQuery: 'allungamento del corridore con rotazione mobilità anche',
-  },
-  {
-    id: 'rotazione-toracica-quadrupedia',
-    name: 'Rotazione toracica in quadrupedia',
-    category: 'mobilita',
-    equipment: 'Tappetino',
-    cues: [
-      'Siediti a metà sui talloni per bloccare la zona lombare',
-      'Mano dietro la nuca, ruota il gomito verso il soffitto seguendolo con lo sguardo',
-      'Espira in alto e torna lento',
-    ],
-    elbowFriendly: true,
-    alternatives: ['allungamento-corridore-con-rotazione'],
-    videoQuery: 'rotazione toracica quadrupedia mobilità',
   },
   {
     id: 'allungamento-flessori-anca',
@@ -874,6 +860,21 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     elbowFriendly: true,
     alternatives: ['tibiale-anteriore-seduto'],
     videoQuery: 'rinforzo tibiale anteriore al muro',
+  },
+  {
+    id: 'sollevamenti-punte-pallina',
+    name: 'Sollevamenti sulle punte con pallina tra i talloni',
+    category: 'prevenzione',
+    equipment: 'Pallina morbida, manubrio quando diventa facile',
+    cues: [
+      'Pallina tra i talloni: stringila per tutta la serie',
+      "Sali sull'alluce il più in alto possibile, talloni sempre uniti",
+      'Scendi in 3 secondi',
+    ],
+    elbowFriendly: true,
+    impact: false,
+    alternatives: ['polpacci-una-gamba-manubrio', 'soleo-una-gamba-ginocchio-piegato'],
+    videoQuery: 'sollevamento talloni con pallina tibiale posteriore',
   },
   {
     id: 'isometria-estensori-polso',

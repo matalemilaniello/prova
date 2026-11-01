@@ -3,9 +3,10 @@
  */
 import { useMemo } from 'react';
 import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget } from '../../domain/types';
-import { addDays, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
+import { addDays, dateRange, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
 import { dayTypeFor, effectiveDayType, isMatchEve } from '../../engine/menu';
 import { dayNutritionDetail, type DayNutritionDetail } from '../../engine/nutrition';
+import { periodStats } from '../../engine/review';
 import {
   adherenceSummary,
   buildDay,
@@ -81,6 +82,8 @@ export interface OggiData {
   eaten: DayNutritionDetail;
   /** Dolci mangiati questa settimana (da lunedì a oggi compreso). */
   weekSweets: number;
+  /** Aderenza media dei giorni chiusi negli ultimi 7, calcolata come in Progressi; null senza giorni chiusi. */
+  weekAdherence: number | null;
 }
 
 export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
@@ -93,6 +96,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
   const reviews = useApp((s) => s.reviews);
   const shoppingChecked = useApp((s) => s.shoppingChecked);
   const prepDone = useApp((s) => s.prepDone);
+  const profile = useApp((s) => s.profile);
 
   const state = useMemo<TimelineState>(
     () => ({ plan, dayLogs, physio, checkIns, workoutLogs, footballLogs, reviews, shoppingChecked, prepDone }),
@@ -165,6 +169,14 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     return n;
   }, [today, dayLogs]);
 
+  // Gli stessi numeri di Progressi: ultimi 7 giorni, solo quelli chiusi (oggi è ancora in corso).
+  const weekAdherence = useMemo(
+    () =>
+      periodStats(dateRange(addDays(today, -6), today), [], { plan, dayLogs, checkIns, workoutLogs, footballLogs, profile, reviews, physio }, { today })
+        .adherence,
+    [today, plan, dayLogs, checkIns, workoutLogs, footballLogs, profile, reviews, physio],
+  );
+
   return {
     today,
     state,
@@ -193,5 +205,6 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     planned,
     eaten,
     weekSweets,
+    weekAdherence,
   };
 }

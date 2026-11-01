@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronRight, CircleCheck, Moon, ShieldCheck } from 'lucide-react';
 import type { HHMM } from '../../../domain/types';
-import type { AdherenceSummary, StreakInfo } from '../../../engine/timeline';
+import { itemsToSuccess, type AdherenceSummary, type StreakInfo } from '../../../engine/timeline';
 import { fmtMinutes, fmtPercent, plural } from '../../../lib/format';
 import { BallIcon, NumberTicker, ProgressRing, cn, spring } from '../../../ui';
 import type { Kickoff } from '../useOggi';
@@ -23,6 +23,10 @@ export interface DayHeroProps {
   preMatch?: HHMM;
   /** La giornata si è appena chiusa in questa sessione: piccolo bagliore. */
   flare?: boolean;
+  /** Aderenza media dei giorni chiusi degli ultimi 7 (come in Progressi), null se non ce ne sono. */
+  weekAdherence: number | null;
+  /** Primo giorno d'uso: al posto di tre zeri, da che ora si conta. */
+  firstDay?: { time: HHMM } | null;
 }
 
 const KICKOFF_WORD: Record<Kickoff['kind'], [string, string]> = {
@@ -45,19 +49,31 @@ function Pitch() {
  * Tabellone della giornata: anello delle voci, serie, aderenza e notti in orario, come il segnapunti di uno
  * stadio. Nel giorno di calcio sopra c'è il conto alla rovescia al calcio d'inizio.
  */
-export function DayHero({ summary, streak, nights, successful, complete, phonePending, overdueCount, onRecover, kickoff, preMatch, flare }: DayHeroProps) {
+export function DayHero({
+  summary,
+  streak,
+  nights,
+  successful,
+  complete,
+  phonePending,
+  overdueCount,
+  onRecover,
+  kickoff,
+  preMatch,
+  flare,
+  weekAdherence,
+  firstDay,
+}: DayHeroProps) {
   const reduce = useReducedMotion();
   const marked = summary.done + summary.replaced;
   const ratio = summary.total ? marked / summary.total : 0;
   const celebrate = successful && !phonePending;
 
-  let status: { text: string; tone: 'good' | 'warn' | 'neutral'; icon?: typeof CircleCheck } = {
-    text: summary.minimal ? 'Riuscita con 4 voci su 4' : 'Riuscita dal 70%',
-    tone: 'neutral',
-  };
-  if (successful && phonePending) status = { text: `Quasi: manca il telefono fuori alle ${phonePending.time}`, tone: 'warn', icon: Moon };
+  let status: { text: string; tone: 'good' | 'warn' | 'neutral'; icon?: typeof CircleCheck } = { text: needText(summary), tone: 'neutral' };
+  if (successful && phonePending) status = { text: `Quasi riuscita: manca il telefono fuori alle ${phonePending.time}`, tone: 'warn', icon: Moon };
   else if (celebrate) status = { text: complete ? 'Giornata riuscita e chiusa' : 'Giornata riuscita', tone: 'good', icon: CircleCheck };
-  else if (streak.days === 0 && streak.best > 1) status = { text: `Record ${streak.best} giorni. Si riparte oggi: anche la giornata minima conta`, tone: 'neutral' };
+  else if (streak.days === 0 && streak.best > 1 && marked === 0)
+    status = { text: `Record ${streak.best} giorni. Si riparte oggi: anche la giornata minima conta`, tone: 'neutral' };
 
   return (
     <section aria-label="Tabellone della giornata" className="relative -mt-1">
@@ -76,7 +92,7 @@ export function DayHero({ summary, streak, nights, successful, complete, phonePe
             <BallIcon size={26} strokeWidth={1.9} />
           </span>
           <div className="min-w-0">
-            <p className="font-display text-[1.75rem] font-semibold uppercase leading-[1.02] tracking-[0.01em] text-ink">
+            <p className="font-display text-[1.75rem] font-semibold leading-[1.02] text-ink">
               {kickoff.inMin > 0 ? (
                 <>
                   {KICKOFF_WORD[kickoff.kind][0]} tra <span className="tabular text-accent-ink">{fmtMinutes(kickoff.inMin)}</span>
@@ -114,19 +130,37 @@ export function DayHero({ summary, streak, nights, successful, complete, phonePe
             </span>
           </ProgressRing>
 
-          <dl className="grid min-w-0 flex-1 grid-cols-3">
-            <Stat label="Serie" first>
-              <NumberTicker value={streak.days} className="t-num text-[1.75rem] leading-none text-ink" />
-              <span className="t-caption ml-1 text-ink-3">{plural(streak.days, 'giorno', 'giorni', false)}</span>
-            </Stat>
-            <Stat label="Aderenza">
-              <span className={cn('t-num text-[1.75rem] leading-none', successful ? 'text-good-ink' : 'text-ink')}>{fmtPercent(summary.score)}</span>
-            </Stat>
-            <Stat label="Notti">
-              <NumberTicker value={nights} className="t-num text-[1.75rem] leading-none text-ink" />
-              <span className="t-caption ml-1 text-ink-3">di fila</span>
-            </Stat>
-          </dl>
+          {firstDay ? (
+            <div className="min-w-0 flex-1">
+              <p className={cn(BOARD_LABEL, 'text-accent-ink')}>Primo giorno</p>
+              <p className="t-callout mt-1.5 font-semibold text-ink">
+                Si conta dalle <span className="t-mono">{firstDay.time}</span>
+              </p>
+              <p className="t-footnote mt-0.5 text-ink-2">Le voci di prima non pesano. Serie e notti partono da qui.</p>
+            </div>
+          ) : (
+            <dl className="grid min-w-0 flex-1 grid-cols-3">
+              <Stat label="Serie" first>
+                <NumberTicker value={streak.days} className="t-num text-[1.75rem] leading-none text-ink" />
+                <span className="t-caption ml-1 text-ink-3">{plural(streak.days, 'giorno', 'giorni', false)}</span>
+              </Stat>
+              <Stat label="Settimana" title="Aderenza dei giorni chiusi negli ultimi 7, come in Progressi">
+                {weekAdherence === null ? (
+                  <span className="t-num text-[1.75rem] leading-none text-ink-3" aria-label="Ancora nessun giorno chiuso">
+                    –
+                  </span>
+                ) : (
+                  <span className={cn('t-num text-[1.75rem] leading-none', weekAdherence >= 0.7 - 1e-9 ? 'text-good-ink' : 'text-ink')}>
+                    {fmtPercent(weekAdherence)}
+                  </span>
+                )}
+              </Stat>
+              <Stat label="Notti">
+                <NumberTicker value={nights} className="t-num text-[1.75rem] leading-none text-ink" />
+                <span className="t-caption ml-1 text-ink-3">di fila</span>
+              </Stat>
+            </dl>
+          )}
         </div>
 
         <div className="relative mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -182,10 +216,22 @@ export function DayHero({ summary, streak, nights, successful, complete, phonePe
   );
 }
 
-function Stat({ label, first, children }: { label: string; first?: boolean; children: ReactNode }) {
+/** Cosa manca alla giornata riuscita, detto come un conto e non come una regola. */
+function needText(summary: AdherenceSummary): string {
+  if (summary.total === 0) return 'Niente da segnare oggi';
+  const need = itemsToSuccess(summary);
+  if (need === null) return summary.minimal ? 'Giornata minima: servono tutte e quattro le voci' : 'Oggi il 70% non si raggiunge più: ogni voce conta per la settimana';
+  if (need === 0) return 'Giornata riuscita';
+  return need === 1 ? 'Ancora una voce e la giornata è riuscita' : `Ancora ${need} voci e la giornata è riuscita`;
+}
+
+function Stat({ label, title, first, children }: { label: string; title?: string; first?: boolean; children: ReactNode }) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-1.5', first ? 'pl-0' : 'border-l border-line pl-3')}>
-      <dt className={cn(BOARD_LABEL, 'text-[0.75rem] text-ink-3')}>{label}</dt>
+      <dt className={cn(BOARD_LABEL, 'text-[0.75rem] text-ink-3')} title={title}>
+        {label}
+        {title && <span className="sr-only">{`: ${title}`}</span>}
+      </dt>
       <dd className="flex items-baseline whitespace-nowrap">{children}</dd>
     </div>
   );

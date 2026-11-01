@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronRight, ClipboardCheck, Lightbulb, MoonStar, RefreshCw, SmartphoneCharging } from 'lucide-react';
 import type { DayType, HHMM, ISODate } from '../../../domain/types';
-import { TIP_TOPIC_LABEL, tipOfDay } from '../../../data/tips';
+import { TIP_TOPIC_LABEL, tipOfDay, type TipContext } from '../../../data/tips';
 import { fmtMinutes } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Card, ProgressBar, cn, spring, toneInk } from '../../../ui';
@@ -78,11 +78,11 @@ export function CurfewCard({ minutes, curfew, bed, ritual, onRitual }: CurfewCar
 }
 
 /** Consiglio del giorno, breve e motivato. "Un altro" scorre ai consigli successivi. */
-export function TipCard({ date, dayType, firstId }: { date: ISODate; dayType: DayType; firstId?: string }) {
+export function TipCard({ date, dayType, firstId, context }: { date: ISODate; dayType: DayType; firstId?: string; context?: TipContext }) {
   const [offset, setOffset] = useState(0);
-  const tip = tipOfDay(date, dayType, offset, firstId);
+  const tip = tipOfDay(date, dayType, offset, firstId, context);
   return (
-    <Card padding="none" as="section" aria-labelledby="oggi-consiglio">
+    <Card variant="outline" padding="none" as="section" aria-labelledby="oggi-consiglio">
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
           <p className={cn(BOARD_LABEL, 'flex min-w-0 items-center gap-2 text-accent-ink')}>

@@ -7,10 +7,10 @@
  * nutrienti = grammi × per100g / 100; porzioni di vegetali = grammi / vegPortionG.
  */
 import { describe, expect, it } from 'vitest';
-import type { DayType, Food, IngredientLine, MealSlot, Nutrients, Recipe } from '../domain/types';
+import type { DayType, Food, IngredientLine, MealSlot, MenuWeek, Nutrients, Recipe } from '../domain/types';
 import { FOODS } from './foods';
 import { RECIPES } from './recipes';
-import { MENU_ROTATION, PREP_GUIDE } from './menu';
+import { MENU_ROTATION, PREP_GUIDE, STARTER_PRODUCTS, STARTER_WEEK } from './menu';
 import { BAR_OPTIONS } from './barPlanB';
 
 // ───────────────────────── Riferimenti (settimana tipo e obiettivi predefiniti) ─────────────────────────
@@ -132,7 +132,8 @@ interface DayRow {
   legumeServings: number;
 }
 
-const DAYS: DayRow[] = MENU_ROTATION.flatMap((week, wi) =>
+function dayRows(weeks: MenuWeek[], prefix: string): DayRow[] {
+  return weeks.flatMap((week, wi) =>
   week.days.map((day, di) => {
     const dayType = PORTION_TYPES[di];
     let totals = zero();
@@ -145,7 +146,7 @@ const DAYS: DayRow[] = MENU_ROTATION.flatMap((week, wi) =>
     }
     const target = KCAL_TARGET[dayType];
     return {
-      label: `S${wi + 1} ${WEEKDAYS[di]}`,
+      label: `${prefix}${weeks.length > 1 ? wi + 1 : ''} ${WEEKDAYS[di]}`,
       dayType,
       football: FOOTBALL_DAY[di],
       eve: PORTION_TYPES[di] !== WEEK_TYPES[di],
@@ -154,13 +155,18 @@ const DAYS: DayRow[] = MENU_ROTATION.flatMap((week, wi) =>
       legumeServings,
     };
   }),
-);
+  );
+}
+
+const DAYS: DayRow[] = dayRows(MENU_ROTATION, 'S');
+/** Settimana di avvio: i giorni dal primo avvio al lunedì che trova fatte spesa e preparazione. */
+const STARTER_DAYS: DayRow[] = dayRows([STARTER_WEEK], 'Avvio');
 
 const fmt = (n: number, d = 0) => n.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d });
 
-function printTable() {
+function printTable(days: DayRow[] = DAYS, title = 'Totali giornalieri del menù (porzioni adattate al tipo di giorno)') {
   const head = ['giorno', 'tipo', 'kcal', 'obiettivo', 'scarto', 'proteine', 'carboidrati', 'grassi', '% grassi', 'fibre', 'g/1000', 'vegetali', 'legumi'];
-  const rows = DAYS.map((d) => [
+  const rows = days.map((d) => [
     d.label,
     `${d.dayType}${d.eve ? ' (vigilia)' : ''}`,
     fmt(d.totals.kcal),
@@ -177,7 +183,57 @@ function printTable() {
   ]);
   const widths = head.map((h, c) => Math.max(h.length, ...rows.map((r) => r[c].length)));
   const line = (cells: string[]) => cells.map((cell, c) => (c < 2 ? cell.padEnd(widths[c]) : cell.padStart(widths[c]))).join('  ');
-  console.log(['', 'Totali giornalieri del menù (porzioni adattate al tipo di giorno)', line(head), ...rows.map(line), ''].join('\n'));
+  console.log(['', title, line(head), ...rows.map(line), ''].join('\n'));
+}
+
+// ───────────────────────── Vincoli giornalieri (rotazione e avvio) ─────────────────────────
+
+function checkNutrition(days: DayRow[]) {
+  for (const d of days) {
+    const where = `${d.label} (${d.dayType})`;
+    expect(Math.abs(d.deviation), `${where}: ${fmt(d.totals.kcal)} kcal`).toBeLessThanOrEqual(KCAL_TOLERANCE);
+    expect(d.totals.proteinG, `${where}: proteine`).toBeGreaterThanOrEqual(MIN_PROTEIN);
+    expect(d.totals.fiberG, `${where}: fibre`).toBeGreaterThanOrEqual(MIN_FIBER);
+    expect(d.totals.veg, `${where}: porzioni di frutta e verdura`).toBeGreaterThanOrEqual(MIN_VEG);
+  }
+}
+
+function checkFiberCap(days: DayRow[]) {
+  for (const d of days) {
+    const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fiberG, 1)} g di fibre`;
+    expect(d.totals.fiberG, where).toBeLessThanOrEqual(d.football ? MAX_FIBER_FOOTBALL : MAX_FIBER);
+  }
+}
+
+function checkFat(days: DayRow[]) {
+  for (const d of days) {
+    const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fatG)} g di grassi`;
+    expect((d.totals.fatG * 9) / d.totals.kcal, where).toBeGreaterThanOrEqual(MIN_FAT_SHARE);
+    expect(d.totals.fatG, where).toBeGreaterThanOrEqual(FAT_TARGET - FAT_SLACK);
+  }
+}
+
+function checkMacros(days: DayRow[]) {
+  for (const d of days) {
+    const t = MACRO_TARGET[d.dayType];
+    const dev = (v: number, target: number) => v / target - 1;
+    const where = (name: string, v: number, target: number) => `${d.label} (${d.dayType}): ${name} ${fmt(v)} su ${target} g`;
+    expect(Math.abs(dev(d.totals.carbG, t.carbG)), where('carboidrati', d.totals.carbG, t.carbG)).toBeLessThanOrEqual(MACRO_TOLERANCE);
+    expect(Math.abs(dev(d.totals.fatG, t.fatG)), where('grassi', d.totals.fatG, t.fatG)).toBeLessThanOrEqual(MACRO_TOLERANCE);
+    expect(dev(d.totals.proteinG, t.proteinG), where('proteine', d.totals.proteinG, t.proteinG)).toBeGreaterThanOrEqual(-MACRO_TOLERANCE);
+    expect(dev(d.totals.proteinG, t.proteinG), where('proteine', d.totals.proteinG, t.proteinG)).toBeLessThanOrEqual(PROTEIN_MAX_EXCESS);
+  }
+}
+
+/** Pre-calcio e cena di recupero nei giorni di calcio (negli altri no), pranzo non troppo ricco di fibra. */
+function checkFootballMeals(week: MenuWeek, label: string) {
+  week.days.forEach((day, di) => {
+    const calcio = FOOTBALL_DAY[di];
+    const where = `${label} ${WEEKDAYS[di]}`;
+    expect(RECIPES[day.meals.merenda ?? '']?.tags.includes('pre-calcio'), `${where} merenda`).toBe(calcio);
+    expect(RECIPES[day.meals.cena ?? '']?.tags.includes('recupero'), `${where} cena`).toBe(calcio);
+    if (calcio) expect(recipeTotals(RECIPES[day.meals.pranzo ?? ''], 'calcio').fiberG, `${where} pranzo`).toBeLessThanOrEqual(20);
+  });
 }
 
 // ───────────────────────── Test ─────────────────────────
@@ -332,56 +388,21 @@ describe('menù a rotazione', () => {
   });
 
   it('nei giorni di calcio prevede il pre-calcio e la cena di recupero, negli altri no', () => {
-    MENU_ROTATION.forEach((week, wi) =>
-      week.days.forEach((day, di) => {
-        const calcio = FOOTBALL_DAY[di];
-        const where = `S${wi + 1} ${WEEKDAYS[di]}`;
-        expect(RECIPES[day.meals.merenda ?? '']?.tags.includes('pre-calcio'), `${where} merenda`).toBe(calcio);
-        expect(RECIPES[day.meals.cena ?? '']?.tags.includes('recupero'), `${where} cena`).toBe(calcio);
-        // Prima del calcio niente pranzi molto ricchi di fibra.
-        if (calcio) expect(recipeTotals(RECIPES[day.meals.pranzo ?? ''], 'calcio').fiberG, `${where} pranzo`).toBeLessThanOrEqual(20);
-      }),
-    );
+    // Prima del calcio niente pranzi molto ricchi di fibra.
+    MENU_ROTATION.forEach((week, wi) => checkFootballMeals(week, `S${wi + 1}`));
   });
 
   it('rispetta calorie, proteine, fibre e vegetali in ognuno dei 14 giorni', () => {
     printTable();
     expect(DAYS.length).toBe(14);
-    for (const d of DAYS) {
-      const where = `${d.label} (${d.dayType})`;
-      expect(Math.abs(d.deviation), `${where}: ${fmt(d.totals.kcal)} kcal`).toBeLessThanOrEqual(KCAL_TOLERANCE);
-      expect(d.totals.proteinG, `${where}: proteine`).toBeGreaterThanOrEqual(MIN_PROTEIN);
-      expect(d.totals.fiberG, `${where}: fibre`).toBeGreaterThanOrEqual(MIN_FIBER);
-      expect(d.totals.veg, `${where}: porzioni di frutta e verdura`).toBeGreaterThanOrEqual(MIN_VEG);
-    }
+    checkNutrition(DAYS);
   });
 
-  it('non eccede con le fibre, soprattutto quando la sera c’è il calcio', () => {
-    for (const d of DAYS) {
-      const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fiberG, 1)} g di fibre`;
-      expect(d.totals.fiberG, where).toBeLessThanOrEqual(d.football ? MAX_FIBER_FOOTBALL : MAX_FIBER);
-    }
-  });
+  it('non eccede con le fibre, soprattutto quando la sera c’è il calcio', () => checkFiberCap(DAYS));
 
-  it('ha grassi sufficienti: almeno il 20% delle kcal e non oltre 15 g sotto l’obiettivo', () => {
-    for (const d of DAYS) {
-      const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fatG)} g di grassi`;
-      expect((d.totals.fatG * 9) / d.totals.kcal, where).toBeGreaterThanOrEqual(MIN_FAT_SHARE);
-      expect(d.totals.fatG, where).toBeGreaterThanOrEqual(FAT_TARGET - FAT_SLACK);
-    }
-  });
+  it('ha grassi sufficienti: almeno il 20% delle kcal e non oltre 15 g sotto l’obiettivo', () => checkFat(DAYS));
 
-  it('resta vicino all’obiettivo anche nelle macro: carboidrati e grassi entro il 15%, proteine tra −15% e +25%', () => {
-    for (const d of DAYS) {
-      const t = MACRO_TARGET[d.dayType];
-      const dev = (v: number, target: number) => v / target - 1;
-      const where = (name: string, v: number, target: number) => `${d.label} (${d.dayType}): ${name} ${fmt(v)} su ${target} g`;
-      expect(Math.abs(dev(d.totals.carbG, t.carbG)), where('carboidrati', d.totals.carbG, t.carbG)).toBeLessThanOrEqual(MACRO_TOLERANCE);
-      expect(Math.abs(dev(d.totals.fatG, t.fatG)), where('grassi', d.totals.fatG, t.fatG)).toBeLessThanOrEqual(MACRO_TOLERANCE);
-      expect(dev(d.totals.proteinG, t.proteinG), where('proteine', d.totals.proteinG, t.proteinG)).toBeGreaterThanOrEqual(-MACRO_TOLERANCE);
-      expect(dev(d.totals.proteinG, t.proteinG), where('proteine', d.totals.proteinG, t.proteinG)).toBeLessThanOrEqual(PROTEIN_MAX_EXCESS);
-    }
-  });
+  it('resta vicino all’obiettivo anche nelle macro: carboidrati e grassi entro il 15%, proteine tra −15% e +25%', () => checkMacros(DAYS));
 
   it('prevede al massimo una porzione di legumi al giorno', () => {
     for (const d of DAYS) expect(d.legumeServings, d.label).toBeLessThanOrEqual(1);
@@ -435,6 +456,60 @@ describe('menù a rotazione', () => {
         }
       });
     });
+  });
+});
+
+describe('settimana di avvio', () => {
+  /** Prodotti da comprare (niente olio, sale, aglio ed erbe): la spesa del primo giorno deve restare piccola. */
+  const STARTER_MAX_PRODUCTS = 17;
+  const starterRecipes = () =>
+    STARTER_WEEK.days.flatMap((day, di) => SLOTS.map((slot) => ({ slot, di, id: day.meals[slot] ?? '', recipe: RECIPES[day.meals[slot] ?? ''] })));
+
+  it('copre i 7 giorni con tutti e 5 i pasti, ricette esistenti nel pasto giusto, senza preparazione', () => {
+    expect(STARTER_WEEK.days.length).toBe(7);
+    expect(STARTER_WEEK.prep).toEqual([]);
+    for (const { slot, di, id, recipe } of starterRecipes()) {
+      const where = `avvio ${WEEKDAYS[di]} ${slot}: ${id}`;
+      expect(recipe, where).toBeDefined();
+      expect(recipe?.slots.includes(slot), `${where} non è una ricetta da ${slot}`).toBe(true);
+      // Niente preparazione della domenica e niente avena della sera prima: tutto sul momento.
+      expect(recipe?.batch, `${where} è da preparazione`).toBeFalsy();
+      expect(recipe?.tags.includes('la sera prima'), `${where} va preparata la sera prima`).toBe(false);
+      expect(recipe?.prepMin, where).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it('ha una spesa piccola: i prodotti dichiarati, non uno di più', () => {
+    const bought = new Set<string>();
+    for (const { recipe } of starterRecipes()) for (const l of recipe?.ingredients ?? []) if (!FOODS[l.foodId]?.pantry) bought.add(l.foodId);
+    console.log(`\nSpesa di avvio: ${bought.size} prodotti (${[...bought].map((id) => FOODS[id].name).join(', ')})\n`);
+    expect([...bought].sort()).toEqual([...STARTER_PRODUCTS].sort());
+    expect(bought.size).toBeLessThanOrEqual(STARTER_MAX_PRODUCTS);
+  });
+
+  it('nei giorni di calcio prevede il pre-calcio e la cena di recupero, negli altri no', () => {
+    checkFootballMeals(STARTER_WEEK, 'avvio');
+  });
+
+  it('rispetta gli stessi vincoli della rotazione in ogni giorno', () => {
+    printTable(STARTER_DAYS, 'Totali giornalieri della settimana di avvio');
+    checkNutrition(STARTER_DAYS);
+    checkFiberCap(STARTER_DAYS);
+    checkFat(STARTER_DAYS);
+    checkMacros(STARTER_DAYS);
+    for (const d of STARTER_DAYS) expect(d.legumeServings, d.label).toBeLessThanOrEqual(1);
+  });
+
+  it('resta varia anche ripetendosi: pesce, legumi e uova con misura, niente carne rossa', () => {
+    const meals = starterRecipes().filter((m) => m.slot === 'pranzo' || m.slot === 'cena');
+    const count = (pred: (r: Recipe) => boolean) => meals.filter((m) => m.recipe && pred(m.recipe)).length;
+    const tuna = meals.filter((m) => m.recipe?.ingredients.some((l) => l.foodId === 'tonno')).length;
+    expect(count(isLegumeMeal), 'legumi').toBeGreaterThanOrEqual(3);
+    expect(count(hasWholeEgg), 'uova').toBeLessThanOrEqual(3);
+    expect(count(hasRedMeat), 'carne rossa').toBe(0);
+    // Il tonno in scatola al massimo 3 volte a settimana.
+    expect(tuna, 'tonno').toBeLessThanOrEqual(3);
+    expect(count(hasFish), 'pesce').toBeGreaterThanOrEqual(2);
   });
 });
 

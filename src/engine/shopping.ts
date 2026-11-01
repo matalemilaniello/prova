@@ -23,6 +23,10 @@
  * non conta: lì si cucina subito e si conserva cotto.
  *
  * Con `fromDate` la lista parte da quel giorno (la prima settimana di chi inizia a metà settimana).
+ *
+ * Giorni di avvio (`isStarterDay`): la preparazione della domenica non c'è stata, quindi niente si considera
+ * cucinato in anticipo e la carne fresca di metà settimana va congelata da cruda. `starter` dice se tutta la
+ * lista è di avvio: è la spesa di avvio, quella del primo pomeriggio libero.
  */
 import type { Food, ISODate, MealSlot, MenuWeek, ShopCategory } from '../domain/types';
 import { FOODS } from '../data/foods';
@@ -103,6 +107,10 @@ export interface ShoppingList {
   mealCount: number;
   /** Giorni considerati, in ordine (tutta la settimana, oppure da `fromDate`). */
   dates: ISODate[];
+  /** Giorni di avvio tra quelli considerati (niente preparazione della domenica). */
+  starterDates: ISODate[];
+  /** True se tutti i giorni con pasti sono di avvio: è la spesa di avvio. */
+  starter: boolean;
 }
 
 export interface ShoppingOptions {
@@ -344,10 +352,14 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
   const acc = new Map<string, { eaten: number; uses: ShoppingUse[] }>();
   const week = rotation.length ? menuWeekFor(monday, state.plan.startDate, rotation) : undefined;
   const dates = weekDates(monday).filter((d) => !opts.fromDate || d >= opts.fromDate);
+  const starterDates: ISODate[] = [];
+  let mealDays = 0;
   let mealCount = 0;
 
   for (const date of dates) {
-    const { dayType, meals } = mealsForDate(date, state, rotation);
+    const { dayType, meals, starter } = mealsForDate(date, state, rotation);
+    if (starter) starterDates.push(date);
+    if (meals.length) mealDays++;
     const scale = dayCarbScale(date, state);
     for (const meal of meals) {
       if (!meal.recipe) continue;
@@ -359,7 +371,8 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
         const cur = acc.get(line.foodId) ?? { eaten: 0, uses: [] };
         cur.eaten += grams;
         const use: ShoppingUse = { date, slot: meal.slot, recipeId: meal.recipeId, grams };
-        if (preparedAhead(line.foodId, meal.recipeId, meal.recipe.batch, week)) use.ahead = true;
+        // Nei giorni di avvio la preparazione non c'è stata: anche una ricetta da preparazione si cucina sul momento.
+        if (!starter && preparedAhead(line.foodId, meal.recipeId, meal.recipe.batch, week)) use.ahead = true;
         cur.uses.push(use);
         acc.set(line.foodId, cur);
       }
@@ -416,6 +429,8 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
     items: groups.flatMap((g) => g.items),
     mealCount,
     dates,
+    starterDates,
+    starter: mealDays > 0 && starterDates.length >= mealDays,
   };
 }
 

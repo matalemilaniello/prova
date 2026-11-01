@@ -46,7 +46,7 @@ export function StepCard({ status, onToggle }: { status: WeeklyStepStatus; onTog
             <h3 id="oggi-scalino" className="t-headline mt-1.5 text-ink">
               {step.title}
             </h3>
-            <p className="t-footnote mt-0.5 text-pretty text-ink-2">{step.how}</p>
+            <p className="t-footnote mt-0.5 line-clamp-2 text-pretty text-ink-2">{step.how}</p>
           </div>
           <p className="shrink-0 text-right" aria-label={`${done} giorni su ${target}`}>
             <span className={cn('t-num text-[1.75rem]', reached ? 'text-good-ink' : 'text-ink')}>{done}</span>

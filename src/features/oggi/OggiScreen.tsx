@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Clock, Feather, Settings } from 'lucide-react';
 import type { FootballKind, HHMM, ISODate, ItemStatus, MealSlot } from '../../domain/types';
 import { navigate } from '../../app/router';
-import { addDays, formatMonth, weekIndexSince, weekdayOf } from '../../engine/dates';
+import { addDays, daysBetween, formatWeekday, weekIndexSince, weekdayOf } from '../../engine/dates';
 import { dayTypeFor } from '../../engine/menu';
 import { fiberRampWeek } from '../../engine/nutrition';
 import { STEP_ITEM_ID, reviewWeekFor, weeklyStepStatus } from '../../engine/review';
@@ -15,10 +15,12 @@ import { bedtimeFor, checkInSleepHours, curfewFor } from '../../engine/sleep';
 import {
   canMarkNow,
   dayMinutes,
+  firstUseOf,
   isSuccessful,
   markableFrom,
   minutesToCurfew,
   physioMinutes,
+  STARTER_SHOPPING_ID,
   statusSource,
   type AdherenceSummary,
   type DayItem,
@@ -28,7 +30,7 @@ import { DAY_TYPE_LABEL, FOOTBALL_LABEL, fmtDayTitle, fmtKcal, plural } from '..
 import { haptic } from '../../lib/haptics';
 import { useDayLog, useNowHHMM, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Button, Callout, Card, DayTypeBadge, IconButton, ListGroup, ListRow, Pill, Screen, SectionTitle, Toggle, fade } from '../../ui';
+import { Button, Callout, Card, DayTypeBadge, IconButton, Pill, Screen, SectionTitle, fade } from '../../ui';
 import { PhysioEditorSheet } from '../allenamento/PhysioEditor';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { installReminderDue, markInstallReminded } from '../impostazioni/install';
@@ -44,7 +46,7 @@ import { QuickWorkoutSheet } from './components/QuickWorkoutSheet';
 import { CheckInPrompt, CurfewCard, TipCard } from './components/SmallCards';
 import { StepCard } from './components/StepCard';
 import { Timeline } from './components/Timeline';
-import { SweetsCard, WaterCard } from './components/Trackers';
+import { TrackersCard } from './components/Trackers';
 import { opensDetail } from './kinds';
 import { useOggi } from './useOggi';
 
@@ -225,10 +227,15 @@ export default function OggiScreen() {
     [refuseLocked, status, openQuickGym, setStatus, celebrateIfNeeded, toast],
   );
 
-  const goSettimana = useCallback((tab: 'spesa' | 'preparazione') => {
-    // La scheda e la settimana prossima viaggiano nell'hash: Settimana li legge anche se è già aperta.
-    // La preparazione apre subito il lettore a schermo intero.
-    window.location.hash = tab === 'preparazione' ? 'settimana?tab=preparazione&settimana=prossima&guida=1' : 'settimana?tab=spesa&settimana=prossima';
+  const goSettimana = useCallback((tab: 'spesa' | 'preparazione' | 'spesa-avvio') => {
+    // La scheda e la settimana viaggiano nell'hash: Settimana li legge anche se è già aperta.
+    // La preparazione apre subito il lettore a schermo intero; la spesa di avvio è quella di questa settimana.
+    window.location.hash =
+      tab === 'preparazione'
+        ? 'settimana?tab=preparazione&settimana=prossima&guida=1'
+        : tab === 'spesa-avvio'
+          ? 'settimana?tab=spesa&settimana=corrente'
+          : 'settimana?tab=spesa&settimana=prossima';
   }, []);
 
   const openDetail = useCallback(
@@ -250,7 +257,7 @@ export default function OggiScreen() {
           setPhysioOpen(true);
           break;
         case 'spesa':
-          goSettimana('spesa');
+          goSettimana(item.id === STARTER_SHOPPING_ID ? 'spesa-avvio' : 'spesa');
           break;
         case 'preparazione':
           goSettimana('preparazione');
@@ -330,8 +337,12 @@ export default function OggiScreen() {
       : day?.gymSessionId
         ? `Seduta ${day.gymSessionId}${day.gymOptional ? ' facoltativa' : ''} alle ${day.gymTime ?? '17:00'}`
         : null;
+  // La settimana del piano, detta per intero: "settimana 4" accanto al mese si leggeva "quarta di novembre".
   const week = weekIndexSince(plan.startDate, today) + 1;
-  const eyebrow = week > 0 ? `${formatMonth(today)} · settimana ${week}` : formatMonth(today);
+  const startsIn = daysBetween(today, plan.startDate);
+  const eyebrow =
+    startsIn > 0 && startsIn <= 7 ? `Il piano parte ${startsIn === 1 ? 'domani' : formatWeekday(plan.startDate)}` : week > 0 ? `Settimana ${week} del piano` : undefined;
+  const firstUse = firstUseOf(plan);
 
   // ── Avvisi ──
 
@@ -428,6 +439,8 @@ export default function OggiScreen() {
         kickoff={data.kickoff}
         preMatch={preMatch}
         flare={justCompleted}
+        weekAdherence={data.weekAdherence}
+        firstDay={data.firstDay && firstUse ? { time: firstUse.time } : null}
       />
 
       {showPain && (
@@ -492,7 +505,7 @@ export default function OggiScreen() {
         curfewIn={curfewIn}
         lockedUntil={data.now ? lockedUntil(data.now.item) : null}
         ritual={Boolean(data.now && phonePending && data.now.item.id === phonePending.id && ritualWindow)}
-        firstDay={data.firstDay}
+        mealValues={data.planned.bySlot}
         bedItem={data.bedItem}
         bedLocked={data.bedItem ? lockedUntil(data.bedItem) : null}
         justCompleted={justCompleted}
@@ -505,7 +518,22 @@ export default function OggiScreen() {
       {showCurfew && <CurfewCard minutes={curfewIn} curfew={curfew} bed={bed} ritual={ritualWindow} onRitual={() => setRitualOpen(true)} />}
 
       <section className="flex flex-col gap-3" aria-labelledby="oggi-giornata">
-        <SectionTitle id="oggi-giornata" subtitle={newUser ? 'Tocca il cerchio per segnare una voce, tienila premuta per le altre opzioni.' : undefined}>
+        <SectionTitle
+          id="oggi-giornata"
+          subtitle={newUser ? 'Tocca il cerchio per segnare una voce, tienila premuta per le altre opzioni.' : undefined}
+          action={
+            <button
+              type="button"
+              onClick={() => setMinimal(!data.minimal)}
+              aria-pressed={data.minimal}
+              aria-label={data.minimal ? 'Giornata minima attiva: torna al piano completo' : 'Passa alla giornata minima: quattro cose essenziali'}
+              className="hit-44 t-footnote inline-flex items-center gap-1.5 font-semibold text-accent-ink"
+            >
+              <Feather size={14} strokeWidth={2.4} aria-hidden />
+              {data.minimal ? 'Piano completo' : 'Giornata minima'}
+            </button>
+          }
+        >
           {data.minimal ? 'Giornata minima' : 'La giornata'}
         </SectionTitle>
         {data.minimal && (
@@ -542,7 +570,7 @@ export default function OggiScreen() {
                     ? {
                         time: data.physioSetup,
                         title: 'Aggiungi gli esercizi del fisioterapista',
-                        detail: 'Oggi è previsto: inseriscili una volta e li ritrovi qui',
+                        detail: 'Inseriscili una volta, poi li ritrovi qui',
                         onPress: () => setPhysioEditorOpen(true),
                       }
                     : null
@@ -555,15 +583,6 @@ export default function OggiScreen() {
             </motion.div>
           </AnimatePresence>
         </Card>
-        <ListGroup>
-          <ListRow
-            icon={Feather}
-            iconTone="neutral"
-            title="Giornata minima"
-            subtitle="Per i giorni no: quattro cose essenziali"
-            trailing={<Toggle checked={data.minimal} onChange={setMinimal} label="Giornata minima" />}
-          />
-        </ListGroup>
       </section>
 
       {installShown && (
@@ -576,23 +595,30 @@ export default function OggiScreen() {
 
       {step && <StepCard status={step} onToggle={toggleStep} />}
 
-      <section className="flex flex-col gap-3" aria-label="Acqua e dolci">
-        <SectionTitle>Acqua e dolci</SectionTitle>
-        <WaterCard
-          glasses={dayLog.waterGlasses}
-          targetL={profile.waterTargetL || 2.5}
-          extraL={footballExtra}
-          extraReason={footballExtra ? 'giorno di calcio, +750 ml' : undefined}
-          onAdd={addWater}
-        />
-        <SweetsCard week={data.weekSweets} today={dayLog.sweets} planned={plan.sweetsPerWeek} onAdd={addSweet} />
-      </section>
+      <TrackersCard
+        water={{
+          glasses: dayLog.waterGlasses,
+          targetL: profile.waterTargetL || 2.5,
+          extraL: footballExtra,
+          extraReason: footballExtra ? 'calcio +750 ml' : undefined,
+          onAdd: addWater,
+        }}
+        sweets={{ week: data.weekSweets, today: dayLog.sweets, planned: plan.sweetsPerWeek, onAdd: addSweet }}
+      />
 
-      <section className="flex flex-col gap-3" aria-label="Valori e consiglio">
-        <SectionTitle>Nutrizione</SectionTitle>
-        <DayValues planned={data.planned} eaten={data.eaten} target={data.target} minimal={data.minimal} />
-        <TipCard date={today} dayType={data.dayType} firstId={fiberRampWeek(today, plan) !== null ? 'fibre-gradualita' : undefined} />
-      </section>
+      <DayValues planned={data.planned} eaten={data.eaten} target={data.target} minimal={data.minimal} />
+      <TipCard
+        date={today}
+        dayType={data.dayType}
+        firstId={fiberRampWeek(today, plan) !== null ? 'fibre-gradualita' : undefined}
+        context={{
+          painThreshold: plan.painThreshold,
+          impactThreshold: impactT,
+          fiberG: data.target.fiberG,
+          gymSessionId: day?.gymSessionId,
+          afterMatch: plan.week.find((d) => d.weekday === weekdayOf(yesterday))?.football?.kind === 'partita',
+        }}
+      />
 
       <ItemActionsSheet
         key={optionsSession}

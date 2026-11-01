@@ -491,6 +491,16 @@ export function migrateData(persisted: unknown, fromVersion: number): AppData {
     }
     data = { ...data, plan: { ...data.plan, targets }, version: 2 };
   }
+  // 2 → 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia predefinita delle 07:15. Sono 8 ore a letto,
+  // cioè circa 7 di sonno vero con un'efficienza dell'85-90%: con 7 h 45 a letto si restava sotto le 7.
+  // Chi aveva scelto un altro obiettivo o un'altra sveglia lo tiene.
+  if (fromVersion < 3 && isObj(data) && isObj(data.plan) && isObj(data.plan.sleep)) {
+    const sleep = data.plan.sleep as Record<string, unknown>;
+    if (sleep.target === '23:30' && sleep.wake === '07:15') {
+      data = { ...data, plan: { ...data.plan, sleep: { ...sleep, target: '23:15' } } };
+    }
+  }
+  if (isObj(data) && fromVersion < 3) data = { ...data, version: 3 };
   return normalizeData(data);
 }
 

@@ -18,6 +18,9 @@
  *
  * `prep` sono le attività della domenica che precede la settimana (60-90 minuti in tutto): servono i pasti
  * da lunedì a sabato. La domenica si cucina sul momento, oppure si usa una porzione dal freezer.
+ *
+ * Prima della rotazione c'è la settimana di avvio (`STARTER_WEEK`, più sotto): i giorni che vanno dal primo
+ * avvio dell'app al lunedì che trova fatte spesa e preparazione.
  */
 import type { MenuWeek } from '../domain/types';
 
@@ -260,6 +263,125 @@ export const MENU_ROTATION: MenuWeek[] = [
       },
     ],
   },
+];
+
+// ───────────────────────── Settimana di avvio ─────────────────────────
+
+/**
+ * Settimana di avvio: i giorni dal primo avvio dell'app al lunedì che trova fatte spesa e preparazione
+ * (`isStarterDay` in engine/menu). Chi comincia non ha fatto né la spesa del sabato né la preparazione della
+ * domenica: la spesa di avvio è nel primo pomeriggio libero (la voce di Oggi). Per questo:
+ *
+ * - nessuna ricetta da preparazione: tutto si cucina sul momento, in 15 minuti al massimo;
+ * - una spesa piccola: 17 prodotti per tutta la settimana (`STARTER_PRODUCTS`), quasi tutti a lunga
+ *   conservazione o surgelati. Il pollo si compra fresco e le porzioni dal mercoledì vanno in freezer;
+ * - poche ricette che si ripetono, di proposito: la colazione è sempre la stessa, lo spuntino da portare
+ *   anche, e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti;
+ * - legumi 3 volte e fibre tra 34 e 41 g, la parte bassa del menù: chi ne mangiava poche sale per gradi.
+ *
+ * Stessi vincoli della rotazione (verificati da `menu.test.ts`): kcal entro ±8%, proteine ≥ 125 g, grassi e
+ * carboidrati vicini all'obiettivo, almeno 5 porzioni di frutta e verdura, pre-calcio e cena di recupero nei
+ * giorni di calcio. Pesce 6 volte (tonno 3, merluzzo 3), pollo 3, uova 2, carne rossa mai.
+ * I giorni seguono la settimana tipo del piano predefinito, come la rotazione.
+ */
+export const STARTER_WEEK: MenuWeek = {
+  days: [
+    // Lunedì · calcio, partita alle 21:00 (la spesa di avvio è nel primo pomeriggio)
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'gallette-grana-clementine',
+        pranzo: 'pasta-tonno-pomodoro',
+        merenda: 'pre-gallette-banana',
+        cena: 'couscous-pollo-spinaci',
+      },
+    },
+    // Martedì · palestra A alle 17:00
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'gallette-grana-clementine',
+        pranzo: 'pasta-ceci-rosmarino',
+        merenda: 'yogurt-clementine-gallette',
+        cena: 'merluzzo-pizzaiola-couscous',
+      },
+    },
+    // Mercoledì · calcio, calcetto alle 21:00
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'gallette-grana-clementine',
+        pranzo: 'pasta-tonno-pomodoro',
+        merenda: 'pre-gallette-banana',
+        cena: 'couscous-pollo-spinaci',
+      },
+    },
+    // Giovedì · calcio, allenamento alle 20:30
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'gallette-grana-clementine',
+        pranzo: 'pasta-ceci-rosmarino',
+        merenda: 'pre-gallette-banana',
+        cena: 'couscous-pollo-spinaci',
+      },
+    },
+    // Venerdì · palestra B alle 17:00
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'gallette-grana-clementine',
+        pranzo: 'uova-spinaci-pane',
+        merenda: 'yogurt-clementine-gallette',
+        cena: 'merluzzo-pizzaiola-couscous',
+      },
+    },
+    // Sabato · leggero (a casa: lo yogurt la mattina, le gallette il pomeriggio)
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'yogurt-clementine-gallette',
+        pranzo: 'pasta-tonno-pomodoro',
+        merenda: 'gallette-grana-clementine',
+        cena: 'uova-pomodoro-spinaci',
+      },
+    },
+    // Domenica · riposo, vigilia della partita
+    {
+      meals: {
+        colazione: 'pane-arachidi-banana',
+        spuntino: 'yogurt-clementine-gallette',
+        pranzo: 'pasta-ceci-rosmarino',
+        merenda: 'gallette-grana-clementine',
+        cena: 'merluzzo-pizzaiola-couscous',
+      },
+    },
+  ],
+  prep: [],
+};
+
+/**
+ * I prodotti da comprare per la settimana di avvio (olio, sale, aglio ed erbe esclusi: di solito ci sono già).
+ * La spesa vera la calcola `shoppingList` dai pasti; questo elenco serve ai testi e ai test.
+ */
+export const STARTER_PRODUCTS: readonly string[] = [
+  'banana',
+  'clementine',
+  'insalata',
+  'spinaci',
+  'pollo',
+  'merluzzo',
+  'yogurt-greco-2',
+  'uova',
+  'grana',
+  'pane-integrale',
+  'pasta',
+  'couscous',
+  'gallette-riso',
+  'ceci',
+  'tonno',
+  'passata',
+  'burro-arachidi',
 ];
 
 /**

@@ -38,11 +38,12 @@ import type {
   TimelineKind,
 } from '../domain/types';
 import { estimateItemSec, SESSIONS } from '../data/sessions';
-import { fmtHours, fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
+import { fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
-import { MEAL_SLOTS, mealsForDate, menuWeekFor } from './menu';
+import { MEAL_SLOTS, isStarterDay, mealsForDate, menuWeekFor } from './menu';
 import { shoppingList, shoppingProgress } from './shopping';
-import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, sleepHours } from './sleep';
+import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, timeInBedLabel } from './sleep';
+import { introLevel, sessionDuration, type SessionDuration } from './training';
 
 /** Lo stato che serve alla timeline. I registri (controlli, sedute, calcio, spesa…) sono facoltativi. */
 export type TimelineState = Pick<AppData, 'plan' | 'dayLogs'> &
@@ -93,6 +94,12 @@ export const PREP_TIME: HHMM = '17:00';
 export const REVIEW_TIME: HHMM = '18:00';
 /** La spesa è fatta quando è spuntato almeno l'80% della lista. */
 export const SHOPPING_DONE_RATIO = 0.8;
+/** Spesa di avvio: un'ora dopo il pranzo, almeno mezz'ora dopo il primo avvio, non oltre le 19:30. */
+export const STARTER_SHOPPING_AFTER_LUNCH_MIN = 60;
+export const STARTER_SHOPPING_AFTER_START_MIN = 30;
+export const STARTER_SHOPPING_LATEST: HHMM = '19:30';
+/** Id della spesa di avvio (la spesa del sabato è `rito:spesa`). */
+export const STARTER_SHOPPING_ID = 'rito:spesa-avvio';
 /** Jolly della serie: uno a settimana con 5 giornate riuscite, al massimo uno da parte. */
 export const JOLLY_WINS_PER_WEEK = 5;
 export const JOLLY_MAX = 1;
@@ -256,22 +263,44 @@ function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
   // Calcio e palestra restano come appuntamenti che non contano: minuti e RPE servono al carico.
   const wd = weekdayOf(iso);
   const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
-  const appointments = [gymItem(day), footballItem(day)].filter((x): x is TimelineItem => Boolean(x));
+  const appointments = [gymItem(day, state), footballItem(day)].filter((x): x is TimelineItem => Boolean(x));
   if (!appointments.length) return items;
   return sortTimeline([...items, ...appointments], plan);
 }
 
-function gymItem(day: ScheduleDay | undefined): TimelineItem | null {
+/**
+ * Durata prevista della seduta, la stessa di Allenamento: senza gli esercizi già nel programma del
+ * fisioterapista, con una serie in meno nella fase di ingresso, più il blocco del fisioterapista. Null se la
+ * seduta non esiste.
+ */
+export function gymDuration(sessionId: string, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): SessionDuration | null {
+  const session = SESSIONS[sessionId];
+  if (!session) return null;
+  return sessionDuration(session, state.physio, { intro: introLevel(sessionId, state.workoutLogs ?? []) !== null });
+}
+
+/** Minuti in palestra (seduta più blocco del fisioterapista), 55 se la seduta non esiste. */
+export function gymTotalMin(sessionId: string, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): number {
+  return gymDuration(sessionId, state)?.total ?? 55;
+}
+
+/** "45 min" oppure, con gli esercizi del fisioterapista, "45 + 24 min" (la forma breve di Allenamento). */
+function gymDurationShort(d: SessionDuration): string {
+  // Spazi indivisibili: "45 + 24 min" non va a capo a metà.
+  return d.physio ? `${d.own}\u00a0+\u00a0${d.physio}\u00a0min` : fmtMinutes(d.own);
+}
+
+function gymItem(day: ScheduleDay | undefined, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): TimelineItem | null {
   if (!day?.gymSessionId) return null;
   const id = day.gymSessionId;
   const session = SESSIONS[id];
-  const est = session?.estMin ?? 55;
+  const d = gymDuration(id, state);
   return {
     id: `palestra:${id}`,
     time: day.gymTime ?? DEFAULT_GYM_TIME,
     kind: 'palestra',
     title: session?.name ?? `Seduta ${id}`,
-    detail: [day.gymOptional ? 'Facoltativa' : '', session?.subtitle ?? '', fmtMinutes(est)].filter(Boolean).join(' · '),
+    detail: [day.gymOptional ? 'Facoltativa' : '', session?.subtitle ?? '', d ? gymDurationShort(d) : fmtMinutes(55)].filter(Boolean).join(' · '),
     ref: id,
   };
 }
@@ -343,7 +372,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
   }
 
   // Palestra.
-  const gym = gymItem(day);
+  const gym = gymItem(day, state);
   if (gym) items.push(gym);
 
   // Calcio.
@@ -356,7 +385,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
     const mins = physioMinutes(state.physio);
     items.push({
       id: 'fisio',
-      time: physioTime(day, plan, mins),
+      time: physioTime(day, plan, mins, day.gymSessionId ? gymTotalMin(day.gymSessionId, state) : undefined),
       kind: 'fisio',
       title: 'Esercizi del fisioterapista',
       detail: `${plural(n, 'esercizio', 'esercizi')} · ${fmtMinutes(mins)}`,
@@ -369,26 +398,26 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
     time: curfew,
     kind: 'coprifuoco',
     title: 'Coprifuoco del telefono',
-    detail: 'In carica fuori dalla camera, luci basse',
+    detail: 'In carica fuori dalla camera',
   });
   items.push({
     id: 'letto',
     time: bed,
     kind: 'letto',
     title: 'A letto',
-    detail: `Sveglia alle ${wake} · ${fmtHours(sleepHours(bed, wake))} di sonno`,
+    detail: `Sveglia alle ${wake} · ${timeInBedLabel(bed, wake)}`,
   });
 
   return sortTimeline(items, plan);
 }
 
 /** Orario degli esercizi del fisioterapista: dopo pranzo, oppure dopo la palestra se si sovrappongono. */
-export function physioTime(day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>, mins = 15): HHMM {
+export function physioTime(day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>, mins = 15, gymMin?: number): HHMM {
   const schedule = mealSchedule(day, plan);
   let at = dayMinutes(schedule.pranzo.time, plan) + PHYSIO_AFTER_LUNCH_MIN;
   if (day?.gymSessionId) {
     const start = dayMinutes(day.gymTime ?? DEFAULT_GYM_TIME, plan);
-    const end = start + (SESSIONS[day.gymSessionId]?.estMin ?? 55);
+    const end = start + (gymMin ?? SESSIONS[day.gymSessionId]?.estMin ?? 55);
     if (at + Math.max(mins, 15) > start && at < end) at = end + 15;
   }
   return minToHHMM(round5(at));
@@ -423,7 +452,42 @@ export function nextWeekPrep(iso: ISODate, plan: Pick<Plan, 'startDate'>): { wee
   return { weekStart: monday, tasks, minutes: tasks.reduce((t, x) => t + (x.minutes || 0), 0) };
 }
 
-/** Spesa il sabato, preparazione e revisione la domenica, con orari che non si sovrappongono al resto. */
+export interface StarterShopping {
+  /** Giorno e orario della spesa di avvio. */
+  date: ISODate;
+  time: HHMM;
+  /** Settimana della lista (lunedì) e, se il primo avvio è a metà settimana, il giorno da cui parte. */
+  weekStart: ISODate;
+  fromDate?: ISODate;
+}
+
+/**
+ * Spesa di avvio: chi comincia non ha ancora fatto la spesa del sabato. Il primo giorno feriale dal primo
+ * avvio con il tempo per farla (un'ora dopo il pranzo, mezz'ora dopo l'avvio, entro le 19:30; chi comincia di
+ * domenica la fa il lunedì) compra i pasti dei giorni di avvio, quelli senza preparazione. Chi comincia di
+ * sabato, o il venerdì sera, ha già la spesa del sabato. Null senza `Plan.firstUse`.
+ */
+export function starterShopping(plan: Pick<Plan, 'startDate' | 'mealTimes'>): StarterShopping | null {
+  const first = firstUseOf(plan);
+  if (!first) return null;
+  const after = round5(hhmmToMin(plan.mealTimes.pranzo) + STARTER_SHOPPING_AFTER_LUNCH_MIN, true);
+  let date = first.date;
+  let at = Math.max(after, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true));
+  if (weekdayOf(date) === 6 || at > hhmmToMin(STARTER_SHOPPING_LATEST)) {
+    date = addDays(date, 1);
+    at = after;
+  }
+  if (weekdayOf(date) >= 5) return null;
+  const monday = weekStart(date);
+  const fromDate = weekStart(first.date) === monday && first.date !== monday ? first.date : undefined;
+  return { date, time: minToHHMM(at), weekStart: monday, ...(fromDate ? { fromDate } : {}) };
+}
+
+/**
+ * Spesa il sabato, preparazione e revisione la domenica, con orari che non si sovrappongono al resto.
+ * Primi giorni: la spesa di avvio; niente revisione prima della prima settimana da rivedere
+ * (`firstReviewWeek`) e niente preparazione se anche la settimana dopo è di avvio.
+ */
 export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   const { plan } = state;
   if (state.dayLogs[iso]?.minimal) return [];
@@ -431,12 +495,24 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
   const out: DayItem[] = [];
 
+  const starter = starterShopping(plan);
+  if (starter && starter.date === iso) {
+    const n = shoppingList(starter.weekStart, state, starter.fromDate ? { fromDate: starter.fromDate } : {}).items.length;
+    out.push({
+      id: STARTER_SHOPPING_ID,
+      time: starter.time,
+      kind: 'spesa',
+      title: 'Spesa di avvio',
+      detail: n ? `${plural(n, 'prodotto', 'prodotti')}, lista pronta in Settimana` : 'Lista pronta in Settimana',
+    });
+  }
+
   if (wd === 5) {
     // Dopo la seduta del sabato mattina, se c'è e si sovrappone.
     let at = hhmmToMin(SHOPPING_TIME);
     if (day?.gymSessionId) {
       const start = hhmmToMin(day.gymTime ?? DEFAULT_GYM_TIME);
-      const end = start + (SESSIONS[day.gymSessionId]?.estMin ?? 55);
+      const end = start + gymTotalMin(day.gymSessionId, state);
       if (at < end + 10 && at + 60 > start) at = round5(end + 15, true);
     }
     out.push({
@@ -450,7 +526,8 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
 
   if (wd === 6) {
     const prep = nextWeekPrep(iso, plan);
-    if (prep.tasks.length) {
+    const prepDue = !isStarterDay(addDays(iso, 1), plan);
+    if (prep.tasks.length && prepDue) {
       // Finisce prima della revisione: con 85 minuti si comincia alle 16:35.
       const start = Math.min(hhmmToMin(PREP_TIME), Math.floor((hhmmToMin(REVIEW_TIME) - prep.minutes) / 5) * 5);
       out.push({
@@ -461,13 +538,17 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
         detail: `${plural(prep.tasks.length, 'attività', 'attività')} · ${fmtMinutes(prep.minutes)}`,
       });
     }
-    out.push({
-      id: 'rito:revisione',
-      time: REVIEW_TIME,
-      kind: 'revisione',
-      title: 'Revisione della settimana',
-      detail: 'Dieci minuti: voti, numeri e correzioni del piano',
-    });
+    // La revisione c'è solo per una settimana da rivedere: chi comincia di sabato o di domenica, o con il
+    // piano che parte il lunedì dopo, la fa la domenica successiva.
+    if (isReviewableWeek(weekStart(iso), plan)) {
+      out.push({
+        id: 'rito:revisione',
+        time: REVIEW_TIME,
+        kind: 'revisione',
+        title: 'Revisione della settimana',
+        detail: 'Voti, numeri e correzioni del piano',
+      });
+    }
   }
   return out;
 }
@@ -488,6 +569,35 @@ export function firstUseOf(plan: Pick<Plan, 'startDate'>): FirstUse | null {
   const { date, time } = f as Partial<FirstUse>;
   return isISODate(date) && isHHMM(time) ? { date, time } : null;
 }
+
+// ───────────────────────── Prima revisione ─────────────────────────
+
+/** Giorni con Ritmo (dal primo avvio alla domenica, compresi) che servono per rivedere la prima settimana. */
+export const MIN_FIRST_WEEK_DAYS = 3;
+
+/**
+ * Lunedì della prima settimana da rivedere. È quella del primo avvio (`Plan.firstUse`) se fino alla domenica
+ * restano almeno 3 giorni; chi comincia il sabato o la domenica rivede la settimana dopo, la prima vissuta
+ * davvero con il piano. Mai prima della settimana di inizio del piano. Null senza inizio né primo avvio.
+ */
+export function firstReviewWeek(plan: Pick<Plan, 'startDate'>): ISODate | null {
+  let ws: ISODate | null = plan.startDate && isISODate(plan.startDate) ? weekStart(plan.startDate) : null;
+  const first = firstUseOf(plan);
+  if (first) {
+    const fw = weekStart(first.date);
+    const left = daysBetween(first.date, addDays(fw, 6)) + 1;
+    const own = left >= MIN_FIRST_WEEK_DAYS ? fw : addDays(fw, 7);
+    if (!ws || own > ws) ws = own;
+  }
+  return ws;
+}
+
+/** La settimana che parte dal lunedì `monday` si può rivedere: non viene prima della prima settimana da rivedere. */
+export function isReviewableWeek(monday: ISODate, plan: Pick<Plan, 'startDate'>): boolean {
+  const first = firstReviewWeek(plan);
+  return !first || weekStart(monday) >= first;
+}
+
 
 /** La voce viene prima del primo avvio dell'app: non conta e non resta indietro. */
 export function isBeforeStart(iso: ISODate, item: Pick<DayItem, 'time' | 'kind'>, plan: Pick<Plan, 'startDate' | 'sleep'>): boolean {
@@ -583,10 +693,11 @@ export function derivedStatus(iso: ISODate, state: TimelineState, item: DayItem)
       return prep.tasks.length > 0 && prep.tasks.every((t) => done.has(t.id)) ? 'fatto' : undefined;
     }
     case 'spesa': {
-      const monday = addDays(weekStart(iso), 7);
+      const starter = item.id === STARTER_SHOPPING_ID ? starterShopping(state.plan) : null;
+      const monday = starter ? starter.weekStart : addDays(weekStart(iso), 7);
       const checked = state.shoppingChecked?.[monday];
       if (!checked?.length) return undefined;
-      const progress = shoppingProgress(shoppingList(monday, state), checked);
+      const progress = shoppingProgress(shoppingList(monday, state, starter?.fromDate ? { fromDate: starter.fromDate } : {}), checked);
       return progress.total > 0 && progress.ratio >= SHOPPING_DONE_RATIO - 1e-9 ? 'fatto' : undefined;
     }
     default:
@@ -653,6 +764,21 @@ export function dayAdherence(iso: ISODate, state: TimelineState): number {
 export function isSuccessful(summary: AdherenceSummary): boolean {
   if (summary.minimal) return summary.total > 0 && summary.done === summary.total;
   return summary.total > 0 && summary.score >= SUCCESS_THRESHOLD - 1e-9;
+}
+
+/**
+ * Quante voci ancora da segnare fatte servono per la giornata riuscita: 0 se è già riuscita, null se non ci
+ * si arriva più con le voci rimaste. In giornata minima servono tutte e 4 le voci fatte.
+ */
+export function itemsToSuccess(summary: AdherenceSummary): number | null {
+  if (summary.total === 0) return null;
+  if (isSuccessful(summary)) return 0;
+  if (summary.minimal) {
+    const need = summary.total - summary.done;
+    return need <= summary.pending ? need : null;
+  }
+  const need = Math.max(0, Math.ceil(SUCCESS_THRESHOLD * summary.total - (summary.done + summary.replaced * 0.5) - 1e-9));
+  return need <= summary.pending ? need : null;
 }
 
 export function daySuccessful(iso: ISODate, state: TimelineState): boolean {

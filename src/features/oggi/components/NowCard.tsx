@@ -1,14 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { BedDouble, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Timer } from 'lucide-react';
-import type { DayType, HHMM } from '../../../domain/types';
-import { RECIPES } from '../../../data/recipes';
-import { SESSIONS } from '../../../data/sessions';
-import { recipeNutrition } from '../../../engine/nutrition';
-import type { AdherenceSummary, DayItem, NowPick, StreakInfo } from '../../../engine/timeline';
-import { fmtKcal, fmtMinutes, fmtPercent, plural } from '../../../lib/format';
-import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk } from '../../../ui';
+import type { DayType, HHMM, MealSlot, Nutrients } from '../../../domain/types';
+import { gymDuration, type AdherenceSummary, type DayItem, type NowPick, type StreakInfo } from '../../../engine/timeline';
+import { useApp } from '../../../state/store';
+import { fmtPercent, plural } from '../../../lib/format';
+import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk, toneRing, toneSoft } from '../../../ui';
 import { BOARD_LABEL, itemIcon, itemTone } from '../kinds';
+import { nowContent, stateLabel } from '../nowContent';
 
 export interface NowCardProps {
   pick: NowPick | null;
@@ -24,8 +23,8 @@ export interface NowCardProps {
   lockedUntil: HHMM | null;
   /** Dal coprifuoco meno 15 minuti la voce del telefono apre il rito della sera. */
   ritual: boolean;
-  /** Primo giorno d'uso: conta da adesso. */
-  firstDay: boolean;
+  /** Valori dei pasti del giorno per slot (`dayNutritionDetail(...).bySlot`): gli stessi di Settimana. */
+  mealValues: Partial<Record<MealSlot, Nutrients>>;
   /** Voce "A letto" ancora da segnare, per la riga secondaria della giornata chiusa. */
   bedItem?: DayItem;
   bedLocked: HHMM | null;
@@ -37,94 +36,24 @@ export interface NowCardProps {
   onRitual: () => void;
 }
 
-function stateLabel(pick: NowPick): string {
-  const d = pick.deltaMin;
-  if (pick.item.kind === 'minima' && pick.item.id !== 'minima:telefono' && pick.state === 'adesso') return 'Da fare oggi';
-  if (pick.state === 'adesso') return d < -2 ? `Adesso · da ${fmtMinutes(-d)}` : 'Adesso';
-  if (pick.state === 'prossima') return d <= 240 ? `Prossima · tra ${fmtMinutes(d)}` : 'Prossima';
-  return 'Da segnare';
-}
-
-interface Content {
-  kicker: string;
-  headline: string;
-  sub?: string;
-  meta: string[];
-}
-
-function contentFor(item: DayItem, dayType: DayType, curfewIn: number, bed: HHMM): Content {
-  switch (item.kind) {
-    case 'pasto': {
-      const recipe = item.ref ? RECIPES[item.ref] : undefined;
-      if (!recipe) return { kicker: item.title, headline: item.detail ?? item.title, meta: [] };
-      const n = recipeNutrition(recipe, dayType);
-      return {
-        kicker: item.title,
-        headline: recipe.name,
-        meta: [fmtKcal(n.kcal), `${Math.round(n.proteinG)} g proteine`, fmtMinutes(recipe.prepMin)],
-      };
-    }
-    case 'palestra': {
-      const s = SESSIONS[item.ref ?? ''];
-      return {
-        kicker: item.title,
-        headline: s?.subtitle ?? item.title,
-        sub: s?.focus,
-        meta: [s ? fmtMinutes(s.estMin) : '', item.detail?.startsWith('Facoltativa') ? 'Facoltativa' : ''].filter(Boolean),
-      };
-    }
-    case 'calcio':
-      return { kicker: 'Calcio', headline: item.title, meta: (item.detail ?? '').split(', ').filter(Boolean) };
-    case 'controllo':
-      return { kicker: 'Mattino', headline: item.title, meta: ['Meno di 30 secondi'] };
-    case 'coprifuoco':
-      return {
-        kicker: 'Sera',
-        headline: 'Telefono fuori dalla camera',
-        meta: [curfewIn > 0 ? `Tra ${fmtMinutes(curfewIn)}` : 'È ora', `A letto alle ${bed}`],
-      };
-    case 'letto':
-      return { kicker: 'Notte', headline: 'A letto', meta: (item.detail ?? '').split(' · ').filter(Boolean) };
-    case 'fisio':
-      return { kicker: 'Fisioterapista', headline: item.title, meta: (item.detail ?? '').split(' · ').filter(Boolean) };
-    case 'integratori':
-      return { kicker: item.title, headline: item.detail ?? item.title, meta: ['Con il pasto'] };
-    case 'minima':
-      return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: [] };
-    case 'spesa':
-      return { kicker: 'Sabato', headline: item.title, sub: 'La lista somma tutti i pasti della settimana prossima, divisa per reparto.', meta: ['Lista pronta'] };
-    case 'preparazione':
-      return {
-        kicker: 'Domenica',
-        headline: item.title,
-        sub: 'Una volta sola: pranzi e basi pronti per i giorni feriali.',
-        meta: (item.detail ?? '').split(' · ').filter(Boolean),
-      };
-    case 'revisione':
-      return {
-        kicker: 'Domenica',
-        headline: 'Il referto della settimana',
-        sub: 'Voti, peso, sonno, dolori e carico: il piano si corregge da qui.',
-        meta: ['10 minuti'],
-      };
-  }
-}
-
 /** Card "Adesso": la prossima voce da fare, grande, con l'azione principale a portata di pollice. */
 export function NowCard(props: NowCardProps) {
-  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, firstDay, onMark, onOpen, onOptions, onRitual } = props;
+  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, mealValues, onMark, onOpen, onOptions, onRitual } = props;
+  const physio = useApp((s) => s.physio);
+  const workoutLogs = useApp((s) => s.workoutLogs);
   if (!pick) return <DoneCard {...props} />;
   const { item } = pick;
+  const gym = item.kind === 'palestra' && item.ref ? gymDuration(item.ref, { physio, workoutLogs }) : null;
   const tone = itemTone(item, dayType);
   const Icon = itemIcon(item);
-  const c = contentFor(item, dayType, curfewIn, bed);
+  const label = stateLabel(pick);
+  const c = nowContent(item, { mealValues, curfewIn, bed, timeShown: Boolean(label.time), gym });
   const late = pick.state === 'in-ritardo';
   const allDay = item.kind === 'minima' && item.id !== 'minima:telefono' && pick.state === 'adesso';
   const ink = tone === 'neutral' ? 'var(--ink-2)' : toneInk(tone);
 
   let primary: ReactNode;
   let secondary: ReactNode = null;
-  let note: string | null = null;
   const markBtn = (variant: 'primary' | 'secondary') => (
     <Button
       size="lg"
@@ -142,10 +71,9 @@ export function NowCard(props: NowCardProps) {
   if (lockedUntil && !ritual) {
     primary = (
       <Button size="lg" variant="secondary" icon={MoonStar} className="min-w-0 flex-1 px-4" disabled>
-        {`Dalle ${lockedUntil}`}
+        {`Si segna dalle ${lockedUntil}`}
       </Button>
     );
-    note = `Si segna dalle ${lockedUntil}, quando posi davvero il telefono.`;
   } else if (ritual) {
     primary = (
       <Button size="lg" icon={MoonStar} className="min-w-0 flex-1 px-4" onClick={onRitual}>
@@ -174,7 +102,7 @@ export function NowCard(props: NowCardProps) {
   } else if (item.kind === 'revisione') {
     primary = (
       <Button size="lg" icon={Flag} className="min-w-0 flex-1 px-4" onClick={() => onOpen(item)}>
-        Apri il referto
+        Apri la revisione
       </Button>
     );
   } else if (item.kind === 'spesa' || item.kind === 'preparazione') {
@@ -203,14 +131,6 @@ export function NowCard(props: NowCardProps) {
 
   return (
     <Card variant="highlight" tone={tone} padding="none" as="section" aria-labelledby="oggi-adesso">
-      {firstDay && (
-        <div className="relative flex items-center gap-2.5 border-b border-line px-5 py-3">
-          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />
-          <p className="t-footnote min-w-0 text-ink-2">
-            <span className="font-semibold text-ink">Primo giorno: conta da adesso.</span> Le voci di stamattina non pesano.
-          </p>
-        </div>
-      )}
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={item.id}
@@ -228,7 +148,15 @@ export function NowCard(props: NowCardProps) {
                   <span className="relative size-2 rounded-full" style={{ background: toneColor(tone) }} />
                 </span>
               )}
-              {stateLabel(pick)}
+              <span>
+                {label.label}
+                {label.time && (
+                  <>
+                    {' · '}
+                    <span className="normal-case tracking-[0.03em]">{label.time}</span>
+                  </>
+                )}
+              </span>
             </h2>
             <div className="-mr-1 flex shrink-0 items-center gap-2">
               <span className="t-mono rounded-full bg-card-2 px-2.5 py-1 text-[0.8125rem] font-medium text-ink shadow-[inset_0_0_0_1px_var(--line)]">
@@ -238,20 +166,20 @@ export function NowCard(props: NowCardProps) {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2.5">
+          <div className="mt-3.5 flex items-center gap-2.5">
             <span
               aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-card-2"
-              style={{ color: ink, boxShadow: `inset 0 0 0 1px ${tone === 'neutral' ? 'var(--line-strong)' : `color-mix(in srgb, ${toneColor(tone)} 55%, transparent)`}` }}
+              className="grid size-8 shrink-0 place-items-center rounded-[10px]"
+              style={{ background: toneSoft(tone, 16), color: ink, boxShadow: tone === 'neutral' ? 'inset 0 0 0 1px var(--line-strong)' : toneRing(tone, 55) }}
             >
               <Icon size={17} strokeWidth={2.3} />
             </span>
             <p className="t-callout min-w-0 truncate font-semibold text-ink-2">{c.kicker}</p>
           </div>
-          <p className="t-title mt-2.5 text-[1.875rem] leading-[1.04] text-ink [text-wrap:balance]">{c.headline}</p>
+          <p className="t-title mt-2 text-[1.875rem] leading-[1.04] text-ink [text-wrap:balance]">{c.headline}</p>
           {c.sub && <p className="t-footnote mt-2 line-clamp-2 text-ink-2">{c.sub}</p>}
           {c.meta.length > 0 && (
-            <ul className="mt-3.5 flex flex-wrap gap-1.5" aria-label="Dettagli">
+            <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Dettagli">
               {c.meta.map((m) => (
                 <li key={m} className="t-mono inline-flex h-7 items-center rounded-full px-2.5 text-[0.75rem] font-medium text-ink-2 shadow-[inset_0_0_0_1px_var(--line)]">
                   {m}
@@ -260,11 +188,10 @@ export function NowCard(props: NowCardProps) {
             </ul>
           )}
 
-          <div className="mt-5 flex items-center gap-2.5">
+          <div className="mt-4 flex items-center gap-2.5">
             {primary}
             {secondary}
           </div>
-          {note && <p className="t-footnote mt-2.5 text-ink-3">{note}</p>}
         </motion.div>
       </AnimatePresence>
     </Card>
@@ -322,7 +249,7 @@ function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem,
                   {plural(target, 'giorno', 'giorni', false)}
                 </p>
               ) : (
-                <p className="t-callout mt-0.5 text-ink-2">Aderenza {fmtPercent(summary.score)}: sotto il 70%. Domani si riparte.</p>
+                <p className="t-callout mt-0.5 text-ink-2">Giornata al {fmtPercent(summary.score)}, sotto il 70%. Domani si riparte.</p>
               ))}
           </div>
         </div>

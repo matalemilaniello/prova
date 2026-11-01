@@ -3,6 +3,7 @@
  * avanzamento, prodotti da dispensa separati e "Copia lista" (appunti, con ripiego a selezione).
  * Carne e pesce freschi che servono a metà settimana portano la nota "congela" sotto il nome.
  * Nella prima settimana di chi inizia a metà settimana la lista parte dal giorno di inizio.
+ * Nei giorni di avvio (niente preparazione della domenica) è la spesa di avvio: lo dice il titolo e una nota.
  */
 import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -10,7 +11,6 @@ import {
   Apple,
   Bean,
   Check,
-  ChevronLeft,
   ChevronRight,
   ClipboardCopy,
   Copy,
@@ -23,6 +23,7 @@ import {
   RotateCcw,
   ShoppingBasket,
   Snowflake,
+  Sparkles,
   Wheat,
   type LucideIcon,
 } from 'lucide-react';
@@ -59,13 +60,11 @@ export interface ShoppingTabProps {
   today: ISODate;
   /** Primo giorno da comprare (prima settimana di chi inizia a metà settimana). */
   fromDate?: ISODate;
-  /** True se la scheda mostra da sola la settimana prossima (fine settimana). */
-  autoAhead?: boolean;
   onOpenWeek: (offset: number) => void;
   onGoPrep: () => void;
 }
 
-export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate, autoAhead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
+export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate, onOpenWeek, onGoPrep }: ShoppingTabProps) {
   const list = useMemo(() => shoppingList(weekStart, { plan, dayLogs }, { fromDate }), [weekStart, plan, dayLogs, fromDate]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);
@@ -109,13 +108,11 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate,
   }
 
   const freezeCount = list.items.filter((i) => i.note).length;
-  const label = offset === 0 ? 'Spesa della settimana' : offset === 1 ? 'Spesa della settimana prossima' : `Spesa · ${range}`;
+  // Etichetta breve: la settimana è già nell'intestazione.
+  const label = list.starter ? 'Spesa di avvio' : 'Lista della spesa';
 
   return (
     <div className="flex flex-col gap-6">
-      {autoAhead && (
-        <WeekAheadNote weekStart={weekStart} onBack={() => onOpenWeek(0)} />
-      )}
       <Card variant="highlight" tone={allDone ? 'good' : 'accent'} padding="lg" as="section" aria-label="Avanzamento della spesa">
         <div className="flex items-center gap-4">
           <ProgressRing
@@ -169,13 +166,26 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate,
         </Callout>
       )}
 
-      {fromDate && (
+      {list.starter && !allDone && (
+        <Callout tone="accent" icon={Sparkles} title={progress.total <= 20 ? 'Una spesa piccola per cominciare' : 'La prima spesa'}>
+          Una spesa sola per i pasti {dateSpanText(list.dates)}, niente preparazione e ricette da 15 minuti al massimo. Dalla settimana
+          dopo, spesa il sabato e preparazione la domenica.
+        </Callout>
+      )}
+
+      {fromDate && !list.starter && (
         <Callout tone="neutral" title="Prima settimana">
           Hai iniziato {formatDayLong(fromDate)}: la lista comprende solo i pasti da quel giorno in poi.
         </Callout>
       )}
 
-      {allDone && (
+      {allDone && list.starter && (
+        <Callout tone="good" title="Spesa di avvio fatta">
+          Il menù di questi giorni è tutto in casa. La prossima spesa è sabato, con la lista già pronta qui.
+        </Callout>
+      )}
+
+      {allDone && !list.starter && (
         <Callout
           tone="good"
           title="Spesa fatta"
@@ -341,27 +351,6 @@ function ItemSubtitle({ item }: { item: ShoppingItem }) {
         <span>{item.note}</span>
       </span>
     </span>
-  );
-}
-
-/**
- * Sopra la scheda quando nel fine settimana si apre da sola la settimana prossima: le date sono già
- * nell'intestazione, qui basta la strada per tornare.
- */
-export function WeekAheadNote({ weekStart, onBack }: { weekStart: ISODate; onBack: () => void }) {
-  return (
-    <div className="-my-2 flex justify-end">
-      <Button
-        variant="ghost"
-        size="sm"
-        icon={ChevronLeft}
-        onClick={onBack}
-        className="-mr-2"
-        aria-label={`Torna a questa settimana: ora vedi quella del ${formatWeekRange(weekStart)}`}
-      >
-        Torna a questa settimana
-      </Button>
-    </div>
   );
 }
 

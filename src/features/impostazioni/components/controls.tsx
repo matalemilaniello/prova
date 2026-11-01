@@ -317,6 +317,21 @@ export function ChoiceCards<T extends string>({
       {options.map((o) => {
         const on = o.value === value;
         const tone = o.tone ?? 'accent';
+        // Su più colonne il segno di spunta va nell'angolo in basso: a 360 px "Ricomposizione" occupa tutta la riga.
+        const corner = columns !== 1;
+        const mark = (
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-5 shrink-0 place-items-center rounded-full transition-colors duration-200',
+              !on && 'shadow-[inset_0_0_0_1.5px_var(--line-strong)]',
+              corner && 'absolute bottom-3 right-3',
+            )}
+            style={on ? { background: toneColor(tone), color: toneOn(tone) } : undefined}
+          >
+            {on && <Check size={13} strokeWidth={3.2} />}
+          </span>
+        );
         return (
           <motion.button
             key={o.value}
@@ -343,16 +358,11 @@ export function ChoiceCards<T extends string>({
                   {renderIcon(o.icon, 18, 2.2)}
                 </span>
               )}
-              <span className="t-callout min-w-0 flex-1 font-semibold text-ink">{o.label}</span>
-              <span
-                aria-hidden
-                className={cn('grid size-5 shrink-0 place-items-center rounded-full transition-colors duration-200', !on && 'shadow-[inset_0_0_0_1.5px_var(--line-strong)]')}
-                style={on ? { background: toneColor(tone), color: toneOn(tone) } : undefined}
-              >
-                {on && <Check size={13} strokeWidth={3.2} />}
-              </span>
+              <span className={cn('t-callout min-w-0 flex-1 font-semibold text-ink', corner && !o.text && 'pr-6')}>{o.label}</span>
+              {!corner && mark}
             </span>
-            {o.text && <span className="t-footnote text-ink-2">{o.text}</span>}
+            {o.text && <span className={cn('t-footnote text-ink-2', corner && 'pr-6')}>{o.text}</span>}
+            {corner && mark}
           </motion.button>
         );
       })}

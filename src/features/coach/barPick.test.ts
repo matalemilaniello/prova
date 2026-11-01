@@ -32,18 +32,60 @@ describe('piano B al bar', () => {
     expect(c.schedule.merenda.title).toMatch(/pre-partita/);
   });
 
+  const DAY_TYPES = ['calcio', 'palestra', 'leggero', 'riposo'] as const;
+  const every = (fn: (c: ReturnType<typeof barCombo>, slot: (typeof MEAL_SLOTS)[number], dt: (typeof DAY_TYPES)[number]) => void) => {
+    for (const slot of MEAL_SLOTS)
+      for (const dt of DAY_TYPES)
+        for (const pre of [false, true])
+          for (const eve of [false, true]) fn(barCombo(slot, dt, pre, eve), slot, dt);
+  };
+
   it('ogni combinazione usa opzioni esistenti e buone', () => {
-    for (const slot of MEAL_SLOTS) {
-      for (const dt of ['calcio', 'palestra', 'leggero', 'riposo'] as const) {
-        for (const pre of [false, true]) {
-          const c = barCombo(slot, dt, pre);
-          const opts = optionsById(c.ids);
-          expect(opts.length).toBe(c.ids.length);
-          for (const o of opts) expect(o.verdict).toBe('si');
-          expect(c.why).not.toMatch(/—/);
-        }
+    every((c) => {
+      const opts = optionsById(c.ids);
+      expect(opts.length).toBe(c.ids.length);
+      for (const o of opts) {
+        // Mai un dolce; "con un accorgimento" solo insieme alla frutta che il suo motivo chiede.
+        expect(o.verdict).not.toBe('programmato');
+        if (o.verdict === 'meglio') expect(c.ids.some((id) => id === 'macedonia' || id === 'spremuta')).toBe(true);
       }
-    }
+      expect(c.why).not.toMatch(/—/);
+      // La spiegazione non promette quello che i valori non contano.
+      expect(c.why).not.toMatch(/pane|aggiungi/i);
+    });
+  });
+
+  it('proteine come chiede il piano: 20 g a colazione, 30 g a pranzo e a cena', () => {
+    every((c, slot) => {
+      const p = sumApprox(optionsById(c.ids)).proteinG;
+      if (slot === 'colazione') expect(p).toBeGreaterThanOrEqual(20);
+      if (slot === 'pranzo' || slot === 'cena') expect(p).toBeGreaterThanOrEqual(30);
+    });
+  });
+
+  it('la vigilia della partita mangia come un giorno di calcio', () => {
+    // Domenica 15 novembre, partita lunedì: tipo previsto riposo, effettivo calcio.
+    const c = barContext({ plan }, '2026-11-15', '20:10');
+    expect(c.scheduledDayType).toBe('riposo');
+    expect(c.dayType).toBe('calcio');
+    expect(c.matchEve).toBe(true);
+    expect(c.slot).toBe('cena');
+    const cena = barCombo('cena', c.dayType, false, c.matchEve);
+    const t = sumApprox(optionsById(cena.ids));
+    expect(t.carbG).toBeGreaterThanOrEqual(60);
+    expect(t.proteinG).toBeGreaterThanOrEqual(30);
+    expect(cena.why).toMatch(/Vigilia/);
+    expect(cena.why).not.toMatch(/dopo il calcio/i);
+    // Il lunedì della partita non è una vigilia: la cena è quella di recupero.
+    const mon = barContext({ plan }, '2026-11-16', '22:50');
+    expect(mon.matchEve).toBe(false);
+    expect(barCombo('cena', mon.dayType, false, mon.matchEve).why).toMatch(/recuperare/);
+  });
+
+  it('senza vigilia il giorno di riposo resta leggero', () => {
+    const c = barContext({ plan }, '2026-11-12', '20:10'); // giovedì, allenamento: calcio
+    expect(c.matchEve).toBe(false);
+    expect(barContext({ plan }, '2026-11-14', '13:30').dayType).toBe('leggero'); // sabato
   });
 
   it('somma i valori indicativi', () => {

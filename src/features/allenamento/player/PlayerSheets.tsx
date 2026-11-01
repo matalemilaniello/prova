@@ -1,7 +1,7 @@
-import { ArrowLeftRight, Check, Flag, Pause, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, Check, Flag, HeartPulse, Pause, RotateCcw, Trash2 } from 'lucide-react';
 import type { Exercise, ExerciseLog, WorkoutLog } from '../../../domain/types';
 import { lastEntryFor } from '../../../engine/training';
-import { Button, Pill, Sheet, cn } from '../../../ui';
+import { Button, Pill, Sheet, cn, toneInk, toneRing, toneSoft } from '../../../ui';
 import { doseLabel, type PlayerStep } from '../lib';
 import { setsSummary } from './ExerciseStep';
 
@@ -57,7 +57,7 @@ export function AlternativesSheet({ open, onClose, planned, currentId, catalog, 
                   >
                     <span
                       className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-[11px]"
-                      style={{ background: 'color-mix(in srgb, var(--palestra) 16%, transparent)', color: 'var(--palestra-ink)' }}
+                      style={{ background: toneSoft('palestra', 16), boxShadow: toneRing('palestra'), color: toneInk('palestra') }}
                       aria-hidden
                     >
                       {original ? <RotateCcw size={17} strokeWidth={2.2} /> : <ArrowLeftRight size={17} strokeWidth={2.2} />}
@@ -119,15 +119,27 @@ export function OverviewSheet({ open, onClose, steps, current, logs, nameOf, onJ
       <ol className="flex flex-col gap-1.5 pb-2">
         {steps.map((st, i) => {
           const items = st.kind === 'warmup' ? st.items : [st.item];
-          const total = items.reduce((s, it) => s + (logs[it.key]?.sets.length ?? it.item.sets), 0);
-          const done = items.reduce((s, it) => s + (logs[it.key]?.sets.filter((x) => x.done).length ?? 0), 0);
+          // Il riscaldamento si conta per esercizi spuntati ("2/3"), gli esercizi per serie.
+          const warm = st.kind === 'warmup';
+          const total = warm ? items.length : items.reduce((s, it) => s + (logs[it.key]?.sets.length ?? it.item.sets), 0);
+          const done = warm
+            ? items.filter((it) => {
+                const l = logs[it.key];
+                return Boolean(l?.sets.length && l.sets.every((x) => x.done));
+              }).length
+            : items.reduce((s, it) => s + (logs[it.key]?.sets.filter((x) => x.done).length ?? 0), 0);
           const complete = total > 0 && done >= total;
           const here = i === current;
           const block = st.kind === 'warmup' ? st.blockTitle : st.item.blockTitle;
           const prevBlock = i > 0 ? (steps[i - 1].kind === 'warmup' ? (steps[i - 1] as { blockTitle: string }).blockTitle : (steps[i - 1] as { item: { blockTitle: string } }).item.blockTitle) : null;
           return (
             <li key={st.key}>
-              {block !== prevBlock && st.kind !== 'warmup' && <p className={cn('t-label px-1 pb-1.5 text-ink-3', i > 0 && 'pt-3')}>{block}</p>}
+              {block !== prevBlock && st.kind !== 'warmup' && (
+                <p className={cn('t-label flex items-center gap-1.5 px-1 pb-1.5', st.item.physio ? 'text-leggero-ink' : 'text-ink-3', i > 0 && 'pt-3')}>
+                  {st.item.physio && <HeartPulse size={12} strokeWidth={2.4} aria-hidden />}
+                  {block}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => onJump(i)}

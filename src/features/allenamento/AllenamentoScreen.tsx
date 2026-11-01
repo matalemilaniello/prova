@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { CircleCheck, Dumbbell } from 'lucide-react';
 import type { WorkoutLog } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
-import { formatMonth, weekIndexSince } from '../../engine/dates';
+import { daysBetween, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
 import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
 import { introLevel, sessionLoad } from '../../engine/training';
 import { useNow, usePlanDay } from '../../state/hooks';
@@ -45,7 +45,14 @@ export default function AllenamentoScreen() {
   }, [draft, physio, plan, workoutLogs]);
 
   const week = weekIndexSince(plan.startDate, today) + 1;
-  const eyebrow = week > 0 ? `${formatMonth(today)} · settimana ${week}` : formatMonth(today);
+  // Prima dell'inizio (benvenuto finito di domenica) niente "settimana 0": si dice quando parte il piano.
+  const startsIn = daysBetween(today, plan.startDate);
+  const eyebrow =
+    startsIn > 0 && startsIn <= 7
+      ? `Il piano parte ${startsIn === 1 ? 'domani' : formatWeekday(plan.startDate)}`
+      : week > 0
+        ? `Settimana ${week} del piano`
+        : formatMonth(today);
   const match = data.nextMatch;
   const subtitle = match ? (
     <DayTypeBadge dayType="calcio" label={`${FOOTBALL_LABEL[match.event.kind]} ${relativeDayShort(match.date, today)} alle ${match.event.time}`} />
@@ -121,7 +128,7 @@ export default function AllenamentoScreen() {
         />
       </section>
 
-      <SessionsSection plan={plan} history={data.history} today={today} onOpen={(id) => startSession(id)} />
+      <SessionsSection plan={plan} history={data.history} today={today} physio={physio} onOpen={(id) => startSession(id)} />
 
       <PhysioSection physio={physio} plan={plan} onEdit={() => setPhysioOpen(true)} />
 

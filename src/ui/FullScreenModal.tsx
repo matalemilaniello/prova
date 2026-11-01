@@ -30,7 +30,7 @@ export interface FullScreenModalProps {
    * Riflettori dietro l'intestazione (default intensità 0,35, senza righe del campo); `false` li spegne.
    * Es. `{ flare: n }` sul riepilogo della seduta, `{ curfew: true }` nel rito della sera.
    */
-  light?: Pick<FloodlightsProps, 'intensity' | 'tone' | 'flare' | 'curfew' | 'pitch'> | false;
+  light?: Pick<FloodlightsProps, 'intensity' | 'tone' | 'flare' | 'curfew' | 'pitch' | 'lamps'> | false;
   children?: ReactNode;
 }
 
@@ -78,7 +78,7 @@ function Panel({
       transition={{ type: 'spring', stiffness: 380, damping: 40, mass: 1 }}
       style={{ bottom: kb || undefined }}
     >
-      {light !== false && <Floodlights intensity={0.35} pitch={false} {...light} />}
+      {light !== false && <Floodlights intensity={0.35} pitch={false} lamps={false} {...light} />}
       <header className="relative flex shrink-0 items-center gap-2 px-3 pb-2 pt-[calc(var(--safe-top)+8px)]">
         <IconButton icon={closeIcon === 'down' ? ChevronDown : X} label={closeLabel} variant="tinted" onClick={onClose} />
         <div className="min-w-0 flex-1 px-1 text-center">

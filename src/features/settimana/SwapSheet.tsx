@@ -57,11 +57,15 @@ export interface SwapSheetProps {
   scale?: number;
   /** Titolo del pasto ("Merenda pre-partita"). */
   title?: string;
+  /** Giorno di avvio: niente alternative che richiedono la preparazione della domenica. */
+  starter?: boolean;
 }
 
-export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title }: SwapSheetProps) {
+export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title, starter }: SwapSheetProps) {
   const baseId = entry.plannedId || entry.recipeId;
-  const options = swapOptions(baseId, slot, 6).filter((r) => r.id !== entry.recipeId);
+  const options = swapOptions(baseId, slot, 10)
+    .filter((r) => r.id !== entry.recipeId && !(starter && r.batch))
+    .slice(0, 6);
   const planned = entry.swapped && entry.plannedId ? RECIPES[entry.plannedId] : undefined;
   const list = planned ? [planned, ...options.filter((r) => r.id !== planned.id)] : options;
   const cur = recipeNutrition(entry.recipe, dayType, FOODS, scale);
@@ -116,7 +120,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
                         <span aria-hidden className="text-ink-3"> · </span>
                         <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
                           <Clock aria-hidden size={12} strokeWidth={2.2} />
-                          {r.prepMin} min
+                          {r.batch ? `${r.prepMin} min, dalla domenica` : `${r.prepMin} min`}
                         </span>
                       </span>
                       <span>

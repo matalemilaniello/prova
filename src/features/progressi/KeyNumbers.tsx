@@ -36,7 +36,7 @@ function Stable({ children = 'stabile' }: { children?: ReactNode }) {
 }
 
 /**
- * Numeri chiave degli ultimi 7 giorni, confrontati con i 7 precedenti: peso medio, sonno medio,
+ * Numeri chiave degli ultimi 7 giorni, confrontati con i 7 precedenti: peso medio, ore a letto,
  * aderenza e fibre stimate. Una sola card divisa in quattro, come i riepiloghi di Salute.
  */
 export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) {
@@ -81,7 +81,7 @@ export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) 
     />,
     <Stat
       key="sonno"
-      label="Sonno medio"
+      label="Ore a letto"
       value={stats.sleepAvgH !== null ? fmtHours(stats.sleepAvgH) : null}
       delta={sDelta ?? undefined}
       caption={sDelta ? undefined : hasPrevSleep ? <Stable /> : stats.sleepNights ? `${stats.sleepNights} ${stats.sleepNights === 1 ? 'notte' : 'notti'}` : 'Nessuna notte'}

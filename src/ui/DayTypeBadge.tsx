@@ -4,7 +4,7 @@ import { DAY_TYPE_LABEL } from '../lib/format';
 import { BallIcon } from './BallIcon';
 import { Pill } from './Pill';
 import { cn } from './cn';
-import { toneColor, toneInk } from './tones';
+import { toneColor, toneInk, toneSoft } from './tones';
 import type { IconLike } from './icon';
 
 export const DAY_TYPE_ICON: Record<DayType, IconLike> = {
@@ -35,7 +35,7 @@ export function DayTypeBadge({ dayType, variant = 'soft', size = 'sm', label, sh
         <span
           aria-hidden
           className="size-2 rounded-full"
-          style={{ background: toneColor(dayType), boxShadow: `0 0 0 3px color-mix(in srgb, ${toneColor(dayType)} 18%, transparent), 0 0 10px ${toneColor(dayType)}` }}
+          style={{ background: toneColor(dayType), boxShadow: `0 0 0 3px ${toneSoft(dayType, 18)}, 0 0 10px ${toneColor(dayType)}` }}
         />
         {text}
       </span>

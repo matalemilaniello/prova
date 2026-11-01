@@ -12,8 +12,10 @@
  * Prevenzione distribuita nella settimana:
  *   Nordic 1 volta (B, 2 × 4-6: in stagione il volume basso basta a mantenere la forza eccentrica);
  *   Copenhagen 1 volta (A, dalla leva corta, poi leva lunga); polpacci pesanti 2 volte (A seduto per il
- *   soleo, B in piedi); tibiale anteriore 3 volte; estensori del polso 2 volte, con isometria prima delle
- *   spinte (A) ed eccentrico con Tyler twist a fine seduta (A e B); core anti-estensione (dead bug, B),
+ *   soleo, B in piedi); tibiale posteriore 1 volta (A, salita sulle punte con la pallina tra i talloni: con
+ *   soleo e flessore lungo delle dita origina dalla faccia posteriore della tibia, la zona tipica dei
+ *   sovraccarichi da corsa); tibiale anteriore 2 volte (B e C); estensori del polso 2 volte, con isometria
+ *   prima delle spinte (A) ed eccentrico con Tyler twist a fine seduta (A e B); core anti-estensione (dead bug, B),
  *   anti-rotazione (Pallof, B e C) e piano frontale (Copenhagen, plank laterale).
  *
  * Riscaldamento di 6-8 minuti. In B e C riprende il FIFA 11+ (parti 1 e 2) adattato alla palestra:
@@ -31,7 +33,8 @@
  * trap bar 2,5 kg, macchine e cavi 2,5-5 kg.
  *
  * `estMin` è la durata reale attesa; `estimateSessionMin` la ricava da serie, tempo di lavoro e
- * recuperi e serve da controllo di coerenza (vedi sessions.test.ts).
+ * recuperi e serve da controllo di coerenza (vedi sessions.test.ts). `estMin` coincide con la somma dei minuti
+ * dei blocchi arrotondati uno per uno, così l'anteprima della seduta torna al minuto con la durata in testa.
  */
 import type { SessionExercise, WorkoutSession } from '../domain/types';
 
@@ -70,7 +73,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
     subtitle: 'Parte superiore e prevenzione',
     estMin: 55,
     focus:
-      'Spinte e tirate a presa neutra, poi adduttori, soleo, tibiale e gomito. ' +
+      'Spinte e tirate a presa neutra, poi adduttori, soleo, tibiale posteriore e gomito. ' +
       'Il giorno dopo la partita le gambe fanno solo prevenzione.',
     blocks: [
       {
@@ -96,7 +99,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
         items: [
           { exerciseId: 'copenhagen-leva-corta', sets: 2, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 30, progression: 'nessuna', perSide: true, note: "Quando fai 2 serie da 10 per lato senza fastidio all'inguine, passa alla leva lunga" },
           { exerciseId: 'polpacci-seduto', sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 60, progression: 'doppia', incrementKg: 5, note: 'Pesante e lento: nella corsa il soleo è il muscolo che spinge di più' },
-          { exerciseId: 'tibiale-anteriore-seduto', sets: 2, repMin: 12, repMax: 15, unit: 'reps', rir: 2, restSec: 30, progression: 'doppia', incrementKg: 1 },
+          { exerciseId: 'sollevamenti-punte-pallina', sets: 2, repMin: 12, repMax: 15, unit: 'reps', rir: 2, restSec: 30, progression: 'nessuna', note: "Per il tibiale posteriore, che sostiene l'arco del piede. A corpo libero finché 2 × 15 restano facili, poi con un manubrio in mano" },
           { exerciseId: 'tyler-twist', sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 30, progression: 'nessuna', note: 'Barra più dura quando 3 serie da 15 restano sotto 3 su 10 di dolore' },
         ],
       },
@@ -106,7 +109,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
     id: 'B',
     name: 'Seduta B',
     subtitle: 'Forza gambe, Nordic e polpacci',
-    estMin: 58,
+    estMin: 59,
     focus:
       'Forza di gambe e catena posteriore a circa 72 ore dalla partita: ' +
       'carichi pesanti ma lontani dal cedimento, Nordic a volume basso.',
@@ -146,7 +149,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
     id: 'C',
     name: 'Seduta C',
     subtitle: 'Corpo intero leggero e mobilità',
-    estMin: 38,
+    estMin: 37,
     focus:
       'A due giorni dalla partita: carichi leggeri con 3 ripetizioni di riserva ' +
       'e mobilità per anche e caviglie.',

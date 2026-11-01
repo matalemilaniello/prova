@@ -116,7 +116,7 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
       case 'preparazione':
         return <ListRow key="detail" icon={ListChecks} iconTone="accent" title="Apri la preparazione" subtitle="Attività, minuti e resa" onPress={go} />;
       case 'revisione':
-        return <ListRow key="detail" icon={Flag} iconTone="accent" title="Apri il referto della settimana" onPress={go} />;
+        return <ListRow key="detail" icon={Flag} iconTone="accent" title="Apri la revisione della settimana" onPress={go} />;
       default:
         return null;
     }

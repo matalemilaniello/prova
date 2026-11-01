@@ -64,7 +64,8 @@ export function ProgressBar({ value, tone = 'accent', size = 'sm', label, marker
     >
       <motion.div
         className="absolute inset-y-0 left-0 rounded-full"
-        style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})` }}
+        // Colore pieno con un riflesso chiaro in alto: mai diluito con la trasparenza (l'ambra sul blu diventa oliva).
+        style={{ background: `linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0) 70%), ${color}` }}
         initial={reduce ? false : { width: 0 }}
         animate={{ width: `${v * 100}%` }}
         transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 160, damping: 26 }}

@@ -1,7 +1,8 @@
 /**
  * Benvenuto: 5 passi a schermo intero e il riepilogo "Il tuo piano è pronto".
  * Precompilato con i valori predefiniti; la bozza resta sul telefono se l'app si chiude a metà.
- * Alla fine gli obiettivi si ricalcolano dal profilo (computeTargets) e il piano parte dal lunedì di questa settimana.
+ * Alla fine gli obiettivi si ricalcolano dal profilo (computeTargets) e il piano parte di lunedì (finalizePlan):
+ * questa settimana se si finisce entro giovedì, la prossima dal venerdì. I giorni prima sono di avvio.
  * Anteprime: ?onboarding=1 e ?step=1…6.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,8 +12,7 @@ import type { Plan, Profile, ScheduleDay, Weekday } from '../../domain/types';
 import { DEFAULT_PROFILE, defaultPlan } from '../../data/defaults';
 import { navigate } from '../../app/router';
 import { getUrlParam } from '../../app/urlParams';
-import { currentDate, nowHHMM, todayISO, weekStart } from '../../engine/dates';
-import { planDayISO } from '../../engine/sleep';
+import { currentDate, todayISO } from '../../engine/dates';
 import { computeTargets } from '../../engine/targets';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
@@ -21,6 +21,7 @@ import { useSessionDraft } from '../allenamento/draft';
 import { canSuggestInstall } from '../impostazioni/install';
 import { hasErrors, validateBody } from '../impostazioni/lib';
 import { clearDraft, loadDraft, saveDraft } from './draft';
+import { finalizePlan } from './firstWeek';
 import { RestoreSheet } from './RestoreSheet';
 import { StepReady, StepSleep, StepWatch, StepWeek, StepWelcome, StepYou } from './steps';
 
@@ -105,12 +106,9 @@ export default function BenvenutoScreen() {
   };
 
   const finish = () => {
-    // La giornata del piano (alle 00:30 è ancora ieri), come in Oggi.
-    const now = currentDate();
-    const today = planDayISO(now, plan);
     const cleanProfile: Profile = { ...profile, name: profile.name?.trim() || undefined, expertise: profile.expertise?.trim() || undefined };
-    // Primo avvio: le voci prima di adesso non contano e la prima settimana della revisione parte da qui.
-    const finalPlan: Plan = { ...plan, targets, startDate: weekStart(today), firstUse: plan.firstUse ?? { date: today, time: nowHHMM(now) } };
+    // Primo avvio adesso (le voci già passate non contano); il piano parte di lunedì, come mostra il riepilogo.
+    const finalPlan: Plan = finalizePlan(plan, targets, currentDate());
     clearDraft();
     useSessionDraft.getState().clear();
     haptic('success');
@@ -140,7 +138,8 @@ export default function BenvenutoScreen() {
 
       {/* Barra in alto: indietro, avanzamento, passo. */}
       <header className="relative z-10 flex shrink-0 items-center gap-3 px-[calc(var(--gutter)-6px)] pb-2 pt-[calc(var(--safe-top)+10px)]">
-        <div className="w-11">
+        {/* Slot di 44 px fissi: l'intestazione resta alta uguale anche al primo passo, senza il pulsante. */}
+        <div className="size-11">
           <AnimatePresence initial={false}>
             {step > 0 && (
               <motion.button
@@ -162,9 +161,8 @@ export default function BenvenutoScreen() {
           </AnimatePresence>
         </div>
         <Progress step={step} />
-        <div className="t-mono w-11 text-right text-[0.75rem] text-ink-3" aria-hidden>
-          {step < READY ? `${step + 1}/${STEPS}` : ''}
-        </div>
+        {/* Il passo lo dice già l'etichetta sopra il titolo: qui resta lo spazio per le lampade dell'angolo. */}
+        <div className="size-11" aria-hidden />
       </header>
 
       {/* Passi: scorrono di lato con una molla. */}

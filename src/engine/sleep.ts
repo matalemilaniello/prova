@@ -3,6 +3,7 @@
  * e il confine tra una giornata e la successiva (chi va a letto dopo mezzanotte è ancora "ieri").
  */
 import type { CheckIn, HHMM, ISODate, Plan, ScheduleDay } from '../domain/types';
+import { fmtHours, fmtMinutes } from '../lib/format';
 import { addDays, addMinutes, currentDate, hhmmToMin, isISODate, minToHHMM, minutesBetween, nightMinutes, toISO, weekdayOf } from './dates';
 
 /** Tolleranza per considerare una notte "in orario". */
@@ -80,12 +81,44 @@ export function curfewFor(iso: ISODate, plan: Pick<Plan, 'sleep' | 'week'>): HHM
   return addMinutes(bedtimeFor(iso, plan), -plan.sleep.curfewLeadMin);
 }
 
-/** Ore di sonno tra due orari (attraversa la mezzanotte): 23:30 → 07:15 = 7,75. */
+/**
+ * Ore tra l'orario a letto e la sveglia (attraversa la mezzanotte): 23:30 → 07:15 = 7,75.
+ * È il **tempo a letto**, non il sonno: per il sonno vero usa `estimatedSleep`. Anche `CheckIn.sleepHours`
+ * salva il tempo a letto, così i numeri coincidono ovunque; nei testi scrivi "a letto" (`timeInBedLabel`).
+ */
 export function sleepHours(bed: HHMM, wake: HHMM): number {
   return minutesBetween(bed, wake) / 60;
 }
 
-/** Ore dormite dal controllo: usa sleepHours se presente, altrimenti gli orari. */
+/** Sinonimo di `sleepHours` con il nome giusto: ore passate a letto. */
+export const timeInBedHours = sleepHours;
+
+/** "8 h a letto", "7 h 45 a letto". */
+export function timeInBedLabel(bed: HHMM, wake: HHMM): string {
+  return `${fmtHours(sleepHours(bed, wake))} a letto`;
+}
+
+/**
+ * Efficienza del sonno di un adulto sano: dell'85-90% del tempo a letto si dorme davvero (il resto è
+ * addormentamento e brevi risvegli). Chi va a letto tardi dopo il telefono di solito sta nella parte bassa.
+ */
+export const SLEEP_EFFICIENCY = { low: 0.85, high: 0.9 } as const;
+
+/** Sonno stimato dal tempo a letto: intervallo e valore centrale, in ore. */
+export function estimatedSleep(bed: HHMM, wake: HHMM): { low: number; high: number; mid: number } {
+  const inBed = sleepHours(bed, wake);
+  const low = inBed * SLEEP_EFFICIENCY.low;
+  const high = inBed * SLEEP_EFFICIENCY.high;
+  return { low, high, mid: (low + high) / 2 };
+}
+
+/** "circa 7 h di sonno" (valore centrale arrotondato al quarto d'ora). */
+export function estimatedSleepLabel(bed: HHMM, wake: HHMM): string {
+  const { mid } = estimatedSleep(bed, wake);
+  return `circa ${fmtMinutes(Math.round((mid * 60) / 15) * 15)} di sonno`;
+}
+
+/** Ore a letto dal controllo: usa sleepHours se presente, altrimenti gli orari. */
 export function checkInSleepHours(c: CheckIn | undefined): number | undefined {
   if (!c) return undefined;
   if (typeof c.sleepHours === 'number' && c.sleepHours > 0) return c.sleepHours;
@@ -143,7 +176,7 @@ export function atSleepTarget(plan: Plan): boolean {
   return nightMinutes(plan.sleep.current) <= nightMinutes(plan.sleep.target);
 }
 
-/** Ore di sonno previste dalla fase attuale. */
+/** Ore a letto previste dalla fase attuale (tempo a letto, non sonno: vedi `estimatedSleep`). */
 export function plannedSleepHours(plan: Plan): number {
   return sleepHours(plan.sleep.current, plan.sleep.wake);
 }

@@ -252,7 +252,10 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   `carbScaled` seguono anche gli obiettivi del piano (`dayCarbScale`): +150 kcal nel piano, +150 kcal nel piatto.
 - `menu.ts` · `menuWeekFor(iso, planStart)` (rotazione su `MENU_ROTATION`), `mealsForDate(iso, state)`:
   restituisce per ogni slot la ricetta effettiva (sostituzioni comprese) e il tipo di giorno delle porzioni
-  (`effectiveDayType`: la vigilia della partita mangia come un giorno di calcio).
+  (`effectiveDayType`: la vigilia della partita mangia come un giorno di calcio). Nei giorni di avvio
+  (`isStarterDay`: dal primo avvio al lunedì che trova fatte spesa e preparazione) i pasti vengono dal menù di
+  avvio `STARTER_WEEK` (ricette da 15 minuti, nessuna preparazione, 17 prodotti), e spesa, valori e Oggi lo
+  seguono da soli.
 - `sleep.ts` · `bedtimeFor(iso, plan)` (usa `plan.sleep.current`; nelle sere di calcio non prima di fine calcio
   + 30 min di cena + 75 min, es. 00:15 dopo la partita delle 21:00), `curfewFor`, `sleepHours(bed, wake)`,
   `nightsOnTarget(checkIns, plan, dates)` (ogni controllo si confronta con la sera prima), `dayCutoffMin` e
@@ -267,6 +270,13 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   restano come appuntamenti che non contano.
   `buildDay(iso, state)` è quello che mostra Oggi: la timeline più i riti del fine settimana (spesa il sabato,
   preparazione e revisione la domenica), con lo stato ricavato da `shoppingChecked`, `prepDone` e `reviews`.
+  Primi giorni: la spesa di avvio (`rito:spesa-avvio`, `starterShopping`) il primo giorno feriale dal primo
+  avvio, un'ora dopo il pranzo e mezz'ora dopo l'avvio, entro le 19:30 (chi comincia di domenica la fa il
+  lunedì, chi comincia di sabato no), con il numero dei prodotti. La revisione della domenica compare solo per
+  una settimana da rivedere (`firstReviewWeek`: quella del primo avvio se restano almeno 3 giorni alla domenica,
+  mai prima della settimana di inizio del piano); la preparazione no se anche il lunedì dopo è un giorno di
+  avvio. La palestra dura come in Allenamento (`gymDuration`: `sessionDuration` con la fase di ingresso e il
+  blocco del fisioterapista).
   Le voci prima del primo avvio (`Plan.firstUse`) non contano. Coprifuoco, letto e telefono fuori si segnano
   solo da un'ora prima del coprifuoco (quelle dei giorni passati sempre).
   `dayAdherence(iso, state)`: fatto = 1, sostituito = 0,5, saltato o non segnato = 0, su tutte le voci tranne
@@ -288,7 +298,12 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   ginocchio gli impatti (balzi, salti, partita) hanno soglia min(soglia, 2): `gate.impact`.
   `introLevel`: nelle prime 2 esecuzioni di una seduta una serie in meno e un RIR in più (non per le sedute
   già leggere). Nel catalogo degli esercizi `impact` e `startKg` (carichi di partenza) stanno in un tipo
-  locale, non nel contratto.
+  locale, non nel contratto. `physioCoverage`: la prevenzione della seduta che lavora lo stesso tessuto di un
+  esercizio del fisioterapista (gomito, soleo, polpacci, tibiale anteriore e posteriore, adduttori, flessori;
+  gli allungamenti non contano) si salta. `sessionDuration(session, physio, { intro })` dà la durata vissuta
+  (`own` senza doppioni e con la fase di ingresso, `physio`, `total`), la stessa in Allenamento, Oggi e nel
+  calendario. `gateForExercise` e `painNoteForExercise`: con la tibia sopra soglia frenano anche polpacci e
+  tibiali di prevenzione, e la nota dice quale zona e perché.
 - `review.ts` · `weekStats(weekStart, state)` (peso medio e variazione, pesate, aderenza, sonno medio,
   notti in orario, fibre e proteine stimate dai pasti fatti, dolore medio per zona e tendenza, carico, dolci
   fuori programma) e `proposals(weekStart, state): Proposal[]` con queste regole:
@@ -302,8 +317,9 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   - scarico: ogni 6-8 settimane dall'inizio, o prima con sonno < 6 h per 3 notti e dolore in aumento.
 - `ics.ts` · genera un file `.ics` (RFC 5545, CRLF, righe ripiegate a 75 ottetti, `TZID=Europe/Rome` con
   VTIMEZONE) con eventi settimanali ricorrenti (`RRULE:FREQ=WEEKLY;BYDAY=…`) e `VALARM` all'orario:
-  controllo del mattino (sveglia + 5 min), integratori e colazione, pranzo, palestra, esercizi del fisio (solo
-  se inseriti), coprifuoco, revisione della domenica alle 18:00. L'utente sceglie quali. Il coprifuoco segue
+  controllo del mattino (sveglia + 5 min), integratori e colazione, pranzo, palestra (durata a regime di
+  `sessionDuration`, blocco del fisioterapista compreso), esercizi del fisio (solo se inseriti), coprifuoco,
+  revisione della domenica alle 18:00 (dalla prima settimana da rivedere). L'utente sceglie quali. Il coprifuoco segue
   la scala del sonno: una serie con `UNTIL` per ogni settimana, l'ultimo gradino senza fine; nelle sere di
   calcio vale l'orario dopo la partita. `calendarStatus` dice se il file aggiunto è ancora allineato al piano.
 - `coachContext.ts` · costruisce il contesto per il coach (profilo, piano, giornata di oggi con stati e riti
@@ -342,8 +358,8 @@ Qualità da professionista: un professionista della nutrizione e dell'allenament
   attrezzatura, `elbowFriendly`, alternative. Includi: riscaldamento (attivazione ispirata a FIFA 11+),
   spinte con manubri a presa neutra, tirate a presa neutra, squat, stacco con trap bar, affondi, hip thrust,
   Nordic hamstring curl, Copenhagen (leva corta e lunga), polpacci in piedi e seduto (soleo), tibiale
-  anteriore, isometria e eccentrico degli estensori del polso (Tyler twist), core anti-estensione e
-  anti-rotazione, mobilità di anche e caviglie.
+  anteriore e posteriore (sollevamenti sulle punte con la pallina tra i talloni), isometria e eccentrico degli
+  estensori del polso (Tyler twist), core anti-estensione e anti-rotazione, mobilità di anche e caviglie.
 - `SESSIONS`: A (parte superiore e prevenzione, 50-55 min), B (forza gambe, Nordic, polpacci, 55-60 min),
   C (corpo intero leggero e mobilità, 35-40 min, facoltativa). Ogni seduta: riscaldamento, blocco principale,
   prevenzione. Serie, ripetizioni, RIR 1-3, recuperi realistici. Gomito: niente bilanciere in spinta, solo
@@ -502,3 +518,21 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   (Progressi): lo scalino della settimana scelto nella revisione. Vale la settimana dopo; Oggi ne mostra i 7
   giorni e il conteggio verso 5. Frutta, verdura e caffè si segnano con la voce di diario `scalino`, che non
   entra nell'aderenza; acqua e dolci si contano dal diario.
+- `DATA_VERSION` 3 (sistema): l'obiettivo predefinito del sonno passa da 23:30 a 23:15 (con la sveglia delle 07:15
+  sono 8 ore a letto, circa 7 di sonno vero con un'efficienza dell'85-90%; con 7 h 45 a letto si restava sotto le 7
+  ore). La migrazione lo cambia solo dove erano rimasti obiettivo 23:30 e sveglia 07:15. `CheckIn.sleepHours` è
+  il tempo a letto calcolato dagli orari (`sleepHours(bed, wake)`): nei testi si scrive "a letto", non "sonno".
+- `MealEntry.starterOf?` e `DayMeals.starter` (sistema, tipi del motore del menù, non di `types.ts`): nei giorni
+  di avvio (dal primo avvio al lunedì che trova fatte spesa e preparazione) `DayMeals.starter` è vero e i pasti
+  vengono dal menù di avvio `STARTER_WEEK`; `starterOf` c'è solo quando la ricetta della rotazione sostituita era
+  da preparazione. Se il menù di avvio non prevede un pasto, la ricetta da preparazione lascia il posto a
+  un'alternativa veloce (`starterRecipeFor`). `planStartFor(today)` dà il lunedì di inizio del piano alla fine
+  del benvenuto (questa settimana dal lunedì al giovedì, la prossima dal venerdì alla domenica).
+- `STARTER_WEEK` e `STARTER_PRODUCTS` in `src/data/menu.ts` (contenuti alimentari): il menù dei giorni di avvio
+  (7 giorni, nessuna preparazione, ricette da 15 minuti al massimo, stessi vincoli della rotazione verificati da
+  `menu.test.ts`) e i suoi 17 prodotti. `ShoppingList.starter` e `ShoppingList.starterDates` in
+  `engine/shopping.ts` (tipi del motore, solo aggiunte): la lista copre solo giorni di avvio (è la "Spesa di
+  avvio") e quali; in quei giorni niente è cotto in anticipo.
+- `firstReviewWeek`, `isReviewableWeek`, `MIN_FIRST_WEEK_DAYS` (integrazione, nessun campo nuovo): stanno in
+  `engine/timeline.ts`, perché li usa anche il rito della domenica, e `engine/review.ts` li riesporta.
+  `firstReviewDate` e `planWeekNumber` restano in `review.ts`.

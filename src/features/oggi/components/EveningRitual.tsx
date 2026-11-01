@@ -10,7 +10,7 @@ import type { DayType, HHMM, ISODate } from '../../../domain/types';
 import { addDays } from '../../../engine/dates';
 import { dayTypeFor } from '../../../engine/menu';
 import { sleepHours } from '../../../engine/sleep';
-import { buildDay, type DayItem, type TimelineState } from '../../../engine/timeline';
+import { STARTER_SHOPPING_ID, buildDay, type DayItem, type TimelineState } from '../../../engine/timeline';
 import { fmtHours, fmtMinutes } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Button, FullScreenModal, cn, spring } from '../../../ui';
@@ -44,14 +44,14 @@ function markGuideSeen() {
   }
 }
 
-/** Le prime tre cose di domani: colazione, spuntino da portare, seduta o calcio (o il pranzo). */
+/** Le prime tre cose di domani: colazione, spuntino da portare, poi spesa di avvio, seduta o calcio (o il pranzo). */
 export function tomorrowFirstThree(today: ISODate, state: TimelineState): DayItem[] {
   const items = buildDay(addDays(today, 1), state);
   const pick = (pred: (i: DayItem) => boolean) => items.find(pred);
   const out = [
     pick((i) => i.id === 'pasto:colazione'),
     pick((i) => i.id === 'pasto:spuntino'),
-    pick((i) => i.kind === 'palestra' || i.kind === 'calcio') ?? pick((i) => i.id === 'pasto:pranzo'),
+    pick((i) => i.id === STARTER_SHOPPING_ID) ?? pick((i) => i.kind === 'palestra' || i.kind === 'calcio') ?? pick((i) => i.id === 'pasto:pranzo'),
   ];
   return out.filter((x): x is DayItem => Boolean(x));
 }
@@ -164,7 +164,7 @@ export function EveningRitual({ open, today, state, now, curfew, bed, curfewIn, 
             Sveglia alle <span className="t-mono text-ink">{wake}</span>
           </p>
           <span className="t-num text-[1.375rem] text-ink">{fmtHours(sleepHours(bed, wake))}</span>
-          <span className="t-caption -ml-2 text-ink-3">di sonno</span>
+          <span className="t-caption -ml-2 text-ink-3">a letto</span>
         </div>
 
         {showGuide && (

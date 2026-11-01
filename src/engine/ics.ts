@@ -15,7 +15,9 @@ import { SESSIONS } from '../data/sessions';
 import { hashString } from '../lib/id';
 import { addDays, daysBetween, hhmmToMin, isHHMM, minToHHMM, nightMinutes, weekdayOf, weekStart } from './dates';
 import { buildTimeline, physioMinutes, supplementList } from './timeline';
+import { firstReviewDate } from './review';
 import { bedtimeFor, curfewFor, dayCutoffMin } from './sleep';
+import { sessionDuration } from './training';
 
 // ───────────────────────── Tipi e costanti ─────────────────────────
 
@@ -436,7 +438,7 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       day,
       time: findItem(tl[day], 'controllo')?.time ?? minToHHMM(hhmmToMin(plan.sleep.wake) + CHECKIN_AFTER_WAKE),
       summary: 'Controllo del mattino',
-      description: 'Due minuti in Ritmo: peso a digiuno dopo il bagno, ore di sonno, dolori ed energia.',
+      description: 'Meno di un minuto in Ritmo: peso a digiuno dopo il bagno, orari del sonno, dolori ed energia.',
       durationMin: 5,
       key: 'mattino',
     }));
@@ -518,14 +520,16 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       if (!id) continue;
       const item = tl[day].find((i) => i.kind === 'palestra');
       const session = SESSIONS[id];
-      const est = session?.estMin ?? 55;
+      // Durata a regime (senza la fase di ingresso), con il blocco del fisioterapista se c'è, come in Allenamento.
+      const d = session ? sessionDuration(session, state.physio) : { own: 55, physio: 0, total: 55 };
       const name = session?.name ?? `Seduta ${id}`;
+      const length = d.physio ? `${d.own} minuti più ${d.physio} di esercizi del fisioterapista` : `${d.own} minuti`;
       occ.push({
         day,
         time: item?.time ?? sched.gymTime ?? '17:00',
         summary: `Palestra · ${name}${sched.gymOptional ? ' (facoltativa)' : ''}`,
-        description: `${session?.subtitle ? `${session.subtitle}, circa` : 'Circa'} ${est} minuti. Apri Ritmo per la seduta guidata con i carichi suggeriti.`,
-        durationMin: est,
+        description: `${session?.subtitle ? `${session.subtitle}, circa` : 'Circa'} ${length}. Apri Ritmo per la seduta guidata con i carichi suggeriti.`,
+        durationMin: d.total,
         key: `seduta-${id.toLowerCase()}`,
       });
     }
@@ -580,6 +584,8 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
   }
 
   if (want.has('revisione')) {
+    // Parte dalla prima revisione vera: chi comincia nel fine settimana non ha una settimana da rivedere.
+    const first = firstReviewDate(plan);
     events.push({
       uid: 'ritmo-revisione-domenica',
       kind: 'revisione',
@@ -588,6 +594,7 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       time: REVIEW_TIME,
       durationMin: 15,
       days: [REVIEW_WEEKDAY],
+      ...(first ? { from: first } : {}),
     });
   }
 

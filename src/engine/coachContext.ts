@@ -36,7 +36,7 @@ import {
 } from './dates';
 import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate } from './menu';
 import { dayCarbScale, dayNutritionDetail, recipeNutrition } from './nutrition';
-import { weeklyStepStatus, weekStats } from './review';
+import { firstReviewDate, reviewAvailable, weeklyStepStatus, weekStats } from './review';
 import { checkInSleepHours, curfewFor, planDayISO } from './sleep';
 import { ageFrom } from './targets';
 import { adherenceSummary, buildDay, effectiveStatus } from './timeline';
@@ -302,7 +302,7 @@ function checkInLine(iso: ISODate, c: CheckIn): string {
   const h = checkInSleepHours(c);
   if (h !== undefined) {
     const times = [c.bedTime ? `a letto ${c.bedTime}` : '', c.wakeTime ? `sveglia ${c.wakeTime}` : ''].filter(Boolean).join(', ');
-    parts.push(`sonno ${fmtHours(h)}${times ? ` (${times})` : ''}${c.sleepQuality ? `, qualità ${n0(c.sleepQuality)}/5` : ''}`);
+    parts.push(`a letto ${fmtHours(h)}${times ? ` (${times})` : ''}${c.sleepQuality ? `, qualità ${n0(c.sleepQuality)}/5` : ''}`);
   }
   if (typeof c.energy === 'number') parts.push(`energia ${n0(c.energy)}/10`);
   const pain = painList(c.pain);
@@ -318,6 +318,9 @@ function checkInsSection(state: AppData, today: ISODate): string[] {
     .slice(0, 7);
   const lines = dates.map((d) => checkInLine(d, state.checkIns[d]));
   if (!state.checkIns[today]) lines.unshift('- Il controllo del mattino di oggi non è ancora fatto.');
+  if (dates.some((d) => state.checkIns[d]?.bedTime)) {
+    lines.push('Le ore sono tempo a letto, dagli orari segnati: il sonno vero è circa l’85-90% di quel tempo. Non chiamarle ore dormite.');
+  }
   const gate = painGate(state, today);
   if (gate.sites.length) lines.push(`Regola del dolore oggi: ${gate.title}. ${gate.message}`);
   const limits: string[] = [];
@@ -382,7 +385,7 @@ function weekSection(state: AppData, today: ISODate): string[] {
     const s = weekStats(ws, state, opts);
     const parts: string[] = [];
     if (s.adherence !== null) parts.push(`aderenza media ${fmtPercent(s.adherence)} su ${plural(s.adherenceDays, 'giorno', 'giorni')}, ${plural(s.successfulDays, 'giornata riuscita', 'giornate riuscite')}`);
-    if (s.sleepAvgH !== null) parts.push(`sonno medio ${fmtHours(s.sleepAvgH)}, ${n0(s.nightsOnTarget)} notti in orario su ${n0(Math.max(s.countedNights, s.nightsWithBedtime))}`);
+    if (s.sleepAvgH !== null) parts.push(`tempo a letto medio ${fmtHours(s.sleepAvgH)}, ${n0(s.nightsOnTarget)} notti in orario su ${n0(Math.max(s.countedNights, s.nightsWithBedtime))}`);
     if (s.firstWeek) parts.unshift(`prima settimana con Ritmo (${plural(s.daysWithRitmo, 'giorno', 'giorni')})`);
     if (s.weightAvg !== null) parts.push(`peso medio ${fmtKg(s.weightAvg)}${s.weightDelta !== null ? ` (${s.weightDelta >= 0 ? '+' : '−'}${n1(Math.abs(s.weightDelta))} kg)` : ''}`);
     if (s.fiberAvgG !== null) parts.push(`fibre stimate ${n0(s.fiberAvgG)} g al giorno, proteine ${s.proteinAvgG !== null ? n0(s.proteinAvgG) : '?'} g`);
@@ -399,6 +402,11 @@ function weekSection(state: AppData, today: ISODate): string[] {
     out.push(
       `Scalino della settimana: ${step.step.title.toLowerCase()} (${step.step.how}). Fatto ${plural(step.done, 'giorno', 'giorni')} su ${n0(step.target)} da centrare${step.todayState === 'fatto' ? ', oggi già fatto' : ''}.`,
     );
+  }
+  // Prima della prima revisione (settimana di avvio troppo corta) il coach non deve mandare a una revisione che non c'è.
+  if (!reviewAvailable(today, state.plan)) {
+    const first = firstReviewDate(state.plan);
+    if (first) out.push(`Prima revisione della domenica: ${formatDayLong(first)}. Prima di allora non c'è una settimana da rivedere.`);
   }
   const last = [...state.reviews].sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))[0];
   if (last) {
@@ -437,13 +445,15 @@ export function buildCoachContext(state: AppData, now: Date = currentDate()): st
 export interface CoachDaySummary {
   date: ISODate;
   dayType: DayType;
+  /** Vigilia della partita in un giorno senza calcio: obiettivo e porzioni da giorno di calcio. */
+  matchEve?: boolean;
   kcal: number;
   /** "Seduta A alle 17:00", "Partita alle 21:00", oppure null. */
   activity: string | null;
   done: number;
   total: number;
   minimal: boolean;
-  /** Ore dormite stanotte, se c'è il controllo del mattino. */
+  /** Ore a letto stanotte, se c'è il controllo del mattino (tempo a letto, non sonno misurato). */
   sleepH: number | null;
   /** Zona più dolorante di oggi, se c'è. */
   pain: { site: string; value: number; over: boolean } | null;
@@ -486,6 +496,7 @@ export function coachDaySummary(state: AppData, now: Date = currentDate()): Coac
   return {
     date: today,
     dayType,
+    matchEve: dayType !== 'calcio' && eff === 'calcio',
     kcal: state.plan.targets[eff]?.kcal ?? 0,
     activity,
     done,

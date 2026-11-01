@@ -389,7 +389,8 @@ export function dayNutrition(date: ISODate, state: MenuState | AppData, opts: Da
  */
 export function fiberRampWeek(iso: ISODate, plan: Pick<Plan, 'startDate'>): 1 | 2 | null {
   const days = daysBetween(plan.startDate, iso);
-  if (days < 0 || days >= 14) return null;
+  // I giorni di avvio prima del lunedì di inizio (fino a una settimana) fanno parte della prima settimana.
+  if (days < -7 || days >= 14) return null;
   return days < 7 ? 1 : 2;
 }
 

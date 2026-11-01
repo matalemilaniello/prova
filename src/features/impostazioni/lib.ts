@@ -87,15 +87,34 @@ export function dayTypeCounts(week: ScheduleDay[]): { type: DayType; count: numb
   return DAY_TYPES.map((type) => ({ type, count: week.filter((d) => d.dayType === type).length })).filter((x) => x.count > 0);
 }
 
+/** Vigilie della partita che non sono già giorni di calcio (stessa regola di `effectiveDayType`). */
+function matchEves(week: ScheduleDay[]): ScheduleDay[] {
+  return week.filter((d) => d.dayType !== 'calcio' && week.find((n) => n.weekday === (d.weekday + 1) % 7)?.football?.kind === 'partita');
+}
+
+/**
+ * Giorni della settimana che usano l'obiettivo di ogni tipo: la vigilia della partita mangia come un giorno di
+ * calcio, quindi conta tra quelli e non nel suo tipo previsto. Con la settimana predefinita: calcio 4, riposo 0.
+ */
+export function targetDayCounts(week: ScheduleDay[]): Record<DayType, number> {
+  const eves = new Set(matchEves(week).map((d) => d.weekday));
+  const out = Object.fromEntries(DAY_TYPES.map((t) => [t, 0])) as Record<DayType, number>;
+  for (const d of week) out[eves.has(d.weekday) ? 'calcio' : d.dayType]++;
+  return out;
+}
+
+/** Numero di vigilie della partita che mangiano come un giorno di calcio. */
+export function matchEveCount(week: ScheduleDay[]): number {
+  return matchEves(week).length;
+}
+
 /**
  * Vigilie della partita che non sono già giorni di calcio: mangiano come un giorno di calcio (porzioni e
  * obiettivo, vedi `effectiveDayType`). Frase pronta per le note, o null se non ce ne sono.
  * "La domenica, vigilia della partita, mangia come un giorno di calcio"
  */
 export function matchEveNote(week: ScheduleDay[]): string | null {
-  const eves = week
-    .filter((d) => d.dayType !== 'calcio' && week.find((n) => n.weekday === (d.weekday + 1) % 7)?.football?.kind === 'partita')
-    .map((d) => WEEKDAY_LONG[d.weekday]);
+  const eves = matchEves(week).map((d) => WEEKDAY_LONG[d.weekday]);
   if (!eves.length) return null;
   if (eves.length === 1) return `${eves[0] === 'domenica' ? 'La' : 'Il'} ${eves[0]}, vigilia della partita, mangia come un giorno di calcio`;
   return `Le vigilie della partita (${listIt(eves)}) mangiano come un giorno di calcio`;
@@ -191,6 +210,26 @@ export function sleepSteps(sleep: Plan['sleep'], maxSteps = 16): SleepStep[] {
     steps.push({ week: steps.length, bed: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` });
   }
   return steps;
+}
+
+/** Tempo a letto che serve per circa 7 ore di sonno, con un'efficienza dell'85-90%. */
+export const MIN_TIME_IN_BED_H = 8;
+
+/** Orario a letto per avere `MIN_TIME_IN_BED_H` ore prima della sveglia: 07:15 → 23:15. */
+export function suggestedBedtime(wake: HHMM): HHMM {
+  const m = (((hhmmToMin(wake) - MIN_TIME_IN_BED_H * 60) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/**
+ * L'orario a letto di arrivo (l'obiettivo, o quello attuale se è già prima) lascia meno di 8 ore prima della
+ * sveglia: con 7 h 30 a letto si dormono circa 6 h 30.
+ */
+export function shortTimeInBed(sleep: Pick<Plan['sleep'], 'current' | 'target' | 'wake' | 'stepMin'>): boolean {
+  const atTarget = nightMinutes(sleep.current) <= nightMinutes(sleep.target);
+  const bed = atTarget ? sleep.current : sleep.target;
+  const inBed = (((hhmmToMin(sleep.wake) - hhmmToMin(bed)) % 1440) + 1440) % 1440;
+  return inBed < MIN_TIME_IN_BED_H * 60;
 }
 
 // ───────────────────────── Integratori ─────────────────────────

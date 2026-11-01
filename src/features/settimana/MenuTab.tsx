@@ -5,21 +5,22 @@
  */
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Activity, ArrowLeftRight, ChefHat, ChevronRight, Dumbbell, Undo2, UtensilsCrossed } from 'lucide-react';
+import { Activity, ArrowLeftRight, ChefHat, ChevronRight, Dumbbell, ShoppingBasket, Sparkles, Undo2, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, MealSlot, Plan, AppData } from '../../domain/types';
 import { FOODS } from '../../data/foods';
-import { formatDayLong, weekdayOf } from '../../engine/dates';
-import { mealsForDate, type MealEntry } from '../../engine/menu';
+import { addDays, formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
+import { mealsForDate, starterEnd, type MealEntry } from '../../engine/menu';
 import { dayNutritionDetail, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { DAY_TYPE_LABEL, capitalize, fmtNumber } from '../../lib/format';
 import { useApp, useUi } from '../../state/store';
-import { BallIcon, Button, Card, DayTypeBadge, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
+import { usePlanDay } from '../../state/hooks';
+import { BallIcon, Button, Callout, Card, DayTypeBadge, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { toneColor, toneInk } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import type { IconLike } from '../../ui/icon';
 import { swatchFor } from './art/foodArt';
-import { dayActivities, mealScheduleFor, portionSentence, type ActivityKind } from './helpers';
+import { dayActivities, dayVerdict, lowerFirst, mealScheduleFor, portionSentence, starterShoppingSafe, type ActivityKind } from './helpers';
 import { SwapSheet } from './SwapSheet';
 
 const ACT_ICON: Record<ActivityKind, IconLike> = { calcio: BallIcon, palestra: Dumbbell, fisio: Activity };
@@ -28,9 +29,11 @@ export interface MenuTabProps {
   date: ISODate;
   plan: Plan;
   dayLogs: AppData['dayLogs'];
+  /** Apre la scheda Spesa sulla spesa di avvio (giorni di avvio). */
+  onOpenShopping?: () => void;
 }
 
-export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
+export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   const state = useMemo(() => ({ plan, dayLogs }), [plan, dayLogs]);
   const meals = useMemo(() => mealsForDate(date, state), [date, state]);
   const detail = useMemo(() => dayNutritionDetail(date, state), [date, state]);
@@ -39,7 +42,8 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
   // Porzioni e obiettivi seguono il tipo effettivo (la vigilia mangia da calcio); colori ed etichetta il tipo previsto.
   const dayType = meals.dayType;
   const colorType = meals.scheduledDayType;
-  const acts = dayActivities(day);
+  const hasPhysio = useApp((s) => s.physio.exercises.length > 0);
+  const acts = dayActivities(day, hasPhysio);
   const [swapSlot, setSwapSlot] = useState<MealSlot | null>(null);
   const swapEntry = swapSlot ? meals.bySlot[swapSlot] : undefined;
   const scale = detail.carbScale;
@@ -58,6 +62,8 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
           ))}
         </div>
       </header>
+
+      {meals.starter && <StarterNote date={date} plan={plan} onOpenShopping={onOpenShopping} />}
 
       {meals.meals.length === 0 ? (
         <Card>
@@ -83,7 +89,7 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
                     dayType={dayType}
                     colorType={colorType}
                     scale={scale}
-                    title={schedule[m.slot]?.title ?? capitalize(m.slot)}
+                    title={(schedule[m.slot]?.title ?? capitalize(m.slot)).split(',')[0]}
                     time={schedule[m.slot]?.time}
                     onSwap={() => setSwapSlot(m.slot)}
                   />
@@ -107,6 +113,7 @@ export function MenuTab({ date, plan, dayLogs }: MenuTabProps) {
           dayType={dayType}
           scale={scale}
           title={schedule[swapSlot]?.title}
+          starter={meals.starter}
         />
       )}
     </div>
@@ -127,36 +134,43 @@ function PortionNote({ dayType, colorType, factor, matchEve }: { dayType: DayTyp
   );
 }
 
-interface Verdict {
-  good: boolean;
-  text: string;
-}
-
-const MACRO_TOLERANCE = 0.15;
-const PROTEIN_MAX_EXCESS = 0.25;
+// ───────────────────────── Giorni di avvio ─────────────────────────
 
 /**
- * Giudizio del giorno: "In linea" solo con kcal entro ±8% e carboidrati e grassi entro ±15% (proteine tra
- * −15% e +25%: qualche grammo in più non è un problema). Altrimenti la voce più lontana dall'obiettivo.
+ * Giorni di avvio: niente preparazione della domenica e la spesa di avvio da fare. Fino alla spesa (il primo
+ * giorno) va bene quello che c'è in casa, o il piano B al bar per lo spuntino.
  */
-export function dayVerdict(
-  t: { kcal: number; proteinG: number; carbG: number; fatG: number },
-  target: { kcal: number; proteinG: number; carbG: number; fatG: number },
-): Verdict {
-  const dev = (v: number, ref: number) => (ref > 0 ? v / ref - 1 : 0);
-  const k = dev(t.kcal, target.kcal);
-  if (Math.abs(k) > 0.08) return { good: false, text: `${k > 0 ? '+' : '−'}${fmtNumber(Math.abs(k) * 100)}% sull’obiettivo` };
-  const off: { name: string; d: number; over: number }[] = [
-    { name: 'Proteine', d: dev(t.proteinG, target.proteinG), over: 0 },
-    { name: 'Carboidrati', d: dev(t.carbG, target.carbG), over: 0 },
-    { name: 'Grassi', d: dev(t.fatG, target.fatG), over: 0 },
-  ].map((m) => {
-    const limit = m.d > 0 ? (m.name === 'Proteine' ? PROTEIN_MAX_EXCESS : MACRO_TOLERANCE) : MACRO_TOLERANCE;
-    return { ...m, over: Math.abs(m.d) - limit };
-  });
-  const worst = off.filter((m) => m.over > 0).sort((a, b) => b.over - a.over)[0];
-  if (worst) return { good: false, text: `${worst.name} ${worst.d > 0 ? 'sopra' : 'sotto'} l’obiettivo` };
-  return { good: true, text: 'In linea con l’obiettivo' };
+function StarterNote({ date, plan, onOpenShopping }: { date: ISODate; plan: Plan; onOpenShopping?: () => void }) {
+  const today = usePlanDay();
+  const end = starterEnd(plan);
+  const shopping = starterShoppingSafe(plan);
+  const lastDay = end ? addDays(end, -1) : null;
+  // La spesa di avvio ancora da venire, vista da oggi e dal giorno mostrato.
+  const shopAhead = shopping && shopping.date >= today && shopping.date >= date ? shopping : null;
+  const when = shopAhead ? formatRelativeDay(shopAhead.date, today) : '';
+  return (
+    <Callout
+      tone="accent"
+      icon={Sparkles}
+      title="Settimana di avvio"
+      action={
+        shopAhead && onOpenShopping ? (
+          <Button variant="ghost" size="sm" icon={ShoppingBasket} onClick={onOpenShopping}>
+            Apri la spesa di avvio
+          </Button>
+        ) : undefined
+      }
+    >
+      Niente preparazione {lastDay ? `fino a ${formatDayLong(lastDay)}` : 'in questi giorni'}: ricette da 15 minuti al massimo.
+      {shopAhead && (
+        <>
+          {' '}
+          Spesa di avvio {when} alle {shopAhead.time}
+          {shopAhead.date === date ? ': prima, quello che hai in casa o il piano B al bar.' : '.'}
+        </>
+      )}
+    </Callout>
+  );
 }
 
 // ───────────────────────── Valori del giorno ─────────────────────────
@@ -289,7 +303,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, onSwap 
     return { l, food, p, spice: Boolean(food?.pantry) && p.grams < SPICE_MAX_G && l.foodId !== 'olio-evo' };
   });
   const main = lines.filter((x) => !x.spice);
-  const spices = lines.filter((x) => x.spice).map((x) => (x.food ? shopName(x.food).toLowerCase() : x.l.foodId));
+  const spices = lines.filter((x) => x.spice).map((x) => (x.food ? lowerFirst(shopName(x.food)) : x.l.foodId));
 
   const open = () => useUi.getState().open({ type: 'recipe', recipeId: entry.recipeId, date, slot: entry.slot });
   const restore = () => {

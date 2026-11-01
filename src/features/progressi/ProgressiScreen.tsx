@@ -1,5 +1,5 @@
 /**
- * Progressi: numeri chiave degli ultimi 7 giorni, andamento di peso, sonno, dolore e carico,
+ * Progressi: numeri chiave degli ultimi 7 giorni, andamento di peso, ore a letto, dolore e carico,
  * calendario delle giornate riuscite e la revisione della domenica (in evidenza la domenica).
  *
  * ?view=revisione apre subito la revisione della settimana appena chiusa (per gli screenshot).
@@ -10,12 +10,15 @@ import { Settings } from 'lucide-react';
 import type { ISODate } from '../../domain/types';
 import { getUrlParam } from '../../app/urlParams';
 import { navigate } from '../../app/router';
-import { addDays, dateRange, weekDates, weekIndexSince } from '../../engine/dates';
+import { addDays, dateRange, weekDates } from '../../engine/dates';
 import {
   changesPlan,
+  firstReviewDate,
+  firstReviewWeek,
   isReviewDay,
   MIN_WEIGH_INS,
   periodStats,
+  planWeekNumber,
   proposalEffect,
   proposals,
   reviewAvailable,
@@ -51,7 +54,7 @@ import {
   weightSeries,
 } from './series';
 
-/** "Peso stabile, sonno in crescita e dolore in calo." */
+/** "Peso stabile, più ore a letto e dolore in calo." */
 function pulse(s: PeriodStats): string | null {
   const parts: string[] = [];
   if (s.weightAvg !== null && s.weightPrevAvg !== null && s.weighIns >= MIN_WEIGH_INS) {
@@ -60,7 +63,7 @@ function pulse(s: PeriodStats): string | null {
   }
   if (s.sleepAvgH !== null && s.prevSleepAvgH !== null) {
     const d = (s.sleepAvgH - s.prevSleepAvgH) * 60;
-    parts.push(d >= 10 ? 'sonno in crescita' : d <= -10 ? 'sonno in calo' : 'sonno stabile');
+    parts.push(d >= 10 ? 'più ore a letto' : d <= -10 ? 'meno ore a letto' : 'ore a letto stabili');
   }
   const tracked = s.pain.filter((p) => p.trend !== null);
   if (tracked.length) {
@@ -111,6 +114,13 @@ export default function ProgressiScreen() {
   }, [available, savedReview, reviewWeek, state, today]);
   // Le sette giornate della settimana da rivedere, per il tabellone dell'invito.
   const reviewDays = useMemo(() => (available ? weekDates(reviewWeek).map((d) => calendarDay(d, state, today)) : []), [available, reviewWeek, state, today]);
+  // Prima della prima revisione: la domenica in cui arriva e le giornate della settimana che rivedrà.
+  const firstReview = available ? null : firstReviewDate(plan);
+  const upcomingWeek = available ? null : firstReviewWeek(plan);
+  const upcomingDays = useMemo(
+    () => (upcomingWeek ? weekDates(upcomingWeek).map((d) => calendarDay(d, state, today)) : undefined),
+    [upcomingWeek, state, today],
+  );
 
   // ── Numeri e serie ──
   const rolling = useMemo(
@@ -134,7 +144,8 @@ export default function ProgressiScreen() {
   const calSummary = useMemo(() => calendarSummary(calendar), [calendar]);
   const load = useMemo(() => loadWeeks(state, today, loadWeekCount(state, today)), [state, today]);
 
-  const weekNo = Math.max(1, weekIndexSince(plan.startDate || today, today) + 1);
+  // Settimana 1 è la prima da rivedere: chi comincia nel fine settimana vive prima i giorni di avvio.
+  const weekNo = planWeekNumber(today, plan);
   // La revisione appena salvata ha la sua card: lo storico mostra le altre.
   const pastReviews = savedReview ? reviews.filter((r) => r.weekStart !== savedReview.weekStart) : reviews;
   const promptOnTop = available && !savedReview;
@@ -148,6 +159,9 @@ export default function ProgressiScreen() {
       changes={preview.changes}
       count={preview.count}
       days={reviewDays}
+      today={today}
+      firstReview={firstReview}
+      upcoming={upcomingDays}
       onOpen={() => setSheetWeek(reviewWeek)}
     />
   );
@@ -155,7 +169,7 @@ export default function ProgressiScreen() {
   let i = 0;
   return (
     <Screen
-      eyebrow={`Settimana ${weekNo} del piano`}
+      eyebrow={weekNo > 0 ? `Settimana ${weekNo} del piano` : 'Giorni di avvio'}
       title="Progressi"
       subtitle={pulse(rolling) ? <span className="block text-pretty">{pulse(rolling)}</span> : undefined}
       actions={<IconButton icon={Settings} label="Impostazioni" variant="tinted" onClick={() => navigate('impostazioni')} />}

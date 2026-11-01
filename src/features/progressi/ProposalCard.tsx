@@ -103,7 +103,7 @@ export function ProposalCard({ proposal, plan, state, actionable, onAccept, onDe
                     ? 'Rimandata'
                     : actionable
                       ? commitment
-                        ? 'Un impegno, il piano non cambia'
+                        ? 'Il piano non cambia'
                         : 'Cambia il piano'
                       : 'Non accettata'}
             </motion.span>

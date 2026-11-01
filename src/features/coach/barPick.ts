@@ -5,7 +5,7 @@
 import type { AppData, BarOption, DayType, ISODate, MealSlot, Nutrients } from '../../domain/types';
 import { BAR_OPTIONS } from '../../data/barPlanB';
 import { addDays, hhmmToMin, weekDates, weekStart, weekdayOf } from '../../engine/dates';
-import { MEAL_SLOTS } from '../../engine/menu';
+import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS } from '../../engine/menu';
 import { dayCutoffMin, dayMinutes, isEveningFootball, mealSchedule, type MealSchedule } from '../../engine/timeline';
 
 export const VERDICT_ORDER: BarOption['verdict'][] = ['si', 'meglio', 'programmato'];
@@ -35,33 +35,68 @@ export interface BarCombo {
   why: string;
 }
 
-/** Combinazione consigliata: poche voci, coerenti con il pasto e con il tipo di giorno. */
-export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean): BarCombo {
+/**
+ * Combinazione consigliata: poche voci, coerenti con il pasto e con il tipo di giorno, con le proteine che
+ * l'app chiede altrove (almeno 20 g a colazione, 30 g a pranzo e a cena). `dayType` è il tipo effettivo
+ * (la vigilia della partita mangia come un giorno di calcio); `matchEve` cambia solo la spiegazione.
+ * Un'opzione "con un accorgimento" entra solo insieme a quello che il suo motivo chiede (il toast con un
+ * frutto o una spremuta).
+ */
+export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean, matchEve = false): BarCombo {
   const calcio = dayType === 'calcio';
+  const eve = calcio && matchEve;
   switch (slot) {
     case 'colazione':
-      return calcio
-        ? { ids: ['cappuccino', 'yogurt-frutta', 'spremuta'], why: 'Latte, yogurt e frutta: proteine e carboidrati facili per una giornata di calcio.' }
-        : { ids: ['cappuccino', 'yogurt-frutta'], why: 'Proteine del latte e dello yogurt, più una porzione di frutta: arrivi allo spuntino senza fame.' };
+      if (calcio) {
+        return {
+          ids: ['cappuccino', 'toast', 'spremuta'],
+          why: eve
+            ? 'Vigilia della partita: proteine dal toast e dal latte, carboidrati facili dalla spremuta. Il pieno vero arriva a pranzo e a cena.'
+            : 'Proteine dal toast e dal latte, carboidrati facili dalla spremuta. Il pieno per il calcio arriva a pranzo e a merenda.',
+        };
+      }
+      return {
+        ids: ['cappuccino', 'toast', 'macedonia'],
+        why: 'Il toast porta le proteine che alla colazione del bar mancano quasi sempre, il frutto la fibra: arrivi allo spuntino senza fame.',
+      };
     case 'spuntino':
       return calcio
-        ? { ids: ['panino-tacchino'], why: 'Nei giorni di calcio servono più carboidrati: un panino magro tiene fino a pranzo.' }
+        ? {
+            ids: ['panino-tacchino'],
+            why: eve ? 'Alla vigilia servono più carboidrati: un panino magro tiene fino a pranzo.' : 'Nei giorni di calcio servono più carboidrati: un panino magro tiene fino a pranzo.',
+          }
         : { ids: ['yogurt-frutta', 'frutta-secca'], why: 'Proteine e fermenti dallo yogurt, grassi buoni dalla frutta secca: tiene fino a pranzo.' };
     case 'pranzo':
       if (calcio) {
-        return { ids: ['pasta-pomodoro', 'macedonia'], why: 'Carboidrati facili da digerire per stasera. Chiedi di aggiungere tonno o un uovo per le proteine.' };
+        return {
+          ids: ['panino-bresaola', 'macedonia', 'spremuta'],
+          why: eve
+            ? 'Vigilia della partita: tanti carboidrati per riempire le scorte di domani, proteine magre e pochi grassi.'
+            : 'Tanti carboidrati, proteine magre e pochi grassi: stasera arrivi in campo carico e leggero.',
+        };
       }
       return dayType === 'palestra'
-        ? { ids: ['panino-bresaola', 'macedonia'], why: 'Proteine magre e una porzione di frutta: un pranzo completo in cinque minuti.' }
-        : { ids: ['insalatona', 'macedonia'], why: 'Verdure e proteine nello stesso piatto, più la frutta. Prendi anche il pane.' };
+        ? { ids: ['panino-bresaola', 'macedonia'], why: 'Proteine magre, carboidrati e una porzione di frutta: un pranzo completo in cinque minuti.' }
+        : { ids: ['insalatona', 'macedonia'], why: 'Verdure e proteine nello stesso piatto, più un frutto per i carboidrati: un pranzo leggero per una giornata tranquilla.' };
     case 'merenda':
-      return preFootball
-        ? { ids: ['panino-tacchino', 'spremuta'], why: 'Carboidrati digeribili e pochi grassi: arrivi al calcio carico e leggero.' }
+      if (preFootball) {
+        return { ids: ['panino-tacchino', 'spremuta'], why: 'Carboidrati digeribili e pochi grassi: arrivi al calcio carico e leggero.' };
+      }
+      return eve
+        ? { ids: ['yogurt-frutta', 'macedonia'], why: 'Vigilia della partita: yogurt e frutta, carboidrati facili che non appesantiscono la cena.' }
         : { ids: ['yogurt-frutta', 'frutta-secca'], why: 'Una merenda che sazia senza appesantire la cena.' };
     case 'cena':
-      return calcio
-        ? { ids: ['pasta-pomodoro', 'yogurt-frutta'], why: 'Dopo il calcio: carboidrati per recuperare e proteine dello yogurt, leggero prima di dormire.' }
-        : { ids: ['insalatona'], why: 'Se ceni fuori, verdure e proteine con il pane: leggero e completo.' };
+      if (calcio) {
+        return {
+          ids: ['panino-bresaola', 'yogurt-frutta'],
+          why: eve
+            ? 'Vigilia della partita: carboidrati per le scorte e circa 35 g di proteine magre, leggero prima di dormire.'
+            : 'Carboidrati e circa 35 g di proteine per recuperare, leggero prima di dormire.',
+        };
+      }
+      return dayType === 'palestra'
+        ? { ids: ['panino-bresaola', 'yogurt-frutta'], why: 'Dopo la palestra: carboidrati e circa 35 g di proteine per il recupero, leggero prima di dormire.' }
+        : { ids: ['insalatona', 'yogurt-frutta'], why: 'Verdure e proteine, più uno yogurt con la frutta: una cena leggera e completa.' };
   }
 }
 
@@ -93,7 +128,12 @@ export function sweetsThisWeek(dayLogs: AppData['dayLogs'], today: ISODate): num
 
 export interface BarContext {
   today: ISODate;
+  /** Tipo effettivo per le scelte: la vigilia della partita vale come un giorno di calcio. */
   dayType: DayType;
+  /** Tipo previsto dalla settimana: colore ed etichetta del giorno. */
+  scheduledDayType: DayType;
+  /** Vigilia della partita in un giorno senza calcio: si mangia come un giorno di calcio. */
+  matchEve: boolean;
   schedule: Record<MealSlot, MealSchedule>;
   slot: MealSlot;
   preFootball: boolean;
@@ -107,7 +147,9 @@ export function barContext(state: Pick<AppData, 'plan'>, calendarDay: ISODate, n
   const today = nowMin < cutoff ? addDays(calendarDay, -1) : calendarDay;
   const day = plan.week.find((d) => d.weekday === weekdayOf(today));
   const schedule = mealSchedule(day, plan);
-  const dayType = day?.dayType ?? 'riposo';
+  const scheduledDayType = dayTypeFor(today, plan);
+  const dayType = effectiveDayType(today, plan);
+  const matchEve = scheduledDayType !== 'calcio' && isMatchEve(today, plan);
   const slot = currentSlot(nowMin < cutoff ? nowMin + 1440 : nowMin, schedule, plan);
-  return { today, dayType, schedule, slot, preFootball: isEveningFootball(day) };
+  return { today, dayType, scheduledDayType, matchEve, schedule, slot, preFootball: isEveningFootball(day) };
 }

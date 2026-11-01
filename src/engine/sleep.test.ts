@@ -7,6 +7,8 @@ import {
   checkInSleepHours,
   curfewFor,
   dayCutoffMin,
+  estimatedSleep,
+  estimatedSleepLabel,
   footballBedtimeFloor,
   isOnTarget,
   isOnTargetFor,
@@ -16,6 +18,7 @@ import {
   planDayISO,
   plannedSleepHours,
   sleepHours,
+  timeInBedLabel,
   weeksToTarget,
 } from './sleep';
 
@@ -27,6 +30,18 @@ describe('sonno', () => {
     expect(curfewFor('2026-11-10', plan)).toBe('00:15');
     const p2 = { ...plan, sleep: { ...plan.sleep, current: '00:15' } };
     expect(curfewFor('2026-11-10', p2)).toBe('23:45');
+  });
+
+  it('obiettivo predefinito: 8 ore a letto, circa 7 di sonno', () => {
+    expect(plan.sleep.target).toBe('23:15');
+    expect(sleepHours(plan.sleep.target, plan.sleep.wake)).toBe(8);
+    expect(timeInBedLabel(plan.sleep.target, plan.sleep.wake)).toBe('8\u00a0h a letto');
+    expect(timeInBedLabel('23:30', '07:15')).toBe('7\u00a0h\u00a045 a letto');
+    const est = estimatedSleep('23:15', '07:15');
+    expect(est.low).toBeCloseTo(6.8);
+    expect(est.high).toBeCloseTo(7.2);
+    expect(estimatedSleepLabel('23:15', '07:15')).toBe('circa 7\u00a0h di sonno');
+    expect(estimatedSleepLabel('23:30', '07:15')).toBe('circa 6\u00a0h\u00a045 di sonno');
   });
 
   it('ore di sonno', () => {
@@ -56,11 +71,12 @@ describe('sonno', () => {
 
   it('il passo anticipa di 15 minuti e si ferma all’obiettivo', () => {
     expect(nextBedtime(plan)).toBe('00:30');
-    expect(weeksToTarget(plan)).toBe(5);
-    const near = { ...plan, sleep: { ...plan.sleep, current: '23:40' } };
-    expect(nextBedtime(near)).toBe('23:30');
-    const done = { ...plan, sleep: { ...plan.sleep, current: '23:30' } };
-    expect(nextBedtime(done)).toBe('23:30');
+    // Dalle 00:45 alle 23:15: sei passi da 15 minuti.
+    expect(weeksToTarget(plan)).toBe(6);
+    const near = { ...plan, sleep: { ...plan.sleep, current: '23:25' } };
+    expect(nextBedtime(near)).toBe('23:15');
+    const done = { ...plan, sleep: { ...plan.sleep, current: '23:15' } };
+    expect(nextBedtime(done)).toBe('23:15');
     expect(atSleepTarget(done)).toBe(true);
     expect(weeksToTarget(done)).toBe(0);
   });

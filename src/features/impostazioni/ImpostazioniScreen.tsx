@@ -297,7 +297,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
           <span className="t-headline truncate text-ink">{profile.name?.trim() || 'Il tuo profilo'}</span>
           {complete ? (
             <span className="t-footnote text-ink-2">
-              {age} anni · {fmtNumber(profile.heightCm)} cm · {fmtKg(profile.startWeightKg)}
+              {age}{'\u00a0'}anni · {fmtNumber(profile.heightCm)}{'\u00a0'}cm · {fmtKg(profile.startWeightKg)}
             </span>
           ) : (
             <span className="t-footnote font-medium text-accent-ink">Completa anno, altezza e peso</span>
@@ -325,7 +325,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
           subtitle={MEAL_ORDER.map((m) => plan.mealTimes[m]).join(' · ')}
           onPress={() => open('pasti')}
         />
-        <ListRow icon={Moon} iconTone="riposo" title="Sonno" subtitle={`Sveglia ${plan.sleep.wake} · obiettivo ${plan.sleep.target}`} value={plan.sleep.current} onPress={() => open('sonno')} />
+        <ListRow icon={Moon} iconTone="riposo" title="Sonno" subtitle={`A letto alle ${plan.sleep.current}, obiettivo ${plan.sleep.target}`} onPress={() => open('sonno')} />
         <ListRow icon={PillIcon} iconTone="leggero" title="Integratori" value={plan.supplements.length ? plural(activeSupps, 'attivo', 'attivi') : 'Nessuno'} onPress={() => open('integratori')} />
       </ListGroup>
 

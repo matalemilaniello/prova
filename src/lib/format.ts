@@ -3,7 +3,7 @@
  * Numeri: "2.600 kcal", "70,2 kg", "6 h 40", "72%". Il segno meno è quello tipografico (−).
  */
 import type { DayType, FootballKind, HHMM, ISODate, MealSlot, Weekday } from '../domain/types';
-import { formatDayLong, formatDayTitle, formatShort, formatWeekdayShort, fromISO } from '../engine/dates';
+import { dayOfMonthLabel, formatDayLong, formatDayTitle, formatShort, formatWeekdayShort, fromISO } from '../engine/dates';
 
 const MINUS = '−';
 const NBSP = ' ';
@@ -95,7 +95,8 @@ export function fmtMinutes(totalMin: number): string {
   const r = m % 60;
   if (h === 0) return `${sign}${r}${NBSP}min`;
   if (r === 0) return `${sign}${h}${NBSP}h`;
-  return `${sign}${h}${NBSP}h ${String(r).padStart(2, '0')}`;
+  // Tutto indivisibile: "6 h 30" non va mai a capo a metà.
+  return `${sign}${h}${NBSP}h${NBSP}${String(r).padStart(2, '0')}`;
 }
 
 /** Secondi → "1:30" (timer di recupero). */
@@ -130,9 +131,9 @@ export function fmtDateShort(iso: ISODate): string {
   return formatShort(iso);
 }
 
-/** "mar 10" */
+/** "mar 10", "dom 1º" */
 export function fmtDateCompact(iso: ISODate): string {
-  return `${formatWeekdayShort(iso)} ${fromISO(iso).getDate()}`;
+  return `${formatWeekdayShort(iso)} ${dayOfMonthLabel(fromISO(iso).getDate())}`;
 }
 
 /** "Martedì 10" */

@@ -5,7 +5,7 @@
  */
 import type { AppData, HHMM, ISODate } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekStart as weekStartOf } from '../../engine/dates';
-import { reviewStart } from '../../engine/review';
+import { isIdleFirstEvening, reviewStart } from '../../engine/review';
 import { checkInSleepHours } from '../../engine/sleep';
 import { adherenceSummary, isSuccessful, streakInfo } from '../../engine/timeline';
 import { firstLoggedDate, loadStatus, plannedLoadRemaining, weekLoadEntries } from '../../engine/training';
@@ -81,7 +81,7 @@ export interface SleepPoint {
   wake: HHMM | null;
 }
 
-/** Ore dormite per notte e orari (dal controllo del mattino della data). */
+/** Ore a letto per notte e orari (dal controllo del mattino della data). */
 export function sleepSeries(state: Pick<AppData, 'checkIns'>, from: ISODate, to: ISODate): SleepPoint[] {
   return dateRange(from, to).map((date) => {
     const c = state.checkIns[date];
@@ -151,8 +151,9 @@ export function calendarDay(date: ISODate, state: SeriesState, today: ISODate, f
   if (date > today) return { date, kind: 'futuro', score: 0, minimal: false, today: false };
   if (first && date < first) return { date, kind: 'fuori', score: 0, minimal: false, today: false };
   const s = adherenceSummary(date, state);
-  // Nessuna voce che conta (tutte prima del primo avvio): senza dati, non "non riuscita".
-  if (s.total === 0) return { date, kind: 'fuori', score: 0, minimal: false, today: date === today };
+  // Nessuna voce che conta (tutte prima del primo avvio), o la prima sera senza nulla di segnato: senza dati,
+  // non "non riuscita".
+  if (s.total === 0 || isIdleFirstEvening(date, state.plan, s)) return { date, kind: 'fuori', score: 0, minimal: false, today: date === today };
   const ok = isSuccessful(s);
   const marked = s.done + s.replaced + s.skipped > 0;
   const kind: CalendarKind = ok ? 'riuscita' : marked && s.score > 0 ? 'parziale' : 'vuota';
@@ -167,7 +168,7 @@ export function calendarWeeks(state: SeriesState, today: ISODate, max = 12): num
   return Math.max(1, Math.min(max, weeks));
 }
 
-/** Valori giornalieri di una settimana per le piccole linee del referto (null = nessun dato). */
+/** Valori giornalieri di una settimana per le piccole linee della revisione (null = nessun dato). */
 export function weekDaily(state: Pick<AppData, 'checkIns'>, weekStart: ISODate, pick: (c: AppData['checkIns'][string]) => number | undefined): (number | null)[] {
   return dateRange(weekStart, addDays(weekStart, 6)).map((d) => {
     const c = state.checkIns[d];

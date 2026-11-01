@@ -82,8 +82,9 @@ export function ProgressRing({
         {gradient && (
           <defs>
             <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity="0.75" />
-              <stop offset="100%" stopColor={color} />
+              {/* Opaco: un capo più chiaro e uno pieno. Con l'opacità l'ambra sul blu diventerebbe oliva. */}
+              <stop offset="0%" style={{ stopColor: `color-mix(in oklch, ${color} 78%, white)` }} />
+              <stop offset="100%" style={{ stopColor: color }} />
             </linearGradient>
           </defs>
         )}

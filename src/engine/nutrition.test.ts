@@ -250,6 +250,8 @@ describe('le porzioni seguono gli obiettivi del piano', () => {
     expect(fiberRampFactor(addDays(start, 6), base)).toBe(0.6);
     expect(fiberRampFactor(addDays(start, 7), base)).toBe(0.8);
     expect(fiberRampFactor(addDays(start, 14), base)).toBe(1);
-    expect(fiberRampWeek(addDays(start, -1), base)).toBeNull();
+    // I giorni di avvio prima del lunedì di inizio sono già nella prima settimana; prima ancora, niente avvio.
+    expect(fiberRampWeek(addDays(start, -1), base)).toBe(1);
+    expect(fiberRampWeek(addDays(start, -8), base)).toBeNull();
   });
 });

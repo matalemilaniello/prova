@@ -45,7 +45,8 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
   Font: `font-display`, `font-sans`, `font-mono`.
 - **Forma**: `rounded-card` (20 px), `rounded-control` (14 px), `rounded-full` per le pillole. `shadow-card`
   (nulla al buio, leggerissima al chiaro). Margini laterali: li mette `Screen` (20 px + safe area).
-- **Altre utility**: `glass` (sfondo delle barre: quasi opaco, il testo sotto non si legge), `hit-44` (area toccabile minima 44 px senza cambiare
+- **Altre utility**: `glass` (sfondo delle barre: 97,5% al buio, 98,5% al chiaro, sfocatura 24 px; il testo sotto non
+  si legge), `hit-44` (area toccabile minima 44 px senza cambiare
   l'aspetto), `no-scrollbar`, `tabular`, `selectable` (rende selezionabile un testo: di base l'interfaccia non lo è).
 - **Movimento**: `motion/react`. Preset in `src/ui/motion.ts`: `spring` (400/32), `springSnappy`, `springSoft`,
   `fadeUp`, `staggerItem(i)` per liste sfalsate (`<motion.li {...staggerItem(i)}>`), `PRESS_SCALE` (0.97).
@@ -80,8 +81,8 @@ export default function OggiScreen() {
 
 `Screen` crea il titolo grande, la barra compatta sfocata che compare scorrendo, l'etichetta "Dati di esempio"
 quando servono, lo spazio per la barra delle schede e il ritorno in cima quando si ritocca la scheda attiva.
-Dietro l'intestazione accende i **Riflettori** (vedi sotto). I figli sono impilati con 24 px di spazio
-(`contentClassName` per cambiarlo).
+Dietro l'intestazione accende i **Riflettori** (vedi sotto): sopra la riga dell'occhiello ci sono 24 px (+ safe area)
+per le batterie di lampade negli angoli. I figli sono impilati con 24 px di spazio (`contentClassName` per cambiarlo).
 
 ## Componenti
 
@@ -98,13 +99,19 @@ Dietro l'intestazione accende i **Riflettori** (vedi sotto). I figli sono impila
 | `light?` | `{ intensity?, tone?, flare?, curfew?, pitch? } \| false` | riflettori dietro l'intestazione (default intensità 0,5); `false` li spegne |
 
 ### Floodlights (Riflettori, elemento firma)
-Due batterie di 4 lampade negli angoli alti, due coni di luce bianco calda verso il centro, righe del campo
-(cerchio di centrocampo e metà campo). Le monta già `Screen` (prop `light`) e `FullScreenModal` (intensità 0,35).
-Props: `intensity?` 0-1 (lega la luce all'avanzamento della giornata), `tone?` (tinge il bordo dei coni al 10%,
-es. il tipo di giorno), `flare?` (bagliore di 900 ms a piena luce: `true` o un numero che cambia a ogni evento,
-es. giornata chiusa; spento con la riduzione del movimento), `curfew?` (dopo il coprifuoco la luce cala verso il
-lilla), `pitch?` (righe, default true), `height?` (360). Nel tema chiaro le lampade sono spente e resta una
-velatura leggerissima.
+Due batterie di 6 lampade (telaio di circa 30 × 18 pt con alone) negli angoli alti, inclinate verso il centro e
+tagliate appena dal bordo come un traliccio fuori inquadratura; due coni di luce bianco calda (uno largo e sfumato,
+uno stretto che dà la direzione) ben visibili nei primi 200 pt; righe del campo (cerchio di centrocampo e metà
+campo). Le monta già `Screen` (prop `light`) e `FullScreenModal` (intensità 0,35).
+Props: `intensity?` 0-1 (lega la luce all'avanzamento della giornata: coni da 0,07 a 0,16, lampade e alone che si
+riempiono), `tone?` (tinge il bordo dei coni al 10%, es. il tipo di giorno), `flare?` (bagliore di 900 ms a piena
+luce: `true` o un numero che cambia a ogni evento, es. giornata chiusa; spento con la riduzione del movimento),
+`curfew?` (dopo il coprifuoco la luce cala verso il lilla), `pitch?` (righe, default true), `height?` (360),
+`lamps?` (batterie di lampade, default true; spegnile dove l'angolo alto ospita un controllo, es. un contatore).
+`Screen` e `FullScreenModal` accettano `lamps` nella prop `light`; in `FullScreenModal` le lampade sono spente di
+base, perché negli angoli ci sono chiudi e azioni.
+Nel tema chiaro è una partita di giorno: lampade accese ma tenui, coni come velatura ambra, righe più marcate.
+Token: `--lamp`, `--lamp-halo`, `--lamp-housing`, `--lamp-frame`, `--halo-strength`, `--cone-strength`.
 ```tsx
 <Screen title="Oggi" light={{ intensity: done / total, tone: dayType, flare: closedAt, curfew: afterCurfew }}>…</Screen>
 ```
@@ -156,6 +163,8 @@ sobrio quando si chiude, default true), `gradient?`, `children` al centro.
 
 ### ProgressBar
 `value` 0-1, `tone?`, `size?`: `'xs' | 'sm' | 'md'`, `label?`, `marker?` (tacca 0-1), `segments?` (es. 10 bicchieri).
+Il riempimento è il colore pieno con un riflesso chiaro in alto (mai diluito con la trasparenza: l'ambra non
+diventa oliva).
 
 ### Sheet (foglio dal basso)
 `open`, `onClose`, `title?`, `subtitle?`, `footer?` (fisso in basso con safe area), `headerAction?`,
@@ -176,7 +185,7 @@ avvisi restano vivi.
 ### FullScreenModal
 Come `Sheet` ma a schermo intero (sale dal basso): `open`, `onClose`, `title?`, `subtitle?`, `headerRight?`,
 `footer?`, `closeIcon?`: `'close' | 'down'`, `closeLabel?`, `escapeCloses?`, `light?` (riflettori: stesse props di
-`Floodlights` tranne l'altezza, default intensità 0,35 senza righe; `false` li spegne). Per `SessionPlayer`
+`Floodlights` tranne l'altezza, default intensità 0,35 senza righe e senza lampade; `false` li spegne). Per `SessionPlayer`
 (riepilogo con `{ flare: true }`) e il rito della sera (`{ curfew: true }`).
 
 ### Segmented
@@ -201,7 +210,14 @@ Tieni premuto per ripetere (accelera). Frecce e Pagina su/giù da tastiera.
 `value: number | undefined` (undefined = non indicato), `onChange`, **`label`**, `min?`, `max?`, `step?`,
 `scheme?`: `'pain'` (verde → rosso) | `'energy'` (rosso → verde) | `'neutral'`, `lowLabel?`, `highLabel?`,
 `threshold?` (tacca, es. soglia del dolore), `ghost?` (anello vuoto sul valore di riferimento, es. quello di ieri)
-con `ghostLabel?` per i lettori di schermo ("ieri"), `describe?(v)` (es. "lieve"), `hideLabel?`.
+con `ghostLabel?` per i lettori di schermo ("ieri"), `describe?(v)` (es. "lieve"), `placeholder?` (invito quando il
+valore non c'è, default "Tocca un punto della linea"), `hideLabel?`.
+**Non indicato** (`value` undefined): nessun cursore e nessun numero, linea tratteggiata, tacca della soglia e
+anello di ieri visibili, l'invito al posto del valore. Mai un valore di partenza a metà scala: per il dolore sarebbe
+un'ancora sopra la soglia. Si sceglie toccando un punto qualsiasi della linea (anche su iPhone, dove l'input range
+nativo risponde solo al trascinamento) o trascinando in orizzontale; uno scorrimento verticale lascia scorrere la
+pagina senza cambiare nulla. L'input nativo resta sotto per tastiera (frecce; Invio o Spazio sceglie il valore di
+ieri, o il minimo) e VoiceOver, con i decimali alla italiana ("7,7").
 `scaleColor(v, min, max, scheme)` restituisce il colore del valore (energia verde da 7 su 10).
 
 ### RatingPicker
@@ -302,7 +318,7 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   corso salvata ed emette `DATA_REPLACED_EVENT` (`'ritmo:dati-sostituiti'`), che `allenamento/draft.ts` ascolta.
 - `normalizeData` ripara ogni sezione (diari senza `status`, sedute senza `exercises`, zone di dolore non in
   array, numeri scritti come testo…) e conserva i campi sconosciuti: un backup danneggiato non blocca mai l'app.
-  `DATA_VERSION` è 2 (fibre da 30 a 35 g).
+  `DATA_VERSION` è 3 (2: fibre da 30 a 35 g; 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia delle 07:15).
 - `useUi`: `overlay`, `open(overlay)`, `close()`, `toast(message, tone?, opts?)`, `dismissToast(id)`.
 - Hook (`src/state/hooks.ts`): **usa questi al posto di `new Date()` nelle schermate**:
   `usePlanDay()` (alias `useLogicalToday()`): **la giornata del piano**, quella da usare in Oggi, Settimana,
@@ -334,9 +350,11 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
 ## Motori e formattatori (fondamenta)
 
 - `src/engine/dates.ts`: `todayISO`, `toISO`, `fromISO`, `addDays`, `daysBetween`, `weekdayOf`, `weekStart`,
-  `weekDates`, `weekIndexSince`, `dateRange`, `isISODate`, `formatDayLong` ("martedì 10 novembre"),
-  `formatShort` ("10 nov"), `formatWeekday`, `formatWeekdayShort`, `formatDayTitle` ("Martedì 10"),
-  `formatWeekRange` ("10-16 novembre"), `formatRelativeDay`, `hhmmToMin`, `minToHHMM`, `addMinutes`,
+  `weekDates`, `weekIndexSince`, `dateRange`, `isISODate`, `formatDayLong` ("martedì 10 novembre", "domenica 1º
+  novembre"), `formatShort` ("10 nov", "1º nov"), `formatWeekday`, `formatWeekdayShort`, `formatDayTitle`
+  ("Martedì 10", "Domenica 1º"), `formatWeekRange` per etichette e titoli ("9-15 novembre", "26 ottobre-1º novembre":
+  trattino senza spazi), `formatWeekSpan` per le frasi ("dal 26 ottobre al 1º novembre", "dall’8 al 14 marzo"),
+  `dayOfMonthLabel(n)` ("1º" per il primo del mese), `formatRelativeDay`, `hhmmToMin`, `minToHHMM`, `addMinutes`,
   `minutesBetween` (in avanti, attraversa la mezzanotte), `nightMinutes`/`nightDiff` (orari serali: 00:45 dopo
   23:30), `nowHHMM`, `nowMinutes`, `currentDate`, `compareHHMM`, `isHHMM`.
 - `src/engine/nutrition.ts`: `carbFactor`, `lineGrams`, `lineQty`, `lineNutrition`, `recipeNutrition`,
@@ -358,22 +376,43 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   con `recipe`, `plannedId`, `swapped`; `swapOptions(recipeId, slot?)`. L'obiettivo da mostrare è
   `plan.targets[effectiveDayType(iso, plan)]`; il badge resta quello di `dayTypeFor`, con la dicitura "Vigilia
   della partita" quando `matchEve`.
+  **Giorni di avvio**: `isStarterDay(iso, plan)` è vero dal primo avvio (`Plan.firstUse`) a `starterEnd(plan)`, il
+  lunedì che trova fatte spesa e preparazione (il lunedì dopo; chi parte di domenica, quello ancora dopo). In quei
+  giorni `mealsForDate` prende i pasti dal menù di avvio `STARTER_WEEK` (`src/data/menu.ts`: ricette da 15 minuti,
+  nessuna preparazione, 17 prodotti in `STARTER_PRODUCTS`) e `DayMeals.starter` è vero; la voce ha `starterOf`
+  solo quando la ricetta della rotazione al suo posto era da preparazione. Se il menù di avvio non prevede un pasto,
+  vale `starterRecipeFor(id, slot)` (la prima delle `swaps` senza preparazione, o la più rapida del pasto). Spesa,
+  valori e Oggi seguono da soli, perché passano tutti da `mealsForDate`. Senza `firstUse` (dati di esempio) non ci
+  sono giorni di avvio.
 - `src/engine/sleep.ts`: `bedtimeFor(iso, plan)` (nelle sere di calcio non prima di fine calcio + 30 min di cena +
   75 min: 00:15 dopo la partita delle 21:00; con `''` restituisce la fase), `curfewFor`, `footballBedtimeFloor`,
-  `sleepHours`, `checkInSleepHours`, `isOnTarget`, `isOnTargetFor(bed, checkInDate, plan)` (il controllo del
+  `sleepHours` (**tempo a letto**, non sonno: anche `CheckIn.sleepHours` salva il tempo a letto, così i numeri
+  coincidono ovunque), `timeInBedHours` (sinonimo), `timeInBedLabel(bed, wake)` ("8 h a letto": usalo nei testi al
+  posto di "sonno"), `estimatedSleep(bed, wake)` (`{ low, high, mid }` con l'efficienza dell'85-90%,
+  `SLEEP_EFFICIENCY`), `estimatedSleepLabel` ("circa 7 h di sonno"), `checkInSleepHours`, `isOnTarget`,
+  `isOnTargetFor(bed, checkInDate, plan)` (il controllo del
   mattino si confronta con la sera prima: **usalo per contare le notti in orario**), `nightsOnTarget`,
   `nextBedtime`, `weeksToTarget`, `atSleepTarget`, `plannedSleepHours`, `minutesUntilNight`, `dayCutoffMin(plan)`
   (inizio della giornata: sveglia − 90 min, tra le 03:00 e le 10:00), `planDayISO(now, plan)`.
 - `src/engine/targets.ts`: `bmrMifflin`, `tdee`, `ageFrom`, `computeTargets(profile, weightKg?)`.
 - `src/lib/format.ts`: `fmtNumber`, `fmtKcal` ("2.600 kcal"), `fmtKg` ("70,2 kg"), `fmtLoad`, `fmtGrams`,
-  `fmtLiters`, `fmtCm`, `fmtPercent`, `fmtHours` ("6 h 40"), `fmtMinutes` ("1 h 20", "45 min"), `fmtClock`
+  `fmtLiters`, `fmtCm`, `fmtPercent`, `fmtHours` ("6 h 40"), `fmtMinutes` ("1 h 20", "45 min": spazi indivisibili
+  anche tra ore e minuti, la durata non va mai a capo a metà), `fmtClock`
   ("1:30"), `fmtDelta` ("+0,4 kg", "−0,3 kg"), `fmtTime`, `fmtDateLong`, `fmtDateShort`, `fmtDateCompact`
-  ("mar 10"), `fmtDayTitle`, `capitalize`, `plural`, `listIt`; etichette `DAY_TYPE_LABEL`, `DAY_TYPES`,
+  ("mar 10", "dom 1º"), `fmtDayTitle`, `capitalize`, `plural`, `listIt`; etichette `DAY_TYPE_LABEL`, `DAY_TYPES`,
   `MEAL_SLOT_LABEL`, `FOOTBALL_LABEL`, `WEEKDAY_LONG`, `WEEKDAY_SHORT`, `WEEKDAY_INITIAL`.
   Gli spazi prima delle unità sono indivisibili.
 - `src/data/defaults.ts`: valori predefiniti, `defaultPlan`, `defaultAppData`, `isProfileComplete`,
   `SUGGESTED_PAIN_SITES`, `DEFAULT_COACH_MODEL`. Profilo vuoto: anno, altezza e peso valgono 0 finché non inseriti.
+  Sonno predefinito: sveglia 07:15, obiettivo a letto 23:15 (8 ore a letto, circa 7 di sonno vero).
+  `planStartFor(today)`: il lunedì da cui parte il piano alla fine del benvenuto (questa settimana dal lunedì al
+  giovedì, la prossima dal venerdì alla domenica: chi comincia domenica sera vive lunedì la settimana 1).
 - `src/lib/id.ts`: `uid(prefix?)`, `hashString(s)` (scelte deterministiche, es. consiglio del giorno), `slug(s)`.
+
+- `src/engine/timeline.ts` (oltre a `buildTimeline` e `buildDay`): `gymDuration(sessionId, { physio, workoutLogs })`
+  è la durata della seduta come la mostra Allenamento (`sessionDuration`: fase di ingresso, doppioni del
+  fisioterapista tolti, `own` + `physio` = `total`); `gymTotalMin` il totale in minuti. `firstReviewWeek(plan)` e
+  `isReviewableWeek(monday, plan)`: la prima settimana da rivedere (riesportate da `engine/review.ts`).
 
 ## Parametri URL (anteprime e screenshot)
 

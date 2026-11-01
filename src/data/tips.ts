@@ -3,12 +3,36 @@
  *
  * Brevi e motivati: una frase che dice cosa fare, una che spiega perché. Il lettore conosce nutrizione e
  * allenamento: niente miti, numeri prudenti, tono da collega che allena.
- * `dayTypes` limita un consiglio ai giorni in cui serve davvero (es. pre-calcio solo nei giorni di calcio).
+ * `dayTypes` limita un consiglio ai giorni in cui serve davvero (es. pre-calcio solo nei giorni di calcio);
+ * `when` lo lega al giorno (es. la seduta A dopo la partita). I numeri del piano entrano dal contesto.
  */
 import type { DayType, ISODate } from '../domain/types';
 import { hashString } from '../lib/id';
 
-export type TipTopic = 'sonno' | 'telefono' | 'fibre' | 'proteine' | 'carico' | 'bar' | 'idratazione' | 'dolci';
+export type TipTopic = 'sonno' | 'telefono' | 'fibre' | 'proteine' | 'carico' | 'bar' | 'idratazione' | 'dolci' | 'integratori';
+
+/**
+ * Valori del piano che alcuni consigli citano: i numeri non si scrivono a mano nel testo, così seguono le
+ * impostazioni (soglia del dolore, obiettivo di fibre) e il giorno (seduta prevista, partita di ieri).
+ */
+export interface TipContext {
+  /** Soglia del dolore del piano (0-10). */
+  painThreshold?: number;
+  /** Soglia per gli impatti sotto il ginocchio: min(soglia, 2). */
+  impactThreshold?: number;
+  /** Obiettivo di fibre del giorno, in grammi. */
+  fiberG?: number;
+  /** Seduta di palestra prevista oggi (A, B, C). */
+  gymSessionId?: string;
+  /** Ieri c'era la partita. */
+  afterMatch?: boolean;
+}
+
+const DEFAULT_CONTEXT: Required<Pick<TipContext, 'painThreshold' | 'impactThreshold' | 'fiberG'>> = {
+  painThreshold: 3,
+  impactThreshold: 2,
+  fiberG: 35,
+};
 
 export interface Tip {
   id: string;
@@ -17,6 +41,8 @@ export interface Tip {
   text: string;
   /** Solo in questi tipi di giorno; se manca, sempre. */
   dayTypes?: DayType[];
+  /** Solo quando il giorno lo giustifica (es. la seduta A il giorno dopo la partita). */
+  when?: (ctx: TipContext) => boolean;
 }
 
 export const TIP_TOPIC_LABEL: Record<TipTopic, string> = {
@@ -28,6 +54,7 @@ export const TIP_TOPIC_LABEL: Record<TipTopic, string> = {
   bar: 'Al bar',
   idratazione: 'Idratazione',
   dolci: 'Dolci',
+  integratori: 'Integratori',
 };
 
 export const TIPS: Tip[] = [
@@ -106,7 +133,7 @@ export const TIPS: Tip[] = [
   {
     id: 'fibre-microbiota',
     topic: 'fibre',
-    title: 'Trenta grammi di fibre al giorno',
+    title: 'Fibre: almeno {fibre} grammi al giorno',
     text: 'Le fibre nutrono il microbiota, che produce acidi grassi a catena corta con effetto antinfiammatorio. La varietà conta quanto la quantità.',
   },
   {
@@ -152,7 +179,7 @@ export const TIPS: Tip[] = [
     id: 'proteine-spuntino-fuori',
     topic: 'proteine',
     title: 'Uno spuntino che regge fino a pranzo',
-    text: 'Yogurt greco, grana o un panino con bresaola stanno qualche ora senza frigo e ti portano alle 14 senza la fame che spinge verso il bar.',
+    text: 'Un panino con bresaola, grana e un frutto reggono qualche ora senza frigo; lo yogurt greco viaggia in una borsa termica. Così arrivi alle 14 senza la fame che spinge verso il bar.',
   },
   {
     id: 'proteine-recupero',
@@ -182,10 +209,10 @@ export const TIPS: Tip[] = [
     text: 'Aumenti settimanali oltre il 10-20% si associano a più infortuni da sovraccarico. Prima la costanza, poi l’intensità.',
   },
   {
-    id: 'carico-dolore-tre',
+    id: 'carico-dolore-soglia',
     topic: 'carico',
-    title: 'Dolore fino a 3 su 10',
-    text: 'Negli esercizi per un tendine o un osso sotto carico, un dolore fino a 3 che torna come prima entro il mattino dopo è accettabile. Se sale, riduci.',
+    title: 'Tendini: dolore fino a {soglia} su 10',
+    text: 'Negli esercizi per un tendine un dolore fino a {soglia} che il mattino dopo torna come prima è accettabile. Per un osso come la tibia, e in salti e corsa, la soglia è {sogliaImpatti}. Un dolore che sale camminando o di notte va fatto vedere.',
   },
   {
     id: 'carico-giorno-dopo',
@@ -193,6 +220,7 @@ export const TIPS: Tip[] = [
     title: 'Gambe a riposo, busto al lavoro',
     text: 'Il giorno dopo la partita le gambe recuperano meglio muovendosi senza carico. La seduta A lavora sulla parte superiore e sulla prevenzione.',
     dayTypes: ['palestra'],
+    when: (ctx) => ctx.gymSessionId === 'A' && ctx.afterMatch === true,
   },
   {
     id: 'carico-nordic',
@@ -260,7 +288,7 @@ export const TIPS: Tip[] = [
     id: 'acqua-pasti',
     topic: 'idratazione',
     title: 'Un bicchiere a ogni pasto',
-    text: 'Legare l’acqua ai pasti è più facile che ricordarsela: cinque bicchieri arrivano così; gli altri cinque tienili in una borraccia da 1 l da finire entro sera.',
+    text: 'Legare l’acqua ai pasti è più facile che ricordarsela: un bicchiere a ognuno dei cinque pasti fa già 1,25 litri. Il resto sta in una borraccia da finire entro sera.',
   },
   {
     id: 'acqua-pre-calcio',
@@ -308,19 +336,55 @@ export const TIPS: Tip[] = [
     title: 'Fuori dalla vista',
     text: 'Quello che vedi lo mangi. I dolci in un pensile chiuso, la frutta lavata in vista sul tavolo.',
   },
+
+  // ───────────────────────── Integratori ─────────────────────────
+  {
+    id: 'integratori-creatina',
+    topic: 'integratori',
+    title: 'Creatina tutti i giorni, non solo in palestra',
+    text: 'Con 3-5 g al giorno i muscoli si saturano in 3-4 settimane, senza fase di carico. L’orario conta poco: conta non saltarla. Con il pasto è più facile ricordarla.',
+  },
+  {
+    id: 'integratori-omega3',
+    topic: 'integratori',
+    title: 'Omega-3: leggi EPA e DHA',
+    text: 'Una capsula da 1 g di olio di pesce contiene di solito 300-600 mg di EPA e DHA. Conta la loro somma in etichetta: per arrivare a 1-2 g al giorno possono servire più capsule.',
+  },
+  {
+    id: 'integratori-vitamina-d',
+    topic: 'integratori',
+    title: 'Vitamina D: prima l’esame',
+    text: 'La dose giusta dipende dal valore di 25-OH vitamina D nel sangue. Senza l’esame si rischia di prenderne troppo poca o troppa: chiedilo al medico con gli esami di routine.',
+  },
+  {
+    id: 'integratori-abbinati',
+    topic: 'integratori',
+    title: 'Integratori legati a un gesto',
+    text: 'Tienili dove fai colazione, sempre nello stesso posto, e prendili con il pasto senza pensarci. Un’abitudine agganciata a un’altra regge meglio di un promemoria.',
+  },
 ];
 
-/** Consigli adatti al tipo di giorno. */
-export function tipsFor(dayType: DayType): Tip[] {
-  return TIPS.filter((t) => !t.dayTypes || t.dayTypes.includes(dayType));
+/** Consigli adatti al tipo di giorno (e al giorno, con il contesto). */
+export function tipsFor(dayType: DayType, ctx: TipContext = {}): Tip[] {
+  return TIPS.filter((t) => (!t.dayTypes || t.dayTypes.includes(dayType)) && (!t.when || t.when(ctx)));
+}
+
+/** Sostituisce nel titolo e nel testo i valori del piano: {soglia}, {sogliaImpatti}, {fibre}. */
+export function fillTip(tip: Tip, ctx: TipContext = {}): Tip {
+  const pain = ctx.painThreshold ?? DEFAULT_CONTEXT.painThreshold;
+  const impact = ctx.impactThreshold ?? Math.min(pain, DEFAULT_CONTEXT.impactThreshold);
+  const fiber = ctx.fiberG && ctx.fiberG > 0 ? Math.round(ctx.fiberG) : DEFAULT_CONTEXT.fiberG;
+  const fill = (s: string) =>
+    s.replace(/\{soglia\}/g, String(pain)).replace(/\{sogliaImpatti\}/g, String(impact)).replace(/\{fibre\}/g, String(fiber));
+  return { ...tip, title: fill(tip.title), text: fill(tip.text) };
 }
 
 /**
  * Consiglio del giorno, deterministico: stessa data e stesso tipo di giorno, stesso consiglio.
  * `offset` scorre agli altri consigli della giornata ("Un altro"); `firstId` mette quel consiglio in testa.
  */
-export function tipOfDay(iso: ISODate, dayType: DayType, offset = 0, firstId?: string): Tip {
-  const pool = tipsFor(dayType);
+export function tipOfDay(iso: ISODate, dayType: DayType, offset = 0, firstId?: string, ctx: TipContext = {}): Tip {
+  const pool = tipsFor(dayType, ctx);
   const list = pool.length ? pool : TIPS;
   const ordered = list
     .map((t) => ({ t, h: hashString(`${iso}:${t.id}`) }))
@@ -330,5 +394,5 @@ export function tipOfDay(iso: ISODate, dayType: DayType, offset = 0, firstId?: s
   const first = firstId ? ordered.findIndex((t) => t.id === firstId) : -1;
   if (first > 0) ordered.unshift(...ordered.splice(first, 1));
   const n = ordered.length;
-  return ordered[(((offset % n) + n) % n)];
+  return fillTip(ordered[(((offset % n) + n) % n)], ctx);
 }

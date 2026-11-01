@@ -275,8 +275,8 @@ describe('file .ics', () => {
 
   it('i gradini del coprifuoco si passano il testimone senza buchi né sovrapposizioni', () => {
     const steps = vevents(remindersIcs(state(), ['coprifuoco'], { start: START, now: NOW })).filter((e) => !/-(mo|we)-g/.test(e.UID));
-    // Un gradino a settimana (le sere di calcio hanno serie a parte quando il letto si sposta).
-    expect(steps).toHaveLength(6);
+    // Un gradino a settimana da 00:45 a 23:15 (le sere di calcio hanno serie a parte quando il letto si sposta).
+    expect(steps).toHaveLength(7);
     // Gradino 1: fino alla notte di domenica 8 novembre (00:15 di lunedì 9), UNTIL alle 05:44 locali = 04:44 UTC.
     expect(steps[0].RRULE).toContain('UNTIL=20261109T044400Z');
     expect(steps[0]['DTSTART;TZID=Europe/Rome']).toBe('20261103T001500');
@@ -284,6 +284,16 @@ describe('file .ics', () => {
     expect(steps[1]['DTSTART;TZID=Europe/Rome']).toBe('20261110T000000');
     // Ultimo gradino, all'obiettivo: senza UNTIL.
     expect(steps.at(-1)?.RRULE).not.toContain('UNTIL');
+  });
+
+  it('la revisione parte dalla prima settimana da rivedere', () => {
+    // Benvenuto finito venerdì 6 alle 20:00: piano dal lunedì 9, prima revisione domenica 15.
+    const late = state({ startDate: '2026-11-09', firstUse: { date: '2026-11-06', time: '20:00' } });
+    const [rev] = vevents(remindersIcs(late, ['revisione'], { start: '2026-11-06', now: NOW }));
+    expect(rev['DTSTART;TZID=Europe/Rome']).toBe('20261115T180000');
+    // Senza primo avvio (dati vecchi o di esempio): dalla prima domenica utile.
+    const [plain] = vevents(remindersIcs(state(), ['revisione'], { start: START, now: NOW }));
+    expect(plain['DTSTART;TZID=Europe/Rome']).toBe('20261108T180000');
   });
 
   it('un gradino che finirebbe prima di cominciare non si scrive', () => {
@@ -303,7 +313,7 @@ describe('file .ics', () => {
 
   it('rispetta l’ora legale: lo stesso orario locale prima e dopo il cambio', () => {
     // 25 ottobre 2026 è l'ultima domenica di ottobre: l'evento resta alle 18:00 locali grazie al TZID.
-    const out = remindersIcs(state(), ['revisione'], { start: '2026-10-20', now: NOW });
+    const out = remindersIcs(state({ startDate: '2026-10-19' }), ['revisione'], { start: '2026-10-20', now: NOW });
     expect(out).toContain('DTSTART;TZID=Europe/Rome:20261025T180000');
   });
 });

@@ -119,7 +119,7 @@ export default function ProfiloPage({ onBack, open, backLabel }: PageProps) {
       </ListGroup>
 
       <Field label="Competenze" optional hint="Il coach adatta il tono: niente spiegazioni da principiante.">
-        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => update({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista, medico dello sport" maxLength={80} />
+        <TextInput value={profile.expertise ?? ''} onChange={(expertise) => update({ expertise: expertise || undefined })} placeholder="Es. allenatore, fisioterapista" maxLength={80} />
       </Field>
     </Page>
   );

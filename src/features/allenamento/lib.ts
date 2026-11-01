@@ -6,7 +6,18 @@ import type { AppData, Exercise, ISODate, Plan, SessionExercise, WorkoutLog, Wor
 import { EXERCISES } from '../../data/exercises';
 import { estimateItemSec } from '../../data/sessions';
 import { weekdayOf } from '../../engine/dates';
-import { introItem, noImpactAlternatives, painFlagFor, personalRecords, standingRecords, type PainGate, type PersonalRecord } from '../../engine/training';
+import {
+  introItem,
+  noImpactAlternatives,
+  painFlagFor,
+  personalRecords,
+  physioCoverage,
+  sessionDuration,
+  standingRecords,
+  type PainGate,
+  type PersonalRecord,
+  type SessionDuration,
+} from '../../engine/training';
 import { fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
 
 export const PHYSIO_BLOCK_TITLE = 'Dal fisioterapista';
@@ -31,16 +42,26 @@ export interface PlayerItem {
   replacedReason?: string;
   physio: boolean;
   warmup: boolean;
+  /**
+   * Esercizio della seduta che oggi non si fa: un esercizio del fisioterapista lavora lo stesso tessuto.
+   * Resta nell'anteprima, barrato, ma non è un passo del lettore e non conta in serie e minuti.
+   */
+  coveredBy?: { exerciseId: string; name: string };
 }
 
 export type PlayerStep = { kind: 'warmup'; key: string; blockTitle: string; items: PlayerItem[] } | { kind: 'exercise'; key: string; item: PlayerItem };
 
 export interface PlayerPlan {
   session: WorkoutSession;
+  /** Esercizi da fare (senza quelli già coperti dal fisioterapista). */
   items: PlayerItem[];
   steps: PlayerStep[];
-  /** Blocchi nell'ordine, con i loro esercizi. */
+  /** Blocchi nell'ordine, con i loro esercizi (compresi quelli coperti dal fisioterapista, segnati con `coveredBy`). */
   blocks: { title: string; physio: boolean; items: PlayerItem[] }[];
+  /** Esercizi della seduta saltati perché già nel programma del fisioterapista. */
+  covered: PlayerItem[];
+  /** Minuti: seduta (fase di ingresso e doppioni compresi) e blocco del fisioterapista. */
+  duration: SessionDuration;
   /** Il fisioterapista prevede gli esercizi in questo giorno. */
   physioDay: boolean;
   /** Giorni del fisioterapista nel piano (lun, mer…). */
@@ -83,40 +104,49 @@ export function buildPlayerPlan(
   opts: PlayerPlanOptions = {},
 ): PlayerPlan {
   const intro = opts.intro ?? null;
-  const blocks: PlayerPlan['blocks'] = session.blocks.map((b, bi) => ({
-    title: b.title,
-    physio: false,
-    items: b.items.map((it, ii) => {
-      const warmup = WARMUP_RE.test(b.title);
-      let base = it;
-      let exercise = EXERCISES[it.exerciseId];
-      let replacedFrom: string | undefined;
-      let replacedReason: string | undefined;
-      const flag = warmup && opts.gate ? painFlagFor(exercise, opts.gate) : null;
-      if (flag?.kind === 'impatto') {
-        const alt = noImpactAlternatives(exercise)[0];
-        if (alt) {
-          replacedFrom = it.exerciseId;
-          replacedReason = flag.reason;
-          base = { ...it, exerciseId: alt.id, note: undefined };
-          exercise = alt;
+  const cover = physioCoverage(session, physio);
+  const blocks: PlayerPlan['blocks'] = session.blocks.map((b, bi) => {
+    const warmup = WARMUP_RE.test(b.title);
+    const active = b.items.filter((_, ii) => !cover.has(`${bi}:${ii}`)).length;
+    let pos = 0;
+    return {
+      title: b.title,
+      physio: false,
+      items: b.items.map((it, ii) => {
+        let base = it;
+        let exercise = EXERCISES[it.exerciseId];
+        let replacedFrom: string | undefined;
+        let replacedReason: string | undefined;
+        const flag = warmup && opts.gate ? painFlagFor(exercise, opts.gate) : null;
+        if (flag?.kind === 'impatto') {
+          const alt = noImpactAlternatives(exercise)[0];
+          if (alt) {
+            replacedFrom = it.exerciseId;
+            replacedReason = flag.reason;
+            base = { ...it, exerciseId: alt.id, note: undefined };
+            exercise = alt;
+          }
         }
-      }
-      return {
-        key: `b${bi}:${ii}`,
-        blockTitle: b.title,
-        blockIndex: bi,
-        indexInBlock: ii,
-        blockSize: b.items.length,
-        item: intro ? introItem(base) : base,
-        base,
-        exercise,
-        physio: false,
-        warmup,
-        ...(replacedFrom ? { replacedFrom, replacedReason } : {}),
-      };
-    }),
-  }));
+        const c = cover.get(`${bi}:${ii}`);
+        const coveredBy = c ? { exerciseId: c.physioId, name: exerciseFor(c.physioId, physio)?.name ?? c.physioId } : undefined;
+        return {
+          key: `b${bi}:${ii}`,
+          blockTitle: b.title,
+          blockIndex: bi,
+          // Posizione tra gli esercizi che si fanno davvero ("Prevenzione · 2 di 3").
+          indexInBlock: coveredBy ? pos : pos++,
+          blockSize: active,
+          item: intro ? introItem(base) : base,
+          base,
+          exercise,
+          physio: false,
+          warmup,
+          ...(replacedFrom ? { replacedFrom, replacedReason } : {}),
+          ...(coveredBy ? { coveredBy } : {}),
+        };
+      }),
+    };
+  });
   const prescriptions = physio.prescriptions.filter((p) => exerciseFor(p.exerciseId, physio));
   if (prescriptions.length) {
     const bi = blocks.length;
@@ -139,19 +169,38 @@ export function buildPlayerPlan(
   }
   const steps: PlayerStep[] = [];
   for (const b of blocks) {
-    if (b.items[0]?.warmup) steps.push({ kind: 'warmup', key: `w:${b.items[0].blockIndex}`, blockTitle: b.title, items: b.items });
-    else for (const it of b.items) steps.push({ kind: 'exercise', key: it.key, item: it });
+    const todo = b.items.filter((it) => !it.coveredBy);
+    if (!todo.length) continue;
+    if (todo[0].warmup) steps.push({ kind: 'warmup', key: `w:${todo[0].blockIndex}`, blockTitle: b.title, items: todo });
+    else for (const it of todo) steps.push({ kind: 'exercise', key: it.key, item: it });
   }
   const day = plan.week.find((d) => d.weekday === weekdayOf(date));
+  const all = blocks.flatMap((b) => b.items);
   return {
     session,
-    items: blocks.flatMap((b) => b.items),
+    items: all.filter((it) => !it.coveredBy),
     steps,
     blocks,
+    covered: all.filter((it) => it.coveredBy),
+    duration: sessionDuration(session, physio, { intro: Boolean(intro) }),
     physioDay: Boolean(day?.physio),
     physioDays: physioWeekdays(plan),
     intro,
   };
+}
+
+/**
+ * Durata da mostrare: "55 min" oppure, con gli esercizi del fisioterapista, "45 min + 24 dal fisioterapista".
+ * `short` dà la forma compatta per le righe strette ("45 + 24 min").
+ */
+export function durationLabel(d: Pick<SessionDuration, 'own' | 'physio'>, opts: { short?: boolean } = {}): string {
+  if (!d.physio) return `${d.own} min`;
+  return opts.short ? `${d.own} + ${d.physio} min` : `${d.own} min + ${d.physio} dal fisioterapista`;
+}
+
+/** Nomi brevi degli esercizi saltati, per le frasi: "polpacci da seduto e Tyler twist". */
+export function coveredPhrase(items: readonly PlayerItem[]): string {
+  return listIt(items.map((it) => shortName(it.exercise?.name ?? it.item.exerciseId, it.item.exerciseId)));
 }
 
 /** Serie previste in totale. */

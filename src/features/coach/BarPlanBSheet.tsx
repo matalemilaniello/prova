@@ -73,9 +73,9 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
   }, [slot, reduce]);
 
   const combo = useMemo(() => {
-    const c = barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda');
+    const c = barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve);
     return { ...c, options: optionsById(c.ids) };
-  }, [slot, ctx.dayType, ctx.preFootball]);
+  }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve]);
   const comboTotal = sumApprox(combo.options);
 
   const groups = useMemo(
@@ -196,6 +196,8 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                 </motion.button>
               );
             })}
+            {/* Lo spazio in fondo tiene l'ultimo pasto fuori dalla sfumatura del bordo. */}
+            <span aria-hidden className="w-3 shrink-0" />
           </div>
 
           {/* La scelta di adesso */}
@@ -213,7 +215,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                     <p className="t-label pt-1 text-accent-ink">
                       {slotInfo.title} · {slotInfo.time}
                     </p>
-                    <DayTypeBadge dayType={ctx.dayType} label={DAY_TYPE_LABEL[ctx.dayType]} />
+                    <DayTypeBadge dayType={ctx.scheduledDayType} label={ctx.matchEve ? 'Vigilia della partita' : DAY_TYPE_LABEL[ctx.scheduledDayType]} />
                   </div>
                   <ul className="mt-3 flex flex-col gap-2">
                     {combo.options.map((o) => (
@@ -226,14 +228,19 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                   </ul>
                   <p className="t-footnote mt-2.5 text-ink-2">{combo.why}</p>
                   <div className="mt-4 flex items-end justify-between gap-3 border-t border-line pt-3.5">
-                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <span className="flex items-baseline gap-1 whitespace-nowrap">
-                        <span className="t-num text-[1.75rem] text-ink">{n0(comboTotal.kcal)}</span>
-                        <span className="t-caption text-ink-2">kcal</span>
-                      </span>
-                      <span className="flex items-baseline gap-1 whitespace-nowrap">
-                        <span className="t-num text-[1.75rem] text-ink">{n0(comboTotal.proteinG)}</span>
-                        <span className="t-caption text-ink-2">g proteine</span>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className="flex items-baseline gap-1 whitespace-nowrap">
+                          <span className="t-num text-[1.75rem] text-ink">{n0(comboTotal.kcal)}</span>
+                          <span className="t-caption text-ink-2">kcal</span>
+                        </span>
+                        <span className="flex items-baseline gap-1 whitespace-nowrap">
+                          <span className="t-num text-[1.75rem] text-ink">{n0(comboTotal.proteinG)}</span>
+                          <span className="t-caption text-ink-2">g proteine</span>
+                        </span>
+                      </div>
+                      <span className="t-caption tabular-nums text-ink-3">
+                        {`C\u00a0${n0(comboTotal.carbG)}\u00a0g · G\u00a0${n0(comboTotal.fatG)}\u00a0g · fibre\u00a0${n0(comboTotal.fiberG)}\u00a0g`}
                       </span>
                     </div>
                     <Button

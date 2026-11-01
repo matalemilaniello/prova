@@ -21,6 +21,7 @@ import {
   loadStatus,
   painFlagFor,
   painGate,
+  painNoteForExercise,
   plannedSessionFor,
   suggestNext,
   workoutVolume,
@@ -187,7 +188,11 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       const id = currentIdOf(it);
       const ex = catalog[id];
       const last = lastEntryFor(id, history)?.log ?? null;
-      return suggestNext({ ...it.base, exerciseId: id }, last, { gate: gateForExercise(ex, gate), intro: !it.physio && Boolean(pplan.intro) });
+      return suggestNext({ ...it.base, exerciseId: id }, last, {
+        gate: gateForExercise(ex, gate),
+        painNote: painNoteForExercise(ex, gate),
+        intro: !it.physio && Boolean(pplan.intro),
+      });
     },
     [catalog, currentIdOf, gate, history, pplan.intro],
   );
@@ -201,6 +206,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           ? suggestions[it.key]
           : suggestNext({ ...it.base, exerciseId }, lastEntryFor(exerciseId, history)?.log ?? null, {
               gate: gateForExercise(catalog[exerciseId], gate),
+              painNote: painNoteForExercise(catalog[exerciseId], gate),
               intro: !it.physio && Boolean(pplan.intro),
             });
       const swappedFrom = exerciseId !== it.item.exerciseId ? it.item.exerciseId : it.replacedFrom;
@@ -361,7 +367,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       scrollRef.current?.querySelector('[data-rpe]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    const exercises = pplan.items
+    // Anche un esercizio diventato doppione del fisioterapista a seduta iniziata, se l'avevi già fatto.
+    const exercises = [...pplan.items, ...pplan.covered]
       .map((it) => mine.logs[it.key])
       .filter((l): l is ExerciseLog => Boolean(l?.sets.some((s) => s.done)))
       .map((l) => ({ ...l, sets: l.sets.filter((s) => s.done) }));

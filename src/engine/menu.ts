@@ -3,9 +3,9 @@
  * più le sostituzioni scelte dall'utente nel diario del giorno.
  */
 import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Recipe } from '../domain/types';
-import { MENU_ROTATION } from '../data/menu';
+import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
-import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince } from './dates';
+import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince, weekStart } from './dates';
 
 /** Ordine dei pasti nella giornata. */
 export const MEAL_SLOTS: MealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
@@ -23,6 +23,12 @@ export interface MealEntry {
   plannedId: string;
   /** True se l'utente ha scelto un'altra ricetta. */
   swapped: boolean;
+  /**
+   * Nei giorni di avvio (`isStarterDay`): la ricetta da preparazione della domenica (`batch`) che la rotazione
+   * prevedeva per quel pasto, al cui posto c'è il pasto del menù di avvio o un'alternativa veloce (`plannedId`).
+   * Assente negli altri casi, anche quando la ricetta della rotazione non era da preparazione.
+   */
+  starterOf?: string;
 }
 
 export interface DayMeals {
@@ -38,6 +44,8 @@ export interface DayMeals {
   matchEve: boolean;
   /** Indice della settimana nella rotazione (0 se la rotazione è vuota). */
   rotationIndex: number;
+  /** Giorno di avvio: spesa e preparazione della domenica non ancora fatte, niente ricette da preparazione. */
+  starter: boolean;
   /** Pasti in ordine di giornata; mancano gli slot senza ricetta. */
   meals: MealEntry[];
   bySlot: Partial<Record<MealSlot, MealEntry>>;
@@ -95,16 +103,75 @@ export function effectiveDayType(iso: ISODate, plan: AppData['plan']): DayType {
   return planned;
 }
 
+// ───────────────────────── Giorni di avvio ─────────────────────────
+
+function firstUseDate(plan: AppData['plan']): ISODate | null {
+  const f = (plan as { firstUse?: { date?: unknown } }).firstUse;
+  return f && isISODate(f.date) ? f.date : null;
+}
+
+/**
+ * Fine dei giorni di avvio (esclusa): il lunedì in cui il menù trova fatte la spesa e la preparazione della
+ * domenica. Chi parte dal lunedì al sabato ha davanti una domenica per prepararsi: l'avvio dura fino al lunedì
+ * dopo. Chi parte di domenica (di solito la sera) prepara la domenica seguente: l'avvio copre anche la prima
+ * settimana. Null senza `Plan.firstUse` (dati di esempio, piani salvati prima del campo).
+ */
+export function starterEnd(plan: AppData['plan']): ISODate | null {
+  const first = firstUseDate(plan);
+  if (!first) return null;
+  return addDays(weekStart(first), weekdayOf(first) === 6 ? 14 : 7);
+}
+
+/**
+ * Giorno di avvio: dal primo avvio dell'app (`Plan.firstUse`) a `starterEnd`. I pasti vengono dal menù di
+ * avvio (`STARTER_WEEK` in data/menu: ricette da 15 minuti, nessuna preparazione, una spesa di 17 prodotti),
+ * e la spesa (che segue `mealsForDate`) compra quelli. Se il menù di avvio non prevede un pasto, le ricette
+ * da preparazione della rotazione lasciano il posto a un'alternativa veloce (`starterRecipeFor`).
+ */
+export function isStarterDay(iso: ISODate, plan: AppData['plan']): boolean {
+  const first = firstUseDate(plan);
+  const end = starterEnd(plan);
+  return Boolean(first && end && isISODate(iso) && iso >= first && iso < end);
+}
+
+/**
+ * Alternativa veloce a una ricetta da preparazione per lo stesso pasto: la prima delle sue `swaps` che non
+ * richiede la preparazione della domenica, altrimenti la ricetta senza preparazione più rapida di quel pasto.
+ * Le ricette che non sono `batch` restano quelle.
+ */
+export function starterRecipeFor(recipeId: string, slot: MealSlot): string {
+  const r = RECIPES[recipeId];
+  if (!r?.batch) return recipeId;
+  const ok = (x: Recipe | undefined): x is Recipe => Boolean(x && !x.batch && x.slots.includes(slot));
+  const fromSwaps = (r.swaps ?? []).map((id) => RECIPES[id]).find(ok);
+  if (fromSwaps) return fromSwaps.id;
+  const quick = Object.values(RECIPES)
+    .filter(ok)
+    .sort((a, b) => a.prepMin - b.prepMin || a.id.localeCompare(b.id))[0];
+  return quick?.id ?? recipeId;
+}
+
 /** Pasti effettivi della data: ricetta del menù o sostituzione del diario, con il tipo di giorno. */
 export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[] = MENU_ROTATION): DayMeals {
   const scheduledDayType = dayTypeFor(iso, state.plan);
   const dayType = effectiveDayType(iso, state.plan);
   const day = menuDayFor(iso, state.plan.startDate, rotation);
   const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
+  const starter = isStarterDay(iso, state.plan);
   const meals: MealEntry[] = [];
   const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
   for (const slot of MEAL_SLOTS) {
-    const plannedId = day?.meals?.[slot] ?? '';
+    const menuId = day?.meals?.[slot] ?? '';
+    // Giorni di avvio: il menù di avvio (STARTER_WEEK, 17 prodotti, niente preparazione); se manca quel pasto,
+    // l'alternativa veloce alla ricetta della rotazione.
+    const starterId = starter ? STARTER_WEEK.days[weekdayOf(iso)]?.meals?.[slot] : undefined;
+    const plannedId = starter
+      ? starterId && RECIPES[starterId]
+        ? starterId
+        : menuId
+          ? starterRecipeFor(menuId, slot)
+          : ''
+      : menuId;
     const swapId = swaps[slot];
     const recipeId = swapId || plannedId;
     if (!recipeId) continue;
@@ -114,6 +181,7 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
       recipe: RECIPES[recipeId],
       plannedId,
       swapped: Boolean(swapId && swapId !== plannedId),
+      ...(plannedId !== menuId && RECIPES[menuId]?.batch ? { starterOf: menuId } : {}),
     };
     meals.push(entry);
     bySlot[slot] = entry;
@@ -124,6 +192,7 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
     scheduledDayType,
     matchEve: isMatchEve(iso, state.plan),
     rotationIndex: rotationIndexFor(iso, state.plan.startDate, rotation),
+    starter,
     meals,
     bySlot,
   };

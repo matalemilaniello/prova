@@ -16,6 +16,7 @@ import { BallIcon } from '../../ui';
 import { spring } from '../../ui/motion';
 import { toneColor, toneInk } from '../../ui/tones';
 import { haptic } from '../../lib/haptics';
+import { useApp } from '../../state/store';
 import { dayActivities, type ActivityKind } from './helpers';
 
 const ACTIVITY_ICON: Record<ActivityKind, IconLike> = { calcio: BallIcon, palestra: Dumbbell, fisio: Activity };
@@ -32,6 +33,7 @@ export interface WeekStripProps {
 
 export function WeekStrip({ dates, plan, today, selected, onSelect, success }: WeekStripProps) {
   const reduce = useReducedMotion();
+  const hasPhysio = useApp((s) => s.physio.exercises.length > 0);
   return (
     <div className="rounded-card bg-card p-2 shadow-card" role="group" aria-label="Giorni della settimana">
       <div className="grid grid-cols-7 gap-1">
@@ -39,7 +41,7 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
           const wd = weekdayOf(d);
           const day = plan.week.find((w) => w.weekday === wd) ?? plan.week[wd];
           const dayType: DayType = day?.dayType ?? 'riposo';
-          const acts = dayActivities(day);
+          const acts = dayActivities(day, hasPhysio);
           const isSel = d === selected;
           const isToday = d === today;
           const past = d < today;

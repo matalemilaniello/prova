@@ -203,7 +203,9 @@ export function YesterdayCard({ date, items, dayType, onMore, onOpen }: Yesterda
           {evening ? 'Ieri sera' : `Ieri, ${formatWeekday(date)}`}
         </h2>
         <p className="t-footnote mt-1.5 text-ink-2">
-          {plural(items.length, 'voce ancora aperta', 'voci ancora aperte')}. Segnale adesso: una dimenticanza non deve spezzare la serie.
+          {items.length === 1
+            ? '1 voce ancora aperta. Segnala ora: una dimenticanza non spezza la serie.'
+            : `${items.length} voci ancora aperte. Chiudile ora: una dimenticanza non spezza la serie.`}
         </p>
       </div>
       <div className="divide-y divide-line px-4">

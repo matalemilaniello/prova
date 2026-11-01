@@ -4,8 +4,8 @@ import { ChevronRight, Dumbbell, HeartPulse, Plus, Trophy } from 'lucide-react';
 import type { AppData, ISODate, Plan, WorkoutLog } from '../../../domain/types';
 import { SESSION_LIST } from '../../../data/sessions';
 import { formatWeekdayShort, fromISO } from '../../../engine/dates';
-import { sessionLoad, workoutVolume, type PersonalRecord } from '../../../engine/training';
-import { fmtDelta, fmtNumber, WEEKDAY_LONG } from '../../../lib/format';
+import { introLevel, physioCoverage, sessionDuration, sessionLoad, workoutVolume, type PersonalRecord } from '../../../engine/training';
+import { fmtDelta, fmtNumber, listIt, WEEKDAY_LONG } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Button, Card, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
 import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone, shortName } from '../lib';
@@ -14,10 +14,27 @@ import { SessionGlyph } from './SessionGlyph';
 
 // ───────────────────────── Sedute A, B, C ─────────────────────────
 
-export function SessionsSection({ plan, history, today, onOpen }: { plan: Plan; history: WorkoutLog[]; today: ISODate; onOpen: (id: string) => void }) {
+export function SessionsSection({
+  plan,
+  history,
+  today,
+  physio,
+  onOpen,
+}: {
+  plan: Plan;
+  history: WorkoutLog[];
+  today: ISODate;
+  physio?: AppData['physio'];
+  onOpen: (id: string) => void;
+}) {
+  // Minuti come nel lettore: fase di ingresso compresa, senza i doppioni del fisioterapista.
+  const durations = SESSION_LIST.map((s) => sessionDuration(s, physio, { intro: introLevel(s.id, history) !== null }));
+  const physioMin = durations[0]?.physio ?? 0;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="sedute-titolo">
-      <SectionTitle id="sedute-titolo">Le sedute</SectionTitle>
+      <SectionTitle id="sedute-titolo" subtitle={physioMin > 0 ? `Con gli esercizi del fisioterapista circa ${physioMin} min in più` : undefined}>
+        Le sedute
+      </SectionTitle>
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
         {SESSION_LIST.map((s, i) => {
           const days = plan.week.filter((d) => d.gymSessionId === s.id);
@@ -39,7 +56,7 @@ export function SessionsSection({ plan, history, today, onOpen }: { plan: Plan; 
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">
                     <span className="t-headline text-ink">{s.name}</span>
-                    <span className="t-mono text-[0.75rem] text-ink-3">{s.estMin} min</span>
+                    <span className="t-mono text-[0.75rem] text-ink-3">{durations[i].own} min</span>
                   </span>
                   <span className="t-footnote mt-0.5 block text-ink-2">{s.subtitle}</span>
                   <span className="t-caption mt-1 block text-ink-3">
@@ -63,6 +80,10 @@ export function SessionsSection({ plan, history, today, onOpen }: { plan: Plan; 
 export function PhysioSection({ physio, plan, onEdit }: { physio: AppData['physio']; plan: Plan; onEdit: () => void }) {
   const days = physioWeekdays(plan);
   const list = physio.prescriptions.map((p) => ({ p, ex: exerciseFor(p.exerciseId, physio) }));
+  // Esercizi delle sedute che lavorano gli stessi tessuti: il lettore li salta.
+  const covered = [
+    ...new Set(SESSION_LIST.flatMap((s) => [...physioCoverage(s, physio).values()].map((c) => shortName(exerciseFor(c.exerciseId)?.name ?? c.exerciseId, c.exerciseId)))),
+  ];
   return (
     <section className="flex flex-col gap-3" aria-labelledby="fisio-titolo">
       <SectionTitle id="fisio-titolo" action={list.length ? { label: 'Modifica', onPress: onEdit } : undefined}>
@@ -92,6 +113,11 @@ export function PhysioSection({ physio, plan, onEdit }: { physio: AppData['physi
               </li>
             ))}
           </ul>
+          {covered.length > 0 && (
+            <p className="t-footnote border-t border-line px-4 py-3 text-ink-3">
+              Nelle sedute salti {listIt(covered)}: lavorano gli stessi tessuti, così il carico non raddoppia.
+            </p>
+          )}
         </Card>
       ) : (
         <Card padding="none">
@@ -213,7 +239,7 @@ export function HistorySection({
                     <span className="t-callout block font-semibold text-ink">Seduta {w.sessionId}</span>
                     <span className="t-footnote mt-0.5 block text-ink-2 tabular">
                       {w.durationMin} min · RPE {w.rpe} · {fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA
-                      {vol > 0 ? ` · ${fmtNumber(Math.round(vol))} kg` : ''}
+                      {vol > 0 ? ` · ${fmtNumber(Math.round(vol))}\u00a0kg` : ''}
                     </span>
                     {rec && (
                       <Pill tone="accent" icon={Trophy} className="mt-1.5 min-w-0 shrink!">

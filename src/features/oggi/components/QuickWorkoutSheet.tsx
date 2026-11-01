@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Check, Gauge, Play, Timer } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
+import { gymTotalMin } from '../../../engine/timeline';
 import { fmtNumber } from '../../../lib/format';
 import { uid } from '../../../lib/id';
 import { useApp, useUi } from '../../../state/store';
@@ -24,7 +25,10 @@ export interface QuickWorkoutSheetProps {
 
 export function QuickWorkoutSheet({ open, date, sessionId, itemId, onClose, onOpenPlayer }: QuickWorkoutSheetProps) {
   const session = SESSIONS[sessionId];
-  const planned = session?.estMin ?? 55;
+  const physio = useApp((s) => s.physio);
+  const workoutLogs = useApp((s) => s.workoutLogs);
+  // Seduta più blocco del fisioterapista, come in Allenamento (fino a 5 minuti, per i tasti rapidi).
+  const [planned] = useState(() => Math.round(gymTotalMin(sessionId, { physio, workoutLogs }) / 5) * 5);
   const [minutes, setMinutes] = useState(planned);
   const [rpe, setRpe] = useState<number | undefined>(undefined);
   const quick = [...new Set([planned - 15, planned, planned + 15].filter((m) => m >= 10))];

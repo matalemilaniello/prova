@@ -3,6 +3,7 @@ import type { AppData, DayLog, ISODate, ItemStatus, Plan, TimelineItem } from '.
 import { defaultAppData, defaultPlan } from '../data/defaults';
 import { addDays } from './dates';
 import {
+  gymDuration,
   adherenceSummary,
   buildDay,
   buildTimeline,
@@ -10,6 +11,7 @@ import {
   firstUseOf,
   isBeforeStart,
   itemCounts,
+  itemsToSuccess,
   markableFrom,
   nextWeekPrep,
   nightStreak,
@@ -22,6 +24,9 @@ import {
   effectiveStatus,
   isEveningFootball,
   mealSchedule,
+  ritualItems,
+  starterShopping,
+  STARTER_SHOPPING_ID,
   minutesToCurfew,
   overdueItems,
   pickNow,
@@ -103,13 +108,29 @@ describe('timeline · giornata di palestra', () => {
     expect(gym?.time).toBe('17:00');
     expect(gym?.ref).toBe('A');
     expect(gym?.title).toBe('Seduta A');
-    expect(sp(gym?.detail)).toContain('55 min');
+    // Senza sedute registrate è la fase di ingresso (una serie in meno): la durata è quella di Allenamento.
+    const d = gymDuration('A', {});
+    expect(d && d.own).toBeLessThan(55);
+    expect(sp(gym?.detail)).toContain(`${d?.own} min`);
+  });
+
+  it('la durata della palestra segue gli esercizi del fisioterapista e la fine della fase di ingresso', () => {
+    const logs = [1, 2].map((i) => ({ id: `w${i}`, date: addDays(TUE, -7 * i), sessionId: 'A', durationMin: 55, rpe: 6, pain: {}, exercises: [] })) as AppData['workoutLogs'];
+    // A regime, senza fisioterapista: la stima della seduta.
+    expect(gymDuration('A', { workoutLogs: logs })).toMatchObject({ own: 55, physio: 0, total: 55 });
+    const physio = { exercises: [], prescriptions: [{ exerciseId: 'tyler-twist', sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 60 }] } as unknown as AppData['physio'];
+    const d = gymDuration('A', { workoutLogs: logs, physio })!;
+    expect(d.physio).toBeGreaterThan(0);
+    expect(d.total).toBe(d.own + d.physio);
+    const gym = byId(buildTimeline(TUE, { ...makeState(), workoutLogs: logs, physio }), 'palestra:A');
+    expect(gym?.detail).toContain(`${d.own}\u00a0+\u00a0${d.physio}\u00a0min`);
+    expect(gymDuration('nessuna', {})).toBeNull();
   });
 
   it('coprifuoco e letto dopo mezzanotte restano in fondo', () => {
     expect(byId(items, 'coprifuoco')?.time).toBe('00:15');
     expect(byId(items, 'letto')?.time).toBe('00:45');
-    expect(sp(byId(items, 'letto')?.detail)).toBe('Sveglia alle 07:15 · 6 h 30 di sonno');
+    expect(sp(byId(items, 'letto')?.detail)).toBe('Sveglia alle 07:15 · 6 h 30 a letto');
     expect(items.at(-1)?.kind).toBe('letto');
   });
 
@@ -346,6 +367,26 @@ describe('aderenza e giornata riuscita', () => {
     const mixed = makeState({ dayLogs: { [TUE]: log(TUE, { 'pasto:pranzo': 'fatto', 'minima:frutto': 'fatto' }, { minimal: true }) } });
     expect(adherenceSummary(TUE, mixed).done).toBe(1);
   });
+
+  it('quante voci mancano alla giornata riuscita', () => {
+    const sum = (done: number, replaced: number, skipped: number, total = 10, minimal = false) => ({
+      total,
+      done,
+      replaced,
+      skipped,
+      pending: total - done - replaced - skipped,
+      score: (done + replaced * 0.5) / total,
+      minimal,
+    });
+    expect(itemsToSuccess(sum(7, 0, 0))).toBe(0);
+    expect(itemsToSuccess(sum(4, 0, 0))).toBe(3);
+    // Un sostituito vale mezza voce: 5 + 0,5 → ne servono 2 (7 su 10).
+    expect(itemsToSuccess(sum(5, 1, 0))).toBe(2);
+    expect(itemsToSuccess(sum(2, 0, 6))).toBe(null);
+    expect(itemsToSuccess(sum(0, 0, 0, 0))).toBe(null);
+    expect(itemsToSuccess(sum(2, 0, 0, 4, true))).toBe(2);
+    expect(itemsToSuccess(sum(2, 1, 0, 4, true))).toBe(null);
+  });
 });
 
 describe('stato ricavato dai registri', () => {
@@ -509,12 +550,54 @@ describe('primo avvio', () => {
     expect(isBeforeStart(WED, byId(items, 'pasto:colazione')!, s.plan)).toBe(true);
     expect(isBeforeStart(WED, byId(items, 'pasto:merenda')!, s.plan)).toBe(false);
     const sum = adherenceSummary(WED, s);
-    // Restano merenda pre-calcetto, calcetto, cena di recupero e coprifuoco.
-    expect(sum.total).toBe(4);
+    // Restano spesa di avvio, merenda pre-calcetto, calcetto, cena di recupero e coprifuoco.
+    expect(sum.total).toBe(5);
     const late = overdueItems(items, {}, '15:40', s.plan, (it) => itemCounts(WED, it, s));
     expect(late).toEqual([]);
     // Il giorno dopo tutto conta di nuovo.
     expect(adherenceSummary(THU, s).total).toBe(buildDay(THU, s).filter((i) => i.kind !== 'letto').length);
+  });
+
+  it('spesa di avvio: il giorno stesso se c\'è tempo, altrimenti il primo giorno feriale', () => {
+    const plan = (first: { date: ISODate; time: string }) => ({ ...makeState().plan, firstUse: first }) as Plan;
+    // Mercoledì 15:30: mezz'ora dopo, la lista parte da mercoledì.
+    expect(starterShopping(plan({ date: WED, time: '15:30' }))).toEqual({ date: WED, time: '16:00', weekStart: MON, fromDate: WED });
+    // Mercoledì sera: giovedì un'ora dopo il pranzo.
+    expect(starterShopping(plan({ date: WED, time: '21:10' }))).toEqual({ date: THU, time: '15:15', weekStart: MON, fromDate: WED });
+    // Domenica sera: lunedì, lista di tutta la settimana che comincia.
+    expect(starterShopping(plan({ date: '2026-11-08', time: '20:40' }))).toEqual({ date: MON, time: '15:15', weekStart: MON });
+    // Sabato: c'è già la spesa del sabato.
+    expect(starterShopping(plan({ date: SAT, time: '10:00' }))).toBeNull();
+    expect(starterShopping(makeState().plan)).toBeNull();
+    const s = withFirst();
+    expect(byId(buildDay(WED, s), STARTER_SHOPPING_ID)?.time).toBe('16:00');
+    expect(byId(buildDay(THU, s), STARTER_SHOPPING_ID)).toBeUndefined();
+  });
+
+  it('la domenica del primo avvio non ha revisione né preparazione', () => {
+    const s0 = makeState();
+    const first = { ...s0, plan: { ...s0.plan, firstUse: { date: SUN, time: '20:40' } } as Plan };
+    expect(ritualItems(SUN, first).map((i) => i.kind)).toEqual([]);
+    // Senza primo avvio (dati di esempio) restano entrambe.
+    expect(ritualItems(SUN, s0).map((i) => i.kind)).toEqual(['preparazione', 'revisione']);
+    // Chi comincia a metà settimana prepara già la domenica dopo.
+    expect(ritualItems(SUN, withFirst()).map((i) => i.kind)).toEqual(['preparazione', 'revisione']);
+    // Chi comincia di domenica prepara quella dopo.
+    expect(ritualItems('2026-11-22', first).map((i) => i.kind)).toEqual(['preparazione', 'revisione']);
+  });
+
+  it('la revisione arriva con la prima settimana da rivedere (come firstReviewWeek)', () => {
+    const s0 = makeState();
+    const at = (date: ISODate, startDate: ISODate = MON) => ({ ...s0, plan: { ...s0.plan, startDate, firstUse: { date, time: '10:00' } } as Plan });
+    const kinds = (iso: ISODate, st: AppData) => ritualItems(iso, st).map((i) => i.kind);
+    // Sabato: due giorni soli, la prima revisione è la domenica dopo.
+    expect(kinds(SUN, at(SAT))).not.toContain('revisione');
+    expect(kinds('2026-11-22', at(SAT))).toContain('revisione');
+    // Venerdì con il piano che parte il lunedì dopo (planStartFor): niente revisione domenica.
+    expect(kinds(SUN, at('2026-11-13', '2026-11-16'))).not.toContain('revisione');
+    expect(kinds('2026-11-22', at('2026-11-13', '2026-11-16'))).toContain('revisione');
+    // Giovedì: la settimana si rivede già.
+    expect(kinds(SUN, at(THU))).toContain('revisione');
   });
 
   it('i giorni prima del primo avvio non contano nella serie', () => {

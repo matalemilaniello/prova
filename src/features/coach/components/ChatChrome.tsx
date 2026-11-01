@@ -29,15 +29,7 @@ export function ChatHeader({
   return (
     <header className="absolute inset-x-0 top-0 z-20">
       {/* Quasi opaca: sotto scorre testo, non solo colore, e la sfocatura non c'è ovunque. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 border-b border-[var(--bar-line)]"
-        style={{
-          background: 'color-mix(in srgb, var(--bg-elev) 97%, transparent)',
-          backdropFilter: 'saturate(180%) blur(28px)',
-          WebkitBackdropFilter: 'saturate(180%) blur(28px)',
-        }}
-      />
+      <div aria-hidden className="glass absolute inset-0 border-b border-[var(--bar-line)]" />
       {/* Sfumatura sotto il bordo: il testo che scorre sparisce prima di toccare la barra. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-4" style={{ background: 'linear-gradient(var(--bg-elev), transparent)' }} />
       <div
@@ -90,7 +82,7 @@ export function ConversationIntro({
   children?: React.ReactNode;
 }) {
   const pills = [
-    <DayTypeBadge key="dt" dayType={summary.dayType} size="sm" label={`${dayLabel(summary.dayType)} · ${fmtKcal(summary.kcal)}`} />,
+    <DayTypeBadge key="dt" dayType={summary.dayType} size="sm" label={`${summary.matchEve ? 'Vigilia della partita' : dayLabel(summary.dayType)} · ${fmtKcal(summary.kcal)}`} />,
     summary.total > 0 ? (
       <Pill key="voci" tone={summary.done === summary.total ? 'good' : 'neutral'}>
         {summary.minimal ? 'Giornata minima · ' : ''}
@@ -99,7 +91,7 @@ export function ConversationIntro({
     ) : null,
     summary.sleepH !== null ? (
       <Pill key="sonno" tone="riposo" icon={Moon}>
-        Sonno {fmtHours(summary.sleepH)}
+        {fmtHours(summary.sleepH)} a letto
       </Pill>
     ) : !summary.checkInDone ? (
       <Pill key="ctrl" tone="warn">

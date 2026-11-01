@@ -8,6 +8,7 @@ import {
   formatDayTitle,
   formatShort,
   formatWeekRange,
+  formatWeekSpan,
   fromISO,
   hhmmToMin,
   isHHMM,
@@ -92,7 +93,19 @@ describe('date locali', () => {
     expect(formatDayTitle('2026-11-10')).toBe('Martedì 10');
     expect(formatShort('2026-11-10')).toBe('10 nov');
     expect(formatWeekRange('2026-11-09')).toBe('9-15 novembre');
-    expect(formatWeekRange('2026-10-26')).toBe('26 ottobre - 1 novembre');
+    // Il primo del mese è "1º"; l'intervallo usa il trattino senza spazi.
+    expect(formatWeekRange('2026-10-26')).toBe('26 ottobre-1º novembre');
+    expect(formatWeekRange('2027-03-01')).toBe('1º-7 marzo');
+    expect(formatDayLong('2026-11-01')).toBe('domenica 1º novembre');
+    expect(formatDayTitle('2026-11-01')).toBe('Domenica 1º');
+    expect(formatShort('2026-11-01')).toBe('1º nov');
+    expect(formatShort('2026-12-21')).toBe('21 dic');
+    // Nelle frasi: "dal … al …", con l'elisione davanti a 8 e 11.
+    expect(formatWeekSpan('2026-11-09')).toBe('dal 9 al 15 novembre');
+    expect(formatWeekSpan('2026-10-26')).toBe('dal 26 ottobre al 1º novembre');
+    expect(formatWeekSpan('2027-03-08')).toBe('dall’8 al 14 marzo');
+    expect(formatWeekSpan('2026-11-02')).toBe('dal 2 all’8 novembre');
+    expect(formatWeekSpan('2027-01-11')).toBe('dall’11 al 17 gennaio');
   });
 
   it('todayISO rispetta l’orologio sostituito', () => {

@@ -71,7 +71,7 @@
   --bad-soft: rgb(242 112 106 / 0.15);
   --ink-soft: rgb(140 170 230 / 0.09);
   --scrim: rgb(3 7 14 / 0.62);
-  --bar-bg: rgb(12 21 36 / 0.96);
+  --bar-bg: rgb(12 21 36 / 0.975);
   --bar-line: rgb(150 180 240 / 0.08);
   --card-shadow: 0 0 0 0 transparent;
   --sheet-shadow: 0 -12px 40px rgb(0 0 0 / 0.45);
@@ -85,6 +85,9 @@
   --light-warm: 255 240 210;
   --lamp: #fff3d6;
   --lamp-halo: rgb(255 236 200 / 0.55);
+  --lamp-housing: rgb(150 180 240 / 0.1);
+  --lamp-frame: rgb(190 210 255 / 0.16);
+  --halo-strength: 1;
   --cone-blend: screen;
   --cone-strength: 1;
   --glow-warm: rgb(255 240 210 / 0.09);
@@ -148,7 +151,7 @@
   --bad-soft: rgb(201 55 44 / 0.1);
   --ink-soft: rgb(13 26 44 / 0.05);
   --scrim: rgb(13 26 44 / 0.38);
-  --bar-bg: rgb(255 255 255 / 0.95);
+  --bar-bg: rgb(255 255 255 / 0.985);
   --bar-line: rgb(13 26 44 / 0.08);
   --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
   --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
@@ -159,13 +162,17 @@
     radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
     radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
   --light-warm: 227 162 31;
-  --lamp: #c9d2e0;
-  --lamp-halo: rgb(227 162 31 / 0);
+  /* Partita di giorno: lampade accese ma tenui, coni come velatura ambra. */
+  --lamp: #ffe6a6;
+  --lamp-halo: rgb(227 162 31 / 0.5);
+  --lamp-housing: rgb(13 26 44 / 0.2);
+  --lamp-frame: rgb(13 26 44 / 0.14);
+  --halo-strength: 0.4;
   --cone-blend: normal;
-  --cone-strength: 0.5;
+  --cone-strength: 0.4;
   --glow-warm: initial;
   --warm-tint: initial;
-  --pitch-line: rgb(13 26 44 / 0.05);
+  --pitch-line: rgb(13 26 44 / 0.07);
   --ring-track: var(--line);
   --tab-active-icon: var(--accent);
   --tab-active-label: var(--ink);
@@ -224,7 +231,7 @@
     --bad-soft: rgb(201 55 44 / 0.1);
     --ink-soft: rgb(13 26 44 / 0.05);
     --scrim: rgb(13 26 44 / 0.38);
-    --bar-bg: rgb(255 255 255 / 0.95);
+    --bar-bg: rgb(255 255 255 / 0.985);
     --bar-line: rgb(13 26 44 / 0.08);
     --card-shadow: 0 1px 2px rgb(13 26 44 / 0.04), 0 4px 14px rgb(13 26 44 / 0.05);
     --sheet-shadow: 0 -10px 36px rgb(13 26 44 / 0.16);
@@ -235,13 +242,17 @@
       radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
       radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
     --light-warm: 227 162 31;
-    --lamp: #c9d2e0;
-    --lamp-halo: rgb(227 162 31 / 0);
+    /* Partita di giorno: lampade accese ma tenui, coni come velatura ambra. */
+    --lamp: #ffe6a6;
+    --lamp-halo: rgb(227 162 31 / 0.5);
+    --lamp-housing: rgb(13 26 44 / 0.2);
+    --lamp-frame: rgb(13 26 44 / 0.14);
+    --halo-strength: 0.4;
     --cone-blend: normal;
-    --cone-strength: 0.5;
+    --cone-strength: 0.4;
     --glow-warm: initial;
     --warm-tint: initial;
-    --pitch-line: rgb(13 26 44 / 0.05);
+    --pitch-line: rgb(13 26 44 / 0.07);
     --ring-track: var(--line);
     --tab-active-icon: var(--accent);
     --tab-active-label: var(--ink);

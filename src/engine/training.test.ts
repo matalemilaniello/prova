@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CheckIn, ExerciseLog, FootballLog, SessionExercise, WorkoutLog } from '../domain/types';
 import { defaultPlan } from '../data/defaults';
 import { EXERCISES } from '../data/exercises';
+import { SESSIONS } from '../data/sessions';
 import {
   bestE1rm,
   doneSets,
@@ -20,7 +21,11 @@ import {
   nextPlannedSession,
   painFlagFor,
   painGate,
+  painNoteForExercise,
   personalRecords,
+  physioCoverage,
+  sessionDuration,
+  tissueOf,
   plannedLoadRemaining,
   plannedSessionFor,
   sessionLoad,
@@ -215,6 +220,9 @@ describe('fase di ingresso', () => {
     expect(s.sets).toHaveLength(2);
     expect(s.rir).toBe(3);
     expect(s.intro).toBe(INTRO_REASON);
+    // Il motivo è la prima esposizione agli esercizi, non la partita (la A cade il giorno dopo).
+    expect(INTRO_REASON).toContain('indolenzimento');
+    expect(INTRO_REASON).not.toMatch(/partita|fresco/);
     expect(s.reason).toContain('3 ripetizioni di riserva');
     // Seconda esecuzione: progressione normale sulle serie ridotte.
     const second = suggestNext(bench, exLog(bench.exerciseId, [[20, 10], [20, 10]]), { intro: true });
@@ -365,8 +373,8 @@ describe('programma della settimana', () => {
   it('stima il carico che resta in programma, senza le facoltative', () => {
     const state = { plan: PLAN, workoutLogs: [], footballLogs: [football('2026-11-02')] };
     const r = plannedLoadRemaining('2026-11-02', state, '2026-11-02');
-    // mar A (55×7) + mer calcetto (60×6) + gio allenamento (90×6) + ven B (58×7); C facoltativa esclusa.
-    expect(r.load).toBe(385 + 360 + 540 + 406);
+    // mar A (55×7) + mer calcetto (60×6) + gio allenamento (90×6) + ven B (59×7); C facoltativa esclusa.
+    expect(r.load).toBe(385 + 360 + 540 + 413);
     expect(r.items.find((i) => i.sessionId === 'C')?.optional).toBe(true);
     expect(plannedLoadRemaining('2026-11-02', state, '2026-11-09').items).toEqual([]);
   });
@@ -515,7 +523,12 @@ describe('painGate', () => {
     const tibia = painGate(make([ci('2026-11-02', { Tibia: 5 })]), '2026-11-02');
     expect(gateForExercise(EXERCISES['affondo-bulgaro-manubri'], tibia)).toBe('mantieni');
     expect(gateForExercise(EXERCISES['panca-manubri-presa-neutra'], tibia)).toBe('ok');
-    expect(gateForExercise(EXERCISES['tibiale-anteriore-seduto'], tibia)).toBe('ok');
+    // Con la tibia segnalata restano al carico dell'ultima volta anche polpacci, soleo e tibiali di prevenzione.
+    expect(gateForExercise(EXERCISES['tibiale-anteriore-seduto'], tibia)).toBe('mantieni');
+    expect(gateForExercise(EXERCISES['polpacci-seduto'], tibia)).toBe('mantieni');
+    expect(gateForExercise(EXERCISES['sollevamenti-punte-pallina'], tibia)).toBe('mantieni');
+    expect(gateForExercise(EXERCISES['copenhagen-leva-corta'], tibia)).toBe('ok');
+    expect(gateForExercise(EXERCISES['tyler-twist'], tibia)).toBe('ok');
 
     const elbow = painGate(make([ci('2026-11-02', { Gomito: 7 })]), '2026-11-02');
     expect(gateForExercise(EXERCISES['panca-manubri-presa-neutra'], elbow)).toBe('riduci');
@@ -525,5 +538,132 @@ describe('painGate', () => {
     const unknown = painGate(make([ci('2026-11-02', { Collo: 4 })], []), '2026-11-02');
     expect(gateForExercise(EXERCISES['squat-goblet'], unknown)).toBe('mantieni');
     expect(gateForExercise(undefined, unknown)).toBe('ok');
+  });
+});
+
+// ───────────────────────── Regola del dolore: testi per zona ─────────────────────────
+
+describe('painGate: cosa frena e cosa procede', () => {
+  const ci = (date: string, pain: Record<string, number>): CheckIn => ({ date, pain });
+  const make = (checkIns: CheckIn[], painSites = ['Tibia', 'Gomito']) => ({
+    plan: PLAN,
+    profile: { painSites } as never,
+    checkIns: Object.fromEntries(checkIns.map((c) => [c.date, c])),
+  });
+
+  it('la tibia frena gambe e polpacci, la parte superiore procede', () => {
+    // Martedì dopo la partita: tibia da 1 a 2.
+    const g = painGate(make([ci('2026-11-02', { Tibia: 1, Gomito: 1 }), ci('2026-11-03', { Tibia: 2, Gomito: 1 })]), '2026-11-03');
+    expect(g.message).toContain("per gambe e polpacci mantieni i carichi dell'ultima volta");
+    expect(g.message).toContain('La parte superiore procede come previsto.');
+    expect(g.message).not.toContain('tieni polpacci');
+    // La panca progredisce, i polpacci no, e il motivo dice perché.
+    expect(gateForExercise(EXERCISES['panca-manubri-presa-neutra'], g)).toBe('ok');
+    expect(painNoteForExercise(EXERCISES['panca-manubri-presa-neutra'], g)).toBeUndefined();
+    expect(painNoteForExercise(EXERCISES['polpacci-seduto'], g)).toBe('Tibia da 1 a 2 dopo il calcio');
+    const calf: SessionExercise = { exerciseId: 'polpacci-seduto', sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 60, progression: 'doppia', incrementKg: 5 };
+    const last = exLog('polpacci-seduto', [[40, 12], [40, 12], [40, 12]]);
+    const s = suggestNext(calf, last, { gate: gateForExercise(EXERCISES['polpacci-seduto'], g), painNote: painNoteForExercise(EXERCISES['polpacci-seduto'], g) });
+    expect(s).toMatchObject({ kind: 'mantieni', weightKg: 40, reason: 'Tibia da 1 a 2 dopo il calcio: niente aumenti di carico oggi' });
+  });
+
+  it('il gomito frena spinte e tirate, le gambe procedono', () => {
+    const g = painGate(make([ci('2026-11-02', { Gomito: 4, Tibia: 0 })]), '2026-11-02');
+    expect(g.message).toMatch(/^Per spinte e tirate mantieni/);
+    expect(g.message).toContain('Le gambe procedono come previsto.');
+    expect(painNoteForExercise(EXERCISES['panca-manubri-presa-neutra'], g)).toBe('Gomito a 4 su 10');
+  });
+
+  it('zone in parti diverse o sconosciute: la regola vale per tutto', () => {
+    const both = painGate(make([ci('2026-11-02', { Gomito: 4, Tibia: 4 })]), '2026-11-02');
+    expect(both.message).toMatch(/^Mantieni i carichi/);
+    expect(both.message).not.toContain('procede');
+    const unknown = painGate(make([ci('2026-11-02', { Collo: 4 })], []), '2026-11-02');
+    expect(unknown.message).toMatch(/^Mantieni i carichi/);
+  });
+
+  it('con il dolore molto alto riduce solo la zona e manda dal fisioterapista', () => {
+    const g = painGate(make([ci('2026-11-06', { Tibia: 8 })]), '2026-11-06');
+    expect(g.message).toMatch(/^Per gambe e polpacci riduci i carichi del 10%/);
+    expect(g.message.endsWith('Scrivi al fisioterapista oggi.')).toBe(true);
+  });
+
+  it('senza zona il motivo resta generico', () => {
+    const last = exLog(bench.exerciseId, [[20, 10], [20, 10], [20, 10]]);
+    expect(suggestNext(bench, last, { gate: 'mantieni' }).reason).toBe('Dolore sopra soglia: niente aumenti di carico oggi');
+  });
+});
+
+// ───────────────────────── Fisioterapista e doppioni ─────────────────────────
+
+describe('esercizi del fisioterapista e doppioni', () => {
+  const physio = {
+    exercises: [
+      { id: 'f-soleo', name: 'Isometria del soleo al muro', category: 'fisio' as const, equipment: 'Muro', cues: [] },
+      { id: 'f-tibiale', name: 'Sollevamento delle punte con la schiena al muro', category: 'fisio' as const, equipment: 'Muro', cues: [] },
+      { id: 'f-polso', name: 'Eccentrico degli estensori del polso', category: 'fisio' as const, equipment: 'Manubrio', cues: [] },
+      { id: 'f-allungamento', name: 'Allungamento del polpaccio al muro', category: 'fisio' as const, equipment: 'Muro', cues: [] },
+    ],
+    prescriptions: [
+      { exerciseId: 'f-soleo', sets: 4, repMin: 30, repMax: 45, unit: 'secondi' as const, restSec: 60, progression: 'nessuna' as const, perSide: true },
+      { exerciseId: 'f-tibiale', sets: 3, repMin: 12, repMax: 15, unit: 'reps' as const, restSec: 45, progression: 'nessuna' as const },
+      { exerciseId: 'f-polso', sets: 3, repMin: 12, repMax: 15, unit: 'reps' as const, restSec: 60, progression: 'nessuna' as const, perSide: true },
+    ],
+  };
+
+  it('riconosce il tessuto dal nome senza confondere tibiale anteriore e polpacci', () => {
+    expect(tissueOf(EXERCISES['tyler-twist'])).toBe('gomito');
+    expect(tissueOf(EXERCISES['isometria-estensori-polso'])).toBe('gomito');
+    expect(tissueOf(EXERCISES['polpacci-seduto'])).toBe('soleo');
+    expect(tissueOf(EXERCISES['polpacci-in-piedi-macchina'])).toBe('polpacci');
+    expect(tissueOf(EXERCISES['tibiale-anteriore-seduto'])).toBe('tibiale-anteriore');
+    expect(tissueOf(EXERCISES['sollevamenti-punte-pallina'])).toBe('tibiale-posteriore');
+    expect(tissueOf(physio.exercises[1])).toBe('tibiale-anteriore');
+    expect(tissueOf(EXERCISES['copenhagen-leva-corta'])).toBe('adduttori');
+    expect(tissueOf(EXERCISES['nordic-hamstring-curl'])).toBe('flessori');
+    // Gli allungamenti non caricano il tessuto.
+    expect(tissueOf(physio.exercises[3])).toBeNull();
+    expect(tissueOf(EXERCISES['panca-manubri-presa-neutra'])).toBeNull();
+  });
+
+  it('nella seduta A salta polpacci da seduto e Tyler twist, non il riscaldamento né il tibiale posteriore', () => {
+    const cover = physioCoverage(SESSIONS.A, physio);
+    const ids = [...cover.values()].map((c) => c.exerciseId).sort();
+    expect(ids).toEqual(['polpacci-seduto', 'tyler-twist']);
+    expect([...cover.values()].find((c) => c.exerciseId === 'tyler-twist')).toMatchObject({ physioId: 'f-polso', tissue: 'gomito' });
+    // L'isometria prima delle spinte resta: prepara il gomito, non è un doppione.
+    expect(ids).not.toContain('isometria-estensori-polso');
+  });
+
+  it('nella B salta tibiale anteriore e Tyler twist, non i polpacci pesanti in piedi', () => {
+    const ids = [...physioCoverage(SESSIONS.B, physio).values()].map((c) => c.exerciseId).sort();
+    expect(ids).toEqual(['tibiale-anteriore-seduto', 'tyler-twist']);
+    // Un esercizio generico per i polpacci invece li copre.
+    const calves = {
+      exercises: [{ id: 'f-calf', name: 'Polpacci su una gamba al gradino', category: 'fisio' as const, equipment: 'Gradino', cues: [] }],
+      prescriptions: [{ exerciseId: 'f-calf', sets: 3, repMin: 10, repMax: 15, unit: 'reps' as const, restSec: 60, progression: 'nessuna' as const }],
+    };
+    expect([...physioCoverage(SESSIONS.B, calves).values()].map((c) => c.exerciseId)).toEqual(['polpacci-in-piedi-macchina']);
+  });
+
+  it('senza esercizi del fisioterapista non salta niente', () => {
+    expect(physioCoverage(SESSIONS.A, { exercises: [], prescriptions: [] }).size).toBe(0);
+    expect(physioCoverage(SESSIONS.A, undefined).size).toBe(0);
+    // Lo stesso esercizio del catalogo prescritto dal fisioterapista è un doppione.
+    const same = physioCoverage(SESSIONS.B, { exercises: [], prescriptions: [{ exerciseId: 'pallof-press', sets: 2, repMin: 8, repMax: 10, unit: 'reps', restSec: 30, progression: 'nessuna' }] });
+    expect([...same.values()]).toEqual([{ exerciseId: 'pallof-press', physioId: 'pallof-press', tissue: null }]);
+  });
+
+  it('la durata dice quanto pesa il blocco del fisioterapista', () => {
+    const plain = sessionDuration(SESSIONS.A);
+    expect(plain).toEqual({ own: SESSIONS.A.estMin, physio: 0, total: SESSIONS.A.estMin, covered: 0 });
+    const d = sessionDuration(SESSIONS.A, physio);
+    expect(d.covered).toBe(2);
+    expect(d.own).toBeLessThan(SESSIONS.A.estMin);
+    expect(d.physio).toBeGreaterThanOrEqual(20);
+    expect(d.physio).toBeLessThanOrEqual(28);
+    expect(d.total).toBe(d.own + d.physio);
+    // Nella fase di ingresso una serie in meno accorcia la seduta.
+    expect(sessionDuration(SESSIONS.A, undefined, { intro: true }).own).toBeLessThan(SESSIONS.A.estMin);
   });
 });

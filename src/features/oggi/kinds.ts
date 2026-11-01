@@ -133,9 +133,9 @@ export function detailLabel(item: DayItem): string {
     case 'spesa':
       return 'Apri la lista';
     case 'preparazione':
-      return 'Apri';
+      return 'Apri la guida';
     case 'revisione':
-      return 'Inizia';
+      return 'Apri la revisione';
     default:
       return 'Apri';
   }

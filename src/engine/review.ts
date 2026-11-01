@@ -27,7 +27,7 @@ import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSin
 import { effectiveDayType, mealsForDate } from './menu';
 import { recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
-import { adherenceSummary, countingStart, firstUseOf, isSuccessful } from './timeline';
+import { adherenceSummary, countingStart, firstReviewWeek, firstUseOf, isReviewableWeek, isSuccessful, type AdherenceSummary } from './timeline';
 import { loadStatus, type LoadStatus } from './training';
 
 // ───────────────────────── Costanti ─────────────────────────
@@ -97,9 +97,29 @@ export function reviewFor(weekStart: ISODate, reviews: readonly WeeklyReview[] |
   return (reviews ?? []).find((r) => r.weekStart === ws);
 }
 
-/** La settimana da rivedere esiste nel piano (non è prima dell'inizio). */
+// La prima settimana da rivedere sta in timeline.ts (la usa anche il rito della domenica di Oggi, e
+// review.ts importa già timeline.ts): qui si riesporta.
+export { MIN_FIRST_WEEK_DAYS, firstReviewWeek, isReviewableWeek } from './timeline';
+
+/** La settimana da rivedere esiste nel piano (non è prima dell'inizio né dei giorni di avvio). */
 export function reviewAvailable(today: ISODate, plan: Pick<Plan, 'startDate'>): boolean {
-  return reviewWeekFor(today) >= weekStartOf(plan.startDate);
+  return isReviewableWeek(reviewWeekFor(today), plan);
+}
+
+/** Domenica della prima revisione ("La prima revisione è domenica 8 novembre"), o null. */
+export function firstReviewDate(plan: Pick<Plan, 'startDate'>): ISODate | null {
+  const ws = firstReviewWeek(plan);
+  return ws ? addDays(ws, 6) : null;
+}
+
+/**
+ * Numero della settimana del piano che parte da `weekStart`: 1 è la prima da rivedere. Prima di quella
+ * (i giorni di avvio di chi comincia nel fine settimana) vale 0.
+ */
+export function planWeekNumber(weekStart: ISODate, plan: Pick<Plan, 'startDate'>): number {
+  const first = firstReviewWeek(plan);
+  if (!first) return 1;
+  return Math.max(0, weekIndexSince(first, weekStartOf(weekStart)) + 1);
 }
 
 // ───────────────────────── Numeri del periodo ─────────────────────────
@@ -216,7 +236,23 @@ function closedDays(start: ISODate | null, dates: ISODate[], today?: ISODate): I
   return dates.filter((d) => (!start || d >= start) && (!today || d < today));
 }
 
-/** Aderenza dei giorni chiusi. Un giorno senza voci che contano (tutte prima del primo avvio) è senza dati. */
+/** Voci che contano oltre le quali il giorno del primo avvio è una giornata vera anche senza nulla di segnato. */
+export const FIRST_DAY_MIN_ITEMS = 4;
+
+/**
+ * Il giorno del primo avvio cominciato la sera (meno di 4 voci che contano, di solito coprifuoco, telefono
+ * fuori e poco altro) senza nulla di segnato non è una giornata: non entra nell'aderenza e nel calendario
+ * resta "prima di Ritmo". Se qualcosa è segnato, conta come gli altri giorni.
+ */
+export function isIdleFirstEvening(iso: ISODate, plan: Pick<Plan, 'startDate'>, s: Pick<AdherenceSummary, 'total' | 'done' | 'replaced' | 'skipped'>): boolean {
+  const first = firstUseOf(plan);
+  return first !== null && first.date === iso && s.total < FIRST_DAY_MIN_ITEMS && s.done + s.replaced + s.skipped === 0;
+}
+
+/**
+ * Aderenza dei giorni chiusi. Un giorno senza voci che contano (tutte prima del primo avvio) è senza dati,
+ * come la prima sera senza nulla di segnato.
+ */
 function adherenceOf(state: ReviewState, dates: ISODate[]) {
   let sum = 0;
   let ok = 0;
@@ -224,7 +260,7 @@ function adherenceOf(state: ReviewState, dates: ISODate[]) {
   let days = 0;
   for (const d of dates) {
     const s = adherenceSummary(d, state);
-    if (s.total === 0) continue;
+    if (s.total === 0 || isIdleFirstEvening(d, state.plan, s)) continue;
     days++;
     sum += s.score;
     if (isSuccessful(s)) ok++;
@@ -416,7 +452,7 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
 export interface WeekStats extends PeriodStats {
   weekStart: ISODate;
   weekEnd: ISODate;
-  /** Settimana del piano (1 = la prima). */
+  /** Settimana del piano (1 = la prima da rivedere, 0 = giorni di avvio prima di quella). */
   weekNumber: number;
   /** Tutti i giorni della settimana sono passati (o è domenica). */
   complete: boolean;
@@ -427,7 +463,7 @@ export interface WeekStats extends PeriodStats {
   sweets: number;
   sweetsPlanned: number;
   sweetsExtra: number;
-  /** La settimana contiene il primo giorno con Ritmo: si racconta, non si giudica. */
+  /** Prima settimana con Ritmo (contiene il primo giorno o è la prima da rivedere): si racconta, non si giudica. */
   firstWeek: boolean;
   /** Giorni con Ritmo nella settimana (dal primo giorno, fino a oggi). */
   daysWithRitmo: number;
@@ -457,7 +493,7 @@ export function weekStats(weekStart: ISODate, state: ReviewState, opts: PeriodOp
     ...base,
     weekStart: ws,
     weekEnd,
-    weekNumber: weekIndexSince(state.plan.startDate || ws, ws) + 1,
+    weekNumber: planWeekNumber(ws, state.plan),
     complete: !opts.today || weekEnd <= opts.today,
     load: status.load,
     loadStatus: status,
@@ -466,7 +502,8 @@ export function weekStats(weekStart: ISODate, state: ReviewState, opts: PeriodOp
     sweets,
     sweetsPlanned: planned,
     sweetsExtra: Math.max(0, sweets - planned),
-    firstWeek: Boolean(start) && start! >= ws && start! <= weekEnd,
+    // Anche la prima settimana da rivedere di chi ha cominciato il fine settimana prima.
+    firstWeek: (Boolean(start) && start! >= ws && start! <= weekEnd) || (firstUseOf(state.plan) !== null && firstReviewWeek(state.plan) === ws),
     daysWithRitmo: withRitmo.length,
     itemsMarked,
   };
@@ -723,9 +760,12 @@ function deloadProposal(stats: WeekStats, state: ReviewState): Proposal | null {
 
 /**
  * Proposte per la settimana dopo quella rivista, nell'ordine di `PROPOSAL_ORDER`.
- * Sonno e calorie (o peso) ci sono sempre; le altre solo quando scatta la regola.
+ * Sonno e calorie (o peso) ci sono sempre; le altre solo quando scatta la regola. Nessuna proposta per una
+ * settimana che non si può rivedere (`isReviewableWeek`).
  */
 export function proposals(weekStart: ISODate, state: ReviewState, opts: PeriodOptions & { stats?: WeekStats } = {}): Proposal[] {
+  // Una settimana di avvio troppo corta non si rivede: niente correzioni senza dati.
+  if (!isReviewableWeek(weekStart, state.plan)) return [];
   const stats = opts.stats ?? weekStats(weekStart, state, opts);
   const plan = state.plan;
   const list: (Proposal | null)[] = [

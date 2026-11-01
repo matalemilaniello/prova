@@ -5,8 +5,9 @@
  *
  * Nel fine settimana Spesa e Preparazione aprono da sole la settimana che inizia lunedì: è quella da
  * comprare e preparare. Finché l'utente non sceglie una settimana con le frecce, l'offset è automatico.
- * Parametri nell'hash (li usa Oggi): `settimana=prossima` apre la settimana dopo, `guida=1` con
- * `tab=preparazione` avvia subito il lettore della preparazione.
+ * Parametri nell'hash (li usa Oggi): `settimana=prossima` apre la settimana dopo, `settimana=corrente` quella in
+ * corso (la spesa di avvio), `guida=1` con `tab=preparazione` avvia subito il lettore della preparazione.
+ * Per tornare a questa settimana c'è un solo comando, "Oggi" accanto alle frecce.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'motion/react';
@@ -14,8 +15,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AppData, ISODate } from '../../domain/types';
 import { MENU_ROTATION } from '../../data/menu';
 import { useUrlParam } from '../../app/urlParams';
-import { addDays, formatWeekRange, weekDates, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
-import { menuWeekFor, rotationIndexFor } from '../../engine/menu';
+import { addDays, daysBetween, formatWeekRange, weekDates, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
+import { isStarterDay, menuWeekFor, rotationIndexFor } from '../../engine/menu';
 import { shoppingList, shoppingProgress } from '../../engine/shopping';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
@@ -26,7 +27,7 @@ import { PrepTab } from './PrepTab';
 import { ShoppingTab } from './ShoppingTab';
 import { TabSwitch } from './TabSwitch';
 import { WeekStrip } from './WeekStrip';
-import { daySuccessfulSafe, isWeekend, relativeWeekLabel, shoppingFromDate } from './helpers';
+import { daySuccessfulSafe, isWeekend, prepSkipped, relativeWeekLabel, shoppingFromDate, starterShoppingSafe } from './helpers';
 
 type Tab = 'menu' | 'spesa' | 'preparazione';
 
@@ -49,7 +50,6 @@ export default function SettimanaScreen() {
   const weekend = isWeekend(today);
   const offsetFor = (t: Tab) => manualOffset ?? (weekend && t !== 'menu' ? 1 : 0);
   const offset = offsetFor(tab);
-  const autoAhead = manualOffset === null && offset === 1;
   const [picked, setPicked] = useState<ISODate>(today);
   const reduce = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -71,6 +71,8 @@ export default function SettimanaScreen() {
   const minOffset = Math.min(0, -Math.max(0, weekIndexSince(plan.startDate, today)));
   const planWeek = weekIndexSince(plan.startDate, monday) + 1;
   const rotation = rotationIndexFor(monday, plan.startDate);
+  // Nei giorni di avvio il menù è quello di avvio, non una settimana della rotazione.
+  const starterWeek = dates.some((d) => isStarterDay(d, plan));
 
   // Contatori delle schede: ognuno conta la settimana che la sua scheda apre.
   const shopMonday = addDays(thisMonday, offsetFor('spesa') * 7);
@@ -80,7 +82,8 @@ export default function SettimanaScreen() {
   const prepMonday = addDays(thisMonday, offsetFor('preparazione') * 7);
   const prepDone = useApp((s) => s.prepDone[prepMonday] ?? EMPTY);
   const progress = shoppingProgress(list, checked);
-  const prepTasks = menuWeekFor(prepMonday, plan.startDate)?.prep ?? [];
+  // Nella settimana di avvio non c'è niente da preparare: il contatore resta spento.
+  const prepTasks = prepSkipped(plan, prepMonday, isStarterDay(prepMonday, plan)) ? [] : menuWeekFor(prepMonday, plan.startDate)?.prep ?? [];
   const prepLeft = prepTasks.filter((t) => !prepDone.includes(t.id)).length;
 
   // Giornate passate riuscite (spunta nella striscia).
@@ -101,7 +104,9 @@ export default function SettimanaScreen() {
       const p = new URLSearchParams(location.hash.slice(q + 1));
       const t = p.get('tab');
       if (t) setTab(parseTab(t));
-      if (p.get('settimana') === 'prossima') setManualOffset(1);
+      const w = p.get('settimana');
+      if (w === 'prossima') setManualOffset(1);
+      else if (w === 'corrente') setManualOffset(0);
       if (p.get('guida') === '1') {
         setGuide(true);
         setGuideKey((n) => n + 1);
@@ -140,6 +145,16 @@ export default function SettimanaScreen() {
     setPicked(o === 0 ? today : addDays(addDays(thisMonday, o * 7), weekdayOf(selected)));
   };
 
+  // Dalla nota dei giorni di avvio: la spesa di avvio, nella settimana in cui cade.
+  const openStarterShopping = () => {
+    const shop = starterShoppingSafe(plan);
+    if (shop) {
+      const o = Math.round(daysBetween(thisMonday, weekStart(shop.date)) / 7);
+      setManualOffset(Math.max(minOffset, Math.min(MAX_AHEAD, o)));
+    }
+    changeTab('spesa');
+  };
+
   const pickDay = (d: ISODate) => {
     // Il giorno toccato resta nella settimana mostrata, anche se la scheda Menù di solito apre questa.
     if (manualOffset === null) setManualOffset(offset);
@@ -174,13 +189,20 @@ export default function SettimanaScreen() {
       subtitle={
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-semibold text-ink">{relativeWeekLabel(offset)}</span>
-          {MENU_ROTATION.length > 1 && (
+          {starterWeek ? (
             <>
               <span aria-hidden className="text-ink-3">·</span>
-              <span>
-                Menù {rotation + 1} di {MENU_ROTATION.length}
-              </span>
+              <span>Menù di avvio</span>
             </>
+          ) : (
+            MENU_ROTATION.length > 1 && (
+              <>
+                <span aria-hidden className="text-ink-3">·</span>
+                <span>
+                  Menù {rotation + 1} di {MENU_ROTATION.length}
+                </span>
+              </>
+            )
           )}
           {planWeek >= 1 && (
             <>
@@ -226,7 +248,7 @@ export default function SettimanaScreen() {
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
-              {tab === 'menu' && <MenuTab date={selected} plan={plan} dayLogs={dayLogs} />}
+              {tab === 'menu' && <MenuTab date={selected} plan={plan} dayLogs={dayLogs} onOpenShopping={openStarterShopping} />}
               {tab === 'spesa' && (
                 <ShoppingTab
                   weekStart={monday}
@@ -235,7 +257,6 @@ export default function SettimanaScreen() {
                   offset={offset}
                   today={today}
                   fromDate={shoppingFromDate(plan, monday)}
-                  autoAhead={autoAhead}
                   onOpenWeek={(o) => goWeek(o)}
                   onGoPrep={() => changeTab('preparazione')}
                 />
@@ -248,7 +269,6 @@ export default function SettimanaScreen() {
                   dayLogs={dayLogs}
                   offset={offset}
                   today={today}
-                  autoAhead={autoAhead}
                   autoPlay={guide}
                   onOpenWeek={(o) => goWeek(o)}
                 />

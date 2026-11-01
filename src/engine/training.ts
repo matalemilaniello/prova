@@ -8,7 +8,10 @@
  * - Allarme del carico: settimana oltre il 120% della media delle 4 precedenti, con almeno 2 settimane
  *   di storico.
  * - Regola del dolore (Silbernagel adattata): dolore entro la soglia del piano → avanti; sopra soglia o in
- *   peggioramento → mantieni o riduci; con il gomito si propongono varianti adatte (elbowFriendly).
+ *   peggioramento → mantieni o riduci, solo per gli esercizi che caricano la zona; con il gomito si propongono
+ *   varianti adatte (elbowFriendly).
+ * - Esercizi del fisioterapista: la prevenzione della seduta che lavora lo stesso tessuto di un suo esercizio
+ *   si salta (physioCoverage), e la durata della seduta lo dice (sessionDuration).
  *
  * Tutte le date sono locali ('YYYY-MM-DD'). Nessuna funzione legge l'orologio: la data arriva dagli argomenti.
  */
@@ -27,7 +30,7 @@ import type {
   WorkoutSession,
 } from '../domain/types';
 import { EXERCISES, type CatalogExercise } from '../data/exercises';
-import { SESSIONS } from '../data/sessions';
+import { SESSIONS, estimateItemSec } from '../data/sessions';
 import { addDays, daysBetween, weekStart as weekStartOf, weekdayOf } from './dates';
 
 // ───────────────────────── Costanti ─────────────────────────
@@ -147,6 +150,11 @@ export interface Suggestion {
 export interface SuggestOptions {
   /** Esito della regola del dolore per l'esercizio. */
   gate?: GateLevel;
+  /**
+   * Zona e motivo che frenano l'esercizio, all'inizio del motivo mostrato ("Tibia da 1 a 2 dopo il calcio").
+   * Senza, il motivo resta generico ("Dolore sopra soglia"). Vedi `painNoteForExercise`.
+   */
+  painNote?: string;
   /** Fase di ingresso (prime esecuzioni della seduta): una serie in meno e una ripetizione di riserva in più. */
   intro?: boolean;
 }
@@ -155,13 +163,19 @@ export interface SuggestOptions {
 
 /** Esecuzioni di ogni seduta con il volume ridotto, per chi finora si è allenato senza programma. */
 export const INTRO_SESSIONS = 2;
-/** Motivo mostrato durante la fase di ingresso. */
-export const INTRO_REASON = 'Prime settimane: volume ridotto per arrivare fresco alla partita';
+/**
+ * Motivo mostrato durante la fase di ingresso (senza punto finale). Il motivo vero è la prima esposizione:
+ * gli esercizi nuovi danno molto più indolenzimento, che dalle esecuzioni successive cala (effetto della
+ * serie ripetuta), e non la vicinanza della partita, che vale solo per la B.
+ */
+export const INTRO_REASON =
+  "Le prime due volte: una serie in meno e una ripetizione di riserva in più, così l'indolenzimento dei primi giorni non pesa sul calcio";
 
 /**
  * Fase di ingresso di una seduta: 1 o 2 se la prossima esecuzione è la prima o la seconda registrata,
- * null quando la seduta è già stata fatta almeno 2 volte o è già leggera (come la C, a RIR 3). I primi Nordic e affondi bulgari danno un
- * indolenzimento che raggiunge il picco a 48-72 ore: con la seduta B il venerdì cadrebbe sulla partita.
+ * null quando la seduta è già stata fatta almeno 2 volte o è già leggera (come la C, a RIR 3). Gli esercizi
+ * nuovi danno un indolenzimento con il picco tra 24 e 72 ore, molto minore dalle esposizioni successive:
+ * con la seduta B il venerdì cadrebbe proprio sulla partita.
  */
 export function introLevel(sessionId: string, logs: readonly WorkoutLog[], opts: LastLogOptions = {}): 1 | 2 | null {
   const session = SESSIONS[sessionId];
@@ -238,9 +252,10 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
 
   const inc = item.incrementKg && item.incrementKg > 0 ? item.incrementKg : DEFAULT_INCREMENT_KG;
 
+  const note = opts.painNote?.trim();
   if (gate === 'riduci') {
     const reduced = roundToStep(w * PAIN_REDUCE_FACTOR, Math.min(inc, 2.5));
-    return make(reduced, [item.repMin], 'riduci', 'Dolore alto: carico ridotto del 10%, lontano dal cedimento', w);
+    return make(reduced, [item.repMin], 'riduci', `${note || 'Dolore alto'}: carico ridotto del 10%, lontano dal cedimento`, w);
   }
 
   // "Tutte le serie a repMax" si giudica sulle serie previste oggi (nella fase di ingresso, quelle ridotte).
@@ -249,14 +264,14 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
 
   if (allMax) {
     if (gate === 'mantieni') {
-      return make(w, [item.repMax], 'mantieni', 'Dolore sopra soglia: niente aumenti di carico oggi', w);
+      return make(w, [item.repMax], 'mantieni', `${note || 'Dolore sopra soglia'}: niente aumenti di carico oggi`, w);
     }
     const next = Number((w + inc).toFixed(2));
     return make(next, [item.repMin], 'aumenta', `Tutte le serie a ${item.repMax}: +${fmtKgShort(inc)} e riparti da ${item.repMin}`, w);
   }
 
   if (gate === 'mantieni') {
-    return make(w, lastReps.map((r) => clampInt(r, item.repMin, item.repMax)), 'mantieni', "Dolore sopra soglia: ripeti l'ultima volta", w);
+    return make(w, lastReps.map((r) => clampInt(r, item.repMin, item.repMax)), 'mantieni', `${note || 'Dolore sopra soglia'}: ripeti l'ultima volta`, w);
   }
 
   const target = lastReps.map((r) => clampInt(r + 1, item.repMin, item.repMax));
@@ -635,6 +650,33 @@ function painReadings(checkIns: Record<ISODate, CheckIn>, site: string, from: IS
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const siteName = (site: string) => site.charAt(0).toUpperCase() + site.slice(1);
+const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Parti del corpo frenate da ogni zona, per i testi: parte bassa, parte alta o tronco. */
+const SITE_SCOPE: [RegExp, string, 'basso' | 'alto'][] = [
+  [/tibi|stinc|cavigl|polpacc|achill|piede|metatars/i, 'gambe e polpacci', 'basso'],
+  [/ginocch|flessor|femoral|ischio|addutt|inguin|pube|anca|glute/i, 'gambe', 'basso'],
+  [/schien|lomb/i, 'gambe e core', 'basso'],
+  [/gomit|polso|avambracc|spall/i, 'spinte e tirate', 'alto'],
+];
+
+/**
+ * Cosa frena la regola del dolore, detto a parole: "gambe e polpacci" (e la parte superiore procede) oppure
+ * "spinte e tirate" (e le gambe procedono). Null con zone sconosciute o in parti diverse del corpo: allora la
+ * regola vale per tutti gli esercizi con carico.
+ */
+function gateScope(flagged: readonly PainSiteStatus[]): { words: string; rest: string } | null {
+  const hits = flagged.map((s) => SITE_SCOPE.find(([re]) => re.test(s.site)));
+  if (!hits.length || hits.some((h) => !h)) return null;
+  const parts = new Set(hits.map((h) => h![2]));
+  if (parts.size > 1) return null;
+  // "gambe e polpacci" + "gambe e core" → "gambe, polpacci e core".
+  const words = [...new Set(hits.flatMap((h) => h![1].split(' e ')))];
+  const all = words.length > 1 ? `${words.slice(0, -1).join(', ')} e ${words[words.length - 1]}` : words[0];
+  return hits[0]![2] === 'basso'
+    ? { words: all, rest: 'La parte superiore procede come previsto.' }
+    : { words: all, rest: 'Le gambe procedono come previsto.' };
+}
 
 type PainState = Pick<TrainingState, 'plan'> & Partial<Pick<AppData, 'checkIns' | 'profile' | 'workoutLogs' | 'footballLogs'>>;
 
@@ -766,15 +808,19 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
           : top.cause === 'aumento'
             ? `${name} in aumento`
             : `${name} a ${top.value} su 10, sopra soglia`;
+    // La regola frena solo gli esercizi che caricano le zone segnalate: il testo dice quali e cosa resta libero.
+    const scope = gateScope(flagged);
+    const per = scope ? `per ${scope.words} ` : '';
     const parts = [
       level === 'riduci'
-        ? 'Riduci i carichi del 10% e resta lontano dal cedimento.'
+        ? capitalizeFirst(`${per}riduci i carichi del 10% e resta lontano dal cedimento.`)
         : top.cause === 'giorno-dopo'
-          ? "Il giorno dopo il dolore non deve salire: mantieni i carichi dell'ultima volta, niente aumenti."
-          : "Mantieni i carichi dell'ultima volta, niente aumenti.",
+          ? `Il giorno dopo il dolore non deve salire: ${per}mantieni i carichi dell'ultima volta, niente aumenti.`
+          : capitalizeFirst(`${per}mantieni i carichi dell'ultima volta, niente aumenti.`),
     ];
     if (elbow) parts.push('Per il gomito usa le varianti a presa neutra proposte.');
-    if (impact) parts.push('Niente balzi e salti oggi, tieni polpacci, soleo e tibiale.');
+    if (impact) parts.push('Niente balzi e salti oggi.');
+    if (scope?.rest) parts.push(scope.rest);
     if (level === 'riduci') parts.push('Scrivi al fisioterapista oggi.');
     message = parts.join(' ');
   } else if (impactBy) {
@@ -852,20 +898,173 @@ const SITE_CATEGORIES: [RegExp, ExerciseCategory[]][] = [
   [/anca|glute/i, ['gambe']],
 ];
 const LOADED_CATEGORIES: ExerciseCategory[] = ['spinta', 'tirata', 'gambe', 'core'];
+/**
+ * Esercizi di prevenzione con carico che lavorano proprio sotto il ginocchio (polpacci, soleo, tibiali):
+ * con la tibia o la caviglia segnalate restano al carico dell'ultima volta, come le gambe.
+ */
+const LOWER_LEG_PREVENTION_RE = /polpacc|soleo|tibial|sulle punte/i;
+
+/** Zona segnalata che frena l'esercizio (la più severa), o null. */
+function brakingSite(exercise: Exercise | undefined, gate: PainGate): PainSiteStatus | null {
+  if (!exercise || gate.level === 'ok') return null;
+  let best: PainSiteStatus | null = null;
+  for (const s of gate.flagged) {
+    const cats = SITE_CATEGORIES.find(([re]) => re.test(s.site))?.[1] ?? LOADED_CATEGORIES;
+    const hits =
+      cats.includes(exercise.category) ||
+      (ELBOW_RE.test(s.site) && exercise.elbowFriendly === false) ||
+      (s.lowerLeg === true && exercise.category === 'prevenzione' && LOWER_LEG_PREVENTION_RE.test(`${exercise.id} ${exercise.name}`));
+    if (hits && (!best || LEVEL_RANK[s.level] > LEVEL_RANK[best.level])) best = s;
+  }
+  return best;
+}
 
 /**
  * Esito della regola del dolore per un esercizio: frena solo gli esercizi che caricano la zona
- * (il dolore alla tibia non blocca la panca). Prevenzione, riscaldamento, mobilità ed esercizi del
- * fisioterapista restano dosati sul dolore e non vengono frenati. Con il gomito sono frenati anche gli
- * esercizi non adatti di altre categorie (es. lo stacco, per la presa).
+ * (il dolore alla tibia non blocca la panca). Con la tibia o la caviglia segnalate sono frenati anche
+ * polpacci, soleo e tibiali di prevenzione (niente aumenti di carico). Il resto della prevenzione, il
+ * riscaldamento, la mobilità e gli esercizi del fisioterapista restano dosati sul dolore e non vengono
+ * frenati. Con il gomito sono frenati anche gli esercizi non adatti di altre categorie (es. lo stacco, per la presa).
  */
 export function gateForExercise(exercise: Exercise | undefined, gate: PainGate): GateLevel {
-  if (!exercise || gate.level === 'ok') return 'ok';
-  let level: GateLevel = 'ok';
-  for (const s of gate.flagged) {
-    const cats = SITE_CATEGORIES.find(([re]) => re.test(s.site))?.[1] ?? LOADED_CATEGORIES;
-    const hits = cats.includes(exercise.category) || (ELBOW_RE.test(s.site) && exercise.elbowFriendly === false);
-    if (hits && LEVEL_RANK[s.level] > LEVEL_RANK[level]) level = s.level;
+  return brakingSite(exercise, gate)?.level ?? 'ok';
+}
+
+/**
+ * Inizio del motivo di un suggerimento frenato dal dolore, con la zona e la causa:
+ * "Tibia da 1 a 2 dopo il calcio", "Gomito a 4 su 10", "Tibia in aumento". Undefined se l'esercizio non è frenato.
+ */
+export function painNoteForExercise(exercise: Exercise | undefined, gate: PainGate): string | undefined {
+  const s = brakingSite(exercise, gate);
+  if (!s) return undefined;
+  const name = siteName(s.site);
+  switch (s.cause) {
+    case 'seduta':
+      return `${name} a ${s.sessionValue} su 10 nell'ultima seduta`;
+    case 'giorno-dopo':
+      return `${name} da ${s.before} a ${s.value} dopo ${s.after === 'calcio' ? 'il calcio' : 'la seduta'}`;
+    case 'aumento':
+      return `${name} in aumento`;
+    default:
+      return `${name} a ${s.value} su 10`;
   }
-  return level;
+}
+
+// ───────────────────────── Esercizi del fisioterapista e doppioni ─────────────────────────
+
+export type TissueId = 'gomito' | 'soleo' | 'polpacci' | 'tibiale-anteriore' | 'tibiale-posteriore' | 'adduttori' | 'flessori';
+
+/**
+ * Tessuti che la prevenzione della seduta e gli esercizi del fisioterapista possono caricare due volte.
+ * Si riconoscono dal nome, perché gli esercizi del fisioterapista li scrive l'utente. Il tibiale anteriore si
+ * allena "sollevando le punte" (dei piedi), il polpaccio "salendo sulle punte": le due forme non si confondono.
+ */
+export const TISSUES: readonly { id: TissueId; label: string; re: RegExp }[] = [
+  { id: 'gomito', label: 'gli estensori del polso', re: /estensor\w*\s+(?:del|dei)\s+pols|tyler|epicondil|gomit/i },
+  // Il soleo (ginocchio piegato) prima dei polpacci in generale: l'isometria del soleo non copre i polpacci in piedi.
+  { id: 'soleo', label: 'il soleo', re: /soleo/i },
+  { id: 'polpacci', label: 'i polpacci', re: /polpacc|gastrocnem/i },
+  { id: 'tibiale-anteriore', label: 'il tibiale anteriore', re: /tibiale anteriore|solleva\w*\s+(?:delle|le)\s+punte|dorsiflession/i },
+  { id: 'tibiale-posteriore', label: 'il tibiale posteriore', re: /tibiale posteriore|pallina tra i talloni/i },
+  { id: 'adduttori', label: 'gli adduttori', re: /copenhagen|addutt/i },
+  { id: 'flessori', label: 'i flessori della coscia', re: /nordic|leg curl|flessori della coscia|ischiocrural/i },
+];
+
+/** Allungamenti e mobilità non caricano il tessuto: non fanno doppione con un esercizio di forza. */
+const NOT_LOADING_RE = /allungament|stretch|mobilit|massagg|rullo|foam/i;
+
+/** Tessuto principale di un esercizio (il primo riconosciuto), o null. */
+export function tissueOf(exercise: Pick<Exercise, 'name'> | undefined): TissueId | null {
+  if (!exercise || NOT_LOADING_RE.test(exercise.name)) return null;
+  return TISSUES.find((t) => t.re.test(exercise.name))?.id ?? null;
+}
+
+export interface PhysioCover {
+  /** Esercizio della seduta che non si fa. */
+  exerciseId: string;
+  /** Esercizio del fisioterapista che lavora lo stesso tessuto (o lo stesso esercizio). */
+  physioId: string;
+  /** Tessuto in comune; null se è proprio lo stesso esercizio e non ha un tessuto riconosciuto. */
+  tissue: TissueId | null;
+}
+
+/**
+ * Esercizi della seduta già coperti dal programma del fisioterapista: la prevenzione (blocchi di prevenzione
+ * ed esercizi di categoria prevenzione, riscaldamento escluso) che lavora lo stesso tessuto di un suo esercizio.
+ * Il fisioterapista ha la precedenza: fare entrambi raddoppierebbe il volume sul tessuto sensibile (es. Tyler
+ * twist ed eccentrico degli estensori del polso, polpacci da seduto e isometria del soleo).
+ * Chiave: "blocco:esercizio" (indici nella seduta).
+ */
+export function physioCoverage(
+  session: Pick<WorkoutSession, 'blocks'>,
+  physio: Pick<AppData['physio'], 'exercises' | 'prescriptions'> | undefined,
+  catalog: Record<string, Exercise> = EXERCISES,
+): Map<string, PhysioCover> {
+  const out = new Map<string, PhysioCover>();
+  const byTissue = new Map<TissueId, string>();
+  const ids = new Set<string>();
+  for (const p of physio?.prescriptions ?? []) {
+    const ex = catalog[p.exerciseId] ?? physio?.exercises.find((e) => e.id === p.exerciseId);
+    if (!ex) continue;
+    ids.add(ex.id);
+    const t = tissueOf(ex);
+    if (t && !byTissue.has(t)) byTissue.set(t, ex.id);
+  }
+  if (!ids.size) return out;
+  session.blocks.forEach((b, bi) => {
+    if (/riscaldamento/i.test(b.title)) return;
+    const preventionBlock = /prevenzione/i.test(b.title);
+    b.items.forEach((it, ii) => {
+      const ex = catalog[it.exerciseId];
+      if (!ex || !(preventionBlock || ex.category === 'prevenzione')) return;
+      if (ids.has(ex.id)) {
+        out.set(`${bi}:${ii}`, { exerciseId: ex.id, physioId: ex.id, tissue: tissueOf(ex) });
+        return;
+      }
+      const t = tissueOf(ex);
+      const physioId = t ? byTissue.get(t) : undefined;
+      if (t && physioId) out.set(`${bi}:${ii}`, { exerciseId: ex.id, physioId, tissue: t });
+    });
+  });
+  return out;
+}
+
+export interface SessionDuration {
+  /** Minuti della seduta senza gli esercizi del fisioterapista (doppioni tolti, fase di ingresso compresa). */
+  own: number;
+  /** Minuti stimati degli esercizi del fisioterapista (0 se non ce ne sono). */
+  physio: number;
+  /** Somma dei due. */
+  total: number;
+  /** Esercizi della seduta saltati perché già nel programma del fisioterapista. */
+  covered: number;
+}
+
+/**
+ * Durata della seduta come la vive l'utente: `estMin` riscalato sugli esercizi che fa davvero (senza i
+ * doppioni del fisioterapista, con una serie in meno nella fase di ingresso), più il blocco del fisioterapista.
+ */
+export function sessionDuration(
+  session: WorkoutSession,
+  physio?: Pick<AppData['physio'], 'exercises' | 'prescriptions'>,
+  opts: { intro?: boolean } = {},
+): SessionDuration {
+  const cover = physioCoverage(session, physio);
+  // Minuti arrotondati blocco per blocco, come li mostra l'anteprima: la somma dei blocchi torna con il totale.
+  let full = 0;
+  let active = 0;
+  session.blocks.forEach((b, bi) => {
+    let all = 0;
+    let todo = 0;
+    b.items.forEach((it, ii) => {
+      all += estimateItemSec(it);
+      if (!cover.has(`${bi}:${ii}`)) todo += estimateItemSec(opts.intro ? introItem(it) : it);
+    });
+    full += Math.round(all / 60);
+    active += Math.round(todo / 60);
+  });
+  const own = cover.size || opts.intro ? Math.round((session.estMin * active) / Math.max(1, full)) : session.estMin;
+  const valid = (physio?.prescriptions ?? []).filter((p) => EXERCISES[p.exerciseId] || physio?.exercises.some((e) => e.id === p.exerciseId));
+  const physioMin = Math.round(valid.reduce((s, p) => s + estimateItemSec(p), 0) / 60);
+  return { own, physio: physioMin, total: own + physioMin, covered: cover.size };
 }

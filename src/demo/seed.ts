@@ -36,12 +36,18 @@ import {
   weekdayOf,
 } from '../engine/dates';
 import { MEAL_SLOTS, menuWeekFor, mealsForDate } from '../engine/menu';
-import { sleepHours } from '../engine/sleep';
+import { shoppingList } from '../engine/shopping';
+import { isOnTargetFor, sleepHours } from '../engine/sleep';
 
 // Il motore della timeline appartiene a un altro modulo: se c'è, i suoi id guidano il diario.
 // `buildDay` aggiunge i riti del fine settimana (spesa, preparazione, revisione), come in Oggi.
 type BuildFn = (iso: ISODate, state: AppData) => TimelineItem[];
-type TimelineModule = { buildDay?: BuildFn; buildTimeline?: BuildFn };
+type TimelineModule = {
+  buildDay?: BuildFn;
+  buildTimeline?: BuildFn;
+  adherenceSummary?: (iso: ISODate, state: AppData) => { score: number; total: number };
+  itemCounts?: (iso: ISODate, item: TimelineItem, state: AppData) => boolean;
+};
 const timelineModules = import.meta.glob<TimelineModule>('../engine/timeline.ts', { eager: true });
 const timelineModule = Object.values(timelineModules)[0];
 const buildTimelineExt = timelineModule?.buildDay ?? timelineModule?.buildTimeline;
@@ -216,19 +222,33 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   data.physio = demoPhysio();
 
   const histDays = daysBetween(start, todayIso);
-  const minimalDays = new Set([5, 16].filter((i) => i < histDays));
+  // Una settimana credibile, non perfetta (aderenza 65-88%): ogni settimana una o due giornate minime e una o
+  // due giornate non riuscite. Il jolly guadagnato con 5 giornate riuscite salva la serie alla prima giornata
+  // storta della settimana dopo; la seconda la spezza. L'ultima settimana va meglio delle prime.
+  // Indici dal lunedì di inizio: i % 7 è il giorno della settimana (0 = lunedì).
+  const minimalDays = new Set([5, 9, 16, 19, 24].filter((i) => i < histDays));
+  const failDays = new Set([1, 3, 11, 15, 17, 23].filter((i) => i < histDays));
   const recipeIds = Object.keys(RECIPES);
 
   // ── Controlli del mattino ──
+  // Il controllo di un giorno racconta la notte prima. Si fa tardi (00:40-01:10) dopo la partita del lunedì,
+  // quando l'adrenalina tiene svegli, e il venerdì sera; il sabato e la domenica la sveglia è verso le 8.
+  // 4-5 notti in orario su 7, con le notti in orario che anticipano piano piano.
+  // `sleepHours` è il tempo a letto calcolato dagli orari, lo stesso numero che mostrano tutte le schermate.
   const skipCheckIn = new Set([3, 12].filter((i) => i < histDays));
+  const lateNight = (i: number) => i % 7 === 1 || i % 7 === 5 || i === 2;
   for (let i = 0; i <= histDays; i++) {
     const iso = addDays(start, i);
     if (skipCheckIn.has(i)) continue;
     const p = histDays ? i / histDays : 1;
     const wd = weekdayOf(iso);
-    const hours = round1(lerp(6.2, 7.2, p) + (r() - 0.5) * 0.5);
-    const wake = minToHHMM(hhmmToMin('07:15') + Math.round((r() - 0.5) * 16));
-    const bed = minToHHMM(hhmmToMin(wake) - Math.round(hours * 60) - 12);
+    const late = lateNight(i);
+    const weekend = wd === 5 || wd === 6;
+    const wake = minToHHMM(hhmmToMin(weekend ? '08:00' : '07:15') + Math.round((r() - 0.5) * 16));
+    // In orario: dalle 00:25 delle prime notti verso le 23:55 (fase attuale 00:15, tolleranza 15 minuti).
+    const bed = late
+      ? minToHHMM(hhmmToMin('00:40') + Math.round(r() * 30))
+      : minToHHMM(hhmmToMin('00:25') - Math.round(30 * p) + Math.round((r() - 0.5) * 12));
     const afterMatch = wd === 1 || wd === 3; // il giorno dopo partita e calcetto
     const tibia = clampInt(lerp(3, 1, p) + (afterMatch ? 0.7 : 0) + (r() - 0.5) * 0.8, 0, 10);
     const gomito = clampInt(lerp(3, 2, p) + (wd === 2 || wd === 5 ? 0.5 : 0) + (r() - 0.5) * 0.8, 0, 10);
@@ -237,10 +257,10 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
       date: iso,
       bedTime: bed,
       wakeTime: wake,
-      sleepHours: round1(sleepHours(bed, wake) - 0.2),
-      sleepQuality: clampInt(lerp(3, 4.2, p) + (r() - 0.5) * 1.2, 1, 5),
+      sleepHours: sleepHours(bed, wake),
+      sleepQuality: clampInt(lerp(3, 4.2, p) + (late ? -0.8 : 0) + (r() - 0.5) * 1.2, 1, 5),
       pain: { Tibia: tibia, Gomito: gomito },
-      energy: clampInt(lerp(6, 8, p) + (r() - 0.5) * 1.6, 1, 10),
+      energy: clampInt(lerp(6, 8, p) + (late ? -0.7 : 0) + (r() - 0.5) * 1.6, 1, 10),
     };
     if (withWeight) c.weightKg = round1(lerp(70.6, 69.8, p) + (r() - 0.5) * 0.5 + (wd === 0 ? 0.2 : 0));
     data.checkIns[iso] = c;
@@ -271,7 +291,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
       if (target && alt) log.recipeSwaps[target.slot as MealSlot] = alt;
     }
 
-    const adherence = lerp(0.62, 0.9, p);
+    const adherence = lerp(0.55, 0.78, p);
     const items = itemsFor(iso, data);
     for (const it of items) {
       if (isToday && hhmmToMin(it.time) > nowMin - 20) continue;
@@ -281,10 +301,15 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
       }
       // La revisione si ricava dalle revisioni salvate più sotto.
       if ((it.kind as string) === 'revisione') continue;
-      if (it.kind === 'letto') {
+      if (it.kind === 'letto' || it.kind === 'coprifuoco') {
+        // Letto e coprifuoco seguono la notte vera, raccontata dal controllo del giorno dopo.
         const next = data.checkIns[addDays(iso, 1)];
-        if (next?.bedTime && hhmmToMin(next.bedTime) < 12 * 60 && hhmmToMin(next.bedTime) <= hhmmToMin(data.plan.sleep.current) + 15) {
-          log.status[it.id] = 'fatto';
+        if (!next?.bedTime) continue;
+        const onTarget = isOnTargetFor(next.bedTime, addDays(iso, 1), data.plan);
+        if (it.kind === 'letto') {
+          if (onTarget) log.status[it.id] = 'fatto';
+        } else if (!log.minimal) {
+          log.status[it.id] = onTarget ? 'fatto' : 'saltato';
         }
         continue;
       }
@@ -373,6 +398,13 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   }
   data.footballLogs = football;
 
+  // ── Esito delle giornate ──
+  // Il caso da solo non garantisce la forma della settimana: si ritoccano poche voci del diario (pasti,
+  // integratori, fisio, spesa, preparazione) finché ogni giornata riuscita sta tra il 72 e l'88% e ogni
+  // giornata storta sotto il 60%. Le voci che vengono dai registri (controllo, palestra, calcio) e la notte non
+  // si toccano.
+  balanceDays(data, start, histDays, failDays, r);
+
   // ── Revisioni della domenica ──
   // Le ultime due settimane chiuse (la prima è rimasta senza revisione): l'ultima ha scelto lo scalino
   // della settimana in corso.
@@ -402,16 +434,90 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
     }
   }
 
-  // ── Spesa e preparazione della settimana in corso ──
-  const thisWeek = weekStart(todayIso);
-  const prep = menuWeekFor(todayIso, data.plan.startDate)?.prep ?? [];
-  data.prepDone = { [thisWeek]: prep.slice(0, Math.max(0, prep.length - 1)).map((t) => t.id) };
+  // ── Spesa e preparazione: le spunte seguono le voci del diario ──
+  // La spesa del sabato segnata ha la lista della settimana dopo spuntata (quasi tutta se sostituita), la
+  // preparazione della domenica segnata ha le attività fatte (una in meno se sostituita). Così Settimana dice
+  // la stessa cosa di Oggi.
   data.shoppingChecked = {};
+  data.prepDone = {};
+  for (let d = start; daysBetween(d, todayIso) >= 0; d = addDays(d, 1)) {
+    const status = data.dayLogs[d]?.status;
+    if (!status) continue;
+    const nextMonday = addDays(weekStart(d), 7);
+    const shop = status['rito:spesa'];
+    if (shop === 'fatto' || shop === 'sostituito') {
+      const keys = shoppingList(nextMonday, data).items.map((i) => i.key);
+      data.shoppingChecked[nextMonday] = shop === 'fatto' ? keys : keys.filter((_, i) => i % 6 !== 5);
+    }
+    const prepStatus = status['rito:preparazione'];
+    if (prepStatus === 'fatto' || prepStatus === 'sostituito') {
+      const tasks = (menuWeekFor(nextMonday, data.plan.startDate)?.prep ?? []).map((t) => t.id);
+      data.prepDone[nextMonday] = prepStatus === 'fatto' ? tasks : tasks.slice(0, Math.max(0, tasks.length - 1));
+    }
+  }
 
   // ── Qualche messaggio con il coach ──
   data.chat = demoChat(todayIso);
 
   return data;
+}
+
+/** Voci del diario che il bilanciamento può cambiare. */
+const BALANCE_KINDS = new Set<string>(['pasto', 'integratori', 'fisio', 'spesa', 'preparazione']);
+
+function balanceDays(data: AppData, start: ISODate, histDays: number, failDays: Set<number>, r: () => number) {
+  const summary = timelineModule?.adherenceSummary;
+  const counts = timelineModule?.itemCounts;
+  if (!summary || !counts) return;
+  for (let i = 0; i < histDays; i++) {
+    const iso = addDays(start, i);
+    const log = data.dayLogs[iso];
+    if (!log) continue;
+    const items = itemsFor(iso, data);
+    if (log.minimal) {
+      // Giornata minima: le quattro voci fatte, la giornata vale.
+      for (const it of items) if (it.kind === 'minima') log.status[it.id] = 'fatto';
+      continue;
+    }
+    const p = histDays ? i / histDays : 1;
+    const editable = items.filter((it) => BALANCE_KINDS.has(it.kind) && counts(iso, it, data));
+    // Ordine stabile ma diverso ogni giorno.
+    const order = editable.map((it) => ({ it, k: r() })).sort((a, b) => a.k - b.k).map((x) => x.it);
+    const score = () => summary(iso, data).score;
+    if (failDays.has(i)) {
+      const goal = 0.42 + 0.12 * r();
+      for (const it of order) {
+        if (score() < goal) break;
+        if (log.status[it.id] !== 'fatto' && log.status[it.id] !== 'sostituito') continue;
+        if (r() < 0.5) log.status[it.id] = 'saltato';
+        else delete log.status[it.id];
+        delete log.notes[it.id];
+      }
+      continue;
+    }
+    const low = Math.min(0.8, 0.72 + 0.05 * p + 0.03 * r());
+    const high = Math.min(0.88, low + 0.07);
+    for (const it of order) {
+      if (score() >= low) break;
+      const st = log.status[it.id];
+      if (st === 'fatto') continue;
+      if (st === undefined && it.kind === 'pasto' && r() < 0.35) {
+        log.status[it.id] = 'sostituito';
+        log.notes[it.id] = MEAL_NOTES[Math.floor(r() * MEAL_NOTES.length)];
+      } else {
+        log.status[it.id] = 'fatto';
+        delete log.notes[it.id];
+      }
+    }
+    for (const it of [...order].reverse()) {
+      if (score() <= high) break;
+      if (log.status[it.id] !== 'fatto') continue;
+      if (it.kind === 'pasto') {
+        log.status[it.id] = 'sostituito';
+        log.notes[it.id] = MEAL_NOTES[Math.floor(r() * MEAL_NOTES.length)];
+      } else delete log.status[it.id];
+    }
+  }
 }
 
 function demoPhysio(): AppData['physio'] {
@@ -471,7 +577,7 @@ function demoChat(todayIso: ISODate): ChatMessage[] {
       text:
         'A metà mattina prendi un toast con prosciutto cotto e una spremuta, oppure uno yogurt bianco con un frutto se c’è. ' +
         'Cornetto e succo insieme no: tanti zuccheri, poche proteine e alle 12 hai di nuovo fame. ' +
-        'Stasera c’è il calcetto: il toast, con i suoi carboidrati, va benissimo.',
+        'Stasera c’è il calcetto: toast e spremuta danno proteine e un po’ di carboidrati, il pieno arriva a pranzo e con la merenda prima del campo.',
       createdAt: iso2Date(d2, 10, 41),
     },
     { id: 'demo-c3', role: 'user', text: 'Salto la palestra? Ho dormito poco.', createdAt: iso2Date(d1, 16, 12) },

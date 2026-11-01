@@ -16,10 +16,10 @@ import type {
   SleepPlan,
   Supplement,
 } from '../domain/types';
-import { todayISO, weekStart } from '../engine/dates';
+import { addDays, todayISO, weekdayOf, weekStart } from '../engine/dates';
 
 /** Versione della forma dei dati salvati (AppData.version e persist di zustand). */
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 
 /** Chiave di localStorage. */
 export const STORAGE_KEY = 'ritmo:v1';
@@ -88,10 +88,14 @@ export const DEFAULT_SUPPLEMENTS: Supplement[] = [
   },
 ];
 
+/**
+ * Sonno. L'obiettivo è un orario a letto: dalle 23:15 alle 07:15 sono 8 ore a letto, circa 7 di sonno vero
+ * (efficienza dell'85-90%), il minimo raccomandato per un adulto che si allena.
+ */
 export const DEFAULT_SLEEP: SleepPlan = {
   wake: '07:15',
   current: '00:45',
-  target: '23:30',
+  target: '23:15',
   stepMin: 15,
   curfewLeadMin: 30,
 };
@@ -127,6 +131,16 @@ export function defaultPlan(startDate: ISODate = todayISO()): Plan {
     startDate: weekStart(startDate),
     painThreshold: DEFAULT_PAIN_THRESHOLD,
   };
+}
+
+/**
+ * Lunedì da cui parte il piano per chi finisce il benvenuto in `today`. Dal lunedì al giovedì è il lunedì di
+ * questa settimana (la prima settimana conta dal primo avvio, `Plan.firstUse`); dal venerdì alla domenica è il
+ * lunedì dopo, così chi comincia la domenica sera vive lunedì la sua settimana 1, non la 2, e non trova la
+ * revisione di una settimana mai vissuta. I giorni prima sono di avvio (vedi `isStarterDay` in engine/menu).
+ */
+export function planStartFor(today: ISODate = todayISO()): ISODate {
+  return weekdayOf(today) <= 3 ? weekStart(today) : addDays(weekStart(today), 7);
 }
 
 /** Stato iniziale completo, non ancora configurato (onboarding da fare). */

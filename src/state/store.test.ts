@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { defaultAppData } from '../data/defaults';
+import { DATA_VERSION, defaultAppData } from '../data/defaults';
 import { emptyDayLog, latestWeight, migrateData, normalizeData, persistedData, pickData, useApp, useUi } from './store';
 
 describe('store', () => {
@@ -108,7 +108,7 @@ describe('store', () => {
     expect(s.onboarded).toBe(true);
     expect(s.chat).toEqual([]);
     expect(s.plan.sleep.wake).toBe('06:45');
-    expect(s.plan.sleep.target).toBe('23:30');
+    expect(s.plan.sleep.target).toBe('23:15');
   });
 
   it('normalizeData e migrateData sono robusti', () => {
@@ -207,7 +207,18 @@ describe('store', () => {
     const m = migrateData(v1, 1);
     expect(m.plan.targets.calcio.fiberG).toBe(35);
     expect(m.plan.targets.riposo.fiberG).toBe(28);
-    expect(m.version).toBe(2);
+    expect(m.version).toBe(DATA_VERSION);
+  });
+
+  it('migrazione 2 → 3: obiettivo del sonno da 23:30 a 23:15 solo con i valori predefiniti', () => {
+    const base = pickData(defaultAppData('2026-11-09'));
+    const v2 = (sleep: Partial<typeof base.plan.sleep>) => ({ ...base, version: 2, plan: { ...base.plan, sleep: { ...base.plan.sleep, ...sleep } } });
+    expect(migrateData(v2({ target: '23:30', wake: '07:15' }), 2).plan.sleep.target).toBe('23:15');
+    expect(migrateData(v2({ target: '23:30', wake: '06:45' }), 2).plan.sleep.target).toBe('23:30');
+    expect(migrateData(v2({ target: '23:00', wake: '07:15' }), 2).plan.sleep.target).toBe('23:00');
+    // Già alla versione 3: nessun cambiamento.
+    expect(migrateData(v2({ target: '23:30', wake: '07:15' }), 3).plan.sleep.target).toBe('23:30');
+    expect(migrateData(v2({}), 2).version).toBe(3);
   });
 
   it('in localStorage restano solo le foto più recenti della chat', () => {

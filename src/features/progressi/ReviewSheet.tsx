@@ -1,6 +1,6 @@
 /**
- * Revisione della domenica come referto della settimana, in quattro passi:
- * 1) Referto: verdetto, le sette giornate come un tabellone, peso, sonno e dolore con la loro linea;
+ * Revisione della domenica, in quattro passi:
+ * 1) Numeri: verdetto, le sette giornate come un tabellone, peso, tempo a letto e dolore con la loro linea;
  * 2) Voti: quattro scale da 1 a 10 (l'energia ha la media dei controlli del mattino come tacca);
  * 3) Misure: la vita in evidenza, le pliche a scomparsa, una riga di nota;
  * 4) Proposte: una card per proposta ("Accetta" o "Non ora") e lo scalino della settimana.
@@ -13,10 +13,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, Footprints, Moon, Plus, Undo2 } from 'lucide-react';
 import type { ISODate, Proposal, WeeklyReview } from '../../domain/types';
-import { addMinutes, formatWeekRange, weekDates } from '../../engine/dates';
+import { addMinutes, formatDayLong, formatWeekRange, weekDates } from '../../engine/dates';
 import { checkInSleepHours } from '../../engine/sleep';
 import {
   changesPlan,
+  firstReviewDate,
+  isReviewableWeek,
   previousReview,
   proposals as buildProposals,
   proposeWeeklyStep,
@@ -56,7 +58,7 @@ type Votes = WeeklyReview['votes'];
 type Decision = 'accettata' | 'rimandata';
 type StepIndex = 0 | 1 | 2 | 3;
 
-const STEPS = ['Referto', 'Voti', 'Misure', 'Proposte'] as const;
+const STEPS = ['Numeri', 'Voti', 'Misure', 'Proposte'] as const;
 
 const STEP_SHORT: Record<WeeklyStepId, string> = {
   'frutta-spuntino': 'Frutta allo spuntino',
@@ -68,7 +70,7 @@ const STEP_SHORT: Record<WeeklyStepId, string> = {
 
 // ───────────────────────── Verdetto ─────────────────────────
 
-/** Titolo e riga del referto, con la voce del coach. La prima settimana si racconta, non si giudica. */
+/** Titolo e riga del primo passo, con la voce del coach. La prima settimana si racconta, non si giudica. */
 export function verdict(s: WeekStats): { title: string; line: string } {
   if (s.firstWeek) {
     const parts: string[] = [];
@@ -83,14 +85,14 @@ export function verdict(s: WeekStats): { title: string; line: string } {
       line: parts.length ? `${capitalize(days)} con Ritmo: ${listIt(parts)}. Da qui si parte.` : `${capitalize(days)} con Ritmo. Questa revisione fissa il punto di partenza.`,
     };
   }
-  if (s.adherence === null) return { title: 'Settimana senza voci', line: 'Nessuna voce segnata: si parte dai numeri che ci sono, peso, sonno e dolore.' };
+  if (s.adherence === null) return { title: 'Settimana senza voci', line: 'Nessuna voce segnata: si parte dai numeri che ci sono, peso, ore a letto e dolore.' };
   const up = s.prevAdherence !== null && s.adherence - s.prevAdherence >= 0.1;
   const title = s.adherence >= 0.8 ? 'Settimana solida' : s.adherence >= 0.6 ? 'Settimana discreta' : up ? 'Settimana in ripresa' : 'Settimana da riprendere';
   const extra: string[] = [];
   if (s.sleepAvgH !== null && s.prevSleepAvgH !== null) {
     const d = Math.round((s.sleepAvgH - s.prevSleepAvgH) * 60);
-    if (d >= 10) extra.push(`sonno su di ${d} minuti`);
-    else if (d <= -10) extra.push(`sonno giù di ${-d} minuti`);
+    if (d >= 10) extra.push(`${d} minuti in più a letto`);
+    else if (d <= -10) extra.push(`${-d} minuti in meno a letto`);
   }
   const down = s.pain.filter((p) => p.trend === 'giu').map((p) => p.site.toLowerCase());
   const rising = s.pain.filter((p) => p.trend === 'su').map((p) => p.site.toLowerCase());
@@ -111,30 +113,22 @@ function Spark({ values, color, width = 92, height = 34, domain }: { values: (nu
   const pad = (hi - lo) * 0.15 || 0.5;
   const x = (i: number) => 4 + (i * (width - 8)) / 6;
   const y = (v: number) => height - 4 - ((v - (lo - pad)) / (hi + pad - (lo - pad))) * (height - 8);
-  // Segmenti continui: i giorni senza dato interrompono la linea.
-  const segs: { i: number; v: number }[][] = [];
-  let cur: { i: number; v: number }[] = [];
-  for (const p of pts) {
-    if (p) cur.push(p);
-    else if (cur.length) {
-      segs.push(cur);
-      cur = [];
-    }
-  }
-  if (cur.length) segs.push(cur);
+  // Una sola linea: tra giorni consecutivi è piena, sopra i giorni senza dato è tratteggiata.
+  const links = nums.slice(1).map((p, k) => ({ a: nums[k], b: p, gap: p.i - nums[k].i > 1 }));
   const last = nums[nums.length - 1];
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className="shrink-0 overflow-visible">
       <line x1={4} x2={width - 4} y1={height - 1} y2={height - 1} style={{ stroke: 'var(--line)', strokeWidth: 1 }} />
-      {segs.map((sg, k) =>
-        sg.length > 1 ? (
-          <polyline
-            key={k}
-            points={sg.map((p) => `${x(p.i)},${y(p.v)}`).join(' ')}
-            style={{ fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }}
-          />
-        ) : null,
-      )}
+      {links.map(({ a, b, gap }) => (
+        <line
+          key={`${a.i}-${b.i}`}
+          x1={x(a.i)}
+          y1={y(a.v)}
+          x2={x(b.i)}
+          y2={y(b.v)}
+          style={{ stroke: color, strokeWidth: gap ? 1.5 : 2, strokeLinecap: 'round', strokeDasharray: gap ? '1.5 3.5' : undefined }}
+        />
+      ))}
       {nums.map((p) => (
         <circle key={p.i} cx={x(p.i)} cy={y(p.v)} r={p === last ? 3 : 1.6} style={{ fill: p === last ? color : 'var(--ink-3)' }} />
       ))}
@@ -194,7 +188,7 @@ function DeltaRow({
   );
 }
 
-// ───────────────────────── Passo 1: referto ─────────────────────────
+// ───────────────────────── Passo 1: numeri ─────────────────────────
 
 function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[]; goal: Parameters<typeof weightTone>[0]; threshold: number }) {
   const state = useApp.getState();
@@ -245,7 +239,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h3 className="font-display text-[2.5rem] font-bold uppercase leading-[0.95] tracking-[0.005em] text-ink">{v.title}</h3>
+        <h3 className="t-large-title text-[2.5rem] leading-[0.95] text-ink">{v.title}</h3>
         <p className="t-callout mt-2 text-pretty text-ink-2">{v.line}</p>
       </div>
 
@@ -269,7 +263,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
         />
         <DeltaRow
           divider
-          label="Sonno medio"
+          label="Ore a letto"
           value={s.sleepAvgH !== null ? <HoursValue hours={s.sleepAvgH} size="text-[2rem]" /> : '–'}
           delta={
             sleepDelta !== null && Math.abs(sleepDelta) >= 1 ? (
@@ -306,8 +300,8 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
         ))}
       </Card>
 
-      <section aria-labelledby="referto-altri">
-        <h4 id="referto-altri" className="t-label mb-2 px-1 text-ink-3">
+      <section aria-labelledby="revisione-altri">
+        <h4 id="revisione-altri" className="t-label mb-2 px-1 text-ink-3">
           Gli altri numeri
         </h4>
         <Card padding="none">
@@ -400,7 +394,9 @@ function MeasuresStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="t-callout text-pretty text-ink-2">Una volta a settimana, la domenica mattina a digiuno: conta la tendenza, non il singolo numero.</p>
+      <p className="t-callout text-pretty text-ink-2">
+        Al mattino a digiuno, una volta a settimana: conta la tendenza, non il singolo numero. Se oggi non l’hai misurata, lascia vuoto: la aggiungi domani riaprendo la revisione.
+      </p>
       <Card className="flex flex-col gap-4">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -417,7 +413,7 @@ function MeasuresStep({
           {waistDelta !== null ? (
             <DeltaMark text={fmtDelta(waistDelta, 'cm', 1)} tone={waistDelta < -0.05 ? 'good' : waistDelta > 0.45 ? 'warn' : 'neutral'} dir={Math.abs(waistDelta) < 0.05 ? 'stabile' : waistDelta > 0 ? 'su' : 'giu'} />
           ) : prevWaist !== undefined ? (
-            <span className="t-caption text-ink-3">la volta scorsa {fmtNumber(prevWaist, 1, true)} cm</span>
+            <span className="t-caption text-ink-3">la volta scorsa {fmtNumber(prevWaist, 1, true)}{'\u00a0'}cm</span>
           ) : null}
         </div>
         <Field label="Circonferenza vita" hint="All’altezza dell’ombelico, a fine espirazione, metro aderente ma senza stringere.">
@@ -592,7 +588,7 @@ function ClosedView({ range, score, changes }: { range: string; score: number; c
         >
           <Check size={32} strokeWidth={3} aria-hidden />
         </motion.span>
-        <h3 className="font-display mt-5 text-[2.75rem] font-bold uppercase leading-none text-ink">Settimana chiusa</h3>
+        <h3 className="t-large-title mt-5 text-[2.75rem] text-ink">Settimana chiusa</h3>
         <p className="t-callout mt-2 text-ink-2">
           {capitalize(range)} · voto medio <span className="t-num text-[1.125rem] text-ink">{fmtNumber(score, 1, true)}</span>
         </p>
@@ -820,6 +816,30 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
     toast('Revisione annullata: il piano è tornato com’era', 'neutral');
     onClose();
   };
+
+  // Settimana di avvio troppo corta (aperta da un collegamento vecchio): solo l'appuntamento con la prima.
+  if (!saved && !isReviewableWeek(weekStart, plan)) {
+    const first = firstReviewDate(plan);
+    return (
+      <Sheet
+        open
+        onClose={onClose}
+        title="Revisione della settimana"
+        footer={
+          <Button size="lg" fullWidth onClick={onClose} haptic="light">
+            Va bene
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3 pb-4">
+          <h3 className="t-title text-pretty text-ink">{first ? `La prima revisione è ${formatDayLong(first)}` : 'La prima revisione è domenica'}</h3>
+          <p className="t-callout text-pretty text-ink-2">
+            Ritmo è con te da troppo poco per rivedere questa settimana. La prossima domenica avrai sette giorni di numeri veri: peso, ore a letto, dolore e giornate riuscite, e le correzioni del piano partiranno da lì.
+          </p>
+        </div>
+      </Sheet>
+    );
+  }
 
   const range = formatWeekRange(weekStart);
   const closeLabel = saved ? 'Aggiorna la revisione' : current ? 'Chiudi la settimana' : 'Salva la revisione';

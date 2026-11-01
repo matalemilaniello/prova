@@ -3,12 +3,11 @@ import { ArrowLeftRight, Clock, HeartPulse, History, Layers, ListOrdered, Sprout
 import type { ISODate, WorkoutLog } from '../../../domain/types';
 import { compareHHMM, formatDayLong, formatRelativeDay } from '../../../engine/dates';
 import { useNowHHMM } from '../../../state/hooks';
-import { estimateSessionMin } from '../../../data/sessions';
 import { sessionLoad, type PainGate, type Suggestion } from '../../../engine/training';
-import { fmtNumber } from '../../../lib/format';
-import { Callout, Pill, cn, keepHyphens, staggerItem } from '../../../ui';
+import { capitalize as capitalizeFirst, fmtNumber } from '../../../lib/format';
+import { Callout, Pill, cn, staggerItem } from '../../../ui';
 import { SessionGlyph } from '../components/SessionGlyph';
-import { daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, type PlayerPlan } from '../lib';
+import { coveredPhrase, daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, type PlayerPlan } from '../lib';
 
 export interface IntroStepProps {
   plan: PlayerPlan;
@@ -36,10 +35,10 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
   const upcoming = Boolean(time) && (date > today || (date === today && compareHHMM(nowHHMM, time!) < 0));
   const whenLabel = `${when.charAt(0).toUpperCase()}${when.slice(1)}${upcoming ? ` alle ${time}` : ''}`;
   const increases = plan.items.filter((it) => suggestions[it.key]?.kind === 'aumenta').length;
-  const minutes = plan.intro
-    ? Math.round((session.estMin * estimateMinutes(own.map((i) => i.item))) / Math.max(1, estimateSessionMin(session)))
-    : session.estMin;
+  const { duration, covered } = plan;
+  const minutes = duration.own;
   const swapped = own.filter((i) => i.replacedFrom);
+  const physioCount = plan.items.filter((i) => i.physio).length;
 
   return (
     <div className="flex flex-col gap-6 pb-8 pt-3">
@@ -73,13 +72,22 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
             </div>
           ))}
         </dl>
+        {duration.physio > 0 && (
+          <p className="t-footnote -mt-1 flex items-start gap-2 px-1 text-ink-2">
+            <HeartPulse size={14} strokeWidth={2.4} className="mt-0.5 shrink-0 text-leggero-ink" aria-hidden />
+            <span>
+              Con {physioCount === 1 ? "l'esercizio" : `i ${physioCount} esercizi`} del fisioterapista circa {duration.physio} min in più,{' '}
+              <span className="font-semibold text-ink">{duration.total} in tutto</span>.
+            </span>
+          </p>
+        )}
         <p className="t-callout text-ink-2">{session.focus}</p>
       </header>
 
       {plan.intro && (
         <Callout tone="good" icon={Sprout} title={plan.intro === 1 ? 'Prima volta con questa seduta' : 'Seconda volta con questa seduta'}>
-          Una serie in meno per esercizio e una ripetizione di riserva in più. L'indolenzimento degli esercizi nuovi ha il
-          picco dopo {keepHyphens('48-72')} ore: così arrivi fresco alla partita.{' '}
+          Una serie in meno per esercizio e una ripetizione di riserva in più. Gli esercizi nuovi danno più indolenzimento,
+          con il picco tra 24 e 72 ore, e dalle volte successive molto meno: così i primi giorni non pesano sul calcio.{' '}
           {plan.intro === 1 ? 'Dalla terza volta la seduta è completa.' : 'Dalla prossima volta la seduta è completa.'}
         </Callout>
       )}
@@ -110,7 +118,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
       )}
 
       {plan.blocks.map((b, bi) => {
-        const min = estimateMinutes(b.items.map((i) => i.item));
+        const min = estimateMinutes(b.items.filter((i) => !i.coveredBy).map((i) => i.item));
         return (
           <section key={b.title} className="flex flex-col gap-2" aria-label={b.title}>
             <div className="flex items-baseline justify-between px-1">
@@ -124,24 +132,33 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
               {b.items.map((it, i) => {
                 const s = suggestions[it.key];
                 const w = s?.weightKg ?? 0;
+                const n = it.coveredBy ? null : it.indexInBlock + 1;
                 return (
                   <motion.li
                     key={it.key}
                     {...staggerItem(bi * 3 + i, 0.02, 0.25)}
                     className={cn('flex items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
                   >
-                    <span className="t-mono w-4 shrink-0 text-[0.75rem] text-ink-3">{i + 1}</span>
+                    <span className={cn('t-mono w-4 shrink-0 text-[0.75rem]', it.coveredBy ? 'text-leggero-ink' : 'text-ink-3')}>
+                      {n ?? <HeartPulse size={13} strokeWidth={2.4} aria-hidden />}
+                    </span>
                     <span className="min-w-0 flex-1">
-                      <span className="t-callout block font-medium text-ink">{it.exercise?.name ?? it.item.exerciseId}</span>
+                      <span className={cn('t-callout block font-medium', it.coveredBy ? 'text-ink-3 line-through decoration-ink-4' : 'text-ink')}>
+                        {it.exercise?.name ?? it.item.exerciseId}
+                      </span>
                       {it.replacedFrom && (
                         <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
                           <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
                           al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
                         </span>
                       )}
-                      <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
+                      {it.coveredBy ? (
+                        <span className="t-caption mt-0.5 block font-medium text-leggero-ink">Già nel blocco del fisioterapista</span>
+                      ) : (
+                        <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
+                      )}
                     </span>
-                    {w > 0 && !it.warmup && (
+                    {w > 0 && !it.warmup && !it.coveredBy && (
                       <span className="flex shrink-0 items-center gap-1">
                         {s.kind === 'aumenta' && <TrendingUp size={14} strokeWidth={2.6} className="text-good-ink" aria-label="Carico in aumento" />}
                         <span className={cn('t-callout font-semibold tabular', s.kind === 'aumenta' ? 'text-good-ink' : 'text-ink-2')}>{kgLabel(w)}</span>
@@ -158,6 +175,8 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
                   : plan.physioDays.length
                     ? `Facoltativi oggi: il fisioterapista li prevede ${daysPhrase(plan.physioDays)}.`
                     : 'Facoltativi: segui le indicazioni del fisioterapista.'}
+                {covered.length > 0 &&
+                  ` ${capitalizeFirst(coveredPhrase(covered))} ${covered.length === 1 ? 'lavora' : 'lavorano'} gli stessi tessuti: ${covered.length === 1 ? 'lo salti' : 'li salti'}, per non raddoppiare il carico.`}
               </p>
             )}
           </section>

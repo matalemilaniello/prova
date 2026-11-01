@@ -1,15 +1,15 @@
 import { motion } from 'motion/react';
 import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
-import { SESSIONS, estimateSessionMin } from '../../../data/sessions';
-import { gateForExercise, lastLogFor, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
+import { SESSIONS } from '../../../data/sessions';
+import { gateForExercise, lastLogFor, painNoteForExercise, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
 import { capitalize, fmtMinutes } from '../../../lib/format';
 import { useApp } from '../../../state/store';
 import { useNowHHMM } from '../../../state/hooks';
 import { compareHHMM, formatDayLong } from '../../../engine/dates';
 import { Button, Callout, Card, Pill, ProgressRing, cn, staggerItem } from '../../../ui';
 import type { SessionDraft } from '../draft';
-import { buildPlayerPlan, estimateMinutes, plannedSets, sessionTone } from '../lib';
+import { buildPlayerPlan, durationLabel, plannedSets, sessionTone } from '../lib';
 import { SessionGlyph } from './SessionGlyph';
 import { relativeDayShort } from '../useTraining';
 
@@ -31,13 +31,17 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
   const nowHHMM = useNowHHMM();
   const session = SESSIONS[next.sessionId];
   if (!session) return null;
-  // Numeri della seduta senza il blocco del fisioterapista, con la dose di oggi (fase di ingresso compresa).
+  // Numeri della seduta senza il blocco del fisioterapista (e senza i suoi doppioni), con la dose di oggi.
   const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
   const own = pplan.items.filter((i) => !i.physio);
   const sets = plannedSets(own);
-  const minutes = intro ? Math.round((session.estMin * estimateMinutes(own.map((i) => i.item))) / Math.max(1, estimateSessionMin(session))) : session.estMin;
   const increases = own.filter(
-    (it) => suggestNext(it.base, lastLogFor(it.base.exerciseId, history), { gate: gateForExercise(it.exercise, gate), intro: Boolean(intro) }).kind === 'aumenta',
+    (it) =>
+      suggestNext(it.base, lastLogFor(it.base.exerciseId, history), {
+        gate: gateForExercise(it.exercise, gate),
+        painNote: painNoteForExercise(it.exercise, gate),
+        intro: Boolean(intro),
+      }).kind === 'aumenta',
   ).length;
   const swapped = own.find((i) => i.replacedFrom);
   const showGate = gate.level !== 'ok' || Boolean(swapped);
@@ -73,7 +77,7 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
 
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           {[
-            { icon: Clock, text: `${minutes} min` },
+            { icon: Clock, text: durationLabel(pplan.duration) },
             { icon: ListOrdered, text: `${own.length} esercizi` },
             { icon: Layers, text: `${sets} serie` },
             ...(increases > 0 ? [{ icon: TrendingUp, text: `${increases} in aumento`, good: true }] : []),
@@ -90,7 +94,7 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
             <Sprout size={15} strokeWidth={2.3} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
             <span>
               <span className="font-semibold text-ink">{intro === 1 ? 'Prima volta con questa seduta.' : 'Seconda volta con questa seduta.'}</span> Una serie in meno
-              e una ripetizione di riserva in più, per arrivare fresco alla partita.
+              e una ripetizione di riserva in più, così l'indolenzimento dei primi giorni non pesa sul calcio.
             </span>
           </p>
         )}

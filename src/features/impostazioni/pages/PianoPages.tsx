@@ -8,7 +8,7 @@ import { DAY_TYPE_LABEL, MEAL_SLOT_LABEL, listIt, plural } from '../../../lib/fo
 import { useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, ListGroup, Segmented, toneColor, type AnyTone } from '../../../ui';
 import { FormRow, MiniStepper, TimePill } from '../components/controls';
-import { SleepStairs } from '../components/SleepStairs';
+import { SleepStairs, SleepTargetHint } from '../components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../components/SupplementEditor';
 import { DayEditorSheet, WeekDayList, WeekRibbon } from '../components/WeekEditor';
 import { MEAL_ORDER, dayTypeCounts, mealOrderIssues, sleepSteps } from '../lib';
@@ -117,9 +117,12 @@ export function SonnoPage({ onBack, backLabel }: PageProps) {
 
   return (
     <Page title="Sonno" subtitle="L’orario a letto si anticipa un passo a settimana, finché arrivi all’obiettivo." onBack={onBack} backLabel={backLabel}>
-      <Card padding="lg">
-        <SleepStairs sleep={s} />
-      </Card>
+      <div className="flex flex-col gap-2.5">
+        <Card padding="lg">
+          <SleepStairs sleep={s} />
+        </Card>
+        <SleepTargetHint sleep={s} onApply={(target) => set({ target })} />
+      </div>
 
       <ListGroup title="Orari">
         <FormRow icon={AlarmClock} iconTone="accent" label="Sveglia">

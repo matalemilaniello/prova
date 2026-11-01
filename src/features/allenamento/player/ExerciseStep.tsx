@@ -86,7 +86,6 @@ function ExerciseStepBase(props: ExerciseStepProps) {
   const lastBest = last ? bestSet(last.log) : null;
   const canSwap = !pitem.physio && (pitem.exercise?.alternatives?.length ?? 0) > 0;
   const videoUrl = exercise?.videoQuery && !IS_PREVIEW ? `https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.videoQuery)}` : null;
-  const blockLabel = `${pitem.blockTitle} · ${pitem.indexInBlock + 1} di ${pitem.blockSize}`;
   // Prima volta con un esercizio con carico: tre carichi di partenza tipici al posto di decine di tocchi.
   const starts = !last && doneCount === 0 && showWeight ? startLoads(exercise) : [];
   // Con due manubri il carico si registra per manubrio.
@@ -115,7 +114,12 @@ function ExerciseStepBase(props: ExerciseStepProps) {
       {/* Intestazione dell'esercizio */}
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <p className={cn('t-label', pitem.physio ? 'text-leggero-ink' : 'text-palestra-ink')}>{blockLabel}</p>
+          <p className={cn('flex min-w-0 items-baseline gap-1.5', pitem.physio ? 'text-leggero-ink' : 'text-palestra-ink')}>
+            <span className="t-label truncate">{pitem.blockTitle}</span>
+            <span className="t-mono shrink-0 text-[0.75rem]">
+              · {pitem.indexInBlock + 1} di {pitem.blockSize}
+            </span>
+          </p>
           <div className="-my-2 -mr-1 flex items-center gap-1">
             {videoUrl && (
               <IconButton
@@ -192,9 +196,11 @@ function ExerciseStepBase(props: ExerciseStepProps) {
       <section aria-label="L'ultima volta e oggi" className="overflow-hidden rounded-[16px] bg-card-3">
         <div className="flex items-end justify-between gap-3 px-3.5 pb-2.5 pt-3">
           <div className="min-w-0">
-            <p className="t-label flex items-center gap-1.5 text-ink-3">
-              <History size={12} strokeWidth={2.4} aria-hidden />
-              {last ? `L'ultima volta · ${formatWeekdayShort(last.date)} ${formatShort(last.date)}` : "L'ultima volta"}
+            <p className="flex items-baseline gap-1.5 text-ink-3">
+              <History size={12} strokeWidth={2.4} className="shrink-0 self-center" aria-hidden />
+              <span className="t-label">L'ultima volta</span>
+              {/* La data resta in minuscolo: in maiuscoletto "MAR 3 NOV" si legge male. */}
+              {last && <span className="t-caption">· {formatWeekdayShort(last.date)} {formatShort(last.date)}</span>}
             </p>
             <p className="t-callout mt-1 font-semibold text-ink tabular">{last ? setsSummary(last.log.sets, item.unit) : 'Prima volta'}</p>
           </div>

@@ -106,6 +106,7 @@ export default function KitScreen() {
   const [reps, setReps] = useState(10);
   const [pain, setPain] = useState<number | undefined>(2);
   const [energy, setEnergy] = useState<number | undefined>(7);
+  const [unset, setUnset] = useState<number | undefined>(undefined);
   const [quality, setQuality] = useState<number | undefined>(4);
   const [vote, setVote] = useState<number | undefined>(7);
   const [checks, setChecks] = useState([true, false, false]);
@@ -183,9 +184,9 @@ export default function KitScreen() {
           size="sm"
           options={[
             { value: 'spenti', label: 'Spenti' },
-            { value: 'meta', label: 'A metà' },
+            { value: 'meta', label: 'Metà' },
             { value: 'pieni', label: 'Pieni' },
-            { value: 'coprifuoco', label: 'Coprifuoco' },
+            { value: 'coprifuoco', label: 'Notte' },
           ]}
         />
         <Button variant="secondary" icon={Sparkles} onClick={() => setFlare((n) => n + 1)}>
@@ -453,7 +454,25 @@ export default function KitScreen() {
         <Card padding="lg" className="flex flex-col gap-7">
           <ScaleSlider label="Tibia" value={pain} onChange={setPain} threshold={3} lowLabel="Nessun dolore" highLabel="Il peggiore" describe={(v) => (v <= 2 ? 'lieve' : v <= 5 ? 'moderato' : 'forte')} />
           <ScaleSlider label="Energia" scheme="energy" value={energy} onChange={setEnergy} lowLabel="A terra" highLabel="Al massimo" />
-          <ScaleSlider label="Non indicato" value={undefined} onChange={() => undefined} lowLabel="0" highLabel="10" />
+          <div className="flex flex-col gap-2">
+            <ScaleSlider
+              label="Gomito"
+              value={unset}
+              onChange={setUnset}
+              threshold={3}
+              ghost={2}
+              ghostLabel="ieri"
+              lowLabel="Nessun dolore"
+              highLabel="Il peggiore"
+              describe={(v) => (v <= 2 ? 'lieve' : v <= 5 ? 'moderato' : 'forte')}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <p className="t-footnote text-ink-3">Non indicato: niente cursore, tacca della soglia e cerchio vuoto di ieri.</p>
+              <Button size="sm" variant="ghost" disabled={unset === undefined} onClick={() => setUnset(undefined)}>
+                Azzera
+              </Button>
+            </div>
+          </div>
         </Card>
         <Card padding="lg" className="flex flex-col gap-7">
           <RatingPicker label="Qualità del sonno" value={quality} onChange={setQuality} labels={['Pessima', 'Scarsa', 'Discreta', 'Buona', 'Ottima']} />

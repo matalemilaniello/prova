@@ -5,20 +5,20 @@
  */
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, ChefHat, ChevronRight, Flame, Play, Timer } from 'lucide-react';
+import { Check, ChefHat, ChevronRight, Flame, Play, Sparkles, Timer } from 'lucide-react';
 import type { AppData, ISODate, MealSlot, Plan, PrepTask } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
-import { addDays, formatDayLong, weekDates, weekdayOf } from '../../engine/dates';
-import { mealsForDate, menuWeekFor } from '../../engine/menu';
+import { addDays, daysBetween, formatDayLong, weekDates, weekdayOf } from '../../engine/dates';
+import { isStarterDay, mealsForDate, menuWeekFor, starterEnd } from '../../engine/menu';
 import { capitalize, fmtMinutes, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, Card, EmptyState, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { cn } from '../../ui/cn';
+import { toneInk, toneRing, toneSoft } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
-import { firstUseDate, parallelMinutes } from './helpers';
+import { firstUseDate, parallelMinutes, prepSkipped } from './helpers';
 import { PrepPlayer } from './PrepPlayer';
-import { WeekAheadNote } from './ShoppingTab';
 
 const EMPTY: string[] = [];
 
@@ -28,8 +28,6 @@ export interface PrepTabProps {
   dayLogs: AppData['dayLogs'];
   offset: number;
   today: ISODate;
-  /** True se la scheda mostra da sola la settimana prossima (fine settimana). */
-  autoAhead?: boolean;
   /** Apre subito il lettore della preparazione (dalla voce della domenica in Oggi). */
   autoPlay?: boolean;
   onOpenWeek: (offset: number) => void;
@@ -43,7 +41,7 @@ export function orderPrep(tasks: PrepTask[]): PrepTask[] {
     .map((x) => x.t);
 }
 
-export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, autoPlay, onOpenWeek }: PrepTabProps) {
+export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onOpenWeek }: PrepTabProps) {
   const [playing, setPlaying] = useState(Boolean(autoPlay));
   const tasks = useMemo(() => orderPrep(menuWeekFor(weekStart, plan.startDate)?.prep ?? []), [weekStart, plan.startDate]);
   const done = useApp((s) => s.prepDone[weekStart] ?? EMPTY);
@@ -64,6 +62,12 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, au
     return map;
   }, [weekStart, plan, dayLogs]);
 
+  // Settimana di avvio: chi ha iniziato dopo quella domenica (o la domenica sera stessa) non ha preparato nulla.
+  const first = firstUseDate(plan);
+  if (first && prepSkipped(plan, weekStart, isStarterDay(weekStart, plan))) {
+    return <StarterPrep first={first} plan={plan} weekStart={weekStart} offset={offset} onOpenWeek={onOpenWeek} />;
+  }
+
   if (!tasks.length) {
     return (
       <Card>
@@ -79,10 +83,6 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, au
   const parallel = parallelMinutes(tasks.map((t) => t.minutes));
   const recipeIds = new Set(tasks.flatMap((t) => t.recipeIds ?? []));
   const prepPast = prepDay < today;
-  // Chi ha iniziato dopo la domenica di preparazione: questa settimana si cucina sul momento.
-  const first = firstUseDate(plan);
-  const startedLate = Boolean(first && first > prepDay && first <= addDays(weekStart, 6));
-  const nextPrep = addDays(weekStart, 6);
 
   const toggle = (t: PrepTask) => {
     const willBeDone = !doneSet.has(t.id);
@@ -95,17 +95,8 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, au
 
   return (
     <div className="flex flex-col gap-6">
-      {autoAhead && (
-        <WeekAheadNote weekStart={weekStart} onBack={() => onOpenWeek(0)} />
-      )}
-      {startedLate && first && (
-        <Callout tone="neutral" title="Prima settimana">
-          Hai iniziato {formatDayLong(first)}: la prima preparazione è {formatDayLong(nextPrep)}. Fino ad allora le ricette da
-          preparazione si cucinano sul momento, con qualche minuto in più.
-        </Callout>
-      )}
       <Card variant="highlight" tone={allDone ? 'good' : 'accent'} padding="lg" as="section" aria-label="Riepilogo della preparazione">
-        <p className="t-label text-ink-3">{capitalize(formatDayLong(prepDay))}</p>
+        <p className="t-callout font-semibold text-ink-2">{capitalize(formatDayLong(prepDay))}</p>
         <div className="mt-2 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="flex items-baseline gap-1.5">
@@ -251,3 +242,62 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoAhead, au
   );
 }
 
+
+/**
+ * Settimana di avvio: niente preparazione da fare (né da recuperare). Dice fino a quando si cucina sul momento
+ * e porta alla prima preparazione vera, quella della domenica prima della settimana normale.
+ */
+function StarterPrep({
+  first,
+  plan,
+  weekStart,
+  offset,
+  onOpenWeek,
+}: {
+  first: ISODate;
+  plan: Plan;
+  weekStart: ISODate;
+  offset: number;
+  onOpenWeek: (offset: number) => void;
+}) {
+  const end = starterEnd(plan);
+  const firstPrep = end ? addDays(end, -1) : null;
+  const nextTasks = end ? menuWeekFor(end, plan.startDate)?.prep ?? [] : [];
+  const minutes = nextTasks.reduce((a, t) => a + t.minutes, 0);
+  // Settimane da qui a quella che apre la prima preparazione (di solito una).
+  const ahead = end ? Math.max(1, Math.round(daysBetween(weekStart, end) / 7)) : 1;
+  return (
+    <div className="flex flex-col gap-6">
+      <Card variant="highlight" tone="accent" padding="lg" as="section" aria-label="Settimana di avvio">
+        <div className="flex items-start gap-3.5">
+          <span
+            aria-hidden
+            className="grid size-11 shrink-0 place-items-center rounded-[14px]"
+            style={{ background: toneSoft('accent', 16), boxShadow: toneRing('accent'), color: toneInk('accent') }}
+          >
+            <Sparkles size={20} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="t-label text-ink-3">Settimana di avvio</p>
+            <p className="t-title-2 mt-1 text-ink">Niente da preparare</p>
+          </div>
+        </div>
+        <p className="t-callout mt-3 text-ink-2">
+          Hai iniziato {formatDayLong(first)}: {firstPrep ? `fino a ${formatDayLong(firstPrep)}` : 'in questi giorni'} le ricette si cucinano sul
+          momento, in 15 minuti al massimo, con i prodotti della spesa di avvio.
+        </p>
+        {firstPrep && (
+          <p className="t-footnote mt-2 text-ink-2">
+            La prima preparazione è {formatDayLong(firstPrep)}
+            {minutes > 0 ? `: ${fmtMinutes(minutes)} per i pasti della settimana dopo.` : '.'}
+          </p>
+        )}
+        {firstPrep && nextTasks.length > 0 && (
+          <Button variant="secondary" iconRight={ChevronRight} fullWidth onClick={() => onOpenWeek(offset + ahead)} className="mt-4">
+            Guarda la prima preparazione
+          </Button>
+        )}
+      </Card>
+    </div>
+  );
+}

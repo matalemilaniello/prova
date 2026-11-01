@@ -49,7 +49,8 @@ function DateAxis({ points, xAt, geo }: { points: SleepPoint[]; xAt: (i: number)
 }
 
 /**
- * Sonno a barre. "Ore": ore dormite per notte con la linea dell'obiettivo.
+ * Sonno a barre. "Ore": ore a letto per notte (dagli orari del controllo, non il sonno misurato) con la
+ * linea dell'obiettivo.
  * "Orari": ogni notte è una barra da quando sei andato a letto alla sveglia, con l'orario obiettivo
  * e quello della fase attuale: si vede l'orario a letto che si anticipa settimana dopo settimana.
  */
@@ -133,15 +134,15 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
   const nightsOk = hours.filter(phaseOk).length;
   const label =
     mode === 'ore'
-      ? `Ore di sonno per notte negli ultimi ${n} giorni. Media degli ultimi 7 giorni ${avgH !== null ? fmtHours(avgH) : 'non disponibile'}; obiettivo ${fmtHours(targetH)}; almeno ${fmtHours(phaseH)} in ${nightsOk} notti su ${hours.length}.`
-      : `Orari di sonno per notte negli ultimi ${n} giorni. A letto in media alle ${bedAvg !== null ? minToHHMM(bedAvg) : 'non disponibile'}; fase attuale ${sleep.current}, obiettivo ${sleep.target}.`;
+      ? `Ore a letto per notte negli ultimi ${n} giorni. Media degli ultimi 7 giorni ${avgH !== null ? fmtHours(avgH) : 'non disponibile'}; obiettivo ${fmtHours(targetH)}; almeno ${fmtHours(phaseH)} in ${nightsOk} notti su ${hours.length}.`
+      : `Orari a letto per notte negli ultimi ${n} giorni. A letto in media alle ${bedAvg !== null ? minToHHMM(bedAvg) : 'non disponibile'}; fase attuale ${sleep.current}, obiettivo ${sleep.target}.`;
 
   const lineY = (v: number) => Math.round(v) + 0.5;
 
   return (
     <ChartCard
       title="Sonno"
-      subtitle={mode === 'ore' ? 'Ore dormite per notte' : 'Dal letto alla sveglia'}
+      subtitle={mode === 'ore' ? 'Ore a letto per notte' : 'Dal letto alla sveglia'}
       value={value}
       caption={caption}
       toolbar={
@@ -172,7 +173,7 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
               Meno
             </LegendItem>
             <LegendItem color="var(--ink-2)" kind="dash">
-              Obiettivo {fmtHours(targetH)}
+              Obiettivo {fmtHours(targetH)} a letto
             </LegendItem>
           </>
         ) : (

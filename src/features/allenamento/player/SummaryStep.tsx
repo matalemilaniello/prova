@@ -52,7 +52,8 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
   const stats = [
     { label: 'Durata', value: fmtNumber(log.durationMin), unit: 'min' },
     { label: 'Carico', value: fmtNumber(load), unit: 'UA' },
-    { label: 'Volume', value: fmtNumber(Math.round(volume)), unit: 'kg' },
+    // Senza serie con carico il volume sarebbe 0 kg: meglio le serie fatte.
+    volume > 0 ? { label: 'Volume', value: fmtNumber(Math.round(volume)), unit: 'kg' } : { label: 'Serie', value: fmtNumber(sets), unit: `su ${setsPlanned}` },
     { label: 'RPE', value: fmtNumber(log.rpe), unit: 'su 10' },
   ];
 
@@ -125,7 +126,7 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
         </section>
       )}
 
-      {(records.length > 0 || !firstEver) && (
+      {(records.length > 0 || (!firstEver && volume > 0)) && (
       <section className="flex flex-col gap-2" aria-label="Record personali">
         <h3 className="t-label px-1 text-ink-3">Record personali</h3>
         {records.length ? (
