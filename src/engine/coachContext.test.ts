@@ -114,7 +114,7 @@ describe('zone e priorità dal profilo', () => {
 
   it('le priorità seguono l’obiettivo', () => {
     const s = defaultAppData(TODAY);
-    expect(buildCoachContext(s, NOW)).toContain("Priorità, in quest'ordine: salute");
+    expect(buildCoachContext(s, NOW)).toContain("Priorità, in quest’ordine: salute");
     s.profile = { ...s.profile, goal: 'dimagrimento' };
     expect(buildCoachContext(s, NOW)).toContain('calo di grasso graduale');
     expect(COACH_SYSTEM_PROMPT).not.toContain("un po' di muscolo");
@@ -130,6 +130,17 @@ describe('riassunto per la chat', () => {
     expect(s.total).toBeGreaterThan(0);
     expect(s.done).toBeLessThanOrEqual(s.total);
     expect(s.kcal).toBe(2600);
+  });
+
+  it('prima della prima spesa i pasti sono con quello che c’è in casa e la dose da definire resta fuori', () => {
+    // Primo avvio lunedì 9 alle 10:00: la spesa di avvio è alle 15:15, colazione, spuntino e pranzo vengono prima.
+    const base = defaultAppData('2026-11-09');
+    const state: AppData = { ...base, onboarded: true, plan: { ...base.plan, startDate: '2026-11-09', firstUse: { date: '2026-11-09', time: '10:00' } } };
+    const ctx = buildCoachContext(state, new Date(2026, 10, 9, 11, 0));
+    expect(ctx).toMatch(/Pranzo: prima della prima spesa, con quello che c’è in casa/);
+    expect(ctx).not.toMatch(/Cena: prima della prima spesa/);
+    expect(ctx).toMatch(/Integratori senza dose: Vitamina D, dose da definire con l’esame, per ora non si prende\./);
+    expect(ctx).not.toMatch(/Integratori: [^\n]*Vitamina D/);
   });
 
   it('senza controllo del mattino non inventa sonno né dolore', () => {

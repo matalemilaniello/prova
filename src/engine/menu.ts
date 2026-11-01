@@ -95,6 +95,8 @@ export function isMatchEve(iso: ISODate, plan: AppData['plan']): boolean {
  * (carboidrati × 1,25, obiettivo del giorno di calcio): il giorno prima della gara servono glicogeno pieno e
  * più carboidrati, non meno (UEFA expert group statement on nutrition in elite football, 2021: 6-8 g/kg
  * per i professionisti; per un amatore il carico del giorno di calcio, circa 5,5 g/kg, è il compromesso).
+ * Proteine e grassi sono uguali in tutti i tipi di giorno: la vigilia aggiunge solo carboidrati. Sulla settimana
+ * predefinita la media resta entro il 3% del dispendio stimato, e la revisione corregge le kcal dal peso.
  * Negli altri giorni coincide con `dayTypeFor`.
  */
 export function effectiveDayType(iso: ISODate, plan: AppData['plan']): DayType {

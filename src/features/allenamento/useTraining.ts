@@ -185,7 +185,8 @@ export function agoLabel(iso: ISODate, today: ISODate): string {
   const d = daysBetween(iso, today);
   if (d <= 0) return 'oggi';
   if (d === 1) return 'ieri';
-  if (d < 14) return `${d} giorni fa`;
+  // Spazi indivisibili: "2 settimane fa" non va a capo lasciando "fa" da solo.
+  if (d < 14) return `${d}\u00a0giorni\u00a0fa`;
   const w = Math.round(d / 7);
-  return `${w} settimane fa`;
+  return `${w}\u00a0settimane\u00a0fa`;
 }

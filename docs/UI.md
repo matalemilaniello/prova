@@ -55,8 +55,12 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
 - **Vibrazione**: `haptic('selection' | 'light' | 'medium' | 'success' | 'warning' | 'error')` da
   `src/lib/haptics.ts` (Android e iPhone con Safari 18+). Button, IconButton, Toggle, Segmented, CheckRow e
   Stepper vibrano già da soli.
-- **Testi**: italiano, maiuscola solo sulla prima parola, niente emoji, niente trattino lungo. Formattatori in
-  `src/lib/format.ts` (vedi sotto).
+- **Testi**: italiano, maiuscola solo sulla prima parola, niente emoji, niente trattino lungo, apostrofo
+  tipografico (’: "l’orario", "Com’è andata"). Formattatori in `src/lib/format.ts` (vedi sotto).
+  `npm run check:typography` elenca per area gli apostrofi dritti e i trattini lunghi nei testi (stringhe e JSX,
+  non i commenti); `node scripts/check-typography.mjs --fix --area <area>` sostituisce gli apostrofi nei file
+  dell'area, test compresi; `--strict` esce con errore (per la CI). Una riga con il commento `tipografia-ok` è
+  esclusa (testi che sono codice).
 
 ## Struttura di una schermata
 
@@ -93,16 +97,20 @@ per le batterie di lampade negli angoli. I figli sono impilati con 24 px di spaz
 | `eyebrow?` | `ReactNode` | riga in maiuscoletto sopra il titolo (data) |
 | `subtitle?` | `ReactNode` | sotto il titolo |
 | `actions?` | `ReactNode` | a destra del titolo |
-| `onBack?`, `backLabel?` | | pulsante "Indietro" nella barra (es. Impostazioni) |
+| `onBack?`, `backLabel?` | | pulsante "Indietro" nella barra (es. Impostazioni); un'etichetta lunga si accorcia con i puntini e non finisce sotto il titolo |
 | `toolbar?` | `ReactNode` | fascia che resta attaccata in alto (es. `Segmented`) |
 | `bottom?` | `'tabbar' \| 'safe'` | spazio in fondo, default `'tabbar'` |
 | `light?` | `{ intensity?, tone?, flare?, curfew?, pitch? } \| false` | riflettori dietro l'intestazione (default intensità 0,5); `false` li spegne |
 
 ### Floodlights (Riflettori, elemento firma)
-Due batterie di 6 lampade (telaio di circa 30 × 18 pt con alone) negli angoli alti, inclinate verso il centro e
-tagliate appena dal bordo come un traliccio fuori inquadratura; due coni di luce bianco calda (uno largo e sfumato,
-uno stretto che dà la direzione) ben visibili nei primi 200 pt; righe del campo (cerchio di centrocampo e metà
-campo). Le monta già `Screen` (prop `light`) e `FullScreenModal` (intensità 0,35).
+Due torri faro negli angoli alti: testa in acciaio di 26 × 16 pt con 8 lampade tonde (4 × 2), visiera, staffa e
+traliccio a rombi che scende verso l'esterno e sfuma, inclinate di 20° verso il centro e tagliate appena dal bordo.
+La testa resta sopra la riga dell'occhiello e il traliccio nel margine laterale. Due coni di luce bianco calda (uno
+largo e sfumato, uno stretto che dà la direzione) ben visibili nei primi 200 pt; righe del campo (cerchio di
+centrocampo e metà campo). Le monta già `Screen` (prop `light`) e `FullScreenModal` (intensità 0,35). In una
+`Screen` con `onBack` le torri si spengono da sole (starebbero sotto la barra di ritorno). **Se metti i riflettori
+sotto un'intestazione tua** (es. spostati in basso con `style.top`), passa `lamps={false}`: la testa finirebbe sotto
+l'intestazione e spunterebbe solo un pezzo di traliccio.
 Props: `intensity?` 0-1 (lega la luce all'avanzamento della giornata: coni da 0,07 a 0,16, lampade e alone che si
 riempiono), `tone?` (tinge il bordo dei coni al 10%, es. il tipo di giorno), `flare?` (bagliore di 900 ms a piena
 luce: `true` o un numero che cambia a ogni evento, es. giornata chiusa; spento con la riduzione del movimento),
@@ -110,8 +118,10 @@ luce: `true` o un numero che cambia a ogni evento, es. giornata chiusa; spento c
 `lamps?` (batterie di lampade, default true; spegnile dove l'angolo alto ospita un controllo, es. un contatore).
 `Screen` e `FullScreenModal` accettano `lamps` nella prop `light`; in `FullScreenModal` le lampade sono spente di
 base, perché negli angoli ci sono chiudi e azioni.
-Nel tema chiaro è una partita di giorno: lampade accese ma tenui, coni come velatura ambra, righe più marcate.
-Token: `--lamp`, `--lamp-halo`, `--lamp-housing`, `--lamp-frame`, `--halo-strength`, `--cone-strength`.
+Nel tema chiaro è una partita di giorno: torre in grigio acciaio scuro, lampade bianche con un alone ambra sottile,
+coni come velatura ambra, righe più marcate. Nel tema scuro la testa quasi sparisce nella notte e restano le lampade.
+Token: `--lamp` (nucleo), `--lamp-halo` (alone sfocato), `--lamp-rim` (bordo della lampada), `--lamp-housing`
+(testa), `--lamp-frame` (telaio, visiera, staffa), `--lamp-mast` (traliccio), `--halo-strength`, `--cone-strength`.
 ```tsx
 <Screen title="Oggi" light={{ intensity: done / total, tone: dayType, flare: closedAt, curfew: afterCurfew }}>…</Screen>
 ```
@@ -129,6 +139,7 @@ annidati; in quel caso rendi toccabile solo una parte); `as?`: `'div' | 'section
 ### Button
 `variant`: `'primary' | 'secondary' | 'ghost' | 'danger'`; `size`: `'sm' | 'md' | 'lg'` (36/44/52 px);
 `icon?`, `iconRight?` (componente lucide, es. `icon={Check}`); `loading?`; `fullWidth?`; `haptic?`.
+Il piccolo (`sm`) è alto 36 px ma tocca su 44 (`hit-44`): tienilo ad almeno 4 px da altri elementi toccabili.
 ```tsx
 <Button icon={Check} fullWidth size="lg" onClick={save}>Salva</Button>
 <Button variant="ghost" size="sm">Annulla</Button>
@@ -154,7 +165,9 @@ esportato da `src/ui`). Il trofeo (`Trophy`) è riservato ai record personali.
 
 ### ProgressRing
 `value` 0-1, `size?` (120), `stroke?` (10), `tone?`, `label?` (lettori di schermo), `celebrate?` (bagliore
-sobrio quando si chiude, default true), `gradient?`, `children` al centro.
+sobrio quando si chiude, default true), `gradient?`, `tipLight?` (lampada sulla punta dell'arco: nucleo chiaro con
+l'alone del tono, segue l'avanzamento con la stessa molla; per l'anello protagonista di una schermata, da 140 px,
+legato ai riflettori), `children` al centro.
 ```tsx
 <ProgressRing value={done / total} size={148} label={`${done} voci su ${total}`}>
   <span className="t-num text-[2.5rem]">{done}</span><span className="t-caption text-ink-2">su {total}</span>
@@ -281,6 +294,18 @@ Riquadro di avviso o consiglio: `tone?` (`neutral | accent | good | warn | bad`)
 ### Chip
 Pillola attivabile per scelte multiple (zone di dolore, filtri): `selected`, `onChange(selected)`, `icon?`,
 `tone?`, `disabled?`. Usa `aria-pressed`.
+
+### Disclosure (dietro un tocco)
+Per togliere testo dalla pagina senza perderlo: spiegazioni, elenchi lunghi, dettagli dei valori. Di base è chiuso.
+`title`, `summary?` (riassunto a destra quando è chiuso, es. "7 voci" o "2.450 kcal"), `icon?`,
+`variant?`: `'row'` (riga a tutta larghezza alta almeno 44 px, in una Card o da sola) | `'inline'` (collegamento
+color luce con la freccia, es. "Perché", con il testo in `t-footnote` sotto), `defaultOpen?`, `open?` e
+`onOpenChange?` (controllato), `contentClassName?`. Pulsante con `aria-expanded` e `aria-controls`; il contenuto
+chiuso non è nel DOM; l'altezza si anima con una molla (istantanea con la riduzione del movimento).
+```tsx
+<Disclosure title="Valori del giorno" summary="2.640 kcal" icon={Flame}>…</Disclosure>
+<Disclosure variant="inline" title="Perché">Alla vigilia le scorte di glicogeno…</Disclosure>
+```
 
 ### useLongPress (hook)
 Tocco breve e pressione lunga sullo stesso elemento, con vibrazione, annullamento se il dito scorre e menu

@@ -150,7 +150,7 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
           <div className="flex items-center justify-between gap-3">
             <span className="t-footnote text-ink-2">
               {summary.from && summary.to ? `Dal ${fmtDateShort(summary.from)} al ${fmtDateShort(summary.to)} · ` : ''}
-              {fmtBytes(size)}
+              file di {fmtBytes(size)}
             </span>
             {state.settings.demoData && <Pill tone="riposo">Dati di esempio</Pill>}
           </div>

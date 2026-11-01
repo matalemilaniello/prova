@@ -83,10 +83,13 @@
     radial-gradient(60% 42% at 10% -6%, rgb(255 240 210 / 0.1), transparent 70%),
     radial-gradient(60% 42% at 90% -6%, rgb(255 240 210 / 0.1), transparent 70%);
   --light-warm: 255 240 210;
+  /* Torre faro: testa in acciaio che di notte quasi sparisce, lampade bianco calde, traliccio appena visibile. */
   --lamp: #fff3d6;
-  --lamp-halo: rgb(255 236 200 / 0.55);
-  --lamp-housing: rgb(150 180 240 / 0.1);
-  --lamp-frame: rgb(190 210 255 / 0.16);
+  --lamp-halo: rgb(255 236 200 / 0.6);
+  --lamp-rim: rgb(255 243 214 / 0.35);
+  --lamp-housing: #16233a;
+  --lamp-frame: rgb(190 210 255 / 0.24);
+  --lamp-mast: rgb(190 210 255 / 0.2);
   --halo-strength: 1;
   --cone-blend: screen;
   --cone-strength: 1;
@@ -162,11 +165,13 @@
     radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
     radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
   --light-warm: 227 162 31;
-  /* Partita di giorno: lampade accese ma tenui, coni come velatura ambra. */
-  --lamp: #ffe6a6;
-  --lamp-halo: rgb(227 162 31 / 0.5);
-  --lamp-housing: rgb(13 26 44 / 0.2);
-  --lamp-frame: rgb(13 26 44 / 0.14);
+  /* Partita di giorno: torre faro in acciaio scuro, lampade bianche con alone ambra, coni come velatura. */
+  --lamp: #ffffff;
+  --lamp-halo: rgb(227 162 31 / 0.6);
+  --lamp-rim: rgb(227 162 31 / 0.7);
+  --lamp-housing: rgb(58 68 88 / 0.85);
+  --lamp-frame: rgb(42 50 66 / 0.92);
+  --lamp-mast: rgb(58 68 88 / 0.6);
   --halo-strength: 0.4;
   --cone-blend: normal;
   --cone-strength: 0.4;
@@ -242,11 +247,13 @@
       radial-gradient(60% 42% at 10% -6%, rgb(227 162 31 / 0.1), transparent 70%),
       radial-gradient(60% 42% at 90% -6%, rgb(227 162 31 / 0.1), transparent 70%);
     --light-warm: 227 162 31;
-    /* Partita di giorno: lampade accese ma tenui, coni come velatura ambra. */
-    --lamp: #ffe6a6;
-    --lamp-halo: rgb(227 162 31 / 0.5);
-    --lamp-housing: rgb(13 26 44 / 0.2);
-    --lamp-frame: rgb(13 26 44 / 0.14);
+    /* Partita di giorno: torre faro in acciaio scuro, lampade bianche con alone ambra, coni come velatura. */
+    --lamp: #ffffff;
+    --lamp-halo: rgb(227 162 31 / 0.6);
+    --lamp-rim: rgb(227 162 31 / 0.7);
+    --lamp-housing: rgb(58 68 88 / 0.85);
+    --lamp-frame: rgb(42 50 66 / 0.92);
+    --lamp-mast: rgb(58 68 88 / 0.6);
     --halo-strength: 0.4;
     --cone-blend: normal;
     --cone-strength: 0.4;

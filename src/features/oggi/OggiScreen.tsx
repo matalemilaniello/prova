@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Clock, Feather, Settings } from 'lucide-react';
+import { Check, Clock, Feather, Pill as PillIcon, Settings, Timer } from 'lucide-react';
 import type { FootballKind, HHMM, ISODate, ItemStatus, MealSlot } from '../../domain/types';
 import { navigate } from '../../app/router';
 import { addDays, daysBetween, formatWeekday, weekIndexSince, weekdayOf } from '../../engine/dates';
@@ -15,6 +15,8 @@ import { bedtimeFor, checkInSleepHours, curfewFor } from '../../engine/sleep';
 import {
   canMarkNow,
   dayMinutes,
+  gymTotalMin,
+  mealSchedule,
   firstUseOf,
   isSuccessful,
   markableFrom,
@@ -22,11 +24,12 @@ import {
   physioMinutes,
   STARTER_SHOPPING_ID,
   statusSource,
+  supplementDoseDue,
   type AdherenceSummary,
   type DayItem,
 } from '../../engine/timeline';
 import { IMPACT_PAIN_THRESHOLD, painGate } from '../../engine/training';
-import { DAY_TYPE_LABEL, FOOTBALL_LABEL, fmtDayTitle, fmtKcal, plural } from '../../lib/format';
+import { fmtDayTitle, fmtKcal, listIt, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useDayLog, useNowHHMM, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
@@ -44,10 +47,12 @@ import { NowCard } from './components/NowCard';
 import { PhysioSheet } from './components/PhysioSheet';
 import { QuickWorkoutSheet } from './components/QuickWorkoutSheet';
 import { CheckInPrompt, CurfewCard, TipCard } from './components/SmallCards';
-import { StepCard } from './components/StepCard';
-import { Timeline } from './components/Timeline';
+import { Timeline, type SetupRowData } from './components/Timeline';
 import { TrackersCard } from './components/Trackers';
 import { opensDetail } from './kinds';
+import { FOOTBALL_NOUN, footballPainAdvice } from './painAdvice';
+import { customPainTests } from './painTests';
+import { dayRingValue } from './components/DayHero';
 import { useOggi } from './useOggi';
 
 /** La card del coprifuoco compare dalle 20:00: prima la timeline basta. */
@@ -57,10 +62,11 @@ const RITUAL_LEAD_MIN = 15;
 /** Acqua in più nei giorni di calcio: con 60-90 minuti di gioco si perde oltre un litro di sudore. */
 const FOOTBALL_EXTRA_WATER_L = 0.75;
 
-const FOOTBALL_NOUN: Record<FootballKind, { the: string; it: string }> = {
-  partita: { the: 'la partita', it: 'saltala' },
-  calcetto: { the: 'il calcetto', it: 'saltalo' },
-  allenamento: { the: 'l’allenamento', it: 'saltalo' },
+/** Pillola dell'intestazione a calcio finito: com'è andata, o l'invito a segnarlo. */
+const FOOTBALL_DONE: Record<FootballKind, { done: string; skipped: string; replaced: string; mark: string; at: string }> = {
+  partita: { done: 'Partita giocata', skipped: 'Partita saltata', replaced: 'Partita sostituita', mark: 'Segna la partita', at: 'Partita' },
+  calcetto: { done: 'Calcetto giocato', skipped: 'Calcetto saltato', replaced: 'Calcetto sostituito', mark: 'Segna il calcetto', at: 'Calcetto' },
+  allenamento: { done: 'Allenamento fatto', skipped: 'Allenamento saltato', replaced: 'Allenamento sostituito', mark: 'Segna l’allenamento', at: 'Allenamento' },
 };
 
 interface RecoverState {
@@ -319,7 +325,10 @@ export default function OggiScreen() {
       const after = data.weekSweets + delta;
       if (after > plan.sweetsPerWeek) {
         haptic('warning');
-        toast('Oltre i previsti: domani merenda proteica alle 16:30', 'warn', { actionLabel: 'Annulla', onAction: () => useApp.getState().addSweet(today, -delta) });
+        // Domani: merenda con proteine al suo orario; se è la merenda pre-calcio (carboidrati), il dolce dopo cena.
+        const next = mealSchedule(plan.week.find((d) => d.weekday === weekdayOf(addDays(today, 1))), plan).merenda;
+        const advice = next.title.startsWith('Merenda pre-') ? 'domani il dolce solo dopo cena' : `domani merenda con proteine alle ${next.time}`;
+        toast(`Oltre i previsti: ${advice}`, 'warn', { actionLabel: 'Annulla', onAction: () => useApp.getState().addSweet(today, -delta) });
       } else {
         toast(after === plan.sweetsPerWeek ? 'Segnato: era l’ultimo previsto' : 'Segnato, goditelo', 'neutral', {
           actionLabel: 'Annulla',
@@ -331,12 +340,33 @@ export default function OggiScreen() {
 
   // ── Intestazione ──
 
-  const event =
-    !data.kickoff && day?.football
-      ? `${FOOTBALL_LABEL[day.football.kind]} alle ${day.football.time}`
-      : day?.gymSessionId
-        ? `Seduta ${day.gymSessionId}${day.gymOptional ? ' facoltativa' : ''} alle ${day.gymTime ?? '17:00'}`
-        : null;
+  // Pillola dell'intestazione: prima l'orario, a cose fatte l'esito, finito il tempo l'invito a segnare.
+  const event = ((): { text: string; tone: 'neutral' | 'good'; icon: typeof Clock; onPress?: () => void } | null => {
+    const f = day?.football;
+    if (f) {
+      if (data.kickoff) return null;
+      const it = items.find((i) => i.kind === 'calcio');
+      const words = FOOTBALL_DONE[f.kind];
+      const st = it ? status[it.id] : undefined;
+      if (st === 'fatto') return { text: words.done, tone: 'good', icon: Check };
+      if (st === 'saltato') return { text: words.skipped, tone: 'neutral', icon: Clock };
+      if (st === 'sostituito') return { text: words.replaced, tone: 'neutral', icon: Clock };
+      if (it) return { text: words.mark, tone: 'neutral', icon: Timer, onPress: () => openDetail(it) };
+      return { text: `${words.at} alle ${f.time}`, tone: 'neutral', icon: Clock };
+    }
+    const gym = items.find((i) => i.kind === 'palestra');
+    if (gym && day?.gymSessionId) {
+      const st = status[gym.id];
+      const name = `Seduta ${day.gymSessionId}`;
+      if (st === 'fatto') return { text: `${name} fatta`, tone: 'good', icon: Check };
+      if (st === 'saltato') return { text: `${name} saltata`, tone: 'neutral', icon: Clock };
+      if (st === 'sostituito') return { text: `${name} sostituita`, tone: 'neutral', icon: Clock };
+      const end = dayMinutes(gym.time, plan) + gymTotalMin(day.gymSessionId, state);
+      if (nowM >= end) return { text: `Segna la seduta ${day.gymSessionId}`, tone: 'neutral', icon: Timer, onPress: () => openQuickGym(gym) };
+      return { text: `${name}${day.gymOptional ? ' facoltativa' : ''} alle ${gym.time}`, tone: 'neutral', icon: Clock };
+    }
+    return null;
+  })();
   // La settimana del piano, detta per intero: "settimana 4" accanto al mese si leggeva "quarta di novembre".
   const week = weekIndexSince(plan.startDate, today) + 1;
   const startsIn = daysBetween(today, plan.startDate);
@@ -351,22 +381,17 @@ export default function OggiScreen() {
     [plan, checkIns, profile, workoutLogs, footballLogs, today],
   );
   const football = data.kickoff ? FOOTBALL_NOUN[data.kickoff.kind] : null;
-  // Il calcio è un carico d'impatto: con una zona sotto il ginocchio oltre la soglia degli impatti
-  // l'avviso parla della partita anche quando il resto della giornata va come previsto.
-  const impactFootball = gate.impact && football ? football : null;
+  // Il calcio è il carico d'impatto più alto della settimana: con una zona sotto il ginocchio oltre la soglia
+  // degli impatti l'avviso parla della partita con la stessa regola dei balzi in palestra (`painAdvice.ts`).
   const impactT = Math.min(plan.painThreshold, IMPACT_PAIN_THRESHOLD);
-  let painText = gate.message;
-  let footballText: string | null = null;
-  if (impactFootball) {
-    painText = gate.level === 'ok' ? `Negli impatti la soglia è più bassa, ${impactT} su 10.` : painText.replace(/\s*Scrivi al fisioterapista oggi\./, '');
-    footballText =
-      gate.level === 'riduci'
-        ? `Stasera salta ${impactFootball.the}: con questo dolore gli impatti peggiorano le cose. Scrivi al fisioterapista oggi.`
-        : gate.level === 'mantieni'
-          ? `Senti il fisioterapista prima di giocare. Se giochi, nel riscaldamento il dolore non deve superare ${impactT}: altrimenti fermati.`
-          : `Stasera ${impactFootball.the} solo se saltellando su una gamba il dolore resta entro ${impactT}. Altrimenti ${impactFootball.it} e scrivi al fisioterapista oggi.`;
-  }
-  const showPain = gate.level !== 'ok' || Boolean(impactFootball);
+  const advice = footballPainAdvice(gate, data.kickoff?.kind ?? null, checkIn?.pain, impactT, customPainTests(profile));
+  const impactFootball = advice.footballText && football ? football : null;
+  const painText = advice.painText;
+  const footballText = advice.footballText;
+  // A sedute e calcio di oggi già segnati l'avviso ha fatto il suo lavoro: resta solo se chiede di ridurre.
+  const loadItems = items.filter((i) => i.kind === 'palestra' || i.kind === 'calcio');
+  const loadDone = loadItems.length > 0 && loadItems.every((i) => status[i.id]);
+  const showPain = (gate.level !== 'ok' || Boolean(impactFootball)) && (!loadDone || gate.level === 'riduci');
   const footballItem = data.kickoff ? items.find((i) => i.id === data.kickoff!.itemId) : undefined;
 
   const lowDay =
@@ -394,16 +419,42 @@ export default function OggiScreen() {
     if (!was && step.done + 1 === step.target) toast(`Scalino riuscito: ${step.target} giorni su 7`, 'good');
   };
 
+  // Righe che non contano: esercizi del fisioterapista da inserire, dose di un integratore da definire.
+  const doseDue = useMemo(() => supplementDoseDue(today, state), [today, state]);
+  const setupRows: SetupRowData[] = [];
+  if (data.physioSetup && !data.minimal) {
+    setupRows.push({
+      id: 'fisio',
+      time: data.physioSetup,
+      title: 'Aggiungi gli esercizi del fisioterapista',
+      detail: 'Inseriscili una volta, poi li ritrovi qui',
+      onPress: () => setPhysioEditorOpen(true),
+    });
+  }
+  if (doseDue) {
+    setupRows.push({
+      id: 'dose',
+      time: doseDue.time,
+      title: `${listIt(doseDue.names)}: manca la dose`,
+      detail: 'Inserisci la dose dopo l’esame del sangue',
+      icon: PillIcon,
+      onPress: () => {
+        window.location.hash = 'impostazioni?sezione=integratori';
+      },
+    });
+  }
+
   const controllo = items.find((i) => i.kind === 'controllo');
   const showCheckIn = !data.checkInDone && !status.controllo && !(controllo && data.beforeStart(controllo));
 
   const optionsSource = optionsItem ? statusSource(today, state, optionsItem) : null;
-  // Il suggerimento sui gesti serve nei primi giorni, poi diventa rumore.
-  const newUser = Object.keys(state.dayLogs).length < 4;
+  // Il suggerimento sui gesti serve finché non si segna la prima voce, poi diventa rumore.
+  const newUser = !Object.values(state.dayLogs).some((l) => Object.keys(l?.status ?? {}).length > 0);
   const preMatch = items.find((i) => i.kind === 'pasto' && i.slot === 'merenda' && i.title.startsWith('Merenda pre-'))?.time;
   const yesterday = addDays(today, -1);
 
-  const intensity = data.complete || data.kickoff ? 1 : summary.total ? Math.max(0.12, (summary.done + summary.replaced) / summary.total) : 0.3;
+  // I riflettori seguono lo stesso numero dell'anello: il punteggio della giornata (a giornata riuscita e chiusa, piena luce).
+  const intensity = data.kickoff ? 1 : summary.total ? Math.max(0.12, dayRingValue(summary, successful, data.complete)) : 0.3;
 
   return (
     <Screen
@@ -414,14 +465,25 @@ export default function OggiScreen() {
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <DayTypeBadge
             dayType={data.dayType}
-            label={data.matchEve ? `${DAY_TYPE_LABEL[data.dayType]}, vigilia della partita` : undefined}
+            label={data.matchEve ? 'Vigilia della partita' : undefined}
           />
           <span className="t-callout font-semibold tabular text-ink-2">{fmtKcal(data.target.kcal)}</span>
-          {event && (
-            <Pill tone="neutral" icon={Clock}>
-              {event}
-            </Pill>
-          )}
+          {event &&
+            (event.onPress ? (
+              <button
+                type="button"
+                onClick={event.onPress}
+                aria-haspopup="dialog"
+                className="hit-44 t-footnote inline-flex h-7 items-center gap-1.5 rounded-full px-3 font-semibold text-accent-ink shadow-[inset_0_0_0_1px_var(--accent)] transition-transform duration-150 active:scale-95"
+              >
+                <event.icon size={14} strokeWidth={2.4} aria-hidden />
+                {event.text}
+              </button>
+            ) : (
+              <Pill tone={event.tone} icon={event.icon}>
+                {event.text}
+              </Pill>
+            ))}
         </span>
       }
       actions={<IconButton icon={Settings} label="Impostazioni" onClick={() => navigate('impostazioni')} />}
@@ -451,7 +513,7 @@ export default function OggiScreen() {
             impactFootball && footballItem && !status[footballItem.id] ? (
               <Button
                 size="sm"
-                variant="ghost"
+                variant={advice.skip ? 'primary' : 'ghost'}
                 onClick={() => {
                   setStatus(footballItem, 'saltato', 'per il dolore');
                   toast(`Saltato: ${footballItem.title}`, 'neutral', { actionLabel: 'Annulla', onAction: () => setStatus(footballItem, null) });
@@ -509,6 +571,8 @@ export default function OggiScreen() {
         bedItem={data.bedItem}
         bedLocked={data.bedItem ? lockedUntil(data.bedItem) : null}
         justCompleted={justCompleted}
+        shopping={data.shopping}
+        onPlanB={openPlanB}
         onMark={(item) => markDone(item, { toast: item.kind !== 'letto' })}
         onOpen={openDetail}
         onOptions={onOptions}
@@ -565,16 +629,7 @@ export default function OggiScreen() {
                 plan={plan}
                 currentId={data.now?.item.id}
                 overdueIds={overdueIds}
-                setupRow={
-                  data.physioSetup && !data.minimal
-                    ? {
-                        time: data.physioSetup,
-                        title: 'Aggiungi gli esercizi del fisioterapista',
-                        detail: 'Inseriscili una volta, poi li ritrovi qui',
-                        onPress: () => setPhysioEditorOpen(true),
-                      }
-                    : null
-                }
+                setupRows={setupRows}
                 onToggle={toggle}
                 onBody={onBody}
                 onOptions={onOptions}
@@ -593,8 +648,6 @@ export default function OggiScreen() {
         />
       )}
 
-      {step && <StepCard status={step} onToggle={toggleStep} />}
-
       <TrackersCard
         water={{
           glasses: dayLog.waterGlasses,
@@ -604,6 +657,7 @@ export default function OggiScreen() {
           onAdd: addWater,
         }}
         sweets={{ week: data.weekSweets, today: dayLog.sweets, planned: plan.sweetsPerWeek, onAdd: addSweet }}
+        step={step ? { status: step, onToggle: toggleStep } : null}
       />
 
       <DayValues planned={data.planned} eaten={data.eaten} target={data.target} minimal={data.minimal} />

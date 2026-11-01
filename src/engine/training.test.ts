@@ -10,6 +10,7 @@ import {
   e1rmHistory,
   elbowFriendlyAlternatives,
   gateForExercise,
+  gateForLater,
   INTRO_REASON,
   introItem,
   introLevel,
@@ -28,6 +29,7 @@ import {
   tissueOf,
   plannedLoadRemaining,
   plannedSessionFor,
+  recentLogsFor,
   sessionLoad,
   standingRecords,
   suggestNext,
@@ -89,7 +91,7 @@ describe('lastLogFor e lastEntryFor', () => {
     workout('2026-10-30', [exLog(bench.exerciseId, [[22, 6]], false)]),
   ];
 
-  it("trova l'ultima seduta con serie fatte, saltando quelle senza", () => {
+  it("trova l’ultima seduta con serie fatte, saltando quelle senza", () => {
     const last = lastEntryFor(bench.exerciseId, logs);
     expect(last?.date).toBe('2026-10-27');
     expect(lastLogFor(bench.exerciseId, logs)?.sets.map((s) => s.reps)).toEqual([9, 9, 8]);
@@ -153,7 +155,7 @@ describe('suggestNext · progressione doppia', () => {
     expect(s.weightKg).toBe(20);
   });
 
-  it("usa l'incremento predefinito quando la seduta non lo indica", () => {
+  it("usa l’incremento predefinito quando la seduta non lo indica", () => {
     const item = { ...bench, incrementKg: undefined };
     expect(suggestNext(item, exLog(bench.exerciseId, [[40, 10], [40, 10], [40, 10]])).weightKg).toBe(42.5);
   });
@@ -187,6 +189,65 @@ describe('suggestNext · progressione doppia', () => {
     expect(reduce.kind).toBe('riduci');
     expect(reduce.weightKg).toBe(18);
     expect(reduce.reps).toBe(6);
+  });
+});
+
+describe('suggestNext · stallo', () => {
+  it('due volte sotto repMin allo stesso carico → carico −10% arrotondato e repMin', () => {
+    const prev = exLog(bench.exerciseId, [[20, 6], [20, 5], [20, 5]]);
+    const last = exLog(bench.exerciseId, [[20, 6], [20, 5], [20, 4]]);
+    const s = suggestNext(bench, last, { previous: prev });
+    expect(s.kind).toBe('riduci');
+    expect(s.stalled).toBe(true);
+    // 20 × 0,9 = 18, già multiplo dell'incremento di 2 kg.
+    expect(s.weightKg).toBe(18);
+    expect(s.sets.every((x) => x.weightKg === 18 && x.reps === 6)).toBe(true);
+    expect(s.reason).toBe('Due volte sotto le 6 ripetizioni: carico −10% e risali');
+    expect(s.lastWeightKg).toBe(20);
+  });
+
+  it("l’arrotondamento all’incremento resta sotto il carico e il motivo dice la riduzione vera", () => {
+    const item = { ...bench, incrementKg: 2.5 };
+    const low = exLog(bench.exerciseId, [[16, 5], [16, 5], [16, 4]]);
+    const s = suggestNext(item, low, { previous: low });
+    // 16 × 0,9 = 14,4 → 15 con passo 2,5.
+    expect(s.weightKg).toBe(15);
+    expect(s.reason).toBe('Due volte sotto le 6 ripetizioni: carico −6% e risali');
+    // Carico già minimo: si scende di mezzo chilo invece di arrivare a zero.
+    const tiny = exLog(bench.exerciseId, [[2, 4], [2, 4], [2, 4]]);
+    expect(suggestNext(item, tiny, { previous: tiny }).weightKg).toBe(1.5);
+  });
+
+  it('una sola volta sotto repMin, carico diverso o media sopra repMin: progressione normale', () => {
+    const last = exLog(bench.exerciseId, [[20, 6], [20, 5], [20, 4]]);
+    expect(suggestNext(bench, last).kind).toBe('ripetizioni');
+    expect(suggestNext(bench, last, { previous: null }).kind).toBe('ripetizioni');
+    const lighter = exLog(bench.exerciseId, [[18, 7], [18, 5], [18, 5]]);
+    expect(suggestNext(bench, last, { previous: lighter }).kind).toBe('ripetizioni');
+    const fine = exLog(bench.exerciseId, [[20, 7], [20, 6], [20, 6]]);
+    expect(suggestNext(bench, last, { previous: fine }).kind).toBe('ripetizioni');
+    // Media 6 esatta: non è sotto repMin.
+    expect(suggestNext(bench, exLog(bench.exerciseId, [[20, 7], [20, 6], [20, 5]]), { previous: last }).kind).toBe('ripetizioni');
+  });
+
+  it('con la regola del dolore a mantieni scende comunque, a riduci vale il dolore', () => {
+    const low = exLog(bench.exerciseId, [[20, 5], [20, 5], [20, 4]]);
+    expect(suggestNext(bench, low, { previous: low, gate: 'mantieni' })).toMatchObject({ kind: 'riduci', stalled: true, weightKg: 18 });
+    const pain = suggestNext(bench, low, { previous: low, gate: 'riduci' });
+    expect(pain.kind).toBe('riduci');
+    expect(pain.stalled).toBeUndefined();
+  });
+
+  it('recentLogsFor dà le ultime esecuzioni, una per seduta, dalla più recente', () => {
+    const logs = [
+      workout('2026-10-20', [exLog(bench.exerciseId, [[20, 5]])]),
+      workout('2026-10-27', [exLog(bench.exerciseId, [[20, 4]]), exLog(bench.exerciseId, [[18, 8]])]),
+      workout('2026-10-30', [exLog(bench.exerciseId, [[22, 6]], false)]),
+    ];
+    const recent = recentLogsFor(bench.exerciseId, logs);
+    expect(recent.map((l) => l.sets[0].weightKg)).toEqual([18, 20]);
+    expect(recentLogsFor(bench.exerciseId, logs, 2, { before: '2026-10-27' })).toHaveLength(1);
+    expect(recentLogsFor('inesistente', logs)).toEqual([]);
   });
 });
 
@@ -459,7 +520,7 @@ describe('painGate', () => {
     const g = painGate({ ...make([ci('2026-11-02', { Gomito: 2, Tibia: 1 })]), workoutLogs: logs }, '2026-11-02');
     expect(g.level).toBe('mantieni');
     expect(g.flagged[0]).toMatchObject({ site: 'Gomito', cause: 'seduta', sessionValue: 5, value: 2 });
-    expect(g.title).toBe("Gomito a 5 su 10 nell'ultima seduta");
+    expect(g.title).toBe("Gomito a 5 su 10 nell’ultima seduta");
     expect(g.elbow).toBe(true);
     // Dopo 3 giorni non conta più.
     expect(painGate({ ...make([ci('2026-11-03', { Gomito: 2 })]), workoutLogs: logs }, '2026-11-03').level).toBe('ok');
@@ -554,7 +615,7 @@ describe('painGate: cosa frena e cosa procede', () => {
   it('la tibia frena gambe e polpacci, la parte superiore procede', () => {
     // Martedì dopo la partita: tibia da 1 a 2.
     const g = painGate(make([ci('2026-11-02', { Tibia: 1, Gomito: 1 }), ci('2026-11-03', { Tibia: 2, Gomito: 1 })]), '2026-11-03');
-    expect(g.message).toContain("per gambe e polpacci mantieni i carichi dell'ultima volta");
+    expect(g.message).toContain("per gambe e polpacci mantieni i carichi dell’ultima volta");
     expect(g.message).toContain('La parte superiore procede come previsto.');
     expect(g.message).not.toContain('tieni polpacci');
     // La panca progredisce, i polpacci no, e il motivo dice perché.
@@ -586,6 +647,21 @@ describe('painGate: cosa frena e cosa procede', () => {
     const g = painGate(make([ci('2026-11-06', { Tibia: 8 })]), '2026-11-06');
     expect(g.message).toMatch(/^Per gambe e polpacci riduci i carichi del 10%/);
     expect(g.message.endsWith('Scrivi al fisioterapista oggi.')).toBe(true);
+  });
+
+  it('per una seduta che non è oggi gli impatti si rimandano alla prossima seduta', () => {
+    const g = painGate(make([ci('2026-11-02', { Tibia: 4 })]), '2026-11-02');
+    expect(g.message).toContain('Niente balzi e salti oggi.');
+    const later = gateForLater(g);
+    expect(later.message).toContain('Niente balzi e salti nella prossima seduta.');
+    expect(later.message).not.toMatch(/balzi e salti oggi/);
+    expect(later.level).toBe(g.level);
+    // Solo impatti (tibia sopra la soglia degli impatti, sotto quella del piano).
+    const only = gateForLater(painGate(make([ci('2026-11-02', { Tibia: 3 })]), '2026-11-02'));
+    expect(only.title).toBe('Tibia a 3 su 10: niente impatti nella prossima seduta');
+    // Scrivere al fisioterapista resta una cosa da fare oggi.
+    const high = gateForLater(painGate(make([ci('2026-11-06', { Tibia: 8 })]), '2026-11-06'));
+    expect(high.message.endsWith('Scrivi al fisioterapista oggi.')).toBe(true);
   });
 
   it('senza zona il motivo resta generico', () => {

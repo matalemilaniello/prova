@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "screenshots": "node scripts/screenshots.mjs",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "check:typography": "node scripts/check-typography.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",

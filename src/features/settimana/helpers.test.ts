@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan } from '../../domain/types';
 import { DEFAULT_WEEK, defaultPlan } from '../../data/defaults';
-import { dayActivities, dayVerdict, lowerFirst, prepSkipped } from './helpers';
+import { dayActivities, dayVerdict, firstShoppingSafe, lowerFirst, portionShort, prepSkipped, preShoppingSlots } from './helpers';
 
 const target = { kcal: 2800, proteinG: 135, carbG: 385, fatG: 80 };
 
@@ -52,5 +52,43 @@ describe('settimana senza preparazione', () => {
 
   it('senza primo avvio (dati di esempio) la preparazione c’è sempre', () => {
     expect(prepSkipped(defaultPlan('2026-11-02'), '2026-11-02', false)).toBe(false);
+  });
+});
+
+describe('porzioni del giorno', () => {
+  const text = (p: ReturnType<typeof portionShort>) => (p ? `${p.lead}${p.pct}${p.tail}` : null);
+  it('dice di quanto cambiano i carboidrati e perché, in breve', () => {
+    expect(text(portionShort('calcio', 1.25))).toBe('Carboidrati +25% per un giorno di calcio.');
+    expect(text(portionShort('calcio', 1.25, true))).toBe('Carboidrati +25% per la vigilia della partita.');
+    expect(text(portionShort('leggero', 0.9))).toBe('Carboidrati −10% per un giorno leggero.');
+    expect(text(portionShort('palestra', 1.06))).toBe('Carboidrati +6% per i tuoi obiettivi.');
+    expect(portionShort('palestra', 1)).toBeNull();
+  });
+});
+
+describe('prima della spesa di avvio', () => {
+  // Benvenuto finito domenica 1 novembre alle 19:00: il piano parte lunedì, la spesa di avvio è lunedì pomeriggio.
+  const plan = { ...defaultPlan('2026-11-02'), week: DEFAULT_WEEK, firstUse: { date: '2026-11-01', time: '19:00' } } as Plan;
+  const state = { plan, dayLogs: {}, shoppingChecked: {} };
+
+  it('trova la prima spesa come Oggi, ancora da fare', () => {
+    const shop = firstShoppingSafe(state);
+    expect(shop?.date).toBe('2026-11-02');
+    expect(shop?.done).toBe(false);
+  });
+
+  it('segna i pasti prima della spesa: tutta la domenica, il lunedì fino all’orario della spesa, poi più niente', () => {
+    expect([...preShoppingSlots('2026-11-01', state)].sort()).toEqual(['cena', 'colazione', 'merenda', 'pranzo', 'spuntino']);
+    const monday = preShoppingSlots('2026-11-02', state);
+    expect(monday.has('colazione') && monday.has('pranzo')).toBe(true);
+    expect(monday.has('cena')).toBe(false);
+    expect(preShoppingSlots('2026-11-03', state).size).toBe(0);
+  });
+
+  it('con la spesa segnata non segna più niente', () => {
+    const shop = firstShoppingSafe(state)!;
+    const done = { ...state, dayLogs: { [shop.date]: { date: shop.date, status: { [shop.id]: 'fatto' as const }, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} } } };
+    expect(firstShoppingSafe(done)?.done).toBe(true);
+    expect(preShoppingSlots('2026-11-01', done).size).toBe(0);
   });
 });

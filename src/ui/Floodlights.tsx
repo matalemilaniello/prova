@@ -30,48 +30,103 @@ export interface FloodlightsProps {
 
 const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5);
 
-/**
- * Una batteria di 6 lampade (3 × 2) in un telaio di circa 30 × 18 pt, inclinata verso il centro del campo e
- * tagliata appena dal bordo dello schermo, come un traliccio che continua fuori dall'inquadratura.
- * Più la giornata avanza (`on`), più le lampade sono piene e l'alone largo.
+/*
+ * Geometria della torre faro nell'angolo sinistro (quella destra è speculare), in pt dal bordo alto e sinistro
+ * della safe area. La testa (26 × 16 pt) è inclinata di 20° verso il centro del campo e tagliata appena dal
+ * bordo; il traliccio scende verso l'esterno e sfuma, come una torre che continua fuori dall'inquadratura.
+ * Lo spigolo basso della testa resta sopra la riga dell'occhiello (24 pt) e il traliccio nel margine laterale.
  */
-function LampBank({ side, on, light }: { side: 'left' | 'right'; on: number; light: string }) {
+const HEAD = { cx: 14, cy: 9, w: 26, h: 16, tilt: 20 } as const;
+const LAMP_COLS = 4;
+const LAMP_ROWS = 2;
+const LAMP_R = 1.9;
+/** Lunghezza visibile del traliccio prima che sfumi del tutto. */
+const MAST_LEN = 40;
+
+/**
+ * Una torre faro: testa in acciaio con 8 lampade tonde (4 × 2), visiera in alto, staffa e traliccio a
+ * rombi che entra dall'angolo. Più la giornata avanza (`on`), più le lampade sono piene e l'alone largo.
+ * Nel tema chiaro il telaio è grigio acciaio scuro e le lampade bianche con un alone ambra sottile; nel
+ * tema scuro il telaio quasi sparisce nella notte e restano le lampade accese.
+ */
+function LampBank({ side, on, light, uid }: { side: 'left' | 'right'; on: number; light: string; uid: string }) {
+  const id = `${uid}-${side}`;
+  const { w, h } = HEAD;
+  const pitchX = (w - 4) / LAMP_COLS;
+  const pitchY = (h - 4.5) / LAMP_ROWS;
+  const lamps: { x: number; y: number }[] = [];
+  for (let r = 0; r < LAMP_ROWS; r++) {
+    for (let c = 0; c < LAMP_COLS; c++) {
+      lamps.push({ x: -w / 2 + 2 + pitchX * (c + 0.5), y: -h / 2 + 3 + pitchY * (r + 0.5) });
+    }
+  }
+  // Traliccio: due montanti e i diagonali a zigzag, dalla staffa fin dove sfuma.
+  const mastTop = h / 2 + 1.5;
+  const mastW = 2.6;
+  const zig: string[] = [];
+  for (let y = mastTop, i = 0; y <= mastTop + MAST_LEN; y += 4.4, i++) zig.push(`${i % 2 ? mastW : -mastW},${y.toFixed(1)}`);
+  const haloSize = 96;
   return (
     <span
       aria-hidden
       className="absolute"
       style={{
-        top: 'calc(var(--safe-top) + 3px)',
-        [side]: `calc(var(--safe-${side}) - 5px)`,
-        transform: `rotate(${side === 'left' ? 18 : -18}deg)`,
-        transformOrigin: side === 'left' ? 'top left' : 'top right',
+        top: 'var(--safe-top)',
+        [side]: `var(--safe-${side})`,
+        width: 48,
+        height: 64,
+        transform: side === 'right' ? 'scaleX(-1)' : undefined,
       }}
     >
-      {/* Alone: la luce che si apre attorno alla batteria */}
+      {/* Alone: la luce che si apre attorno alla testa */}
       <span
-        className="absolute left-1/2 top-1/2 size-[96px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        className="absolute rounded-full"
         style={{
+          left: HEAD.cx - haloSize / 2,
+          top: HEAD.cy - haloSize / 2,
+          width: haloSize,
+          height: haloSize,
           background: `radial-gradient(closest-side, rgb(${light} / ${0.2 + 0.3 * on}), rgb(${light} / ${0.06 + 0.08 * on}) 55%, transparent)`,
           mixBlendMode: 'var(--cone-blend)' as CSSProperties['mixBlendMode'],
           opacity: 'var(--halo-strength, 1)' as unknown as number,
         }}
       />
-      <span
-        className="relative grid grid-cols-3 gap-[2px] rounded-[4px] p-[2.5px]"
-        style={{ background: 'var(--lamp-housing)', boxShadow: 'inset 0 0 0 1px var(--lamp-frame)' }}
-      >
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <span
-            key={i}
-            className="block h-[5px] w-[7px] rounded-[1.5px]"
-            style={{
-              background: 'var(--lamp)',
-              opacity: 0.6 + 0.4 * on,
-              boxShadow: `0 0 ${3 + 6 * on}px ${0.5 + 1.5 * on}px var(--lamp-halo)`,
-            }}
-          />
-        ))}
-      </span>
+      <svg aria-hidden width={48} height={64} viewBox="0 0 48 64" overflow="visible" className="absolute inset-0">
+        <defs>
+          <linearGradient id={`${id}-mast`} gradientUnits="userSpaceOnUse" x1="0" y1={mastTop} x2="0" y2={mastTop + MAST_LEN}>
+            <stop offset="0" style={{ stopColor: 'var(--lamp-mast)', stopOpacity: 1 }} />
+            <stop offset="0.55" style={{ stopColor: 'var(--lamp-mast)', stopOpacity: 0.6 }} />
+            <stop offset="1" style={{ stopColor: 'var(--lamp-mast)', stopOpacity: 0 }} />
+          </linearGradient>
+          <filter id={`${id}-bloom`} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation={0.9 + 0.9 * on} />
+          </filter>
+        </defs>
+        <g transform={`translate(${HEAD.cx} ${HEAD.cy}) rotate(${HEAD.tilt})`}>
+          {/* Traliccio */}
+          <g style={{ stroke: `url(#${id}-mast)` }} fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <line x1={-mastW} y1={mastTop} x2={-mastW} y2={mastTop + MAST_LEN} strokeWidth={1.1} />
+            <line x1={mastW} y1={mastTop} x2={mastW} y2={mastTop + MAST_LEN} strokeWidth={1.1} />
+            <polyline points={zig.join(' ')} strokeWidth={0.7} />
+          </g>
+          {/* Staffa sotto la testa */}
+          <path d={`M ${-w / 2 + 6} ${h / 2} L ${w / 2 - 6} ${h / 2} L ${mastW + 0.6} ${mastTop + 1.2} L ${-mastW - 0.6} ${mastTop + 1.2} Z`} style={{ fill: 'var(--lamp-frame)' }} />
+          {/* Testa: telaio in acciaio e visiera */}
+          <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={2.2} style={{ fill: 'var(--lamp-housing)', stroke: 'var(--lamp-frame)' }} strokeWidth={1} />
+          <rect x={-w / 2 - 1} y={-h / 2 - 1.6} width={w + 2} height={2.2} rx={1.1} style={{ fill: 'var(--lamp-frame)' }} />
+          {/* Lampade: un alone sfocato e il nucleo acceso */}
+          <g filter={`url(#${id}-bloom)`} style={{ fill: 'var(--lamp-halo)' }} opacity={0.55 + 0.45 * on}>
+            {lamps.map((l, i) => (
+              <circle key={i} cx={l.x} cy={l.y} r={LAMP_R + 0.9 + 0.5 * on} />
+            ))}
+          </g>
+          <g style={{ fill: 'var(--lamp)', stroke: 'var(--lamp-rim)' }} strokeWidth={0.5} opacity={0.78 + 0.22 * on}>
+            {lamps.map((l, i) => (
+              <circle key={i} cx={l.x} cy={l.y} r={LAMP_R} />
+            ))}
+          </g>
+        </g>
+      </svg>
     </span>
   );
 }
@@ -191,8 +246,8 @@ export function Floodlights({ intensity = 0.5, tone, flare, curfew, pitch = true
       {/* Lampade */}
       {lamps && (
         <>
-          <LampBank side="left" on={k} light={light} />
-          <LampBank side="right" on={k} light={light} />
+          <LampBank side="left" on={k} light={light} uid={uid} />
+          <LampBank side="right" on={k} light={light} uid={uid} />
         </>
       )}
 

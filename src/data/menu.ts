@@ -20,7 +20,7 @@
  * da lunedì a sabato. La domenica si cucina sul momento, oppure si usa una porzione dal freezer.
  *
  * Prima della rotazione c'è la settimana di avvio (`STARTER_WEEK`, più sotto): i giorni che vanno dal primo
- * avvio dell'app al lunedì che trova fatte spesa e preparazione.
+ * avvio dell'app al lunedì che trova fatte spesa e preparazione, con meno fibre (28-31 g) per salire per gradi.
  */
 import type { MenuWeek } from '../domain/types';
 
@@ -117,14 +117,14 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-riso',
         title: 'Cuoci il riso basmati e quello integrale',
         minutes: 30,
-        yields: "Riso per la vaschetta di lunedì; quello per l'insalata di mercoledì e per il riso saltato di giovedì va in freezer a porzioni",
+        yields: "Riso per la vaschetta di lunedì; quello per l’insalata di mercoledì e per il riso saltato di giovedì va in freezer a porzioni",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
       },
       {
         id: 's1-pollo',
         title: 'Cuoci il petto di pollo in padella',
         minutes: 20,
-        yields: "Pollo per la vaschetta di lunedì; quello per l'insalata di riso di mercoledì va in freezer",
+        yields: "Pollo per la vaschetta di lunedì; quello per l’insalata di riso di mercoledì va in freezer",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate'],
       },
       {
@@ -277,11 +277,13 @@ export const MENU_ROTATION: MenuWeek[] = [
  *   conservazione o surgelati. Il pollo si compra fresco e le porzioni dal mercoledì vanno in freezer;
  * - poche ricette che si ripetono, di proposito: la colazione è sempre la stessa, lo spuntino da portare
  *   anche, e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti;
- * - legumi 3 volte e fibre tra 34 e 41 g, la parte bassa del menù: chi ne mangiava poche sale per gradi.
+ * - fibre in salita: 28-31 g al giorno (circa 11 g ogni 1.000 kcal) contro i 34-45 g della rotazione. Chi ne
+ *   mangiava poche non le raddoppia dal primo giorno: pane comune al posto dell'integrale e i ceci a piccole
+ *   dosi (40 g, due volte), prima del piatto di legumi intero. I legumi sono la fibra che fermenta di più.
  *
- * Stessi vincoli della rotazione (verificati da `menu.test.ts`): kcal entro ±8%, proteine ≥ 125 g, grassi e
- * carboidrati vicini all'obiettivo, almeno 5 porzioni di frutta e verdura, pre-calcio e cena di recupero nei
- * giorni di calcio. Pesce 6 volte (tonno 3, merluzzo 3), pollo 3, uova 2, carne rossa mai.
+ * Stessi vincoli della rotazione (verificati da `menu.test.ts`), tranne le fibre: kcal entro ±8%, proteine
+ * ≥ 125 g, grassi e carboidrati vicini all'obiettivo, almeno 5 porzioni di frutta e verdura, pre-calcio e cena
+ * di recupero nei giorni di calcio. Pesce 7 volte (tonno 3, merluzzo 4), pollo 5, uova 2, carne rossa mai.
  * I giorni seguono la settimana tipo del piano predefinito, come la rotazione.
  */
 export const STARTER_WEEK: MenuWeek = {
@@ -289,7 +291,7 @@ export const STARTER_WEEK: MenuWeek = {
     // Lunedì · calcio, partita alle 21:00 (la spesa di avvio è nel primo pomeriggio)
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-tonno-pomodoro',
         merenda: 'pre-gallette-banana',
@@ -299,9 +301,9 @@ export const STARTER_WEEK: MenuWeek = {
     // Martedì · palestra A alle 17:00
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
-        pranzo: 'pasta-ceci-rosmarino',
+        pranzo: 'uova-spinaci-pane',
         merenda: 'yogurt-clementine-gallette',
         cena: 'merluzzo-pizzaiola-couscous',
       },
@@ -309,7 +311,7 @@ export const STARTER_WEEK: MenuWeek = {
     // Mercoledì · calcio, calcetto alle 21:00
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-tonno-pomodoro',
         merenda: 'pre-gallette-banana',
@@ -319,41 +321,41 @@ export const STARTER_WEEK: MenuWeek = {
     // Giovedì · calcio, allenamento alle 20:30
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
-        pranzo: 'pasta-ceci-rosmarino',
+        pranzo: 'uova-spinaci-pane',
         merenda: 'pre-gallette-banana',
         cena: 'couscous-pollo-spinaci',
       },
     },
-    // Venerdì · palestra B alle 17:00
+    // Venerdì · palestra B alle 17:00 (i ceci, a piccole dosi, venerdì e domenica)
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
-        pranzo: 'uova-spinaci-pane',
+        pranzo: 'pasta-pollo-spinaci',
         merenda: 'yogurt-clementine-gallette',
-        cena: 'merluzzo-pizzaiola-couscous',
+        cena: 'merluzzo-ceci-couscous',
       },
     },
     // Sabato · leggero (a casa: lo yogurt la mattina, le gallette il pomeriggio)
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'yogurt-clementine-gallette',
         pranzo: 'pasta-tonno-pomodoro',
         merenda: 'gallette-grana-clementine',
-        cena: 'uova-pomodoro-spinaci',
+        cena: 'merluzzo-pizzaiola-couscous',
       },
     },
     // Domenica · riposo, vigilia della partita
     {
       meals: {
-        colazione: 'pane-arachidi-banana',
+        colazione: 'pane-comune-arachidi-banana',
         spuntino: 'yogurt-clementine-gallette',
-        pranzo: 'pasta-ceci-rosmarino',
+        pranzo: 'pasta-pollo-spinaci',
         merenda: 'gallette-grana-clementine',
-        cena: 'merluzzo-pizzaiola-couscous',
+        cena: 'merluzzo-ceci-couscous',
       },
     },
   ],
@@ -374,7 +376,7 @@ export const STARTER_PRODUCTS: readonly string[] = [
   'yogurt-greco-2',
   'uova',
   'grana',
-  'pane-integrale',
+  'pane-bianco',
   'pasta',
   'couscous',
   'gallette-riso',
@@ -391,9 +393,9 @@ export const STARTER_PRODUCTS: readonly string[] = [
 export const PREP_GUIDE: Record<string, PrepGuide> = {
   's1-riso': {
     steps: [
-      "Metti sul fuoco due pentole d'acqua salata: il riso integrale cuoce circa 30 minuti, il basmati 11.",
+      "Metti sul fuoco due pentole d’acqua salata: il riso integrale cuoce circa 30 minuti, il basmati 11.",
       'Scola e allarga il riso su un vassoio: deve raffreddarsi in fretta.',
-      "Entro un'ora la porzione di lunedì va in frigo, le altre in freezer in sacchetti piatti.",
+      "Entro un’ora la porzione di lunedì va in frigo, le altre in freezer in sacchetti piatti.",
     ],
     timers: [
       { label: 'Riso integrale', minutes: 30 },
@@ -403,15 +405,15 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
   's1-pollo': {
     steps: [
       'Taglia il petto di pollo a bocconcini.',
-      "Cuocilo in padella antiaderente con un filo d'olio, girandolo, finché dentro non è più rosa.",
+      "Cuocilo in padella antiaderente con un filo d’olio, girandolo, finché dentro non è più rosa.",
       'Fai raffreddare: la parte per lunedì in frigo, quella per mercoledì in freezer.',
     ],
     timers: [{ label: 'Pollo in padella', minutes: 8 }],
   },
   's1-ragu': {
     steps: [
-      "Rosola il soffritto con l'olio per 2 minuti.",
-      "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d'acqua; cuoci finché le lenticchie si sfaldano.",
+      "Rosola il soffritto con l’olio per 2 minuti.",
+      "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.",
       'Dividi in 4 porzioni e congelale tutte.',
     ],
     timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
@@ -448,7 +450,7 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
   's2-pollo-riso': {
     steps: [
       "Riso basmati in acqua salata.",
-      "Intanto il pollo a bocconcini in padella con un filo d'olio, finché dentro non è più rosa.",
+      "Intanto il pollo a bocconcini in padella con un filo d’olio, finché dentro non è più rosa.",
       'Raffredda in fretta: pollo e riso per lunedì in frigo, il resto in freezer a porzioni.',
     ],
     timers: [

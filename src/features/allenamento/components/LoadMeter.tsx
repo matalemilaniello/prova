@@ -39,7 +39,8 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
           </p>
         </div>
         <div className="text-right">
-          <p className="t-label text-ink-3">Media 4 settimane</p>
+          {/* Con meno storico la media è su 2 o 3 settimane: l'etichetta dice su quante. */}
+          <p className="t-label text-ink-3">{status.previous.length >= 2 ? `Media ${status.previous.length} settimane` : 'Media'}</p>
           <p className="t-callout mt-1 font-semibold text-ink tabular">{average !== null ? `${fmtNumber(Math.round(average))} UA` : '–'}</p>
         </div>
       </div>

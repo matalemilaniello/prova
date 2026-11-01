@@ -8,16 +8,16 @@ import type { DayType, MacroTarget, Plan, Profile, ScheduleDay, Supplement, Week
 import { computeTargets } from '../../engine/targets';
 import { currentDate, formatDayLong } from '../../engine/dates';
 import { curfewFor } from '../../engine/sleep';
-import { DAY_TYPE_LABEL, DAY_TYPES, fmtNumber, plural } from '../../lib/format';
+import { DAY_TYPE_LABEL, DAY_TYPES, fmtNumber } from '../../lib/format';
 import { useNow } from '../../state/hooks';
-import { Callout, Card, DayTypeBadge, Field, ListGroup, NumberTicker, Segmented, TextInput, cn, staggerItem, toneColor, toneInk, toneSoft } from '../../ui';
+import { Callout, Card, DayTypeBadge, Field, ListGroup, NumberTicker, Segmented, TextInput, cn, staggerItem, toneInk, toneSoft } from '../../ui';
 import { ChoiceCards, FormRow, InlineNumber, TimePill, tileStyle } from '../impostazioni/components/controls';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { PainSitesPicker } from '../impostazioni/components/Pickers';
 import { SleepStairs, SleepTargetHint } from '../impostazioni/components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../impostazioni/components/SupplementEditor';
-import { DayEditorSheet, WeekDayList, WeekRibbon } from '../impostazioni/components/WeekEditor';
-import { GOAL_OPTIONS, dayTypeCounts, hasErrors, matchEveCount, matchEveNote, sleepSteps, targetDayCounts, validateBody, type ProfileErrors } from '../impostazioni/lib';
+import { DayEditorSheet, WeekDayList } from '../impostazioni/components/WeekEditor';
+import { GOAL_OPTIONS, hasErrors, impactRuleNote, matchEveCount, targetDayCounts, targetDaysLabel, validateBody, type ProfileErrors } from '../impostazioni/lib';
 import { DayDial } from './DayDial';
 import { finalizePlan, firstWeekSteps, startInfo } from './firstWeek';
 import { FirstWeekList } from './FirstWeekList';
@@ -48,42 +48,42 @@ const PRINCIPLES: { icon: typeof Hand; tone: 'accent' | 'good' | 'palestra'; tit
     icon: CalendarCheck2,
     tone: 'accent',
     title: 'Decidi una volta, esegui sette',
-    text: 'Pasti, sedute e orari li sceglie il piano. Durante la settimana non pianifichi niente.',
+    text: 'Durante la settimana non pianifichi niente.',
   },
   {
     icon: Hand,
     tone: 'good',
     title: 'Un tocco per voce',
-    text: 'Fatto, sostituito o saltato. Niente grammi da pesare. Nei giorni no bastano quattro cose.',
+    text: 'Fatto, sostituito o saltato. Nei giorni no bastano quattro cose.',
   },
   {
     icon: TrendingUp,
     tone: 'palestra',
     title: 'Il piano impara',
-    text: 'La domenica, in dieci minuti, rivedi la settimana e accetti le correzioni proposte.',
+    text: 'Ogni domenica, dieci minuti di revisione.',
   },
 ];
 
 /** Diametro del quadrante: più piccolo sugli schermi bassi, così i tre principi restano sopra il pulsante. */
 function dialSize(): number {
   const h = typeof window === 'undefined' ? 900 : window.innerHeight;
-  return h >= 900 ? 264 : h >= 820 ? 200 : 176;
+  return h >= 900 ? 264 : h >= 800 ? 176 : 156;
 }
 
 export function StepWelcome({ plan, install, onRestore }: Pick<StepProps, 'plan'> & { install?: boolean; onRestore?: () => void }) {
   const [size] = useState(dialSize);
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="-mt-2 flex justify-center">
         <DayDial plan={plan} weekday={0} size={size} />
       </div>
       <StepHeader eyebrow="Benvenuto in Ritmo" title="La tua giornata, già decisa">
-        Pasti, allenamento intorno al calcio, sonno: tu esegui e segni con un tocco.
+        Pasti, allenamento intorno al calcio e sonno: li decide il piano, tu esegui.
       </StepHeader>
       {install && (
         <InstallCard compact note="Su iPhone l’app installata non vede i dati scritti in Safari: installala adesso e comincia dall’icona." />
       )}
-      <ul className="flex flex-col gap-3.5">
+      <ul className="flex flex-col gap-3">
         {PRINCIPLES.map((p, i) => (
           <motion.li key={p.title} {...staggerItem(i + 2, 0.08, 0.6)} className="flex gap-3.5">
             <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px]" style={tileStyle(p.tone)}>
@@ -96,13 +96,13 @@ export function StepWelcome({ plan, install, onRestore }: Pick<StepProps, 'plan'
           </motion.li>
         ))}
       </ul>
-      <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-col items-start gap-2.5">
         <p className="t-footnote flex items-center gap-2 text-ink-3">
           <Lock size={14} strokeWidth={2.2} aria-hidden className="shrink-0" />
           Niente account: tutto resta su questo telefono.
         </p>
         {onRestore && (
-          <button type="button" onClick={onRestore} className="t-footnote hit-44 inline-flex min-h-[44px] items-center gap-2 font-semibold text-accent-ink">
+          <button type="button" onClick={onRestore} className="t-footnote hit-44 inline-flex items-center gap-2 font-semibold text-accent-ink">
             <ArchiveRestore size={15} strokeWidth={2.2} aria-hidden className="shrink-0" />
             Hai già un backup? Ripristinalo
           </button>
@@ -204,7 +204,7 @@ function EstimateCard({ targets }: { targets: Record<DayType, MacroTarget> | nul
             ))}
           </div>
           <p className="t-footnote text-ink-2">
-            kcal al giorno · proteine <strong className="font-semibold text-ink">{fmtNumber(targets.palestra.proteinG)} g</strong>, cioè 1,9 g per kg. Calcolo Mifflin-St Jeor per l’attività di ogni giornata.
+            kcal al giorno: Mifflin-St Jeor per il fattore di attività di ogni giornata. Proteine <strong className="font-semibold text-ink">{fmtNumber(targets.palestra.proteinG)} g</strong>, cioè 1,9 g per kg.
           </p>
         </>
       ) : (
@@ -218,25 +218,14 @@ function EstimateCard({ targets }: { targets: Record<DayType, MacroTarget> | nul
 
 export function StepWeek({ plan, setDay }: StepProps) {
   const [editing, setEditing] = useState<Weekday | null>(null);
-  const counts = dayTypeCounts(plan.week);
+  // Un solo elemento: l'elenco dei giorni, che è anche l'editor (la striscia delle icone ripeteva le stesse cose).
   return (
     <div className="flex flex-col gap-7">
       <StepHeader eyebrow="Passo 3 di 5 · Settimana" title="La tua settimana">
         Calcio, palestra e fisioterapista sono già al loro posto. Tocca un giorno per cambiarlo.
       </StepHeader>
-      <Card padding="md" className="flex flex-col gap-3.5">
-        <WeekRibbon week={plan.week} onSelect={setEditing} />
-        <p className="t-footnote flex flex-wrap gap-x-3 gap-y-1 text-ink-2">
-          {counts.map(({ type, count }) => (
-            <span key={type} className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2 rounded-full" style={{ background: toneColor(type) }} />
-              {count} {DAY_TYPE_LABEL[type].toLowerCase()}
-            </span>
-          ))}
-        </p>
-      </Card>
       <WeekDayList week={plan.week} onSelect={setEditing} />
-      <p className="t-footnote -mt-3 px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati: più alti nei giorni di calcio, più bassi nel riposo.</p>
+      <p className="t-footnote -mt-4 px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati: più alti nei giorni di calcio, più bassi nel riposo.</p>
       <DayEditorSheet day={editing !== null ? (plan.week.find((d) => d.weekday === editing) ?? null) : null} onClose={() => setEditing(null)} onChange={setDay} />
     </div>
   );
@@ -250,11 +239,10 @@ export function StepSleep({ plan, setPlan }: StepProps) {
   const s = plan.sleep;
   const set = (patch: Partial<Plan['sleep']>) => setPlan({ sleep: { ...s, ...patch } });
   const curfew = curfewFor('', plan);
-  const weeks = sleepSteps(s).length - 1;
   return (
     <div className="flex flex-col gap-7">
       <StepHeader eyebrow="Passo 4 di 5 · Sonno" title="Il sonno, un passo alla volta">
-        Ogni settimana l’orario a letto si anticipa di {s.stepMin} minuti, finché arrivi all’obiettivo. Abbastanza poco da non accorgertene.
+        Ogni settimana a letto {s.stepMin} minuti prima: abbastanza poco da non accorgertene.
       </StepHeader>
       <ListGroup>
         <FormRow icon={AlarmClock} iconTone="accent" label="Sveglia">
@@ -282,7 +270,7 @@ export function StepSleep({ plan, setPlan }: StepProps) {
           <Smartphone size={14} strokeWidth={2.2} className="mt-0.5 shrink-0" aria-hidden />
           <span>
             Questa settimana: telefono in carica fuori dalla camera alle <strong className="font-semibold text-ink-2">{curfew}</strong>, a letto alle{' '}
-            <strong className="font-semibold text-ink-2">{s.current}</strong>.{weeks === 0 ? '' : ` Obiettivo in ${plural(weeks, 'settimana', 'settimane')}.`}
+            <strong className="font-semibold text-ink-2">{s.current}</strong>.
           </span>
         </p>
       </section>
@@ -295,6 +283,7 @@ export function StepSleep({ plan, setPlan }: StepProps) {
 export function StepWatch({ profile, plan, setProfile, setPlan }: StepProps) {
   const [editing, setEditing] = useState<{ sup: Supplement | null; n: number } | null>(null);
   const supps = plan.supplements;
+  const impactNote = impactRuleNote(profile.painSites, plan.painThreshold);
   return (
     <div className="flex flex-col gap-7">
       <StepHeader eyebrow="Passo 5 di 5 · Da tenere d’occhio" title="Dolori e integratori">
@@ -307,6 +296,7 @@ export function StepWatch({ profile, plan, setProfile, setPlan }: StepProps) {
         <PainSitesPicker value={profile.painSites} onChange={(painSites) => setProfile({ painSites })} />
         <p className="t-footnote px-1 text-ink-3">
           Sopra {plan.painThreshold} su 10, o se il dolore peggiora, l’app propone di mantenere o ridurre il carico.
+          {impactNote ? ` ${impactNote}` : ''}
         </p>
       </section>
       <section className="flex flex-col gap-2.5" aria-labelledby="integratori-label">
@@ -378,9 +368,11 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
   const steps = useMemo(() => firstWeekSteps(final, profile.painSites), [final, profile.painSites]);
   const start = startInfo(final);
   const first = final.firstUse?.date ?? final.startDate;
+  // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo), e lì si contano. Un tipo di
+  // giorno che la settimana non usa (di solito il riposo, quando la domenica è la vigilia) non compare.
   const counts = targetDayCounts(plan.week);
-  // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo), e lì si contano.
-  const eveNote = matchEveNote(plan.week);
+  const eves = matchEveCount(plan.week);
+  const used = DAY_TYPES.filter((t) => counts[t] > 0);
   const name = profile.name?.trim().split(/\s+/)[0];
   // I giorni di avvio finiscono il giorno prima dell'inizio ("fino ad allora") o dentro la settimana 1 (chi
   // comincia di domenica non ha tempo per la preparazione: ricette veloci anche la prima settimana).
@@ -413,31 +405,41 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
         <h3 id="kcal-label" className="t-label px-1 text-ink-3">
           Calorie per tipo di giorno
         </h3>
+        {/* Solo i tipi che la settimana usa davvero; con un numero dispari il primo (il calcio) prende tutta la riga. */}
         <div className="grid grid-cols-2 gap-2.5">
-          {DAY_TYPES.map((t, i) => (
-            <motion.div key={t} {...staggerItem(i, 0.06)}>
-              <Card padding="md" className="flex h-full flex-col gap-2 overflow-hidden">
-                <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 size-24 rounded-full" style={{ background: `radial-gradient(circle, ${toneSoft(t, 22)}, transparent 70%)` }} />
-                <div className="relative flex items-center justify-between gap-2">
-                  <DayTypeBadge dayType={t} variant="dot" />
-                  <span className="t-label text-[0.75rem] text-ink-2">{counts[t] ? plural(counts[t], 'giorno', 'giorni') : 'nessuno'}</span>
-                </div>
-                <div className="relative flex items-baseline gap-1">
-                  <NumberTicker value={targets[t].kcal} duration={0.9} className="t-num text-[2rem] text-ink" />
-                  <span className="t-mono text-[0.75rem] text-ink-3">kcal</span>
-                </div>
-                <span className="t-mono relative flex flex-wrap gap-x-2 text-[0.6875rem] text-ink-2">
-                  <span className="whitespace-nowrap">P {fmtNumber(targets[t].proteinG)}</span>
-                  <span className="whitespace-nowrap">C {fmtNumber(targets[t].carbG)}</span>
-                  <span className="whitespace-nowrap">G {fmtNumber(targets[t].fatG)}</span>
-                </span>
-              </Card>
-            </motion.div>
-          ))}
+          {used.map((t, i) => {
+            const wide = used.length % 2 === 1 && i === 0;
+            return (
+              <motion.div key={t} {...staggerItem(i, 0.06)} className={wide ? 'col-span-2' : undefined}>
+                <Card padding="md" className="flex h-full flex-col gap-2 overflow-hidden">
+                  <span
+                    aria-hidden
+                    className={cn('pointer-events-none absolute rounded-full', wide ? '-right-10 -top-16 size-44' : '-right-6 -top-8 size-24')}
+                    style={{ background: `radial-gradient(circle, ${toneSoft(t, 22)}, transparent 70%)` }}
+                  />
+                  <div className="relative flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <DayTypeBadge dayType={t} variant="dot" />
+                    <span className="t-label text-[0.75rem] text-ink-2">{targetDaysLabel(t, plan.week)}</span>
+                  </div>
+                  <div className={cn('relative flex gap-x-3 gap-y-1', wide ? 'flex-wrap items-end justify-between' : 'flex-col')}>
+                    <div className="flex items-baseline gap-1">
+                      <NumberTicker value={targets[t].kcal} duration={0.9} className={cn('t-num text-ink', wide ? 'text-[2.5rem]' : 'text-[2rem]')} />
+                      <span className="t-mono text-[0.75rem] text-ink-3">kcal</span>
+                    </div>
+                    <span className={cn('t-mono flex flex-wrap gap-x-2 text-[0.6875rem] text-ink-2', wide && 'pb-1.5')}>
+                      <span className="whitespace-nowrap">P {fmtNumber(targets[t].proteinG)}</span>
+                      <span className="whitespace-nowrap">C {fmtNumber(targets[t].carbG)}</span>
+                      <span className="whitespace-nowrap">G {fmtNumber(targets[t].fatG)}</span>
+                    </span>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
         <p className="t-footnote px-1 text-pretty text-ink-3">
-          {eveNote ? `${eveNote} e ${matchEveCount(plan.week) > 1 ? 'contano' : 'conta'} tra quelli, per arrivare in campo con il glicogeno pieno. ` : ''}
-          Sono i numeri di partenza: ogni domenica la revisione li aggiusta con i tuoi dati.
+          {eves ? `${eves > 1 ? 'Le vigilie della partita mangiano' : 'La vigilia della partita mangia'} come il calcio, per arrivare in campo con il glicogeno pieno. ` : ''}
+          Sono numeri di partenza: la revisione della domenica propone le correzioni.
         </p>
       </section>
 
@@ -445,12 +447,13 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
         <InstallCard note="Installata, Ritmo parte da capo: i dati scritti in Safari restano a Safari. Installala adesso e rifai questi passi dall’icona, bastano due minuti." />
       )}
 
-      {!profile.painSites.length && (
+      {profile.painSites.length ? (
+        <p className="t-footnote px-1 text-ink-3">Puoi cambiare tutto dalle impostazioni, quando vuoi.</p>
+      ) : (
         <Callout tone="neutral" title="Nessuna zona di dolore">
-          Puoi aggiungerle quando vuoi dalle impostazioni: il controllo del mattino chiederà solo sonno, peso ed energia.
+          Il controllo del mattino chiederà solo sonno, peso ed energia. Zone e tutto il resto si cambiano dalle impostazioni, quando vuoi.
         </Callout>
       )}
-      <p className={cn('t-footnote px-1 text-ink-3')}>Puoi cambiare tutto dalle impostazioni, quando vuoi.</p>
     </div>
   );
 }

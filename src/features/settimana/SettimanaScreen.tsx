@@ -27,7 +27,7 @@ import { PrepTab } from './PrepTab';
 import { ShoppingTab } from './ShoppingTab';
 import { TabSwitch } from './TabSwitch';
 import { WeekStrip } from './WeekStrip';
-import { daySuccessfulSafe, isWeekend, prepSkipped, relativeWeekLabel, shoppingFromDate, starterShoppingSafe } from './helpers';
+import { daySuccessfulSafe, isWeekend, prepSkipped, relativeWeekLabel, shoppingFromDate, shoppingLeadSafe, starterShoppingSafe } from './helpers';
 
 type Tab = 'menu' | 'spesa' | 'preparazione';
 
@@ -48,7 +48,9 @@ export default function SettimanaScreen() {
   // null = automatico: nel weekend Spesa e Preparazione guardano alla settimana che inizia lunedì.
   const [manualOffset, setManualOffset] = useState<number | null>(() => (weekParam === 'prossima' ? 1 : null));
   const weekend = isWeekend(today);
-  const offsetFor = (t: Tab) => manualOffset ?? (weekend && t !== 'menu' ? 1 : 0);
+  // Chi comincia il venerdì sera fa la prima spesa sabato, con la lista della settimana dopo (e il fine settimana).
+  const nextLead = useMemo(() => shoppingLeadSafe(addDays(weekStart(today), 7), { plan, dayLogs }), [today, plan, dayLogs]);
+  const offsetFor = (t: Tab) => manualOffset ?? ((weekend || nextLead) && t !== 'menu' ? 1 : 0);
   const offset = offsetFor(tab);
   const [picked, setPicked] = useState<ISODate>(today);
   const reduce = useReducedMotion();
@@ -77,7 +79,11 @@ export default function SettimanaScreen() {
   // Contatori delle schede: ognuno conta la settimana che la sua scheda apre.
   const shopMonday = addDays(thisMonday, offsetFor('spesa') * 7);
   const shopFrom = shoppingFromDate(plan, shopMonday);
-  const list = useMemo(() => shoppingList(shopMonday, { plan, dayLogs }, { fromDate: shopFrom }), [shopMonday, shopFrom, plan, dayLogs]);
+  const list = useMemo(
+    () => shoppingList(shopMonday, { plan, dayLogs }, { fromDate: shopFrom, lead: shoppingLeadSafe(shopMonday, { plan, dayLogs }) }),
+    [shopMonday, shopFrom, plan, dayLogs],
+  );
+  const lead = useMemo(() => shoppingLeadSafe(monday, { plan, dayLogs }), [monday, plan, dayLogs]);
   const checked = useApp((s) => s.shoppingChecked[shopMonday] ?? EMPTY);
   const prepMonday = addDays(thisMonday, offsetFor('preparazione') * 7);
   const prepDone = useApp((s) => s.prepDone[prepMonday] ?? EMPTY);
@@ -187,29 +193,13 @@ export default function SettimanaScreen() {
       eyebrow={formatWeekRange(monday)}
       title="Settimana"
       subtitle={
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-semibold text-ink">{relativeWeekLabel(offset)}</span>
-          {starterWeek ? (
-            <>
-              <span aria-hidden className="text-ink-3">·</span>
-              <span>Menù di avvio</span>
-            </>
-          ) : (
-            MENU_ROTATION.length > 1 && (
-              <>
-                <span aria-hidden className="text-ink-3">·</span>
-                <span>
-                  Menù {rotation + 1} di {MENU_ROTATION.length}
-                </span>
-              </>
-            )
-          )}
-          {planWeek >= 1 && (
-            <>
-              <span aria-hidden className="text-ink-3">·</span>
-              <span>{planWeek}ª del piano</span>
-            </>
-          )}
+        // Il punto separa le voci; a capo, il punto a inizio riga resta fuori dal bordo (nessun punto appeso).
+        <span className="block overflow-hidden">
+          <span className="-ml-4 flex flex-wrap items-center gap-y-1 [&>span]:whitespace-nowrap [&>span]:before:inline-block [&>span]:before:w-4 [&>span]:before:text-center [&>span]:before:text-ink-3 [&>span]:before:content-['·']">
+            <span className="font-semibold text-ink">{relativeWeekLabel(offset)}</span>
+            {starterWeek ? <span>Menù di avvio</span> : MENU_ROTATION.length > 1 && <span>Menù {rotation + 1} di {MENU_ROTATION.length}</span>}
+            {planWeek >= 1 && <span>{planWeek}ª del piano</span>}
+          </span>
         </span>
       }
       actions={
@@ -257,6 +247,7 @@ export default function SettimanaScreen() {
                   offset={offset}
                   today={today}
                   fromDate={shoppingFromDate(plan, monday)}
+                  lead={lead}
                   onOpenWeek={(o) => goWeek(o)}
                   onGoPrep={() => changeTab('preparazione')}
                 />

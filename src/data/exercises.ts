@@ -42,7 +42,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'riscaldamento',
     equipment: 'Cyclette',
     cues: [
-      "Sella all'altezza dell'anca, ginocchio appena piegato in fondo alla pedalata",
+      "Sella all’altezza dell’anca, ginocchio appena piegato in fondo alla pedalata",
       'Primo minuto agile, poi aumenta la resistenza ogni minuto',
       'Chiudi respirando più forte ma ancora in grado di parlare',
     ],
@@ -66,13 +66,13 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
   },
   {
     id: 'apertura-chiusura-anca-in-marcia',
-    name: "Apertura e chiusura dell'anca in marcia",
+    name: "Apertura e chiusura dell’anca in marcia",
     category: 'riscaldamento',
     equipment: 'Corpo libero',
     cues: [
-      "Solleva il ginocchio all'altezza dell'anca e disegna un cerchio ampio",
-      "Alterna: un passo apri verso l'esterno, il successivo chiudi verso l'interno",
-      "Bacino fermo e busto alto, senza inclinarti sulla gamba d'appoggio",
+      "Solleva il ginocchio all’altezza dell’anca e disegna un cerchio ampio",
+      "Alterna: un passo apri verso l’esterno, il successivo chiudi verso l’interno",
+      "Bacino fermo e busto alto, senza inclinarti sulla gamba d’appoggio",
     ],
     elbowFriendly: true,
     alternatives: ['rotazioni-anche-90-90', 'dondolo-adduttori-quadrupedia'],
@@ -86,7 +86,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     cues: [
       'Passo lungo, ginocchio avanti sopra il piede',
       'In basso ruota il busto verso la gamba avanti',
-      "Spingi con il tallone e porta avanti l'altra gamba",
+      "Spingi con il tallone e porta avanti l’altra gamba",
     ],
     elbowFriendly: true,
     alternatives: ['allungamento-corridore-con-rotazione', 'squat-con-sollevamento-punte'],
@@ -112,8 +112,8 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'riscaldamento',
     equipment: 'Corpo libero',
     cues: [
-      "Ginocchio d'appoggio morbido e in linea con il secondo dito",
-      "Tocca terra avanti, di lato e dietro con l'altro piede, lontano ma senza caricarlo",
+      "Ginocchio d’appoggio morbido e in linea con il secondo dito",
+      "Tocca terra avanti, di lato e dietro con l’altro piede, lontano ma senza caricarlo",
       'Bacino orizzontale per tutta la serie',
     ],
     elbowFriendly: true,
@@ -126,9 +126,9 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'riscaldamento',
     equipment: 'Corpo libero',
     cues: [
-      "Salta di lato da una gamba all'altra, senza cercare la distanza",
-      "Atterra morbido sull'avampiede e resta fermo un secondo in equilibrio",
-      "Ginocchio sopra il piede all'atterraggio, mai verso l'interno",
+      "Salta di lato da una gamba all’altra, senza cercare la distanza",
+      "Atterra morbido sull’avampiede e resta fermo un secondo in equilibrio",
+      "Ginocchio sopra il piede all’atterraggio, mai verso l’interno",
     ],
     elbowFriendly: true,
     impact: true,
@@ -143,7 +143,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     cues: [
       'Elastico sopra le caviglie, mezzo squat con il busto alto',
       "Passi laterali corti, piedi paralleli che non si toccano mai",
-      "Ginocchia sopra i piedi, mai verso l'interno",
+      "Ginocchia sopra i piedi, mai verso l’interno",
     ],
     elbowFriendly: true,
     alternatives: ['equilibrio-su-una-gamba-a-stella', 'apertura-chiusura-anca-in-marcia'],
@@ -155,8 +155,8 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'riscaldamento',
     equipment: 'Elastico',
     cues: [
-      "Braccia tese davanti al petto, palmi verso l'alto",
-      "Apri fino a portare l'elastico sul petto, scapole indietro e in basso",
+      "Braccia tese davanti al petto, palmi verso l’alto",
+      "Apri fino a portare l’elastico sul petto, scapole indietro e in basso",
       'Torna lento senza perdere la tensione',
     ],
     elbowFriendly: true,
@@ -170,7 +170,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Elastico',
     cues: [
       'Gomito a 90° stretto al fianco, un asciugamano arrotolato sotto il braccio',
-      "Ruota l'avambraccio verso l'esterno senza staccare il gomito",
+      "Ruota l’avambraccio verso l’esterno senza staccare il gomito",
       'Torna in 2 secondi',
     ],
     elbowFriendly: true,
@@ -200,7 +200,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Tappetino',
     cues: [
       'Seduto a terra con entrambe le ginocchia a 90°, una gamba davanti e una di lato',
-      "Porta le ginocchia dall'altra parte tenendo il busto alto",
+      "Porta le ginocchia dall’altra parte tenendo il busto alto",
       'Appoggia le mani dietro solo se serve, poi prova senza',
     ],
     elbowFriendly: true,
@@ -213,7 +213,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'mobilita',
     equipment: 'Corpo libero',
     cues: [
-      "Affondo lungo, mani a terra all'interno del piede avanti",
+      "Affondo lungo, mani a terra all’interno del piede avanti",
       'Porta il gomito verso la caviglia, poi apri il braccio verso il soffitto',
       'Ginocchio dietro teso e gluteo stretto',
     ],
@@ -223,7 +223,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
   },
   {
     id: 'allungamento-flessori-anca',
-    name: "Allungamento dei flessori dell'anca in ginocchio",
+    name: "Allungamento dei flessori dell’anca in ginocchio",
     category: 'mobilita',
     equipment: 'Tappetino',
     cues: [
@@ -243,7 +243,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     cues: [
       'In quadrupedia, una gamba tesa di lato con il piede a terra',
       'Porta il bacino indietro verso i talloni con la schiena neutra',
-      "Fermati dove senti l'interno coscia, 2 secondi, e torna",
+      "Fermati dove senti l’interno coscia, 2 secondi, e torna",
     ],
     elbowFriendly: true,
     alternatives: ['rotazioni-anche-90-90'],
@@ -287,7 +287,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'spinta',
     equipment: 'Macchina chest press con maniglie verticali',
     cues: [
-      "Regola il sedile: maniglie all'altezza del centro del petto",
+      "Regola il sedile: maniglie all’altezza del centro del petto",
       'Schiena e scapole ferme contro lo schienale',
       'Spingi senza bloccare i gomiti e torna in 2 secondi',
     ],
@@ -302,7 +302,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'spinta',
     equipment: 'Cavi con maniglie singole',
     cues: [
-      "Passo sfalsato, addome contratto, cavi all'altezza del petto",
+      "Passo sfalsato, addome contratto, cavi all’altezza del petto",
       'Spingi in avanti con i pollici in su fino quasi a unire le mani',
       'Al ritorno non lasciare che i cavi ti tirino indietro le spalle',
     ],
@@ -318,7 +318,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Manubri e panca con schienale',
     cues: [
       'Schienale quasi verticale, glutei e scapole appoggiati',
-      "Palmi uno verso l'altro, gomiti avanti al busto",
+      "Palmi uno verso l’altro, gomiti avanti al busto",
       'Spingi sopra la testa senza inarcare la schiena',
     ],
     elbowFriendly: true,
@@ -378,7 +378,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Manubrio e panca',
     cues: [
       'Mano e ginocchio sulla panca, schiena piatta',
-      "Tira il manubrio verso l'anca, non verso la spalla",
+      "Tira il manubrio verso l’anca, non verso la spalla",
       'Fermati un secondo in alto e scendi fino ad allungare la scapola',
     ],
     elbowFriendly: true,
@@ -393,7 +393,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Manubri e panca inclinata',
     cues: [
       'Schienale a 30-45°, petto appoggiato e piedi a terra',
-      "Palmi uno verso l'altro, tira i gomiti indietro vicino ai fianchi",
+      "Palmi uno verso l’altro, tira i gomiti indietro vicino ai fianchi",
       'Stringi le scapole un secondo e scendi controllando',
     ],
     elbowFriendly: true,
@@ -408,7 +408,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Pulley con maniglia a V',
     cues: [
       'Busto fermo e dritto, ginocchia appena piegate',
-      "Tira la maniglia verso l'ombelico portando i gomiti indietro",
+      "Tira la maniglia verso l’ombelico portando i gomiti indietro",
       'Allunga le braccia in avanti senza piegare la schiena',
     ],
     elbowFriendly: true,
@@ -422,7 +422,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'tirata',
     equipment: 'Cavo con corda',
     cues: [
-      "Cavo all'altezza degli occhi, pollici rivolti verso di te",
+      "Cavo all’altezza degli occhi, pollici rivolti verso di te",
       'Tira verso la fronte aprendo la corda, gomiti alti',
       'Chiudi con le mani accanto alle orecchie e torna lento',
     ],
@@ -544,7 +544,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'gambe',
     equipment: 'Tappetino',
     cues: [
-      "Tallone vicino al gluteo, l'altra gamba piegata verso il petto",
+      "Tallone vicino al gluteo, l’altra gamba piegata verso il petto",
       'Spingi con il tallone fino ad allineare spalla, anca e ginocchio',
       'Bacino orizzontale, fermo 2 secondi in alto',
     ],
@@ -573,9 +573,9 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'gambe',
     equipment: 'Manubrio',
     cues: [
-      "Manubrio nella mano opposta alla gamba d'appoggio",
-      "Busto e gamba libera scendono insieme come un'asse, bacino orizzontale",
-      "Ginocchio d'appoggio morbido, risali stringendo il gluteo",
+      "Manubrio nella mano opposta alla gamba d’appoggio",
+      "Busto e gamba libera scendono insieme come un’asse, bacino orizzontale",
+      "Ginocchio d’appoggio morbido, risali stringendo il gluteo",
     ],
     elbowFriendly: true,
     startKg: [8, 12, 16],
@@ -633,9 +633,9 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'core',
     equipment: 'Tappetino',
     cues: [
-      "Gomito sotto la spalla, piedi uno sopra l'altro",
+      "Gomito sotto la spalla, piedi uno sopra l’altro",
       'Anca alta, in linea con spalle e caviglie',
-      "Spingi il pavimento con l'avambraccio senza ruotare il busto",
+      "Spingi il pavimento con l’avambraccio senza ruotare il busto",
     ],
     elbowFriendly: true,
     alternatives: ['copenhagen-leva-corta', 'pallof-press', 'trasporto-manubrio-un-lato'],
@@ -708,8 +708,8 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Fermo per le caviglie o compagno, tappetino',
     cues: [
       'Anche estese, corpo in linea dalle ginocchia alle spalle',
-      "Scendi più lento che puoi e frena fino all'ultimo",
-      "Accompagna l'arrivo con le mani e risali spingendo da terra",
+      "Scendi più lento che puoi e frena fino all’ultimo",
+      "Accompagna l’arrivo con le mani e risali spingendo da terra",
     ],
     elbowFriendly: true,
     alternatives: ['nordic-assistito-elastico', 'leg-curl-seduto'],
@@ -722,7 +722,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Elastico e fermo per le caviglie',
     cues: [
       "Elastico fissato in alto davanti a te e passato sotto le ascelle",
-      "Scendi lento con le anche estese, l'elastico ti aiuta nella parte bassa",
+      "Scendi lento con le anche estese, l’elastico ti aiuta nella parte bassa",
       'Usa un elastico più leggero quando arrivi a terra controllando',
     ],
     elbowFriendly: true,
@@ -736,7 +736,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Panca',
     cues: [
       'Su un fianco, ginocchio della gamba sopra appoggiato sulla panca',
-      "Solleva il bacino stringendo l'interno coscia, corpo in linea",
+      "Solleva il bacino stringendo l’interno coscia, corpo in linea",
       'Porta la gamba sotto a toccare la panca e scendi in 2-3 secondi',
     ],
     elbowFriendly: true,
@@ -751,7 +751,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     cues: [
       'Su un fianco, caviglia della gamba sopra appoggiata sulla panca',
       'Solleva il bacino e porta la gamba sotto a toccare la panca',
-      "Scendi in 3 secondi senza far cadere l'anca",
+      "Scendi in 3 secondi senza far cadere l’anca",
     ],
     elbowFriendly: true,
     alternatives: ['copenhagen-leva-corta', 'adduttori-alla-macchina'],
@@ -763,7 +763,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'prevenzione',
     equipment: 'Macchina adduttori',
     cues: [
-      "Parti da un'apertura comoda, senza forzare l'allungamento",
+      "Parti da un’apertura comoda, senza forzare l’allungamento",
       'Chiudi le gambe in 1 secondo e tieni 1 secondo',
       'Riapri in 3 secondi controllando',
     ],
@@ -779,7 +779,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Macchina polpacci in piedi',
     cues: [
       'Avampiede sul bordo, ginocchia tese ma non bloccate',
-      "Sali sull'alluce il più in alto possibile e tieni 1 secondo",
+      "Sali sull’alluce il più in alto possibile e tieni 1 secondo",
       'Scendi in 2-3 secondi fino al massimo allungamento',
     ],
     elbowFriendly: true,
@@ -808,7 +808,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'prevenzione',
     equipment: 'Rialzo e manubrio',
     cues: [
-      "Avampiede sul rialzo, manubrio dal lato che lavora, l'altra mano al muro",
+      "Avampiede sul rialzo, manubrio dal lato che lavora, l’altra mano al muro",
       'Ginocchio teso, sali fino in fondo',
       'Scendi in 3 secondi sotto il livello del rialzo',
     ],
@@ -824,7 +824,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Rialzo e manubrio',
     cues: [
       'Ginocchio piegato di circa 30° e fermo per tutta la serie',
-      "Sali sull'avampiede fino in fondo e tieni 1 secondo",
+      "Sali sull’avampiede fino in fondo e tieni 1 secondo",
       'Scendi in 3 secondi senza raddrizzare il ginocchio',
     ],
     elbowFriendly: true,
@@ -868,7 +868,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Pallina morbida, manubrio quando diventa facile',
     cues: [
       'Pallina tra i talloni: stringila per tutta la serie',
-      "Sali sull'alluce il più in alto possibile, talloni sempre uniti",
+      "Sali sull’alluce il più in alto possibile, talloni sempre uniti",
       'Scendi in 3 secondi',
     ],
     elbowFriendly: true,
@@ -896,8 +896,8 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'prevenzione',
     equipment: 'Barra flessibile (FlexBar)',
     cues: [
-      "Barra verticale: mano del lato dolente in basso con il polso esteso, l'altra in alto",
-      "Torci la barra con l'altra mano e porta le braccia avanti a gomiti tesi",
+      "Barra verticale: mano del lato dolente in basso con il polso esteso, l’altra in alto",
+      "Torci la barra con l’altra mano e porta le braccia avanti a gomiti tesi",
       'Lascia srotolare la barra piegando il polso dolente in 4 secondi',
     ],
     elbowFriendly: true,
@@ -911,7 +911,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     equipment: 'Manubrio leggero e panca',
     cues: [
       'Avambraccio appoggiato a palmo in giù, polso oltre il bordo',
-      "Sali aiutandoti con l'altra mano",
+      "Sali aiutandoti con l’altra mano",
       'Scendi da solo in 4 secondi fino a polso piegato',
     ],
     elbowFriendly: true,

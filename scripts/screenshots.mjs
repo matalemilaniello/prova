@@ -76,6 +76,8 @@ const VIEWS = [
   { name: 'oggi-partita', hash: 'oggi', weekday: 0, now: '18:40' },
   { name: 'oggi-palestra', hash: 'oggi', weekday: 1, now: '16:55' },
   { name: 'oggi-sera', hash: 'oggi', weekday: 1, now: '23:05' },
+  // Domenica prima della partita del lunedì: la pillola dice "Vigilia della partita" con le kcal del calcio.
+  { name: 'oggi-vigilia', hash: 'oggi', weekday: 6, now: '12:40' },
   { name: 'settimana', hash: 'settimana', query: { tab: 'menu' } },
   { name: 'settimana-spesa', hash: 'settimana', query: { tab: 'spesa' } },
   { name: 'settimana-preparazione', hash: 'settimana', query: { tab: 'preparazione' } },

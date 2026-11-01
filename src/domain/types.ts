@@ -50,6 +50,11 @@ export interface Profile {
   expertise?: string;
   /** Zone di dolore da monitorare, scelte dall'utente (es. ['Tibia', 'Gomito']). */
   painSites: string[];
+  /**
+   * Gesto di prova del dolore per zona, indicato dal fisioterapista (chiave: nome della zona). Facoltativo:
+   * senza, il controllo del mattino propone un gesto standard per la zona.
+   */
+  painTests?: Record<string, string>;
   /** Litri d'acqua al giorno. */
   waterTargetL: number;
 }

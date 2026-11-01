@@ -88,8 +88,9 @@ export function Screen({
           style={{ opacity: onBack ? 1 : barOpacity }}
         />
         <div className="relative flex h-[calc(var(--safe-top)+44px)] items-end" style={sidePad}>
-          <div className="flex h-11 w-full items-center">
-            <div className="flex w-1/4 items-center">
+          {/* Colonne laterali uguali e flessibili: il titolo resta al centro e un'etichetta lunga si accorcia invece di finirci sotto. */}
+          <div className="flex h-11 w-full items-center gap-2">
+            <div className="flex min-w-0 flex-1 basis-0 items-center">
               {onBack && (
                 <button
                   type="button"
@@ -97,23 +98,24 @@ export function Screen({
                     haptic('selection');
                     onBack();
                   }}
-                  className="pointer-events-auto -ml-2 flex h-11 items-center gap-0.5 pr-2 text-[1.0625rem] font-medium text-accent-ink"
+                  className="pointer-events-auto -ml-2 flex h-11 min-w-0 max-w-full items-center gap-0.5 pr-2 text-[1.0625rem] font-medium text-accent-ink"
                 >
-                  <ChevronLeft size={26} strokeWidth={2.4} aria-hidden />
-                  {backLabel}
+                  <ChevronLeft size={26} strokeWidth={2.4} aria-hidden className="shrink-0" />
+                  <span className="min-w-0 truncate">{backLabel}</span>
                 </button>
               )}
             </div>
-            <motion.div className="t-headline min-w-0 flex-1 truncate text-center" style={{ opacity: titleOpacity, y: titleY }} aria-hidden>
+            <motion.div className="t-headline min-w-0 max-w-[50%] truncate text-center" style={{ opacity: titleOpacity, y: titleY }} aria-hidden>
               {title}
             </motion.div>
-            <div className="w-1/4" />
+            <div className="min-w-0 flex-1 basis-0" />
           </div>
         </div>
       </div>
 
       <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden overscroll-y-contain" data-scroll-container>
-        {light !== false && <Floodlights intensity={0.5} {...(light || {})} />}
+        {/* Con la barra di ritorno sempre visibile le lampade starebbero sotto la barra: restano coni e righe. */}
+        {light !== false && <Floodlights intensity={0.5} {...(light || {})} lamps={onBack ? false : (light || {}).lamps} />}
         <motion.header
           className={cn('relative pb-5', onBack ? 'pt-[calc(var(--safe-top)+52px)]' : 'pt-[calc(var(--safe-top)+24px)]')}
           style={{ ...sidePad, opacity: largeOpacity }}

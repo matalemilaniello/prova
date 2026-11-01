@@ -354,7 +354,7 @@ function CoachChatScreen() {
         style={{ scrollPaddingTop: `calc(var(--safe-top) + ${HEADER_CORE}px)` }}
       >
         {/* I riflettori illuminano la presentazione del coach in cima alla conversazione. */}
-        <Floodlights intensity={0.45} pitch={false} height={460} style={{ top: `calc(var(--safe-top) + ${HEADER_CORE - 24}px)` }} />
+        <Floodlights intensity={0.45} pitch={false} lamps={false} height={460} style={{ top: `calc(var(--safe-top) + ${HEADER_CORE - 24}px)` }} />
         <div
           ref={contentRef}
           className="relative mx-auto flex min-h-full max-w-[640px] flex-col"

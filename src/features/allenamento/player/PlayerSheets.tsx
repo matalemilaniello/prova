@@ -34,7 +34,7 @@ export function AlternativesSheet({ open, onClose, planned, currentId, catalog, 
     <Sheet
       open={open}
       onClose={onClose}
-      title="Sostituisci l'esercizio"
+      title="Sostituisci l’esercizio"
       subtitle={planned ? `Al posto di: ${planned.name}` : undefined}
     >
       <div className="flex flex-col gap-3 pb-2">

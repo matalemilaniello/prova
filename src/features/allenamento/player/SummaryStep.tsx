@@ -157,7 +157,7 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
           <p className="t-footnote flex items-start gap-2.5 rounded-card bg-card px-4 py-3.5 text-ink-2 shadow-card">
             <TrendingUp size={16} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
             <span>
-              <span className="font-semibold text-ink">Meglio dell'ultima volta in {improvedText}.</span> Con la
+              <span className="font-semibold text-ink">Meglio dell’ultima volta in {improvedText}.</span> Con la
               progressione doppia salgono prima le ripetizioni, poi il carico: i record arrivano a ondate.
             </span>
           </p>
@@ -170,7 +170,7 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
         {records.length > 0 && improved.length > 0 && (
           <p className="t-footnote flex items-start gap-2 px-1 text-ink-2">
             <TrendingUp size={15} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
-            Meglio dell'ultima volta anche in {improvedText}.
+            Meglio dell’ultima volta anche in {improvedText}.
           </p>
         )}
       </section>

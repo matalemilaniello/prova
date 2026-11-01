@@ -98,6 +98,11 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
   const bedAvg = meanBed(last7);
   const bedPrev = meanBed(prev7);
 
+  // La media si dice su quante notti è fatta: nei primi giorni sono meno di sette.
+  const nightsLabel = (n: number) => (n === 1 ? '1 notte' : `media ${n} notti`);
+  const hoursLabel = nightsLabel(last7.filter((p) => p.hours !== null && p.hours !== undefined).length);
+  const bedLabel = nightsLabel(last7.filter((p) => p.bed).length);
+
   let value: React.ReactNode;
   let caption: React.ReactNode;
   if (mode === 'ore') {
@@ -108,10 +113,10 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
       <span>{fmtDateCompact(sel.date)}</span>
     ) : delta !== null && delta !== 0 ? (
       <span className="tabular" style={{ color: delta > 0 ? 'var(--good-ink)' : 'var(--warn-ink)' }}>
-        {fmtDelta(delta, 'min', 0)} <span className="text-ink-3">media 7 notti</span>
+        {fmtDelta(delta, 'min', 0)} <span className="text-ink-3">{hoursLabel}</span>
       </span>
     ) : (
-      <span className="text-ink-3">media 7 notti</span>
+      <span className="text-ink-3">{hoursLabel}</span>
     );
   } else {
     const v = sel ? (sel.bed ? nightMinutes(sel.bed) : null) : bedAvg;
@@ -124,10 +129,10 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
       </span>
     ) : delta !== null && delta !== 0 ? (
       <span className="tabular" style={{ color: delta < 0 ? 'var(--good-ink)' : 'var(--warn-ink)' }}>
-        {fmtDelta(delta, 'min', 0)} <span className="text-ink-3">a letto, media 7 notti</span>
+        {fmtDelta(delta, 'min', 0)} <span className="text-ink-3">a letto, {bedLabel}</span>
       </span>
     ) : (
-      <span className="text-ink-3">a letto, media 7 notti</span>
+      <span className="text-ink-3">a letto, {bedLabel}</span>
     );
   }
 

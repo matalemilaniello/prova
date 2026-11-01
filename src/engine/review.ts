@@ -8,7 +8,9 @@
  *   - sonno: ≥ 5 notti a letto entro `current` + 15 min → anticipa di `stepMin` (fino a `target`);
  *   - calorie (ricomposizione): servono ≥ 4 pesate; calo medio > 0,5% del peso → +150 kcal,
  *     aumento > 0,5% → −100 kcal, altrimenti invariate (proposta informativa);
- *   - fibre: media < obiettivo − 5 g → proposta concreta (vellutata, legumi, frutto);
+ *   - fibre: stima < obiettivo − 5 g → se il menù previsto ne porta abbastanza, quale pasto tenere quando
+ *     si sostituisce (niente cibo in più); se è il menù a stare sotto, le aggiunte che servono (frutto,
+ *     legumi, vellutata). La stima non conta come saltati i pasti senza stato;
  *   - dolore: media sopra soglia o in aumento → riduci il carico e senti il fisioterapista;
  *   - carico: allarme del carico → settimana più leggera, seduta C facoltativa saltata;
  *   - dolci: oltre quelli previsti → strategia (merenda proteica, dolce dopo cena);
@@ -21,13 +23,24 @@
  *
  * Nessuna funzione legge l'orologio: la data arriva dagli argomenti.
  */
-import type { AppData, Goal, ISODate, Plan, Proposal, WeeklyReview } from '../domain/types';
+import type { AppData, Goal, ISODate, MealSlot, Plan, Proposal, WeeklyReview } from '../domain/types';
+import { FOODS } from '../data/foods';
 import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
 import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
 import { effectiveDayType, mealsForDate } from './menu';
-import { recipeNutrition, recipeVegPortions } from './nutrition';
+import { dayCarbScale, recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
-import { adherenceSummary, countingStart, firstReviewWeek, firstUseOf, isReviewableWeek, isSuccessful, type AdherenceSummary } from './timeline';
+import {
+  adherenceSummary,
+  buildDay,
+  countingStart,
+  firstReviewWeek,
+  firstUseOf,
+  isReviewableWeek,
+  isSuccessful,
+  itemCounts,
+  type AdherenceSummary,
+} from './timeline';
 import { loadStatus, type LoadStatus } from './training';
 
 // ───────────────────────── Costanti ─────────────────────────
@@ -58,7 +71,7 @@ export const PROPOSAL_ORDER: Proposal['area'][] = ['sonno', 'calorie', 'peso', '
 
 /** Lo stato che serve alla revisione. */
 export type ReviewState = Pick<AppData, 'plan' | 'dayLogs' | 'checkIns' | 'workoutLogs' | 'footballLogs' | 'profile'> &
-  Partial<Pick<AppData, 'reviews' | 'physio'>>;
+  Partial<Pick<AppData, 'reviews' | 'physio' | 'shoppingChecked' | 'prepDone'>>;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
@@ -168,7 +181,7 @@ export interface PeriodStats {
   nightsWithBedtime: number;
   nightsOnTarget: number;
   shortNights: number;
-  // Alimentazione stimata dai pasti segnati
+  // Alimentazione stimata dai pasti segnati (i pasti senza stato non contano come saltati)
   nutritionDays: number;
   fiberAvgG: number | null;
   prevFiberAvgG: number | null;
@@ -176,6 +189,20 @@ export interface PeriodStats {
   vegPortionsAvg: number | null;
   fiberTargetG: number;
   proteinTargetG: number;
+  /** Fibre e proteine del menù previsto negli stessi giorni (sostituzioni di ricetta comprese). */
+  fiberPlannedG: number | null;
+  proteinPlannedG: number | null;
+  /** Pasti del menù nei giorni chiusi e quanti sono segnati: "da 23 pasti segnati su 30". */
+  mealsCounted: number;
+  mealsLogged: number;
+  mealsReplaced: number;
+  mealsSkipped: number;
+  /** Fibre perse per pasto nei pasti sostituiti o saltati, sommate sul periodo. */
+  fiberLostBySlot: Partial<Record<MealSlot, number>>;
+  /** I giorni segnati sono per lo più di avvio: le fibre salgono per gradi e il riferimento è quel menù. */
+  fiberStarter: boolean;
+  /** Fibre sotto il riferimento oltre il margine: la stessa regola della proposta, per colorare i numeri. */
+  fiberLow: boolean;
   // Energia dei controlli del mattino (1-10)
   energyAvg: number | null;
   // Dolore
@@ -269,46 +296,160 @@ function adherenceOf(state: ReviewState, dates: ISODate[]) {
   return { avg: days ? sum / days : null, successful: ok, minimal, days };
 }
 
-export interface DayIntake {
+/** Quota di un pasto sostituito che si conta: si è mangiato altro, di solito più povero di fibre. */
+export const REPLACED_SHARE = 0.5;
+
+export interface IntakeValues {
   fiberG: number;
   proteinG: number;
   vegPortions: number;
+}
+
+const ZERO_INTAKE: IntakeValues = { fiberG: 0, proteinG: 0, vegPortions: 0 };
+
+const addIntake = (a: IntakeValues, b: IntakeValues, k = 1): IntakeValues => ({
+  fiberG: a.fiberG + b.fiberG * k,
+  proteinG: a.proteinG + b.proteinG * k,
+  vegPortions: a.vegPortions + b.vegPortions * k,
+});
+
+export interface DayIntake extends IntakeValues {
   /** Almeno un pasto segnato (fatto, sostituito o saltato). */
   logged: boolean;
+  /** Pasti del menù che contano nel giorno (non quelli prima del primo avvio o della prima spesa). */
+  meals: number;
+  /** Pasti segnati (fatto, sostituito o saltato). */
+  mealsLogged: number;
+  replaced: MealSlot[];
+  skipped: MealSlot[];
+  /** Valori del menù per i soli pasti segnati: la base con cui si confronta quanto stimato. */
+  plannedLogged: IntakeValues;
+  /** Valori del menù per tutta la giornata (sostituzioni di ricetta e scala del piano comprese). */
+  planned: IntakeValues;
+  /** Fibre perse per pasto nei pasti sostituiti o saltati (menù − stimato). */
+  fiberLost: Partial<Record<MealSlot, number>>;
+  /** Giorno del menù di avvio, con le fibre che salgono per gradi. */
+  starter: boolean;
 }
 
 /**
- * Fibre e proteine stimate dai pasti segnati: fatto = ricetta intera, sostituito = metà (si è mangiato
- * altro, di solito più povero), saltato = niente. Le giornate minime non hanno pasti da contare.
+ * Pasti che non contano: nei primi giorni quelli prima del primo avvio e quelli "con quello che hai in casa"
+ * prima della prima spesa (non hanno una ricetta da stimare). Negli altri giorni nessuno.
  */
-export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
-  const log = state.dayLogs[iso];
-  const empty = { fiberG: 0, proteinG: 0, vegPortions: 0, logged: false };
-  if (!log || log.minimal) return empty;
-  const { dayType, meals } = mealsForDate(iso, state);
-  const out = { ...empty };
-  for (const m of meals) {
-    const st = log.status[`pasto:${m.slot}`];
-    if (!st) continue;
-    out.logged = true;
-    const k = st === 'fatto' ? 1 : st === 'sostituito' ? 0.5 : 0;
-    if (!k || !m.recipe) continue;
-    const n = recipeNutrition(m.recipe, dayType);
-    out.fiberG += n.fiberG * k;
-    out.proteinG += n.proteinG * k;
-    out.vegPortions += recipeVegPortions(m.recipe, dayType) * k;
+function uncountedMealSlots(iso: ISODate, state: ReviewState): Set<MealSlot> {
+  const out = new Set<MealSlot>();
+  const first = firstUseOf(state.plan);
+  if (!first || iso < first.date || daysBetween(first.date, iso) > 2) return out;
+  for (const it of buildDay(iso, state)) {
+    if (it.kind !== 'pasto' || !it.slot) continue;
+    if (it.preShopping || !itemCounts(iso, it, state)) out.add(it.slot);
   }
   return out;
 }
 
-function intakeOf(state: ReviewState, dates: ISODate[]) {
-  const days = dates.map((d) => dayIntake(d, state)).filter((x) => x.logged);
+/**
+ * Fibre, proteine e porzioni di vegetali del giorno dai pasti segnati: fatto = ricetta intera, sostituito =
+ * metà, saltato = niente. I pasti senza stato restano fuori (né zero né interi): `planned` e `plannedLogged`
+ * servono a stimare la settimana senza contarli. Le giornate minime non hanno pasti da contare.
+ */
+export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
+  const log = state.dayLogs[iso];
+  const out: DayIntake = {
+    ...ZERO_INTAKE,
+    logged: false,
+    meals: 0,
+    mealsLogged: 0,
+    replaced: [],
+    skipped: [],
+    plannedLogged: { ...ZERO_INTAKE },
+    planned: { ...ZERO_INTAKE },
+    fiberLost: {},
+    starter: false,
+  };
+  if (log?.minimal) return out;
+  const day = mealsForDate(iso, state);
+  const scale = dayCarbScale(iso, state);
+  const skip = uncountedMealSlots(iso, state);
+  out.starter = Boolean(day.starter);
+  for (const m of day.meals) {
+    if (skip.has(m.slot)) continue;
+    out.meals++;
+    const n = recipeNutrition(m.recipe, day.dayType, FOODS, scale);
+    const v: IntakeValues = { fiberG: n.fiberG, proteinG: n.proteinG, vegPortions: recipeVegPortions(m.recipe, day.dayType, FOODS, scale) };
+    out.planned = addIntake(out.planned, v);
+    const st = log?.status[`pasto:${m.slot}`];
+    if (!st) continue;
+    out.logged = true;
+    out.mealsLogged++;
+    out.plannedLogged = addIntake(out.plannedLogged, v);
+    const k = st === 'fatto' ? 1 : st === 'sostituito' ? REPLACED_SHARE : 0;
+    Object.assign(out, addIntake(out, v, k));
+    if (st === 'sostituito') out.replaced.push(m.slot);
+    else if (st === 'saltato') out.skipped.push(m.slot);
+    if (k < 1 && v.fiberG > 0) out.fiberLost[m.slot] = (out.fiberLost[m.slot] ?? 0) + v.fiberG * (1 - k);
+  }
+  return out;
+}
+
+interface WeekIntake {
+  /** Giorni con almeno un pasto segnato. */
+  days: number;
+  fiber: number | null;
+  protein: number | null;
+  veg: number | null;
+  plannedFiber: number | null;
+  plannedProtein: number | null;
+  meals: number;
+  mealsLogged: number;
+  replaced: number;
+  skipped: number;
+  fiberLost: Partial<Record<MealSlot, number>>;
+  starterDays: number;
+}
+
+/**
+ * Stima del periodo: il menù previsto nei giorni con pasti segnati, per la quota che ne è arrivata nei pasti
+ * segnati. Chi segna 3 pasti su 5 tutti fatti ha preso il menù intero, non tre quinti: i pasti non segnati
+ * valgono come quelli segnati, non come pasti saltati.
+ */
+function intakeOf(state: ReviewState, dates: ISODate[]): WeekIntake {
+  const all = dates.map((d) => dayIntake(d, state));
+  const days = all.filter((x) => x.logged);
+  const sum = (f: (x: DayIntake) => number) => days.reduce((s, x) => s + f(x), 0);
+  const estimate = (key: keyof IntakeValues): number | null => {
+    if (!days.length) return null;
+    const base = sum((x) => x.plannedLogged[key]);
+    const plannedAvg = mean(days.map((x) => x.planned[key]))!;
+    return base > 0 ? plannedAvg * (sum((x) => x[key]) / base) : mean(days.map((x) => x[key]));
+  };
+  const fiberLost: Partial<Record<MealSlot, number>> = {};
+  for (const x of days) for (const [slot, g] of Object.entries(x.fiberLost) as [MealSlot, number][]) fiberLost[slot] = (fiberLost[slot] ?? 0) + g;
   return {
     days: days.length,
-    fiber: mean(days.map((x) => x.fiberG)),
-    protein: mean(days.map((x) => x.proteinG)),
-    veg: mean(days.map((x) => x.vegPortions)),
+    fiber: estimate('fiberG'),
+    protein: estimate('proteinG'),
+    veg: estimate('vegPortions'),
+    plannedFiber: days.length ? mean(days.map((x) => x.planned.fiberG)) : null,
+    plannedProtein: days.length ? mean(days.map((x) => x.planned.proteinG)) : null,
+    meals: all.reduce((s, x) => s + x.meals, 0),
+    mealsLogged: all.reduce((s, x) => s + x.mealsLogged, 0),
+    replaced: sum((x) => x.replaced.length),
+    skipped: sum((x) => x.skipped.length),
+    fiberLost,
+    starterDays: days.filter((x) => x.starter).length,
   };
+}
+
+/** Il menù porta almeno l'obiettivo di fibre meno questo margine: se le fibre mancano, è nei pasti fuori menù. */
+export const MENU_FIBER_TOLERANCE_G = 2;
+
+/**
+ * Riferimento delle fibre per il periodo: l'obiettivo, oppure il menù di avvio quando la maggior parte dei
+ * giorni segnati è di avvio (le fibre salgono per gradi apposta, non si chiede di aggiungerne).
+ */
+function fiberReference(target: number, planned: number | null, starterDays: number, days: number): { ref: number; starter: boolean } {
+  const starter = planned !== null && days > 0 && starterDays * 2 >= days && planned < target;
+  return { ref: starter ? Math.min(target, planned) : target, starter };
 }
 
 function targetAvg(state: ReviewState, dates: ISODate[], key: 'fiberG' | 'proteinG'): number {
@@ -413,6 +554,8 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
   const intakePrev = intakeOf(state, closedPrev);
 
   const energy = cur.map((d) => state.checkIns[d]?.energy).filter(isNum);
+  const fiberTargetG = targetAvg(state, cur.length ? cur : dates, 'fiberG');
+  const fiberRef = fiberReference(fiberTargetG, intake.plannedFiber, intake.starterDays, intake.days);
 
   return {
     dates: cur,
@@ -439,8 +582,17 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     prevFiberAvgG: intakePrev.fiber === null ? null : round1(intakePrev.fiber),
     proteinAvgG: intake.protein === null ? null : Math.round(intake.protein),
     vegPortionsAvg: intake.veg === null ? null : round1(intake.veg),
-    fiberTargetG: targetAvg(state, cur.length ? cur : dates, 'fiberG'),
+    fiberTargetG,
     proteinTargetG: targetAvg(state, cur.length ? cur : dates, 'proteinG'),
+    fiberPlannedG: intake.plannedFiber === null ? null : round1(intake.plannedFiber),
+    proteinPlannedG: intake.plannedProtein === null ? null : Math.round(intake.plannedProtein),
+    mealsCounted: intake.meals,
+    mealsLogged: intake.mealsLogged,
+    mealsReplaced: intake.replaced,
+    mealsSkipped: intake.skipped,
+    fiberLostBySlot: intake.fiberLost,
+    fiberStarter: fiberRef.starter,
+    fiberLow: intake.days >= MIN_NUTRITION_DAYS && intake.fiber !== null && intake.fiber < fiberRef.ref - FIBER_MARGIN_G,
     energyAvg: energy.length ? round1(mean(energy) ?? 0) : null,
     pain: painSites(state, [...cur, ...prev]).map((s) => painStats(state, s, cur, prev)),
     startDate: start,
@@ -667,14 +819,111 @@ function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
   };
 }
 
+/** Il pasto, con l'articolo: "soprattutto la cena". */
+const SLOT_WITH_ARTICLE: Record<MealSlot, string> = {
+  colazione: 'la colazione',
+  spuntino: 'lo spuntino',
+  pranzo: 'il pranzo',
+  merenda: 'la merenda',
+  cena: 'la cena',
+};
+
+/** Il pasto con "in" e l'articolo: "nella cena", "nello spuntino". */
+const SLOT_IN: Record<MealSlot, string> = {
+  colazione: 'nella colazione',
+  spuntino: 'nello spuntino',
+  pranzo: 'nel pranzo',
+  merenda: 'nella merenda',
+  cena: 'nella cena',
+};
+const SLOT_FEMININE: Record<MealSlot, boolean> = { colazione: true, spuntino: false, pranzo: false, merenda: true, cena: true };
+
+/** "nei 5", ma "negli 8", "negli 11", "negli 80": davanti ai numeri che si leggono con una vocale. */
+function inThePlural(n: number): string {
+  return n === 8 || n === 11 || (n >= 80 && n < 90) || (n >= 800 && n < 900) ? 'negli' : 'nei';
+}
+
+/** Come tenere le fibre quando quel pasto esce dal menù. */
+const SLOT_FIBER_TIP: Record<MealSlot, string> = {
+  colazione: 'Se la colazione salta o cambia, porta via un frutto e una manciata di frutta secca.',
+  spuntino: 'Se lo spuntino cambia, tieni il frutto: al bar una spremuta non lo sostituisce, perché le fibre restano nella polpa.',
+  pranzo: 'Quando sostituisci il pranzo tieni la verdura: un’insalata in busta o una porzione di verdure surgelate bastano.',
+  merenda: 'Se la merenda cambia, tieni il frutto: una banana o una mela si portano ovunque.',
+  cena: 'Quando sostituisci la cena tieni la verdura: una busta di verdure surgelate in padella è pronta in 8 minuti.',
+};
+
+/**
+ * Aggiunte al menù quando è il menù stesso a stare sotto l'obiettivo, nell'ordine in cui si propongono (le
+ * più leggere prima). Le fibre si calcolano dal catalogo degli alimenti.
+ */
+const FIBER_ADDITIONS: { id: string; text: string; foodId: string; grams: number }[] = [
+  { id: 'frutto', text: 'un frutto allo spuntino', foodId: 'mela', grams: 170 },
+  { id: 'legumi', text: 'una mano a coppa di legumi in barattolo a pranzo', foodId: 'cannellini', grams: 80 },
+  { id: 'vellutata', text: 'una vellutata di verdure a cena', foodId: 'vellutata-pronta', grams: 250 },
+];
+
+/** Le aggiunte che servono per colmare `gapG` grammi di fibre, con le fibre e le calorie che portano. */
+export function fiberAdditions(gapG: number): { items: { id: string; text: string; fiberG: number; kcal: number }[]; fiberG: number; kcal: number } {
+  const items: { id: string; text: string; fiberG: number; kcal: number }[] = [];
+  let fiber = 0;
+  let kcal = 0;
+  for (const a of FIBER_ADDITIONS) {
+    if (items.length && fiber >= gapG - 0.5) break;
+    const per100 = FOODS[a.foodId]?.per100g;
+    const item = { id: a.id, text: a.text, fiberG: ((per100?.fiberG ?? 0) * a.grams) / 100, kcal: ((per100?.kcal ?? 0) * a.grams) / 100 };
+    items.push(item);
+    fiber += item.fiberG;
+    kcal += item.kcal;
+  }
+  return { items, fiberG: fiber, kcal };
+}
+
+/** Il pasto che ha perso più fibre nel periodo. */
+function mostLostSlot(lost: Partial<Record<MealSlot, number>>): MealSlot | null {
+  let best: MealSlot | null = null;
+  for (const [slot, g] of Object.entries(lost) as [MealSlot, number][]) if (g > 0 && (best === null || g > (lost[best] ?? 0))) best = slot;
+  return best;
+}
+
+/**
+ * Fibre: si propone qualcosa solo se le fibre stimate stanno sotto il riferimento oltre il margine
+ * (`fiberLow`). Se il menù previsto ne porta abbastanza, il problema sono i pasti sostituiti o saltati e la
+ * proposta dice quale pasto tenere, senza aggiungere cibo a un menù già tarato. Solo quando è il menù a stare
+ * sotto l'obiettivo (obiettivo alzato o ricette cambiate) si aggiungono alimenti, quanti ne servono.
+ */
 function fiberProposal(stats: WeekStats): Proposal | null {
-  if (stats.nutritionDays < MIN_NUTRITION_DAYS || stats.fiberAvgG === null) return null;
-  if (stats.fiberAvgG >= stats.fiberTargetG - FIBER_MARGIN_G) return null;
+  if (!stats.fiberLow || stats.fiberAvgG === null || stats.fiberPlannedG === null) return null;
+  const eaten = fmtNumber(Math.round(stats.fiberAvgG));
+  const planned = Math.round(stats.fiberPlannedG);
+  const target = stats.fiberTargetG;
+  const missed = stats.mealsReplaced + stats.mealsSkipped;
+  const menuOk = stats.fiberStarter || stats.fiberPlannedG >= target - MENU_FIBER_TOLERANCE_G;
+  if (menuOk) {
+    const slot = mostLostSlot(stats.fiberLostBySlot);
+    let where: string;
+    if (missed === 1 && slot) {
+      // "mancano nella cena sostituita", "mancano nello spuntino saltato".
+      const fem = SLOT_FEMININE[slot];
+      where = `mancano ${SLOT_IN[slot]} ${stats.mealsReplaced ? (fem ? 'sostituita' : 'sostituito') : fem ? 'saltata' : 'saltato'}`;
+    } else {
+      const kind = stats.mealsReplaced && stats.mealsSkipped ? 'sostituiti o saltati' : stats.mealsReplaced ? 'sostituiti' : 'saltati';
+      where = `mancano ${inThePlural(missed)} ${missed}\u00a0pasti ${kind}${slot ? `, soprattutto ${SLOT_WITH_ARTICLE[slot]}` : ''}`;
+    }
+    return {
+      id: 'fibre',
+      area: 'fibre',
+      title: 'Le fibre si perdono fuori menù',
+      reason: `Il menù${stats.fiberStarter ? ' di avvio' : ''} ne porta circa ${fmtNumber(planned)}\u00a0g al giorno, dai pasti segnati ne arrivano circa ${eaten}: ${where}. ${slot ? SLOT_FIBER_TIP[slot] : 'Segui il menù nei pasti principali, la verdura prima di tutto.'}`,
+      apply: { type: 'none' },
+    };
+  }
+  const add = fiberAdditions(target - stats.fiberPlannedG);
+  const kcal = Math.round(add.kcal / 10) * 10;
   return {
     id: 'fibre',
     area: 'fibre',
-    title: 'Più fibre, senza cucinare di più',
-    reason: `Circa ${fmtNumber(stats.fiberAvgG)} g al giorno dai pasti segnati, obiettivo ${stats.fiberTargetG} g. Aggiungi una vellutata di verdure a cena, un pugno di legumi in barattolo a pranzo e un frutto allo spuntino: sono circa 12 g in più.`,
+    title: 'Più fibre nel menù',
+    reason: `Il menù ne porta circa ${fmtNumber(planned)}\u00a0g al giorno, l’obiettivo è ${target}\u00a0g. Aggiungi ${listIt(add.items.map((a) => a.text))}: circa ${fmtNumber(Math.round(add.fiberG))}\u00a0g di fibre e ${fmtNumber(kcal)}\u00a0kcal in più.${kcal > 120 ? ' Per restare nelle calorie togli mezza porzione di pane o pasta.' : ''}`,
     apply: { type: 'none' },
   };
 }

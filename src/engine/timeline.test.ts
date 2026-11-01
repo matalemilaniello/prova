@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AppData, DayLog, ISODate, ItemStatus, Plan, TimelineItem } from '../domain/types';
 import { defaultAppData, defaultPlan } from '../data/defaults';
 import { addDays } from './dates';
+import { shoppingList } from './shopping';
 import {
   gymDuration,
   adherenceSummary,
@@ -20,11 +21,17 @@ import {
   dayAdherence,
   dayMinutes,
   daySuccessful,
+  doseUndefined,
+  firstShopping,
+  PRE_SHOPPING_DETAIL,
+  supplementDoseDue,
   derivedStatus,
   effectiveStatus,
   isEveningFootball,
   mealSchedule,
   ritualItems,
+  shoppingLeadFor,
+  shoppingOptionsFor,
   starterShopping,
   STARTER_SHOPPING_ID,
   minutesToCurfew,
@@ -46,6 +53,8 @@ const WED = '2026-11-11';
 const THU = '2026-11-12';
 const SAT = '2026-11-14';
 const SUN = '2026-11-15';
+/** La domenica prima del lunedì 9. */
+const SUN0 = '2026-11-08';
 
 function makeState(patch: Partial<AppData> = {}): AppData {
   const base = defaultAppData(MON);
@@ -90,7 +99,8 @@ describe('timeline · giornata di palestra', () => {
   it('controllo 5 minuti dopo la sveglia, integratori con la colazione', () => {
     expect(byId(items, 'controllo')?.time).toBe('07:20');
     expect(byId(items, 'integratori')?.time).toBe('07:30');
-    expect(byId(items, 'integratori')?.detail).toBe('Creatina monoidrato, omega-3 e vitamina D');
+    // La vitamina D senza dose non si segna come presa.
+    expect(byId(items, 'integratori')?.detail).toBe('Creatina monoidrato e omega-3');
   });
 
   it('pasti con ricetta, slot e orari del piano', () => {
@@ -273,6 +283,21 @@ describe('timeline · altri giorni', () => {
     expect(byId(items, 'integratori:pranzo')).toBeUndefined();
     const none = buildTimeline(SUN, makeState({ plan: { ...state.plan, supplements: [] } }));
     expect(none.some((i) => i.kind === 'integratori')).toBe(false);
+  });
+
+  it('un integratore senza dose non entra nella voce; il lunedì una riga ricorda di definirla', () => {
+    const s = makeState();
+    expect(doseUndefined({ dose: 'Dose da definire con l’esame' })).toBe(true);
+    expect(doseUndefined({ dose: '5 g' })).toBe(false);
+    expect(supplementDoseDue(MON, s)).toEqual({ time: '07:30', names: ['Vitamina D'] });
+    expect(supplementDoseDue(TUE, s)).toBeNull();
+    // Con la dose inserita la riga sparisce e l'integratore torna nella voce.
+    const plan: Plan = { ...s.plan, supplements: s.plan.supplements.map((x) => (x.id === 'vitamina-d' ? { ...x, dose: '1.000 UI' } : x)) };
+    expect(supplementDoseDue(MON, { ...s, plan })).toBeNull();
+    expect(byId(buildTimeline(TUE, { ...s, plan }), 'integratori')?.detail).toBe('Creatina monoidrato, omega-3 e vitamina D');
+    // Solo integratori senza dose: nessuna voce da segnare.
+    const only: Plan = { ...s.plan, supplements: s.plan.supplements.filter((x) => x.id === 'vitamina-d') };
+    expect(buildTimeline(TUE, { ...s, plan: only }).some((i) => i.kind === 'integratori')).toBe(false);
   });
 
   it('elenco degli integratori in italiano', () => {
@@ -598,6 +623,63 @@ describe('primo avvio', () => {
     expect(kinds('2026-11-22', at('2026-11-13', '2026-11-16'))).toContain('revisione');
     // Giovedì: la settimana si rivede già.
     expect(kinds(SUN, at(THU))).toContain('revisione');
+  });
+
+  it('prima della spesa di avvio i pasti si fanno con quello che c’è in casa', () => {
+    // Benvenuto completato domenica alle 16:30: spesa di avvio lunedì alle 15:15.
+    const s0 = makeState();
+    const s = { ...s0, plan: { ...s0.plan, firstUse: { date: SUN0, time: '16:30' } } as Plan };
+    expect(firstShopping(s)).toEqual({ id: STARTER_SHOPPING_ID, date: MON, time: '15:15' });
+    const flags = (iso: ISODate, st: TimelineState = s) =>
+      Object.fromEntries(buildDay(iso, st).filter((i) => i.kind === 'pasto').map((i) => [i.slot, Boolean(i.preShopping)]));
+    expect(flags(SUN0)).toMatchObject({ merenda: true, cena: true });
+    expect(flags(MON)).toEqual({ colazione: true, spuntino: true, pranzo: true, merenda: false, cena: false });
+    expect(Object.values(flags(TUE)).some(Boolean)).toBe(false);
+    const colazione = byId(buildDay(MON, s), 'pasto:colazione')!;
+    expect(colazione.detail).toBe(PRE_SHOPPING_DETAIL);
+    // La ricetta resta nel riferimento, per il menù e la spesa.
+    expect(colazione.ref).toBeTruthy();
+    // Spesa fatta prima del previsto: da lì si segue il menù.
+    const done = { ...s, dayLogs: { [MON]: log(MON, { [STARTER_SHOPPING_ID]: 'fatto' }) } };
+    expect(Object.values(flags(MON, done)).some(Boolean)).toBe(false);
+    // Ricetta scelta a mano: chi la sceglie ha gli ingredienti.
+    const swapped = { ...s, dayLogs: { [MON]: log(MON, {}, { recipeSwaps: { pranzo: 'pasta-ceci-rosmarino' } }) } };
+    expect(flags(MON, swapped)).toMatchObject({ colazione: true, pranzo: false });
+    // Senza primo avvio (dati di esempio) niente cambia.
+    expect(Object.values(flags(MON, s0)).some(Boolean)).toBe(false);
+  });
+
+  it('chi comincia il sabato fa la spesa dopo il primo avvio', () => {
+    const s0 = makeState();
+    const at = (time: string) => ({ ...s0, plan: { ...s0.plan, firstUse: { date: SAT, time } } as Plan });
+    expect(byId(ritualItems(SAT, at('08:00')), 'rito:spesa')?.time).toBe(byId(ritualItems(SAT, s0), 'rito:spesa')?.time);
+    expect(byId(ritualItems(SAT, at('15:40')), 'rito:spesa')?.time).toBe('16:10');
+    expect(firstShopping(at('15:40'))).toEqual({ id: 'rito:spesa', date: SAT, time: '16:10' });
+    const pre = buildDay(SAT, at('08:00')).filter((i) => i.preShopping).map((i) => i.slot);
+    expect(pre).toContain('colazione');
+    expect(pre).not.toContain('cena');
+  });
+
+  it('chi comincia il sabato compra con la spesa del sabato anche i pasti di avvio del fine settimana', () => {
+    const s0 = makeState();
+    const NEXT = addDays(SAT, 2);
+    const st = { ...s0, plan: { ...s0.plan, startDate: NEXT, firstUse: { date: SAT, time: '09:00' } } as Plan };
+    const lead = shoppingLeadFor(NEXT, st);
+    expect(lead?.date).toBe(SAT);
+    // I pasti prima della spesa si fanno con quello che c'è in casa: restano fuori dalla lista.
+    expect(lead?.skipSlots).toEqual(expect.arrayContaining(['colazione', 'spuntino']));
+    expect(lead?.skipSlots).not.toContain('cena');
+    const list = shoppingList(NEXT, st, shoppingOptionsFor(NEXT, st));
+    expect(list.leadDates).toEqual([SAT, SUN]);
+    expect(list.mealCount).toBeGreaterThan(shoppingList(NEXT, st).mealCount);
+    expect(list.items.some((i) => i.uses.some((u) => u.date === SAT && u.slot === 'colazione'))).toBe(false);
+    expect(list.items.some((i) => i.uses.some((u) => u.date === SUN))).toBe(true);
+    // Il fresco del fine settimana si mangia subito dopo la spesa: niente da congelare per sabato e domenica.
+    expect(list.items.some((i) => i.freezeDates?.some((d) => d < NEXT))).toBe(false);
+    // Le settimane dopo e chi ha la spesa di avvio non cambiano.
+    expect(shoppingLeadFor(addDays(NEXT, 7), st)).toBeUndefined();
+    const mid = { ...s0, plan: { ...s0.plan, firstUse: { date: WED, time: '15:30' } } as Plan };
+    expect(shoppingLeadFor(addDays(WED, 5), mid)).toBeUndefined();
   });
 
   it('i giorni prima del primo avvio non contano nella serie', () => {

@@ -5,7 +5,7 @@ import { buildDemo } from '../demo/seed';
 import { addDays, weekDates } from './dates';
 import { mealsForDate } from './menu';
 import { buildDay } from './timeline';
-import { recipeNutrition } from './nutrition';
+import { dayNutrition, recipeNutrition } from './nutrition';
 import {
   acceptable,
   creatineLoading,
@@ -15,6 +15,7 @@ import {
   periodStats,
   planWeekNumber,
   dayIntake,
+  fiberAdditions,
   proposeWeeklyStep,
   reviewStart,
   STEP_ITEM_ID,
@@ -44,7 +45,7 @@ const W2 = '2026-11-09';
 function base(start: ISODate = START): AppData {
   const d = defaultAppData(start);
   d.onboarded = true;
-  d.profile = { ...d.profile, painSites: ['Tibia', 'Gomito'], startWeightKg: 70, heightCm: 178, birthYear: 1996 };
+  d.profile = { ...d.profile, painSites: ['Ginocchio', 'Spalla'], startWeightKg: 76, heightCm: 180, birthYear: 1988 };
   return d;
 }
 
@@ -151,8 +152,8 @@ describe('sonno', () => {
 describe('calorie e peso', () => {
   it('servono almeno 4 pesate', () => {
     const d = base();
-    weighIns(d, W1, [70, 70.1, 70, 69.9, null, null, null]);
-    weighIns(d, W2, [69, null, 69.1, null, 69, null, null]);
+    weighIns(d, W1, [76, 76.1, 76, 75.9, null, null, null]);
+    weighIns(d, W2, [75, null, 75.1, null, 75, null, null]);
     const list = proposals(W2, d);
     expect(byId(list, 'calorie')).toBeUndefined();
     const p = byId(list, 'peso')!;
@@ -162,8 +163,8 @@ describe('calorie e peso', () => {
 
   it('ricomposizione: calo oltre lo 0,5% → +150 kcal', () => {
     const d = base();
-    weighIns(d, W1, [70.0, 70.1, 69.9, 70.0, null, null, null]);
-    weighIns(d, W2, [69.5, 69.6, 69.4, null, 69.5, null, null]);
+    weighIns(d, W1, [76.0, 76.1, 75.9, 76.0, null, null, null]);
+    weighIns(d, W2, [75.5, 75.6, 75.4, null, 75.5, null, null]);
     const s = weekStats(W2, d);
     expect(s.weightDeltaSource).toBe('confronto');
     expect(s.weightDelta).toBeCloseTo(-0.5, 2);
@@ -171,13 +172,13 @@ describe('calorie e peso', () => {
     const p = byId(proposals(W2, d), 'calorie')!;
     expect(p.apply).toEqual({ type: 'kcalDelta', value: 150 });
     expect(p.title).toBe('+150 kcal al giorno');
-    expect(p.reason).toMatch(/69,5\skg/);
+    expect(p.reason).toMatch(/75,5\skg/);
   });
 
   it('ricomposizione: aumento oltre lo 0,5% → −100 kcal (dopo le prime settimane di creatina)', () => {
     const d = base('2026-10-05');
-    weighIns(d, W1, [70.0, 70.0, 70.0, null, null, null, null]);
-    weighIns(d, W2, [70.5, 70.4, 70.5, 70.4, null, null, null]);
+    weighIns(d, W1, [76.0, 76.0, 76.0, null, null, null, null]);
+    weighIns(d, W2, [76.5, 76.4, 76.5, 76.4, null, null, null]);
     const p = byId(proposals(W2, d), 'calorie')!;
     expect(p.apply).toEqual({ type: 'kcalDelta', value: -100 });
     expect(p.title).toBe('−100 kcal al giorno');
@@ -186,8 +187,8 @@ describe('calorie e peso', () => {
   it('creatina nelle prime 4 settimane: il peso in salita è acqua, calorie invariate', () => {
     const d = base();
     expect(creatineLoading(W2, d.plan)).toBe(true);
-    weighIns(d, W1, [70.0, 70.0, 70.0, null, null, null, null]);
-    weighIns(d, W2, [70.5, 70.4, 70.5, 70.4, null, null, null]);
+    weighIns(d, W1, [76.0, 76.0, 76.0, null, null, null, null]);
+    weighIns(d, W2, [76.5, 76.4, 76.5, 76.4, null, null, null]);
     const p = byId(proposals(W2, d), 'calorie')!;
     expect(p.apply).toBeUndefined();
     expect(p.title).toBe('Calorie invariate');
@@ -202,16 +203,16 @@ describe('calorie e peso', () => {
 
   it('creatina: un calo resta un calo, la regola vale solo per il peso in salita', () => {
     const d = base();
-    weighIns(d, W1, [70.0, 70.1, 69.9, 70.0, null, null, null]);
-    weighIns(d, W2, [69.5, 69.6, 69.4, null, 69.5, null, null]);
+    weighIns(d, W1, [76.0, 76.1, 75.9, 76.0, null, null, null]);
+    weighIns(d, W2, [75.5, 75.6, 75.4, null, 75.5, null, null]);
     expect(byId(proposals(W2, d), 'calorie')!.apply).toEqual({ type: 'kcalDelta', value: 150 });
     expect(creatineLoading('2026-11-30', d.plan)).toBe(false);
   });
 
   it('ricomposizione: peso stabile → calorie invariate, proposta informativa', () => {
     const d = base();
-    weighIns(d, W1, [70.0, 70.1, 69.9, 70.0, null, null, null]);
-    weighIns(d, W2, [69.9, 70.0, 70.1, 69.8, null, null, null]);
+    weighIns(d, W1, [76.0, 76.1, 75.9, 76.0, null, null, null]);
+    weighIns(d, W2, [75.9, 76.0, 76.1, 75.8, null, null, null]);
     const p = byId(proposals(W2, d), 'calorie')!;
     expect(p.apply).toBeUndefined();
     expect(p.title).toBe('Calorie invariate');
@@ -219,7 +220,7 @@ describe('calorie e peso', () => {
 
   it('senza la settimana prima usa la pendenza della settimana', () => {
     const d = base();
-    weighIns(d, W2, [70.6, 70.4, 70.3, 70.1, 70.0, 69.8, null]);
+    weighIns(d, W2, [76.6, 76.4, 76.3, 76.1, 76.0, 75.8, null]);
     const s = weekStats(W2, d);
     expect(s.weightDeltaSource).toBe('pendenza');
     expect(s.weightDelta!).toBeLessThan(-0.5);
@@ -241,11 +242,17 @@ describe('calorie e peso', () => {
 });
 
 describe('fibre e proteine dai pasti segnati', () => {
-  function markMeals(d: AppData, date: ISODate, st: 'fatto' | 'sostituito' | 'saltato') {
-    const status: Record<string, 'fatto' | 'sostituito' | 'saltato'> = {};
-    for (const m of mealsForDate(date, d).meals) status[`pasto:${m.slot}`] = st;
+  type MealStatus = 'fatto' | 'sostituito' | 'saltato';
+  /** Segna i pasti del giorno: uno stato per tutti, oppure uno per pasto (undefined = non segnato). */
+  function markMeals(d: AppData, date: ISODate, st: MealStatus | Partial<Record<string, MealStatus>>) {
+    const status: Record<string, MealStatus> = {};
+    for (const m of mealsForDate(date, d).meals) {
+      const v = typeof st === 'string' ? st : st[m.slot];
+      if (v) status[`pasto:${m.slot}`] = v;
+    }
     d.dayLogs[date] = { date, status, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} };
   }
+  const plannedFiber = (d: AppData, date: ISODate) => dayNutrition(date, d).fiberG;
 
   it('fatto conta tutto, sostituito metà, saltato niente', () => {
     const d = base();
@@ -254,21 +261,73 @@ describe('fibre e proteine dai pasti segnati', () => {
     const planned = meals.meals.reduce((s, m) => s + recipeNutrition(m.recipe, meals.dayType).fiberG, 0);
     markMeals(d, date, 'fatto');
     expect(dayIntake(date, d).fiberG).toBeCloseTo(planned, 5);
+    expect(dayIntake(date, d).planned.fiberG).toBeCloseTo(plannedFiber(d, date), 5);
     markMeals(d, date, 'sostituito');
     expect(dayIntake(date, d).fiberG).toBeCloseTo(planned / 2, 5);
     markMeals(d, date, 'saltato');
-    expect(dayIntake(date, d)).toMatchObject({ fiberG: 0, logged: true });
+    expect(dayIntake(date, d)).toMatchObject({ fiberG: 0, logged: true, mealsLogged: 5 });
     expect(dayIntake(addDays(W2, 2), d).logged).toBe(false);
   });
 
-  it('pochi pasti segnati per giorni: proposta concreta sulle fibre', () => {
+  it('i pasti non segnati non contano come saltati', () => {
     const d = base();
-    for (let i = 0; i < 4; i++) markMeals(d, addDays(W2, i), 'saltato');
+    // Solo colazione e pranzo segnati, tutti fatti: la stima è il menù intero, non due quinti.
+    for (const date of weekDates(W2)) markMeals(d, date, { colazione: 'fatto', pranzo: 'fatto' });
+    const s = weekStats(W2, d);
+    const menu = weekDates(W2).reduce((sum, date) => sum + plannedFiber(d, date), 0) / 7;
+    expect(s.fiberPlannedG!).toBeCloseTo(menu, 0);
+    expect(s.fiberAvgG!).toBeCloseTo(menu, 0);
+    expect(s.mealsLogged).toBe(14);
+    expect(s.mealsCounted).toBe(35);
+    expect(s.fiberLow).toBe(false);
+    expect(byId(proposals(W2, d), 'fibre')).toBeUndefined();
+  });
+
+  it('menù sufficiente e pasti saltati: dice quale pasto tenere, senza aggiungere cibo', () => {
+    const d = base();
+    for (let i = 0; i < 5; i++) markMeals(d, addDays(W2, i), { colazione: 'fatto', spuntino: 'fatto', pranzo: 'sostituito', merenda: 'fatto', cena: 'saltato' });
+    const s = weekStats(W2, d);
+    expect(s.fiberPlannedG!).toBeGreaterThanOrEqual(s.fiberTargetG - 2);
+    expect(s.fiberLow).toBe(true);
+    expect(s.mealsReplaced).toBe(5);
+    expect(s.mealsSkipped).toBe(5);
     const p = byId(proposals(W2, d), 'fibre')!;
-    expect(p).toBeDefined();
-    expect(p.reason).toMatch(/vellutata/);
-    expect(p.reason).toMatch(/legumi/);
+    expect(p.title).toBe('Le fibre si perdono fuori menù');
+    expect(p.reason).toMatch(new RegExp(`Il menù ne porta circa ${Math.round(s.fiberPlannedG!)}\\sg`));
+    expect(p.reason).toMatch(/nei 10\spasti sostituiti o saltati, soprattutto la cena/);
+    expect(p.reason).toContain('verdure surgelate');
+    expect(p.reason).not.toMatch(/vellutata|legumi in barattolo|in più/);
+  });
+
+  it('un solo pasto fuori menù: lo nomina, con l’articolo giusto', () => {
+    const d = base();
+    markMeals(d, addDays(W2, 0), { cena: 'fatto' });
+    markMeals(d, addDays(W2, 1), { cena: 'saltato' });
+    markMeals(d, addDays(W2, 2), { cena: 'fatto' });
+    const p = byId(proposals(W2, d, { today: addDays(W2, 3) }), 'fibre')!;
+    expect(p.reason).toContain('mancano nella cena saltata');
+    // Davanti a "otto" l'articolo è "gli".
+    for (let i = 0; i < 4; i++) markMeals(d, addDays(W2, i), { colazione: 'fatto', spuntino: 'fatto', pranzo: 'saltato', merenda: 'fatto', cena: i < 3 ? 'saltato' : 'sostituito' });
+    expect(byId(proposals(W2, d, { today: addDays(W2, 4) }), 'fibre')!.reason).toMatch(/negli 8\spasti sostituiti o saltati/);
+  });
+
+  it('menù sotto l’obiettivo: aggiunte su misura, con le calorie', () => {
+    const d = base();
+    for (const t of Object.values(d.plan.targets)) t.fiberG = 52;
+    for (let i = 0; i < 5; i++) markMeals(d, addDays(W2, i), 'fatto');
+    const s = weekStats(W2, d);
+    expect(s.fiberPlannedG!).toBeLessThan(s.fiberTargetG - 2);
+    const p = byId(proposals(W2, d), 'fibre')!;
+    expect(p.title).toBe('Più fibre nel menù');
+    expect(p.reason).toMatch(/l’obiettivo è 52\sg/);
     expect(p.reason).toMatch(/frutto/);
+    expect(p.reason).toMatch(/kcal in più/);
+    // Le aggiunte crescono con quello che manca, non sono sempre tre.
+    expect(fiberAdditions(3).items.map((a) => a.id)).toEqual(['frutto']);
+    expect(fiberAdditions(8).items.map((a) => a.id)).toEqual(['frutto', 'legumi']);
+    expect(fiberAdditions(20).items).toHaveLength(3);
+    expect(fiberAdditions(20).fiberG).toBeGreaterThan(11);
+    expect(fiberAdditions(20).fiberG).toBeLessThan(15);
   });
 
   it('il menù seguito per intero non fa scattare la proposta', () => {
@@ -278,6 +337,7 @@ describe('fibre e proteine dai pasti segnati', () => {
     expect(s.nutritionDays).toBe(7);
     expect(s.fiberAvgG!).toBeGreaterThanOrEqual(s.fiberTargetG - 5);
     expect(s.proteinAvgG!).toBeGreaterThan(100);
+    expect(s.proteinAvgG).toBe(s.proteinPlannedG);
     expect(byId(proposals(W2, d), 'fibre')).toBeUndefined();
   });
 
@@ -287,7 +347,19 @@ describe('fibre e proteine dai pasti segnati', () => {
     markMeals(d, addDays(W2, 1), 'saltato');
     markMeals(d, addDays(W2, 2), 'saltato');
     expect(byId(proposals(W2, d, { today: addDays(W2, 2) }), 'fibre')).toBeUndefined();
-    expect(byId(proposals(W2, d, { today: addDays(W2, 3) }), 'fibre')).toBeDefined();
+    expect(byId(proposals(W2, d, { today: addDays(W2, 3) }), 'fibre')!.reason).toMatch(/nei 15\spasti saltati/);
+  });
+
+  it('nei giorni di avvio il riferimento è il menù di avvio, che sale per gradi', () => {
+    const d = base();
+    const wed = addDays(W1, 2);
+    (d.plan as AppData['plan'] & { firstUse?: { date: string; time: string } }).firstUse = { date: wed, time: '15:30' };
+    for (let i = 3; i < 6; i++) markMeals(d, addDays(W1, i), 'fatto');
+    const s = weekStats(W1, d, { today: addDays(W1, 6) });
+    expect(s.fiberStarter).toBe(true);
+    expect(s.fiberPlannedG!).toBeLessThan(s.fiberTargetG - 5);
+    expect(s.fiberLow).toBe(false);
+    expect(byId(proposals(W1, d, { today: addDays(W1, 6) }), 'fibre')).toBeUndefined();
   });
 });
 
@@ -448,8 +520,8 @@ describe('proposte e revisioni', () => {
   it('ordine stabile, un id per area, sonno e calorie sempre presenti', () => {
     const d = base();
     bedtimes(d, W2, ['00:40', '00:55', '00:30', '01:00', '00:50', '01:30', '01:40']);
-    weighIns(d, W1, [70.0, 70.1, 69.9, 70.0, null, null, null]);
-    weighIns(d, W2, [69.5, 69.6, 69.4, null, 69.5, null, null]);
+    weighIns(d, W1, [76.0, 76.1, 75.9, 76.0, null, null, null]);
+    weighIns(d, W2, [75.5, 75.6, 75.4, null, 75.5, null, null]);
     weekDates(W2).forEach((date) => {
       d.dayLogs[date] = { date, status: {}, notes: {}, minimal: false, waterGlasses: 0, sweets: 1, recipeSwaps: {} };
     });

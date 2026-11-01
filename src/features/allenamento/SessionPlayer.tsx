@@ -23,6 +23,7 @@ import {
   painGate,
   painNoteForExercise,
   plannedSessionFor,
+  recentLogsFor,
   suggestNext,
   workoutVolume,
   type LoadStatus,
@@ -164,6 +165,11 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   const anchorRef = useRef<HTMLDivElement>(null);
   const resumed = useRef(false);
 
+  // A ogni cambio di fase (anteprima, esercizi, fine, riepilogo) la pagina riparte dall'alto.
+  useEffect(() => {
+    anchorRef.current?.parentElement?.scrollTo({ top: 0 });
+  }, [phase]);
+
   const running = phase === 'run' || phase === 'finish';
   const now = useTick(1000, running);
   useWakeLock(phase === 'run');
@@ -183,32 +189,29 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
 
   const currentIdOf = useCallback((it: PlayerItem) => logs[it.key]?.exerciseId ?? it.item.exerciseId, [logs]);
 
-  const suggestionFor = useCallback(
-    (it: PlayerItem): Suggestion => {
-      const id = currentIdOf(it);
+  // Suggerimento per un esercizio: le ultime due esecuzioni servono a riconoscere uno stallo.
+  const suggestFor = useCallback(
+    (it: PlayerItem, id: string): Suggestion => {
       const ex = catalog[id];
-      const last = lastEntryFor(id, history)?.log ?? null;
+      const [last = null, previous = null] = recentLogsFor(id, history, 2);
       return suggestNext({ ...it.base, exerciseId: id }, last, {
         gate: gateForExercise(ex, gate),
         painNote: painNoteForExercise(ex, gate),
         intro: !it.physio && Boolean(pplan.intro),
+        previous,
       });
     },
-    [catalog, currentIdOf, gate, history, pplan.intro],
+    [catalog, gate, history, pplan.intro],
   );
+
+  const suggestionFor = useCallback((it: PlayerItem): Suggestion => suggestFor(it, currentIdOf(it)), [suggestFor, currentIdOf]);
 
   const suggestions = useMemo(() => Object.fromEntries(pplan.items.map((it) => [it.key, suggestionFor(it)])), [pplan.items, suggestionFor]);
 
   const initialLog = useCallback(
     (it: PlayerItem, exerciseId = it.item.exerciseId): ExerciseLog => {
-      const s =
-        exerciseId === it.item.exerciseId
-          ? suggestions[it.key]
-          : suggestNext({ ...it.base, exerciseId }, lastEntryFor(exerciseId, history)?.log ?? null, {
-              gate: gateForExercise(catalog[exerciseId], gate),
-              painNote: painNoteForExercise(catalog[exerciseId], gate),
-              intro: !it.physio && Boolean(pplan.intro),
-            });
+      // `suggestions` segue l'esercizio attuale: tornando a quello previsto da un'alternativa va ricalcolato.
+      const s = (exerciseId === currentIdOf(it) ? suggestions[it.key] : undefined) ?? suggestFor(it, exerciseId);
       const swappedFrom = exerciseId !== it.item.exerciseId ? it.item.exerciseId : it.replacedFrom;
       return {
         exerciseId,
@@ -216,7 +219,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
         ...(swappedFrom ? { swappedFrom } : {}),
       };
     },
-    [suggestions, history, catalog, gate, pplan.intro],
+    [suggestions, suggestFor, currentIdOf],
   );
 
   const logOf = useCallback((it: PlayerItem) => logs[it.key] ?? initialLog(it), [logs, initialLog]);
@@ -264,6 +267,22 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   const currentLog = current ? logOf(current) : null;
   const firstOpen = currentLog ? currentLog.sets.findIndex((s) => !s.done) : -1;
   const openIndex = editIndex ?? firstOpen;
+  const currentEx = current && currentLog ? (catalog[currentLog.exerciseId] ?? exerciseFor(currentLog.exerciseId, physio)) : undefined;
+  const currentSug = current ? (suggestions[current.key] ?? suggestionFor(current)) : null;
+  const currentShowsWeight =
+    current && currentLog && currentSug
+      ? (weightShown[current.key] ??
+        (currentSug.weightKg > 0 || currentLog.sets.some((s) => s.weightKg > 0) || (current.item.progression === 'doppia' && !isBodyweight(currentEx))))
+      : false;
+  // Un esercizio con carico e progressione non si segna a 0 kg: la serie dopo partirebbe da zero e la progressione
+  // non avrebbe un riferimento. Con l'elastico (es. Pallof press) il carico non c'è.
+  const needsLoad =
+    Boolean(current && currentLog && firstOpen >= 0 && editIndex === null) &&
+    current!.item.progression === 'doppia' &&
+    currentShowsWeight &&
+    currentLog!.sets[firstOpen].weightKg <= 0 &&
+    !isBodyweight(currentEx) &&
+    !/elastic/i.test(currentEx?.equipment ?? '');
 
   const markSet = useCallback(
     (it: PlayerItem, index: number, patch: Partial<SetLog> = {}) => {
@@ -312,7 +331,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       setEditIndex(null);
       setSheet(null);
       haptic('success');
-      toast(exerciseId === it.item.exerciseId ? "Tornato all'esercizio previsto" : `Sostituito con ${catalog[exerciseId]?.name ?? "l'alternativa"}`, 'good');
+      toast(exerciseId === it.item.exerciseId ? "Tornato all’esercizio previsto" : `Sostituito con ${catalog[exerciseId]?.name ?? "l’alternativa"}`, 'good');
     },
     [writeLog, initialLog, toast, catalog],
   );
@@ -358,7 +377,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
 
   const save = () => {
     if (!mine) {
-      toast("La seduta in corso non c'è più: riaprila da Allenamento", 'bad');
+      toast("La seduta in corso non c’è più: riaprila da Allenamento", 'bad');
       return onClose();
     }
     if (rpe === undefined) {
@@ -425,7 +444,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       if (it.item.perSide && holdSide === 0) {
         setHoldSide(1);
         clearRest();
-        toast("Ora l'altro lato", 'neutral');
+        toast("Ora l’altro lato", 'neutral');
         return;
       }
       const l = logOf(it);
@@ -443,7 +462,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
     return () => window.clearTimeout(id);
   }, [restDone, clearRest]);
 
-  let main: { label: string; icon?: typeof Check; onClick: () => void; variant?: 'primary' | 'secondary' } | null = null;
+  let main: { label: string; icon?: typeof Check; onClick: () => void; variant?: 'primary' | 'secondary'; disabled?: boolean } | null = null;
   if (phase === 'intro') main = { label: other ? 'Inizia questa seduta' : 'Inizia la seduta', icon: Play, onClick: startSession };
   else if (phase === 'finish') main = { label: 'Salva la seduta', icon: Check, onClick: save };
   else if (phase === 'summary') main = { label: 'Fine', onClick: onClose };
@@ -461,6 +480,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
     };
   } else if (current && currentLog) {
     if (editIndex !== null) main = { label: 'Fatto', icon: Check, onClick: () => setEditIndex(null), variant: 'secondary' };
+    else if (needsLoad) main = { label: 'Scegli il carico', onClick: () => undefined, disabled: true };
     else if (firstOpen >= 0) {
       const set = currentLog.sets[firstOpen];
       if (current.item.unit === 'secondi' && !holdRunning) {
@@ -550,6 +570,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           className="h-[56px] min-w-0 flex-1 text-[1.0625rem] [&>span]:min-w-0 [&>span]:max-w-full [&>span>span]:min-w-0 [&>span>span]:truncate"
           variant={main.variant ?? 'primary'}
           icon={main.icon}
+          disabled={main.disabled}
           onClick={main.onClick}
           haptic={false}
         >
@@ -603,9 +624,9 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       body = <WarmupStep title={step.blockTitle} items={step.items} logs={Object.fromEntries(step.items.map((it) => [it.key, logOf(it)]))} onToggle={toggleWarmup} />;
     } else if (current && currentLog) {
       const exId = currentLog.exerciseId;
-      const ex = catalog[exId] ?? exerciseFor(exId, physio);
-      const sug = suggestions[current.key] && exId === currentIdOf(current) ? suggestions[current.key] : suggestionFor(current);
-      const shown = weightShown[current.key] ?? (sug.weightKg > 0 || currentLog.sets.some((s) => s.weightKg > 0) || (current.item.progression === 'doppia' && !isBodyweight(ex)));
+      const ex = currentEx;
+      const sug = currentSug ?? suggestionFor(current);
+      const shown = currentShowsWeight;
       body = (
         <ExerciseStep
           pitem={current}
@@ -633,7 +654,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           }}
           onShowWeight={() => setWeightShown((m) => ({ ...m, [current.key]: true }))}
           onSwap={() => setSheet('alt')}
-          onMarkWithoutTimer={() => firstOpen >= 0 && markSet(current, firstOpen)}
+          needsLoad={needsLoad}
+          onMarkWithoutTimer={() => firstOpen >= 0 && !needsLoad && markSet(current, firstOpen)}
           onUndo={() => {
             if (editIndex === null) return;
             const l = logOf(current);

@@ -8,10 +8,10 @@
  * Cosa usa dell'SDK `@anthropic-ai/sdk` (solo API documentate):
  * - `client.beta.messages.stream()` con iterazione degli eventi e `finalMessage()`;
  * - pensiero adattivo (`thinking: { type: 'adaptive' }`) e `output_config.effort` sui modelli che li hanno;
- *   su Claude Opus 5.5 il pensiero è sempre attivo e l'effort è il controllo della profondità;
+ *   sul modello predefinito il pensiero è sempre attivo e l'effort è il controllo della profondità;
  * - fallback lato server in caso di rifiuto per policy: `fallbacks: 'default'` con la beta
- *   `server-side-fallback-2026-07-01`, solo sui modelli che li hanno (Opus da 5, Sonnet da 5.5, Fable;
- *   Haiku no: la guida chiede di non mandare il parametro);
+ *   `server-side-fallback-2026-07-01`, solo sui modelli che li dichiarano (vedi `modelSupport`; dove
+ *   mancano la guida chiede di non mandare il parametro);
  * - `stop_reason: 'refusal'` controllato prima di leggere il testo;
  * - errori tipizzati (`AuthenticationError`, `RateLimitError`, `APIConnectionError`…) e `error.type`;
  * - cache del prompt di sistema (`cache_control: { type: 'ephemeral' }`).
@@ -31,7 +31,7 @@ type BetaContentBlockParam = Anthropic.Beta.BetaContentBlockParam;
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 /** Il pensiero conta nei max_tokens: c'è spazio per ragionare e per una risposta breve. */
 export const COACH_MAX_TOKENS = 8000;
-/** Effort esplicito (su Opus 5.5 il predefinito è già medium): buon equilibrio tra qualità e attesa. */
+/** Effort esplicito (sul modello predefinito il valore di base è già medium): buon equilibrio tra qualità e attesa. */
 export const COACH_EFFORT = 'medium' as const;
 /** Beta dei fallback lato server nella forma `fallbacks: 'default'`. */
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01' as const;
@@ -40,7 +40,7 @@ export const HISTORY_MAX_MESSAGES = 24;
 /** Foto della cronologia reinviate (le più recenti): le altre diventano una nota di testo. */
 export const HISTORY_MAX_IMAGES = 2;
 /** Testo usato quando l'utente manda solo una foto. */
-export const PHOTO_ONLY_PROMPT = "Com'è questo piatto rispetto al piano di oggi?";
+export const PHOTO_ONLY_PROMPT = "Com’è questo piatto rispetto al piano di oggi?";
 
 export const CONSOLE_URL = 'https://platform.claude.com';
 export const CONSOLE_KEYS_URL = 'https://platform.claude.com/settings/keys';
@@ -79,7 +79,7 @@ function parseModel(model: string): ParsedModel | null {
   return { family: m[1], version: major + minor / 10 };
 }
 
-/** "claude-opus-5-5" → "Claude Opus 5.5". */
+/** Etichetta leggibile dell'id del modello: "Claude", la famiglia con l'iniziale maiuscola e la versione col punto. */
 export function modelLabel(model: string | undefined): string {
   const id = (model || DEFAULT_MODEL).trim();
   const p = parseModel(id);
@@ -111,7 +111,7 @@ export function modelSupport(model: string): ModelSupport {
     case 'sonnet':
       return { adaptiveThinking: v >= 4.6, effort: v >= 4.6, fallback: v >= 5.5 };
     case 'haiku':
-      // Nessun fallback lato server per Haiku: con il parametro un rifiuto resta un rifiuto o diventa un 400.
+      // Nessun fallback lato server per questa famiglia: con il parametro un rifiuto resta un rifiuto o diventa un 400.
       return { adaptiveThinking: v >= 5.5, effort: v >= 5.5, fallback: false };
     case 'fable':
     case 'mythos':

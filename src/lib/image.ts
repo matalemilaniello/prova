@@ -93,7 +93,7 @@ export interface PreparedImage {
 
 /** Riduce una foto scelta o scattata: una versione da inviare e una da conservare. */
 export async function prepareImage(file: Blob): Promise<PreparedImage> {
-  if (file.type && !file.type.startsWith('image/')) throw new Error('non è un\'immagine');
+  if (file.type && !file.type.startsWith('image/')) throw new Error('non è un’immagine');
   const d = await decode(file);
   try {
     const send = render(d, SEND_MAX_PX, SEND_QUALITY);

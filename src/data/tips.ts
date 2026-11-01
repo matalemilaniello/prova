@@ -158,7 +158,7 @@ export const TIPS: Tip[] = [
     id: 'fibre-gradualita',
     topic: 'fibre',
     title: 'Più fibre, a piccoli passi',
-    text: 'Il menù porta tra 34 e 44 g di fibre al giorno, spesso il doppio di prima. Nelle prime due settimane sciacqua bene i legumi in barattolo e bevi un bicchiere d’acqua in più a pasto. Se ti senti gonfio, per qualche giorno fai metà porzione di legumi: l’intestino si adatta.',
+    text: 'Nei giorni di avvio il menù porta 28-31 g di fibre, con pane comune e ceci a piccole dosi; dalla settimana dopo 34-45 g. Sciacqua bene i legumi in barattolo e bevi un bicchiere d’acqua in più a pasto: se ti senti gonfio, per qualche giorno fai metà porzione di legumi, l’intestino si adatta.',
   },
   {
     id: 'fibre-pre-calcio',
@@ -328,7 +328,7 @@ export const TIPS: Tip[] = [
     id: 'dolci-voglia-17',
     topic: 'dolci',
     title: 'La voglia delle 17 spesso è fame',
-    text: 'Una merenda con proteine alle 16:30 spegne la voglia di dolce prima che arrivi. Yogurt greco e frutta funzionano bene.',
+    text: 'Una merenda con proteine a metà pomeriggio spegne la voglia di dolce prima che arrivi. Yogurt greco e frutta funzionano bene.',
   },
   {
     id: 'dolci-fuori-vista',

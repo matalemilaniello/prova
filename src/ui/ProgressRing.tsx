@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion, useSpring, useTransform } from 'motion/react';
 import { cn } from './cn';
 import { toneColor, type AnyTone } from './tones';
 
@@ -17,7 +17,38 @@ export interface ProgressRingProps {
   celebrate?: boolean;
   /** Gradiente lungo l'anello (default true). */
   gradient?: boolean;
+  /**
+   * Lampada sulla punta dell'arco: un nucleo chiaro con l'alone del tono, che segue l'avanzamento come la luce
+   * di un riflettore (default false). Pensata per l'anello protagonista di una schermata, da 140 px in su.
+   */
+  tipLight?: boolean;
   className?: string;
+}
+
+const RING_SPRING = { stiffness: 120, damping: 22, mass: 1 } as const;
+
+/** Punta luminosa dell'arco: segue la stessa molla dell'anello. */
+function TipLight({ id, value, size, stroke, color, reduce }: { id: string; value: number; size: number; stroke: number; color: string; reduce: boolean }) {
+  const p = useSpring(reduce ? value : 0, RING_SPRING);
+  useEffect(() => {
+    if (reduce) p.jump(value);
+    else p.set(value);
+  }, [value, reduce, p]);
+  const r = (size - stroke) / 2;
+  const cx = useTransform(p, (t) => size / 2 + r * Math.cos(2 * Math.PI * t));
+  const cy = useTransform(p, (t) => size / 2 + r * Math.sin(2 * Math.PI * t));
+  const shown = value > 0.02 && value < 1;
+  return (
+    <motion.g aria-hidden animate={{ opacity: shown ? 1 : 0 }} transition={{ duration: 0.25 }}>
+      <defs>
+        <filter id={`${id}-tip`} x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation={Math.max(2, stroke * 0.45)} />
+        </filter>
+      </defs>
+      <motion.circle cx={cx} cy={cy} r={stroke * 1.15} filter={`url(#${id}-tip)`} style={{ fill: color }} opacity={0.6} />
+      <motion.circle cx={cx} cy={cy} r={stroke * 0.3} style={{ fill: 'var(--lamp)' }} />
+    </motion.g>
+  );
 }
 
 let ringSeq = 0;
@@ -32,6 +63,7 @@ export function ProgressRing({
   label,
   celebrate = true,
   gradient = true,
+  tipLight = false,
   className,
 }: ProgressRingProps) {
   const reduce = useReducedMotion();
@@ -78,7 +110,7 @@ export function ProgressRing({
           }}
         />
       )}
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90" aria-hidden>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} overflow="visible" className="absolute inset-0 -rotate-90" aria-hidden>
         {gradient && (
           <defs>
             <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
@@ -101,8 +133,9 @@ export function ProgressRing({
           strokeDasharray={c}
           initial={reduce ? false : { strokeDashoffset: c }}
           animate={{ strokeDashoffset: c * (1 - v), opacity: v === 0 ? 0 : 1 }}
-          transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 22, mass: 1 }}
+          transition={reduce ? { duration: 0 } : { type: 'spring', ...RING_SPRING }}
         />
+        {tipLight && <TipLight id={gid} value={v} size={size} stroke={stroke} color={color} reduce={Boolean(reduce)} />}
       </svg>
       <div className="relative flex flex-col items-center justify-center text-center">{children}</div>
     </div>

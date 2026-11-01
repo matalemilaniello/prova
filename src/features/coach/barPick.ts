@@ -5,7 +5,8 @@
 import type { AppData, BarOption, DayType, ISODate, MealSlot, Nutrients } from '../../domain/types';
 import { BAR_OPTIONS } from '../../data/barPlanB';
 import { addDays, hhmmToMin, weekDates, weekStart, weekdayOf } from '../../engine/dates';
-import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS } from '../../engine/menu';
+import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS, type MenuState } from '../../engine/menu';
+import { dayNutritionDetail } from '../../engine/nutrition';
 import { dayCutoffMin, dayMinutes, isEveningFootball, mealSchedule, type MealSchedule } from '../../engine/timeline';
 
 export const VERDICT_ORDER: BarOption['verdict'][] = ['si', 'meglio', 'programmato'];
@@ -98,6 +99,82 @@ export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean,
         ? { ids: ['panino-bresaola', 'yogurt-frutta'], why: 'Dopo la palestra: carboidrati e circa 35 g di proteine per il recupero, leggero prima di dormire.' }
         : { ids: ['insalatona', 'yogurt-frutta'], why: 'Verdure e proteine, più uno yogurt con la frutta: una cena leggera e completa.' };
   }
+}
+
+/** Nei giorni di calcio la scelta del bar arriva almeno a questa quota del pasto previsto (kcal e carboidrati). */
+export const CALCIO_MEAL_SHARE = 0.85;
+/** …senza superarlo di più di così: un secondo piatto di amido non sostituisce una spremuta. */
+export const CALCIO_MEAL_CAP = 1.25;
+
+/** Aggiunte ricche di carboidrati, dalle più leggere: frutta, poi un piatto di amido. */
+const CARB_TOP_UPS = ['spremuta', 'macedonia', 'trancio-pizza', 'pasta-pomodoro'] as const;
+type TopUp = (typeof CARB_TOP_UPS)[number];
+
+const TOP_UP_WORDS: Record<TopUp, string> = {
+  spremuta: 'la spremuta',
+  macedonia: 'la macedonia',
+  'trancio-pizza': 'il trancio di pizza',
+  'pasta-pomodoro': 'la pasta al pomodoro',
+};
+
+/** Valori del pasto previsto dal menù in quel giorno (sostituzioni e scala del piano comprese), o null. */
+export function plannedMeal(state: MenuState, date: ISODate, slot: MealSlot): Nutrients | null {
+  const n = dayNutritionDetail(date, state).bySlot[slot];
+  return n && n.kcal > 0 ? n : null;
+}
+
+/**
+ * Nei giorni di calcio e alla vigilia i carboidrati servono davvero: se la scelta resta sotto l'85% del pasto
+ * previsto (calorie o carboidrati), si aggiungono uno o due elementi ricchi di carboidrati (spremuta,
+ * macedonia, trancio di pizza, pasta al pomodoro), scegliendo la combinazione più vicina al pasto previsto
+ * con meno voci e senza superarlo di oltre il 25%. Il trancio arriva solo con la frutta e la pasta solo con
+ * un panino proteico accanto, come chiedono i loro accorgimenti. Negli altri giorni la scelta resta com'è.
+ */
+/** "alla cena prevista", "al pranzo previsto". */
+const PLANNED_MEAL: Record<MealSlot, string> = {
+  colazione: 'alla colazione prevista',
+  spuntino: 'allo spuntino previsto',
+  pranzo: 'al pranzo previsto',
+  merenda: 'alla merenda prevista',
+  cena: 'alla cena prevista',
+};
+
+export function fitCombo(
+  combo: BarCombo,
+  dayType: DayType,
+  planned: Pick<Nutrients, 'kcal' | 'carbG'> | null,
+  slot?: MealSlot,
+  options: readonly BarOption[] = BAR_OPTIONS,
+): BarCombo {
+  if (dayType !== 'calcio' || !planned || planned.kcal <= 0) return combo;
+  const totals = (ids: readonly string[]) => sumApprox(optionsById(ids, options));
+  const reaches = (t: Nutrients) => t.kcal >= planned.kcal * CALCIO_MEAL_SHARE && (planned.carbG <= 0 || t.carbG >= planned.carbG * CALCIO_MEAL_SHARE);
+  const base = totals(combo.ids);
+  if (reaches(base)) return combo;
+  const free = CARB_TOP_UPS.filter((id) => !combo.ids.includes(id) && options.some((o) => o.id === id));
+  const sets: TopUp[][] = [[]];
+  free.forEach((a, i) => {
+    sets.push([a]);
+    for (const b of free.slice(i + 1)) sets.push([a, b]);
+  });
+  const distance = (t: Nutrients) => Math.abs(t.kcal - planned.kcal) / planned.kcal + (planned.carbG > 0 ? Math.abs(t.carbG - planned.carbG) / planned.carbG : 0);
+  let best: { add: TopUp[]; score: number } | null = null;
+  for (const add of sets) {
+    const ids = [...combo.ids, ...add];
+    const t = totals(ids);
+    if (add.length && (t.kcal > planned.kcal * CALCIO_MEAL_CAP || (planned.carbG > 0 && t.carbG > planned.carbG * CALCIO_MEAL_CAP))) continue;
+    if (ids.includes('trancio-pizza') && !ids.includes('macedonia')) continue;
+    if (ids.includes('pasta-pomodoro') && sumApprox(optionsById(ids.filter((id) => id !== 'pasta-pomodoro'), options)).proteinG < 25) continue;
+    const score = (reaches(t) ? 0 : 10) + distance(t) + add.length * 0.08;
+    if (!best || score < best.score) best = { add, score };
+  }
+  if (!best || !best.add.length) return combo;
+  const words = best.add.map((id) => TOP_UP_WORDS[id]).join(' e ');
+  const target = slot ? PLANNED_MEAL[slot] : 'al pasto previsto';
+  return {
+    ids: [...combo.ids, ...best.add],
+    why: `${combo.why} ${words.charAt(0).toUpperCase()}${words.slice(1)} ${best.add.length > 1 ? 'portano' : 'porta'} i carboidrati vicino ${target}.`,
+  };
 }
 
 /** Le opzioni esistenti, nell'ordine dato (gli id che mancano si saltano). */

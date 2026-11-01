@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
-import { gateForExercise, lastLogFor, painNoteForExercise, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
+import { gateForExercise, painNoteForExercise, recentLogsFor, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
 import { capitalize, fmtMinutes } from '../../../lib/format';
 import { useApp } from '../../../state/store';
 import { useNowHHMM } from '../../../state/hooks';
@@ -35,14 +35,17 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
   const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
   const own = pplan.items.filter((i) => !i.physio);
   const sets = plannedSets(own);
-  const increases = own.filter(
-    (it) =>
-      suggestNext(it.base, lastLogFor(it.base.exerciseId, history), {
+  const increases = own.filter((it) => {
+    const [last = null, previous = null] = recentLogsFor(it.base.exerciseId, history, 2);
+    return (
+      suggestNext(it.base, last, {
         gate: gateForExercise(it.exercise, gate),
         painNote: painNoteForExercise(it.exercise, gate),
         intro: Boolean(intro),
-      }).kind === 'aumenta',
-  ).length;
+        previous,
+      }).kind === 'aumenta'
+    );
+  }).length;
   const swapped = own.find((i) => i.replacedFrom);
   const showGate = gate.level !== 'ok' || Boolean(swapped);
   const when = capitalize(relativeDayShort(next.date, today));
@@ -73,8 +76,6 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
           </div>
         </div>
 
-        <p className="t-footnote text-ink-2">{session.focus}</p>
-
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           {[
             { icon: Clock, text: durationLabel(pplan.duration) },
@@ -93,8 +94,8 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
           <p className="t-footnote -mt-1 flex items-start gap-2 text-ink-2">
             <Sprout size={15} strokeWidth={2.3} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
             <span>
-              <span className="font-semibold text-ink">{intro === 1 ? 'Prima volta con questa seduta.' : 'Seconda volta con questa seduta.'}</span> Una serie in meno
-              e una ripetizione di riserva in più, così l'indolenzimento dei primi giorni non pesa sul calcio.
+              <span className="font-semibold text-ink">{intro === 1 ? 'Prima volta con questa seduta:' : 'Seconda volta con questa seduta:'}</span> una serie in meno e
+              una ripetizione di riserva in più.
             </span>
           </p>
         )}

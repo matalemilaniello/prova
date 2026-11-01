@@ -8,7 +8,7 @@ import type { WorkoutLog } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { daysBetween, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
 import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
-import { introLevel, sessionLoad } from '../../engine/training';
+import { gateForLater, introLevel, sessionLoad } from '../../engine/training';
 import { useNow, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Card, DayTypeBadge, EmptyState, ListGroup, ListRow, Screen, SectionTitle } from '../../ui';
@@ -99,7 +99,15 @@ export default function AllenamentoScreen() {
           onDiscard={discardDraft}
         />
       ) : data.next ? (
-        <NextSessionCard next={data.next} after={data.after} today={today} gate={data.gate} intro={data.nextIntro} onStart={() => startSession(data.next!.sessionId, data.next!.daysAway === 0 ? data.next!.date : today)} />
+        <NextSessionCard
+          next={data.next}
+          after={data.after}
+          today={today}
+          // La regola del dolore è calcolata sul controllo di oggi: per la seduta di domani "niente balzi oggi" non vale.
+          gate={data.next.daysAway === 0 ? data.gate : gateForLater(data.gate)}
+          intro={data.nextIntro}
+          onStart={() => startSession(data.next!.sessionId, data.next!.daysAway === 0 ? data.next!.date : today)}
+        />
       ) : (
         <Card padding="none">
           <EmptyState
@@ -112,9 +120,7 @@ export default function AllenamentoScreen() {
       )}
 
       <section className="flex flex-col gap-3" aria-labelledby="settimana-titolo">
-        <SectionTitle id="settimana-titolo" subtitle="Palestra e calcio, carico come minuti × RPE">
-          Questa settimana
-        </SectionTitle>
+        <SectionTitle id="settimana-titolo">Questa settimana</SectionTitle>
         <WeekCard
           days={data.days}
           status={data.status}

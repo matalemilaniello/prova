@@ -80,7 +80,8 @@ l'utente li conferma o li cambia nell'onboarding e tutto resta salvato solo sul 
 ### Pubblicazione
 
 `.github/workflows/deploy.yml`: su push a `main` e a `claude/focused-mendel-tgcz8o` esegue `npm ci`,
-`npm test`, `npm run build` e pubblica `dist/` sul ramo `gh-pages` (es. `peaceiris/actions-gh-pages@v4`,
+`npm run typecheck`, `npm test`, il controllo tipografico dei testi (`node scripts/check-typography.mjs --strict`),
+`npm run build` e pubblica `dist/` sul ramo `gh-pages` (es. `peaceiris/actions-gh-pages@v4`,
 `permissions: contents: write`). L'utente dovrà solo scegliere il ramo `gh-pages` in Settings → Pages.
 URL finale: `https://matalemilaniello.github.io/prova/`.
 
@@ -279,6 +280,12 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   blocco del fisioterapista).
   Le voci prima del primo avvio (`Plan.firstUse`) non contano. Coprifuoco, letto e telefono fuori si segnano
   solo da un'ora prima del coprifuoco (quelle dei giorni passati sempre).
+  Prima della prima spesa (`firstShopping`: quella di avvio o, per chi comincia il venerdì sera o il sabato, la
+  spesa del sabato, mai prima di mezz'ora dopo il primo avvio) i pasti dei giorni di avvio hanno `preShopping` e il
+  dettaglio "Con quello che hai: proteine, un carboidrato, frutta o verdura" (`PRE_SHOPPING_DETAIL`), con il piano B
+  al bar; con la spesa fatta o una ricetta scelta a mano il segno sparisce. Gli integratori con la dose "da
+  definire" non entrano nella voce da segnare (`takenSupplements`, `doseUndefined`): Oggi lo ricorda con una riga
+  che non conta il lunedì e il giorno del primo avvio (`supplementDoseDue`).
   `dayAdherence(iso, state)`: fatto = 1, sostituito = 0,5, saltato o non segnato = 0, su tutte le voci tranne
   `letto`; `daySuccessful`: aderenza ≥ 70% oppure giornata minima con 4 voci su 4. `streak(state, today)` e
   `streakInfo`: con 5 giornate riuscite in una settimana si guadagna un jolly (al massimo uno da parte), che
@@ -286,9 +293,14 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
 - `shopping.ts` · `shoppingList(weekStartIso, state)`: somma i grammi di tutti gli ingredienti della settimana
   (tipo di giorno compreso, sostituzioni comprese), applica `buyFactor`, raggruppa per `ShopCategory`,
   arrotonda in modo umano ("≈ 600 g", "6 uova", "2 confezioni da 400 g"), separa i prodotti da dispensa.
+  Le chiavi delle spunte sono gli id degli alimenti. Chi comincia il venerdì sera o il sabato non ha la spesa di
+  avvio: la lista della settimana dopo comprende anche i pasti di avvio da dopo la spesa del sabato alla domenica
+  (`lead`, calcolato da `shoppingLeadFor` in `timeline.ts`), senza note di congelamento per quei giorni.
 - `training.ts` · `lastLogFor(exerciseId, logs)`, `suggestNext(sessionExercise, lastLog)` (progressione
   doppia: se tutte le serie hanno raggiunto `repMax` con il carico precedente, proponi carico +incremento e
-  `repMin`; altrimenti stesso carico puntando a +1 ripetizione), `e1rm(weight, reps)` (Epley),
+  `repMin`; altrimenti stesso carico puntando a +1 ripetizione; dopo due esecuzioni di fila con la media delle
+  ripetizioni sotto `repMin` allo stesso carico, cioè uno stallo, il carico scende del 10% circa, arrotondato
+  all'incremento, e si risale), `e1rm(weight, reps)` (Epley),
   `sessionLoad(durationMin, rpe)`, `weeklyLoad(weekStart, state)` (palestra + calcio),
   `loadAlert(weekStart, state)` (settimana > 120% della media delle 4 precedenti; serve almeno 2 settimane di
   storico), `painGate(state, iso)` (regola di Silbernagel adattata: dolore ≤ soglia ok; sopra soglia o in
@@ -310,7 +322,11 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   - sonno: ≥ 5 notti a letto entro `current` + 15 min → anticipa di `stepMin` (fino a `target`);
   - calorie (ricomposizione): servono ≥ 4 pesate; calo medio > 0,5% del peso → +150 kcal; aumento > 0,5% →
     −100 kcal; altrimenti invariato (proposta informativa);
-  - fibre: media < target − 5 g → proposta concreta (vellutata, legumi, frutto);
+  - fibre: stima dai pasti segnati (i pasti senza stato non contano come saltati: menù previsto × quota arrivata
+    nei pasti segnati, esclusi i pasti prima della prima spesa) < riferimento − 5 g, dove il riferimento è
+    l'obiettivo o, nei giorni di avvio, il menù di avvio. Se il menù previsto porta almeno obiettivo − 2 g, la
+    proposta dice quale pasto tenere quando si sostituisce, senza aggiungere cibo; altrimenti aggiunge frutto,
+    legumi e vellutata, quanti ne servono, con le calorie;
   - dolore: media sopra soglia o in aumento → riduci il carico e senti il fisioterapista;
   - carico: allarme del carico → settimana più leggera, seduta C facoltativa saltata;
   - dolci: oltre quelli previsti → strategia (merenda proteica alle 16:30, dolce dopo cena);
@@ -389,11 +405,12 @@ Pulsante secondario "Prova con dati di esempio".
   Toccare un pasto apre la ricetta; la voce palestra apre la seduta; la voce calcio apre `FootballSheet`
   (minuti e RPE); la voce spuntino offre "Piano B bar".
 - Interruttore "Giornata minima".
-- Acqua: bicchieri con avanzamento verso l'obiettivo. Dolci: "2 su 3 previsti rimasti", pulsante "Ho mangiato
-  un dolce".
+- Acqua: bicchieri con avanzamento verso l'obiettivo. Dolci: "Ne restano 2 dei 3 previsti", pulsante "Ho
+  mangiato un dolce". Lo scalino della settimana è una riga della stessa card.
 - La sera: conto alla rovescia al coprifuoco ("Telefono fuori tra 1 h 20").
 - Un consiglio del giorno breve e motivato (`src/data/tips.ts`, 30+ consigli su sonno, fibre, carico, bar…).
-- Valori del giorno stimati dal menù (kcal, proteine, fibre, porzioni di vegetali) rispetto all'obiettivo.
+- Valori del giorno stimati dal menù (kcal, proteine, fibre, porzioni di vegetali) rispetto all'obiettivo, in
+  quattro piccoli anelli che si aprono con un tocco.
 
 ### Settimana (`src/features/settimana/`)
 - Striscia dei 7 giorni con tipo di giorno e attività; selezione del giorno.
@@ -530,9 +547,32 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   del benvenuto (questa settimana dal lunedì al giovedì, la prossima dal venerdì alla domenica).
 - `STARTER_WEEK` e `STARTER_PRODUCTS` in `src/data/menu.ts` (contenuti alimentari): il menù dei giorni di avvio
   (7 giorni, nessuna preparazione, ricette da 15 minuti al massimo, stessi vincoli della rotazione verificati da
-  `menu.test.ts`) e i suoi 17 prodotti. `ShoppingList.starter` e `ShoppingList.starterDates` in
+  `menu.test.ts` tranne le fibre, 22-32 g, oggi 28-31 g, per un aumento graduale: pane comune al posto
+  dell'integrale e ceci a piccole dosi, 40 g due volte) e i suoi 17 prodotti. `ShoppingList.starter` e `ShoppingList.starterDates` in
   `engine/shopping.ts` (tipi del motore, solo aggiunte): la lista copre solo giorni di avvio (è la "Spesa di
   avvio") e quali; in quei giorni niente è cotto in anticipo.
 - `firstReviewWeek`, `isReviewableWeek`, `MIN_FIRST_WEEK_DAYS` (integrazione, nessun campo nuovo): stanno in
   `engine/timeline.ts`, perché li usa anche il rito della domenica, e `engine/review.ts` li riesporta.
   `firstReviewDate` e `planWeekNumber` restano in `review.ts`.
+- `Profile.painTests?: Record<string, string>` (Oggi, Impostazioni, integrazione): gesto di prova del dolore per
+  zona indicato dal fisioterapista (chiave: nome della zona), modificabile in Impostazioni > Zone di dolore. Il
+  controllo del mattino e gli avvisi di Oggi lo usano al posto del gesto standard della zona (`testGesture` in
+  `features/oggi/painTests.ts`); con un gesto del fisioterapista la regola di sicurezza standard non si mostra.
+  `normalizeData` tiene solo i testi non vuoti. Senza il campo valgono i gesti standard.
+- Tipi e funzioni del motore della timeline (Oggi, nessun campo in `types.ts`): `DayItem.preShopping?`,
+  `firstShopping(state)`, `PRE_SHOPPING_DETAIL`; la spesa del sabato di chi comincia il sabato è almeno mezz'ora
+  dopo il primo avvio; `takenSupplements(plan)`, `doseUndefined(s)` e `supplementDoseDue(iso, state)`. Anche il
+  calendario (`ics.ts`) e il coach usano `takenSupplements`: un integratore con la dose da definire non finisce nel
+  promemoria, e il coach sa che per ora non si prende. `shoppingLeadFor(monday, state)` e
+  `shoppingOptionsFor(monday, state)` danno i pasti del fine settimana da aggiungere alla lista
+  (`ShoppingOptions.lead`, `ShoppingList.leadDates` in `engine/shopping.ts`).
+- Tipi e funzioni del motore dell'allenamento (Allenamento, nessun campo in `types.ts`):
+  `SuggestOptions.previous?: ExerciseLog | null` (esecuzione precedente, per riconoscere lo stallo),
+  `Suggestion.stalled?: boolean` (kind 'riduci' per lo stallo e non per il dolore), `recentLogsFor(exerciseId,
+  logs, count = 2, opts)`, `gateForLater(gate)` (per una seduta che non è oggi, "niente balzi oggi" diventa "nella
+  prossima seduta"), `STALL_REDUCE_FACTOR` = 0,9; `isLowerLegSite(site)` e `isElbowSite(site)`, usate anche dal
+  coach e dalle impostazioni.
+- Tipi del motore della revisione (Progressi, nessun campo in `types.ts`): `PeriodStats.fiberPlannedG`,
+  `proteinPlannedG`, `mealsCounted`, `mealsLogged`, `mealsReplaced`, `mealsSkipped`, `fiberLostBySlot`,
+  `fiberStarter`, `fiberLow` e `DayIntake.planned`, `plannedLogged`, `meals`: la stima di fibre e proteine dai pasti
+  segnati e il confronto con il menù previsto.

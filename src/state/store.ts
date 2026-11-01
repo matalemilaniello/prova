@@ -265,8 +265,17 @@ function normalizeProfile(raw: unknown): Profile {
     goal: GOALS.has(str(p.goal, '')) ? (p.goal as Profile['goal']) : b.goal,
     expertise: optStr(p.expertise),
     painSites: strArray(p.painSites).filter((x) => x.trim() !== ''),
+    painTests: normalizePainTests(p.painTests),
     waterTargetL: clampN(num(p.waterTargetL, b.waterTargetL), 0.5, 8),
   } as Profile);
+}
+
+/** Gesti di prova per zona: solo testi non vuoti; senza nessuno il campo sparisce. */
+function normalizePainTests(raw: unknown): Profile['painTests'] {
+  if (!isObj(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [site, text] of Object.entries(raw)) if (typeof text === 'string' && text.trim()) out[site] = text.trim();
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeDayLogs(raw: unknown): AppData['dayLogs'] {

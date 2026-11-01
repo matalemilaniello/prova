@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { ChevronRight, ClipboardCheck, Lightbulb, MoonStar, RefreshCw, SmartphoneCharging } from 'lucide-react';
+import { useId, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ChevronDown, ChevronRight, ClipboardCheck, Lightbulb, MoonStar, RefreshCw, SmartphoneCharging } from 'lucide-react';
 import type { DayType, HHMM, ISODate } from '../../../domain/types';
 import { TIP_TOPIC_LABEL, tipOfDay, type TipContext } from '../../../data/tips';
 import { fmtMinutes } from '../../../lib/format';
@@ -77,37 +77,87 @@ export function CurfewCard({ minutes, curfew, bed, ritual, onRitual }: CurfewCar
   );
 }
 
-/** Consiglio del giorno, breve e motivato. "Un altro" scorre ai consigli successivi. */
+/** Prima frase di un consiglio (cosa fare) e il resto (perché), per mostrarlo chiuso con "Leggi". */
+export function splitTip(text: string): { lead: string; rest: string } {
+  const m = text.match(/^(.+?[.!?])\s+(.+)$/s);
+  return m ? { lead: m[1], rest: m[2] } : { lead: text, rest: '' };
+}
+
+/**
+ * Consiglio del giorno, chiuso di base: titolo e prima frase. "Leggi" apre il perché e il pulsante per
+ * passare al consiglio successivo.
+ */
 export function TipCard({ date, dayType, firstId, context }: { date: ISODate; dayType: DayType; firstId?: string; context?: TipContext }) {
   const [offset, setOffset] = useState(0);
+  const [open, setOpen] = useState(false);
+  const reduce = useReducedMotion();
   const tip = tipOfDay(date, dayType, offset, firstId, context);
+  const { lead, rest } = splitTip(tip.text);
+  const id = useId();
+  const next = (
+    <button
+      type="button"
+      onClick={() => {
+        haptic('selection');
+        setOffset((n) => n + 1);
+      }}
+      className="hit-44 t-footnote -mr-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-1 font-semibold text-accent-ink"
+      aria-label="Un altro consiglio"
+    >
+      <RefreshCw size={14} strokeWidth={2.4} aria-hidden />
+      Un altro
+    </button>
+  );
   return (
     <Card variant="outline" padding="none" as="section" aria-labelledby="oggi-consiglio">
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
           <p className={cn(BOARD_LABEL, 'flex min-w-0 items-center gap-2 text-accent-ink')}>
             <Lightbulb size={14} strokeWidth={2.4} aria-hidden className="shrink-0" />
-            <span id="oggi-consiglio" className="truncate">
+            <span className="truncate">
               Consiglio <span className="text-ink-3">· {TIP_TOPIC_LABEL[tip.topic]}</span>
             </span>
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              haptic('selection');
-              setOffset((n) => n + 1);
-            }}
-            className="hit-44 t-footnote -mr-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-semibold text-accent-ink"
-            aria-label="Un altro consiglio"
-          >
-            <RefreshCw size={14} strokeWidth={2.4} aria-hidden />
-            Un altro
-          </button>
+          {rest ? (
+            <button
+              type="button"
+              onClick={() => {
+                haptic('selection');
+                setOpen((o) => !o);
+              }}
+              aria-expanded={open}
+              aria-controls={id}
+              className="hit-44 t-footnote -mr-1 inline-flex shrink-0 items-center gap-1 px-1 font-semibold text-accent-ink"
+            >
+              {open ? 'Chiudi' : 'Leggi'}
+              <ChevronDown size={15} strokeWidth={2.5} aria-hidden className={cn('transition-transform duration-200', open && 'rotate-180')} />
+            </button>
+          ) : (
+            next
+          )}
         </div>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div key={tip.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={spring} aria-live="polite">
-            <h4 className="t-headline mt-2.5 text-ink">{tip.title}</h4>
-            <p className="t-callout selectable mt-1 text-ink-2">{tip.text}</p>
+            <h4 id="oggi-consiglio" className="t-headline mt-2.5 text-ink">
+              {tip.title}
+            </h4>
+            <p className={cn('t-callout selectable mt-1 text-ink-2', !open && rest && 'line-clamp-1')}>{lead}</p>
+            <AnimatePresence initial={false}>
+              {open && rest && (
+                <motion.div
+                  id={id}
+                  key="rest"
+                  className="overflow-hidden"
+                  initial={reduce ? false : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={spring}
+                >
+                  <p className="t-callout selectable pt-1.5 text-ink-2">{rest}</p>
+                  <div className="-mb-2 mt-1 flex justify-end">{next}</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </AnimatePresence>
       </div>

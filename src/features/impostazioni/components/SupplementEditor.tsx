@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronRight, Pill as PillIcon, Plus, Trash2 } from 'lucide-react';
 import type { Supplement } from '../../../domain/types';
+import { doseUndefined } from '../../../engine/timeline';
 import { haptic } from '../../../lib/haptics';
 import { uid } from '../../../lib/id';
 import { Button, EmptyState, Field, Sheet, TextArea, TextInput, Toggle, cn, staggerItem } from '../../../ui';
@@ -88,6 +89,9 @@ export function SupplementList({ supplements, onToggle, onEdit, onAdd, className
                 <span className="t-footnote mt-0.5 text-ink-2">
                   {[s.dose, TIMING_TEXT[s.timing]].filter(Boolean).join(' · ')}
                 </span>
+                {s.active && doseUndefined(s) && (
+                  <span className="t-footnote mt-1 font-medium text-warn-ink">Finché manca la dose non entra nella giornata</span>
+                )}
               </span>
               <ChevronRight aria-hidden size={16} strokeWidth={2.2} className="shrink-0 text-ink-3" />
             </motion.button>

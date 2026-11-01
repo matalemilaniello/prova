@@ -53,4 +53,5 @@ export { Spinner, type SpinnerProps } from './Spinner';
 export { DemoBadge } from './DemoBadge';
 export { Callout, type CalloutProps } from './Callout';
 export { Chip, type ChipProps } from './Chip';
+export { Disclosure, type DisclosureProps } from './Disclosure';
 export { keepHyphens } from './KeepTogether';

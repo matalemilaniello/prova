@@ -6,13 +6,13 @@ import type { DayType, MacroTarget } from '../../../domain/types';
 import { isProfileComplete } from '../../../data/defaults';
 import { currentDate } from '../../../engine/dates';
 import { ageFrom, computeTargets } from '../../../engine/targets';
-import { DAY_TYPES, DAY_TYPE_LABEL, fmtDelta, fmtKg, fmtNumber, plural } from '../../../lib/format';
+import { DAY_TYPES, DAY_TYPE_LABEL, fmtDelta, fmtKg, fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { latestWeight, useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, DayTypeBadge, ListGroup, NumberTicker, Sheet, cn, springSnappy, staggerItem, toneColor, toneInk } from '../../../ui';
 import { FormRow, MiniStepper, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
-import { carbsToMatch, kcalFromMacros, matchEveCount, matchEveNote, targetDayCounts } from '../lib';
+import { carbsToMatch, kcalFromMacros, matchEveCount, targetDayCounts, targetDaysLabel } from '../lib';
 import { Page, type PageProps } from './Page';
 
 /** Barra delle macro in proporzione alle kcal (proteine, carboidrati, grassi), nel colore del tipo di giorno. */
@@ -47,7 +47,8 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
   // Giorni che usano ogni obiettivo: la vigilia della partita mangia come il calcio e conta lì.
   const counts = targetDayCounts(week);
   const eves = matchEveCount(week);
-  const eveNote = matchEveNote(week);
+  const used = DAY_TYPES.filter((t) => counts[t] > 0);
+  const unused = DAY_TYPES.filter((t) => !counts[t]);
   const complete = isProfileComplete(profile);
   const weight = latestWeight({ checkIns, profile });
 
@@ -77,19 +78,17 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
       )}
 
       <section className="flex flex-col gap-2.5" aria-label="Obiettivi per tipo di giorno">
-        {DAY_TYPES.map((t, i) => {
+        {used.map((t, i) => {
           const v = targets[t];
           return (
             <motion.div key={t} {...staggerItem(i, 0.04)}>
               <Card padding="md" onPress={() => setEditing({ type: t, n: Date.now() })} aria-label={`Modifica ${DAY_TYPE_LABEL[t]}: ${fmtNumber(v.kcal)} kcal`} className="flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <DayTypeBadge dayType={t} />
-                    <span className="t-label text-[0.75rem] text-ink-2">
-                      {counts[t] ? `${plural(counts[t], 'giorno', 'giorni')}${t === 'calcio' && eves ? (eves === 1 ? ', vigilia compresa' : ', vigilie comprese') : ''}` : 'nessun giorno'}
-                    </span>
+                    <span className="t-label text-[0.75rem] text-ink-2">{targetDaysLabel(t, week)}</span>
                   </div>
-                  <ChevronRight size={18} strokeWidth={2.2} className="text-ink-3" aria-hidden />
+                  <ChevronRight size={18} strokeWidth={2.2} className="shrink-0 text-ink-3" aria-hidden />
                 </div>
                 <div className="flex items-baseline gap-1.5">
                   <NumberTicker value={v.kcal} className="t-num text-[2.25rem] text-ink" />
@@ -115,8 +114,28 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
             </motion.div>
           );
         })}
+        {/* Tipi che la settimana non usa (di solito il riposo, quando la domenica è la vigilia): una riga sola, attenuata. */}
+        {unused.length > 0 && (
+          <Card padding="none" className="overflow-hidden">
+            {unused.map((t, i) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setEditing({ type: t, n: Date.now() })}
+                aria-label={`Modifica ${DAY_TYPE_LABEL[t]}: ${fmtNumber(targets[t].kcal)} kcal, nessun giorno in settimana`}
+                className={cn('flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left', i > 0 && 'border-t border-line')}
+              >
+                <DayTypeBadge dayType={t} variant="dot" />
+                <span className="t-footnote min-w-0 flex-1 text-ink-3">nessun giorno</span>
+                <span className="t-mono shrink-0 text-[0.8125rem] text-ink-2">{fmtNumber(targets[t].kcal)} kcal</span>
+                <ChevronRight size={16} strokeWidth={2.2} className="shrink-0 text-ink-4" aria-hidden />
+              </button>
+            ))}
+          </Card>
+        )}
         <p className="t-footnote px-1 text-pretty text-ink-3">
-          {eveNote ? `${eveNote}, per arrivare in campo con il glicogeno pieno. ` : ''}La revisione della domenica può proporre di spostare le calorie: la variazione passa dai carboidrati, proteine e grassi restano fermi.
+          {eves ? `${eves > 1 ? 'Le vigilie della partita mangiano' : 'La vigilia della partita mangia'} come il calcio, per arrivare in campo con il glicogeno pieno. ` : ''}
+          Le correzioni della revisione passano dai carboidrati: proteine e grassi restano fermi.
         </p>
       </section>
 

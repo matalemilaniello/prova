@@ -23,6 +23,8 @@
  * non conta: lì si cucina subito e si conserva cotto.
  *
  * Con `fromDate` la lista parte da quel giorno (la prima settimana di chi inizia a metà settimana).
+ * Con `lead` comprende anche i giorni del fine settimana prima del lunedì: chi comincia il venerdì sera o il
+ * sabato non ha la spesa di avvio, e la spesa del sabato porta anche i pasti di avvio di sabato e domenica.
  *
  * Giorni di avvio (`isStarterDay`): la preparazione della domenica non c'è stata, quindi niente si considera
  * cucinato in anticipo e la carne fresca di metà settimana va congelata da cruda. `starter` dice se tutta la
@@ -32,7 +34,7 @@ import type { Food, ISODate, MealSlot, MenuWeek, ShopCategory } from '../domain/
 import { FOODS } from '../data/foods';
 import { MENU_ROTATION } from '../data/menu';
 import { WEEKDAY_LONG, listIt } from '../lib/format';
-import { weekDates, weekStart, weekdayOf } from './dates';
+import { addDays, weekDates, weekStart, weekdayOf } from './dates';
 import { mealsForDate, menuWeekFor, type MenuState } from './menu';
 import { dayCarbScale, lineGrams } from './nutrition';
 
@@ -109,6 +111,8 @@ export interface ShoppingList {
   dates: ISODate[];
   /** Giorni di avvio tra quelli considerati (niente preparazione della domenica). */
   starterDates: ISODate[];
+  /** Giorni del fine settimana prima del lunedì compresi con `lead` (vuoto senza). */
+  leadDates: ISODate[];
   /** True se tutti i giorni con pasti sono di avvio: è la spesa di avvio. */
   starter: boolean;
 }
@@ -118,6 +122,16 @@ export interface ShoppingOptions {
   rotation?: MenuWeek[];
   /** Primo giorno da considerare (incluso): i giorni prima restano fuori dalla lista. */
   fromDate?: ISODate;
+  /**
+   * Pasti del fine settimana prima del lunedì da comprare insieme alla settimana: da `date` (il sabato della
+   * prima spesa) alla domenica, tranne i pasti `skipSlots` di quel giorno (vengono prima della spesa).
+   */
+  lead?: ShoppingLead;
+}
+
+export interface ShoppingLead {
+  date: ISODate;
+  skipSlots?: readonly MealSlot[];
 }
 
 // ───────────────────────── Nomi ─────────────────────────
@@ -351,7 +365,10 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
   const monday = weekStart(weekStartIso);
   const acc = new Map<string, { eaten: number; uses: ShoppingUse[] }>();
   const week = rotation.length ? menuWeekFor(monday, state.plan.startDate, rotation) : undefined;
-  const dates = weekDates(monday).filter((d) => !opts.fromDate || d >= opts.fromDate);
+  const lead = opts.lead;
+  const leadDates: ISODate[] = [];
+  if (lead && lead.date < monday) for (let d = lead.date; d < monday && leadDates.length < 3; d = addDays(d, 1)) leadDates.push(d);
+  const dates = [...leadDates, ...weekDates(monday).filter((d) => !opts.fromDate || d >= opts.fromDate)];
   const starterDates: ISODate[] = [];
   let mealDays = 0;
   let mealCount = 0;
@@ -361,8 +378,9 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
     if (starter) starterDates.push(date);
     if (meals.length) mealDays++;
     const scale = dayCarbScale(date, state);
+    const skip = lead && date === lead.date ? new Set(lead.skipSlots ?? []) : null;
     for (const meal of meals) {
-      if (!meal.recipe) continue;
+      if (!meal.recipe || skip?.has(meal.slot)) continue;
       mealCount++;
       for (const line of meal.recipe.ingredients) {
         if (!foods[line.foodId]) continue;
@@ -399,7 +417,8 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
       days: [...new Set(uses.map((u) => u.date))].sort(),
     };
     if (isPerishable(food)) {
-      const late = uses.filter((u) => !u.ahead && weekdayOf(u.date) > FRESH_LAST_WEEKDAY);
+      // I giorni del fine settimana prima del lunedì seguono la spesa: niente da congelare.
+      const late = uses.filter((u) => !u.ahead && u.date >= monday && weekdayOf(u.date) > FRESH_LAST_WEEKDAY);
       const lateDates = [...new Set(late.map((u) => u.date))].sort();
       if (lateDates.length) {
         const lateBuyG = late.reduce((a, u) => a + u.grams, 0) * (food.buyFactor ?? 1);
@@ -430,6 +449,7 @@ export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: Shop
     mealCount,
     dates,
     starterDates,
+    leadDates,
     starter: mealDays > 0 && starterDates.length >= mealDays,
   };
 }

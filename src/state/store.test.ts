@@ -124,6 +124,14 @@ describe('store', () => {
     expect(useUi.getState().toasts.find((t) => t.id === id)).toBeUndefined();
   });
 
+  it('i gesti di prova del fisioterapista restano solo se sono testi', () => {
+    const base = pickData(defaultAppData('2026-11-09'));
+    const keep = normalizeData({ ...base, profile: { ...base.profile, painSites: ['Gomito'], painTests: { Gomito: ' presa a pugno chiuso ', Tibia: 3, Spalla: '  ' } } });
+    expect(keep.profile.painTests).toEqual({ Gomito: 'presa a pugno chiuso' });
+    const none = normalizeData({ ...base, profile: { ...base.profile, painTests: 'boh' } });
+    expect('painTests' in none.profile).toBe(false);
+  });
+
   it('un backup danneggiato in una sezione si ripara invece di bloccare l’app', () => {
     const base = pickData(defaultAppData('2026-11-09'));
     const broken = {

@@ -13,7 +13,7 @@ import { WEEKDAY_SHORT, fmtDateLong, listIt } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { usePlanDay } from '../../../state/hooks';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, NumberTicker, Pill, Sheet, TextArea, type AnyTone } from '../../../ui';
+import { Button, Callout, Card, Disclosure, NumberTicker, Pill, Sheet, TextArea, type AnyTone } from '../../../ui';
 import { SelectRow, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
 import { saveCalendarFile, saveReminderKinds, useCalendarStatus, useReminderPrefs } from '../reminders';
@@ -73,10 +73,13 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
 
   const toast = useUi.getState().toast;
   const build = () => remindersIcs({ plan, physio }, available, { start: today, now: new Date() });
+  // Le istruzioni stanno dietro un tocco; quando il file è appena uscito si aprono da sole, è il momento in cui servono.
+  const [howOpen, setHowOpen] = useState(false);
   const delivered = (message: string) => {
     saveCalendarFile({ plan, physio }, available, today);
     haptic('success');
     toast(message, 'good');
+    setHowOpen(true);
   };
 
   const setKind = (k: ReminderKind, on: boolean) => saveReminderKinds(on ? [...kinds, k] : kinds.filter((x) => x !== k));
@@ -129,7 +132,7 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
           </div>
         </div>
         <p className="t-footnote text-ink-2">
-          All’orario giusto, con il fuso di Roma e l’ora legale.{staged ? ' Il coprifuoco scende da solo con la scala del sonno, senza rifare il file.' : ''}
+          All’orario giusto, con il fuso di Roma e l’ora legale.{staged ? ' Il coprifuoco segue la scala del sonno senza rifare il file.' : ''}
         </p>
       </Card>
 
@@ -232,12 +235,9 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
         </Callout>
       )}
 
-      <section className="flex flex-col gap-2" aria-labelledby="come-promemoria">
-        <h3 id="come-promemoria" className="t-label px-1 text-ink-3">
-          Come aggiungerlo
-        </h3>
-        <Card padding="none">
-          <ol className="flex flex-col">
+      <Card padding="none" className="px-4 py-1">
+        <Disclosure title="Come aggiungerlo" icon={CalendarPlus} open={howOpen} onOpenChange={setHowOpen}>
+          <ol className="flex flex-col gap-3 pb-1">
             {[
               'In Calendario crea un calendario chiamato Ritmo: così spegni o togli tutti gli avvisi in un attimo.',
               shareFirst
@@ -245,7 +245,7 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
                 : 'Apri il file scaricato, tocca Aggiungi tutti e scegli il calendario Ritmo.',
               'Quando il piano cambia, qui compare Da aggiornare. Per non avere doppioni elimina il calendario Ritmo e aggiungi il file nuovo.',
             ].map((t, i) => (
-              <li key={i} className={i > 0 ? 'relative flex gap-3 px-4 py-3.5 before:absolute before:left-[52px] before:right-0 before:top-0 before:h-px before:bg-line' : 'flex gap-3 px-4 py-3.5'}>
+              <li key={i} className="flex gap-3">
                 <span aria-hidden className="t-num grid size-7 shrink-0 place-items-center rounded-full bg-control text-[0.9375rem] text-ink-2">
                   {i + 1}
                 </span>
@@ -253,8 +253,8 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
               </li>
             ))}
           </ol>
-        </Card>
-      </section>
+        </Disclosure>
+      </Card>
 
       {manual !== null && <ManualCopySheet text={manual} onClosed={() => setManual(null)} />}
     </Page>

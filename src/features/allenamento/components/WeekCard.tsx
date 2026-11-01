@@ -3,8 +3,8 @@ import { Check, Moon } from 'lucide-react';
 import type { DayType } from '../../../domain/types';
 import { fromISO } from '../../../engine/dates';
 import { FOOTBALL_LABEL, WEEKDAY_INITIAL, WEEKDAY_LONG, fmtNumber } from '../../../lib/format';
-import { Callout, Card, DAY_TYPE_ICON, cn, renderIcon, staggerItem, toneColor, toneInk, toneSoft } from '../../../ui';
-import type { LoadStatus } from '../../../engine/training';
+import { Callout, Card, DAY_TYPE_ICON, Disclosure, cn, renderIcon, staggerItem, toneColor, toneInk, toneSoft } from '../../../ui';
+import { LOAD_ALERT_RATIO, LOAD_LOOKBACK_WEEKS, type LoadStatus } from '../../../engine/training';
 import type { WeekDayInfo } from '../useTraining';
 import { LoadMeter } from './LoadMeter';
 
@@ -113,6 +113,11 @@ export function WeekCard({ days, status, planned, onDay }: WeekCardProps) {
       <div className="border-t border-line p-4">
         <p className="t-label mb-3 text-ink-3">Carico della settimana</p>
         <LoadMeter status={status} planned={planned} />
+        <Disclosure variant="inline" title="Come si calcola" className="mt-2">
+          Ogni seduta e ogni partita valgono minuti × RPE (metodo di Foster), in unità arbitrarie (UA). La soglia è il{' '}
+          {fmtNumber(Math.round(LOAD_ALERT_RATIO * 100))}% della media delle settimane precedenti (fino a {LOAD_LOOKBACK_WEEKS}): oltre, il carico sale
+          più in fretta dell’adattamento.
+        </Disclosure>
         {status.alert ? (
           <Callout tone="warn" title="Oltre il 120% della media" className="mt-4">
             Picchi così aumentano il rischio di sovraccarico. Tieni leggere le prossime sedute e salta la facoltativa.

@@ -36,6 +36,9 @@ jobs:
       - name: Test dei motori
         run: npm test
 
+      - name: Controlla la tipografia dei testi
+        run: node scripts/check-typography.mjs --strict
+
       - name: Build per GitHub Pages
         run: npm run build
 

@@ -50,6 +50,14 @@ const MIN_FIBER = 28;
  */
 const MAX_FIBER = 45;
 const MAX_FIBER_FOOTBALL = 40;
+/**
+ * Settimana di avvio: le fibre salgono per gradi. Chi mangiava poca frutta e verdura non passa da un giorno
+ * all'altro a 40 g: nei giorni di avvio 22-32 g (circa 11 g ogni 1.000 kcal), poi la rotazione.
+ */
+const MIN_FIBER_STARTER = 22;
+const MAX_FIBER_STARTER = 32;
+/** Scarto minimo tra la media delle fibre della rotazione e quella della settimana di avvio. */
+const FIBER_STEP = 6;
 /** Grassi: almeno il 20% dell'energia (intervallo di riferimento LARN 20-35%) e non più di 15 g sotto l'obiettivo. */
 const MIN_FAT_SHARE = 0.2;
 const FAT_SLACK = 15;
@@ -188,12 +196,12 @@ function printTable(days: DayRow[] = DAYS, title = 'Totali giornalieri del menù
 
 // ───────────────────────── Vincoli giornalieri (rotazione e avvio) ─────────────────────────
 
-function checkNutrition(days: DayRow[]) {
+function checkNutrition(days: DayRow[], minFiber = MIN_FIBER) {
   for (const d of days) {
     const where = `${d.label} (${d.dayType})`;
     expect(Math.abs(d.deviation), `${where}: ${fmt(d.totals.kcal)} kcal`).toBeLessThanOrEqual(KCAL_TOLERANCE);
     expect(d.totals.proteinG, `${where}: proteine`).toBeGreaterThanOrEqual(MIN_PROTEIN);
-    expect(d.totals.fiberG, `${where}: fibre`).toBeGreaterThanOrEqual(MIN_FIBER);
+    expect(d.totals.fiberG, `${where}: fibre`).toBeGreaterThanOrEqual(minFiber);
     expect(d.totals.veg, `${where}: porzioni di frutta e verdura`).toBeGreaterThanOrEqual(MIN_VEG);
   }
 }
@@ -491,20 +499,38 @@ describe('settimana di avvio', () => {
     checkFootballMeals(STARTER_WEEK, 'avvio');
   });
 
-  it('rispetta gli stessi vincoli della rotazione in ogni giorno', () => {
+  it('rispetta gli stessi vincoli della rotazione in ogni giorno, tranne le fibre', () => {
     printTable(STARTER_DAYS, 'Totali giornalieri della settimana di avvio');
-    checkNutrition(STARTER_DAYS);
+    checkNutrition(STARTER_DAYS, MIN_FIBER_STARTER);
     checkFiberCap(STARTER_DAYS);
     checkFat(STARTER_DAYS);
     checkMacros(STARTER_DAYS);
     for (const d of STARTER_DAYS) expect(d.legumeServings, d.label).toBeLessThanOrEqual(1);
   });
 
-  it('resta varia anche ripetendosi: pesce, legumi e uova con misura, niente carne rossa', () => {
+  it('fa salire le fibre per gradi: 22-32 g al giorno, ben sotto la rotazione', () => {
+    for (const d of STARTER_DAYS) {
+      const where = `${d.label}: ${fmt(d.totals.fiberG, 1)} g di fibre`;
+      expect(d.totals.fiberG, where).toBeGreaterThanOrEqual(MIN_FIBER_STARTER);
+      expect(d.totals.fiberG, where).toBeLessThanOrEqual(MAX_FIBER_STARTER);
+    }
+    const avg = (days: DayRow[]) => days.reduce((s, d) => s + d.totals.fiberG, 0) / days.length;
+    expect(avg(DAYS) - avg(STARTER_DAYS), 'scarto tra rotazione e avvio').toBeGreaterThanOrEqual(FIBER_STEP);
+  });
+
+  it('introduce i legumi a piccole dosi: ceci in almeno 2 pasti, mai un piatto di legumi intero', () => {
+    const withLegumes = starterRecipes().filter((m) => m.recipe && gramsOf(m.recipe, LEGUMES) > 0);
+    expect(withLegumes.length, 'pasti con legumi').toBeGreaterThanOrEqual(2);
+    for (const m of withLegumes) {
+      const g = gramsOf(m.recipe, LEGUMES);
+      expect(g, `avvio ${WEEKDAYS[m.di]} ${m.slot}: ${fmt(g)} g di legumi`).toBeLessThan(LEGUME_SERVING_G);
+    }
+  });
+
+  it('resta varia anche ripetendosi: pesce e uova con misura, niente carne rossa', () => {
     const meals = starterRecipes().filter((m) => m.slot === 'pranzo' || m.slot === 'cena');
     const count = (pred: (r: Recipe) => boolean) => meals.filter((m) => m.recipe && pred(m.recipe)).length;
     const tuna = meals.filter((m) => m.recipe?.ingredients.some((l) => l.foodId === 'tonno')).length;
-    expect(count(isLegumeMeal), 'legumi').toBeGreaterThanOrEqual(3);
     expect(count(hasWholeEgg), 'uova').toBeLessThanOrEqual(3);
     expect(count(hasRedMeat), 'carne rossa').toBe(0);
     // Il tonno in scatola al massimo 3 volte a settimana.

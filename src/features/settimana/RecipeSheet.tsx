@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { ArrowLeftRight, ChefHat, Clock, Hand, Undo2, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeftRight, ChefHat, Clock, Undo2, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, MealSlot, PortionUnit, Recipe } from '../../domain/types';
 import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
@@ -17,11 +17,11 @@ import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber, fmtPercent, listIt } from '../../lib/format';
 import { useApp } from '../../state/store';
 import { usePlanDay } from '../../state/hooks';
-import { Button, Card, DayTypeBadge, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
+import { Button, Card, DayTypeBadge, Disclosure, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
 import { toneInk, toneRing } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import { swatchFor } from './art/foodArt';
-import { mealScheduleFor, portionSentence } from './helpers';
+import { mealScheduleFor, portionShort } from './helpers';
 import { applySwap } from './SwapSheet';
 
 export interface RecipeSheetProps {
@@ -256,7 +256,7 @@ function Ingredients({
   const factor = totalCarbFactor(dayType, scale);
   const units = [...new Set(recipe.ingredients.map((l) => HAND_HELP[l.unit]).filter((x): x is string => Boolean(x)))];
   const hasScaled = recipe.ingredients.some((l) => l.carbScaled) && factor !== 1;
-  const sentence = hasScaled ? portionSentence(dayType, factor, matchEve) : null;
+  const sentence = hasScaled ? portionShort(dayType, factor, matchEve) : null;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-ingredienti">
       <SectionTitle
@@ -311,10 +311,9 @@ function Ingredients({
         </ul>
       </Card>
       {units.length > 0 && (
-        <div className="flex gap-2.5 px-1">
-          <Hand aria-hidden size={16} strokeWidth={2.2} className="mt-0.5 shrink-0 text-ink-3" />
-          <p className="t-footnote text-ink-3">A occhio con la tua mano: {listIt(units)}.</p>
-        </div>
+        <Disclosure variant="inline" title="Come misurare a occhio" className="px-1">
+          Con la tua mano: {listIt(units)}. I grammi accanto servono a controllare con la bilancia le prime volte.
+        </Disclosure>
       )}
     </section>
   );
@@ -323,7 +322,7 @@ function Ingredients({
 function Steps({ recipe }: { recipe: Recipe }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-passaggi">
-      <SectionTitle id="ricetta-passaggi" subtitle={`${recipe.prepMin} minuti${recipe.batch ? ', con una parte pronta dalla domenica' : ''}.`}>
+      <SectionTitle id="ricetta-passaggi" subtitle={recipe.batch ? 'Una parte è pronta dalla domenica.' : undefined}>
         Passaggi
       </SectionTitle>
       <Card padding="lg">

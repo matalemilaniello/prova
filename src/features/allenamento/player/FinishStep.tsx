@@ -41,7 +41,7 @@ export function FinishStep(p: FinishStepProps) {
           <Flag size={13} strokeWidth={2.4} aria-hidden />
           Fine seduta
         </p>
-        <h2 className="t-title text-ink">Com'è andata la {p.sessionName.replace(/^Seduta/, 'seduta')}?</h2>
+        <h2 className="t-title text-ink">Com’è andata la {p.sessionName.replace(/^Seduta/, 'seduta')}?</h2>
         <p className="t-callout text-ink-2">
           {p.setsDone} serie su {p.setsPlanned}
           {p.volume > 0 ? `, ${fmtNumber(Math.round(p.volume))}\u00a0kg sollevati` : ''}. Tre risposte e hai finito.
@@ -61,17 +61,18 @@ export function FinishStep(p: FinishStepProps) {
           max={10}
           value={p.rpe}
           onChange={p.onRpe}
-          lowLabel="Facile"
-          highLabel="Massimale"
+          lowLabel={RPE_LABELS[0]}
+          highLabel={RPE_LABELS[9]}
           labels={RPE_LABELS}
         />
         <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
           <span className="t-footnote text-ink-2">Carico della seduta</span>
           <span className="t-callout font-semibold text-ink tabular">
-            {p.rpe ? `${p.durationMin} min × ${p.rpe} = ${fmtNumber(load)} UA` : "scegli l'RPE"}
+            {p.rpe ? `${p.durationMin} min × ${p.rpe} = ${fmtNumber(load)} UA` : "scegli l’RPE"}
           </span>
         </div>
-        {pct !== null && p.rpe ? (
+        {/* A inizio settimana il confronto con la media non dice nulla: compare quando ci si avvicina alla soglia. */}
+        {pct !== null && pct >= 0.8 && p.rpe ? (
           <p className="t-footnote -mt-1 text-ink-3">
             La settimana arriva a {fmtNumber(after)} UA, il {fmtNumber(Math.round(pct * 100))}% della media delle settimane precedenti.
           </p>
@@ -102,7 +103,7 @@ export function FinishStep(p: FinishStepProps) {
       )}
 
       <Field label="Note" optional hint="Per esempio: gomito tranquillo con la chest press.">
-        <TextArea value={p.notes} onChange={p.onNotes} rows={3} placeholder="Com'è andata" maxLength={400} />
+        <TextArea value={p.notes} onChange={p.onNotes} rows={3} placeholder="Com’è andata" maxLength={400} />
       </Field>
     </div>
   );

@@ -21,10 +21,10 @@ import type { Exercise, ExerciseLog, SetLog } from '../../../domain/types';
 import { IS_PREVIEW } from '../../../app/env';
 import { startLoads } from '../../../data/exercises';
 import { formatShort, formatWeekdayShort } from '../../../engine/dates';
-import { bestSet, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
+import { bestSet, workingWeight, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Callout, Card, IconButton, Pill, cn, spring, springSnappy, toneInk, toneRing, toneSoft } from '../../../ui';
+import { Button, Callout, Card, Disclosure, IconButton, Pill, cn, spring, springSnappy, toneInk, toneRing, toneSoft } from '../../../ui';
 import { BigStepper } from './BigStepper';
 import { doseLabel, kgLabel, repsUnit, restLabel, weightStep, type PlayerItem } from '../lib';
 
@@ -40,6 +40,8 @@ export interface ExerciseStepProps {
   last: LastEntry | null;
   painFlag: PainFlag | null;
   showWeight: boolean;
+  /** La serie aperta non si può segnare finché non si sceglie un carico (esercizio con carico a 0 kg). */
+  needsLoad?: boolean;
   /** Lato della tenuta per lato (0 o 1), se in corso. */
   holdSide: number;
   onSetChange: (index: number, patch: Partial<SetLog>) => void;
@@ -61,6 +63,7 @@ const KIND: Record<SuggestionKind, { icon: LucideIcon; tone: 'good' | 'accent' |
   mantieni: { icon: Pause, tone: 'warn' },
   riduci: { icon: TrendingDown, tone: 'bad' },
 };
+const STALL_KIND: (typeof KIND)[SuggestionKind] = { icon: TrendingDown, tone: 'palestra' };
 
 /** "22 kg · 10, 10, 9" oppure "20 kg × 10 · 22 kg × 8" se i carichi cambiano. */
 export function setsSummary(sets: SetLog[], unit: 'reps' | 'secondi'): string {
@@ -77,17 +80,19 @@ export function setsSummary(sets: SetLog[], unit: 'reps' | 'secondi'): string {
 }
 
 function ExerciseStepBase(props: ExerciseStepProps) {
-  const { pitem, exercise, log, openIndex, editing, suggestion, last, painFlag, showWeight, holdSide } = props;
+  const { pitem, exercise, log, openIndex, editing, suggestion, last, painFlag, showWeight, holdSide, needsLoad = false } = props;
   const reduce = useReducedMotion();
   const item = pitem.item;
   const swapped = Boolean(log.swappedFrom);
   const doneCount = log.sets.filter((s) => s.done).length;
-  const k = KIND[suggestion.kind];
+  // Il carico ridotto per uno stallo non è un allarme come quello per il dolore.
+  const k = suggestion.stalled ? STALL_KIND : KIND[suggestion.kind];
   const lastBest = last ? bestSet(last.log) : null;
   const canSwap = !pitem.physio && (pitem.exercise?.alternatives?.length ?? 0) > 0;
   const videoUrl = exercise?.videoQuery && !IS_PREVIEW ? `https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.videoQuery)}` : null;
-  // Prima volta con un esercizio con carico: tre carichi di partenza tipici al posto di decine di tocchi.
-  const starts = !last && doneCount === 0 && showWeight ? startLoads(exercise) : [];
+  // Prima volta con un esercizio con carico (o l'ultima volta senza carico segnato): tre carichi di partenza
+  // tipici al posto di decine di tocchi.
+  const starts = (!last || workingWeight(last.log) <= 0) && doneCount === 0 && showWeight ? startLoads(exercise) : [];
   // Con due manubri il carico si registra per manubrio.
   const perDumbbell = /\bmanubri\b/i.test(exercise?.equipment ?? '');
   const rir = suggestion.rir ?? item.rir;
@@ -130,7 +135,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
                 onClick={() => window.open(videoUrl, '_blank', 'noopener')}
               />
             )}
-            {canSwap && <IconButton icon={ArrowLeftRight} label="Sostituisci con un'alternativa" size="sm" variant="tinted" onClick={props.onSwap} />}
+            {canSwap && <IconButton icon={ArrowLeftRight} label="Sostituisci con un’alternativa" size="sm" variant="tinted" onClick={props.onSwap} />}
           </div>
         </div>
         <h2 className="t-title text-ink">{exercise?.name ?? 'Esercizio'}</h2>
@@ -170,7 +175,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
         </Callout>
       )}
 
-      {/* Indicazioni tecniche: sempre visibili, compatte */}
+      {/* Indicazioni tecniche: aperte la prima volta, poi dietro un tocco. La nota della seduta resta sempre visibile. */}
       {(exercise?.cues.length || item.note) && (
         <Card variant="nested" padding="none" className="overflow-hidden">
           {item.note && (
@@ -180,25 +185,24 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             </div>
           )}
           {exercise?.cues.length ? (
-            <ol className="flex flex-col gap-1.5 px-3.5 py-3" aria-label="Indicazioni tecniche">
-              {exercise.cues.map((c, i) => (
-                <li key={i} className="flex gap-2.5">
-                  <span className="t-mono w-3 shrink-0 pt-px text-[0.75rem] font-medium text-ink-3">{i + 1}</span>
-                  <span className="t-footnote text-ink-2">{c}</span>
-                </li>
-              ))}
-            </ol>
+            last ? (
+              <Disclosure variant="inline" title="Indicazioni tecniche" className="px-3.5 py-1" contentClassName="pb-2.5">
+                {cuesList(exercise.cues, 'pt-1')}
+              </Disclosure>
+            ) : (
+              cuesList(exercise.cues, 'px-3.5 py-3')
+            )
           ) : null}
         </Card>
       )}
 
       {/* L'ultima volta e il suggerimento, in un unico riquadro */}
-      <section aria-label="L'ultima volta e oggi" className="overflow-hidden rounded-[16px] bg-card-3">
+      <section aria-label="L’ultima volta e oggi" className="overflow-hidden rounded-[16px] bg-card-3">
         <div className="flex items-end justify-between gap-3 px-3.5 pb-2.5 pt-3">
           <div className="min-w-0">
             <p className="flex items-baseline gap-1.5 text-ink-3">
               <History size={12} strokeWidth={2.4} className="shrink-0 self-center" aria-hidden />
-              <span className="t-label">L'ultima volta</span>
+              <span className="t-label">L’ultima volta</span>
               {/* La data resta in minuscolo: in maiuscoletto "MAR 3 NOV" si legge male. */}
               {last && <span className="t-caption">· {formatWeekdayShort(last.date)} {formatShort(last.date)}</span>}
             </p>
@@ -234,7 +238,8 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             <span className="mt-px grid size-6 shrink-0 place-items-center rounded-full" style={{ background: toneSoft('good', 16), boxShadow: toneRing('good'), color: toneInk('good') }} aria-hidden>
               <Sprout size={14} strokeWidth={2.6} />
             </span>
-            <p className="t-footnote min-w-0 text-ink-2">{suggestion.intro}.</p>
+            {/* Il perché sta nell'anteprima della seduta: qui basta ricordare la dose. */}
+            <p className="t-footnote min-w-0 text-ink-2">Prime due volte: una serie in meno e una ripetizione di riserva in più.</p>
           </div>
         )}
       </section>
@@ -273,6 +278,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
                         showWeight={showWeight}
                         holdSide={holdSide}
                         starts={starts}
+                        needsLoad={needsLoad && i === openIndex}
                         perDumbbell={perDumbbell}
                         onChange={(patch) => props.onSetChange(i, patch)}
                         onShowWeight={props.onShowWeight}
@@ -316,6 +322,19 @@ function ExerciseStepBase(props: ExerciseStepProps) {
 }
 
 export const ExerciseStep = memo(ExerciseStepBase);
+
+function cuesList(cues: readonly string[], className: string) {
+  return (
+    <ol className={cn('flex flex-col gap-1.5', className)} aria-label="Indicazioni tecniche">
+      {cues.map((c, i) => (
+        <li key={i} className="flex gap-2.5">
+          <span className="t-mono w-3 shrink-0 pt-px text-[0.75rem] font-medium text-ink-3">{i + 1}</span>
+          <span className="t-footnote text-ink-2">{c}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 function SetRowCompact({
   index,
@@ -389,6 +408,7 @@ function OpenSet({
   showWeight,
   holdSide,
   starts,
+  needsLoad,
   perDumbbell,
   onChange,
   onShowWeight,
@@ -406,6 +426,8 @@ function OpenSet({
   holdSide: number;
   /** Carichi di partenza da proporre (prima volta con l'esercizio). */
   starts: readonly number[];
+  /** Serie da segnare solo dopo aver scelto un carico. */
+  needsLoad: boolean;
   perDumbbell: boolean;
   onChange: (patch: Partial<SetLog>) => void;
   onShowWeight: () => void;
@@ -450,8 +472,8 @@ function OpenSet({
       {starts.length > 0 && !editing && (
         <div className="relative mt-3 flex flex-col gap-2">
           <p className="t-footnote text-ink-2">
-            <span className="font-semibold text-ink">Carico di partenza</span>
-            {perDumbbell ? ', per manubrio' : ''}: scegli quello che ti lascia {item.rir ?? 2} ripetizioni di riserva.
+            <span className="font-semibold text-ink">{needsLoad ? 'Scegli il carico di partenza' : 'Carico di partenza'}</span>
+            {perDumbbell ? ', per manubrio' : ''}: quello che ti lascia {item.rir ?? 2} ripetizioni di riserva.
           </p>
           <div className="grid grid-cols-3 gap-2" role="group" aria-label="Carico di partenza">
             {starts.map((kg) => {
@@ -469,7 +491,11 @@ function OpenSet({
                   }}
                   className={cn(
                     't-num h-11 rounded-[12px] text-[1.25rem] transition-colors',
-                    on ? 'bg-card text-accent-ink shadow-[inset_0_0_0_1.5px_var(--accent),0_0_14px_-6px_var(--accent)]' : 'bg-ink-soft text-ink shadow-[inset_0_0_0_1px_var(--control-line)]',
+                    on
+                      ? 'bg-card text-accent-ink shadow-[inset_0_0_0_1.5px_var(--accent),0_0_14px_-6px_var(--accent)]'
+                      : needsLoad
+                        ? 'bg-ink-soft text-ink shadow-[inset_0_0_0_1px_var(--accent)]'
+                        : 'bg-ink-soft text-ink shadow-[inset_0_0_0_1px_var(--control-line)]',
                   )}
                 >
                   {fmtNumber(kg, 1)}

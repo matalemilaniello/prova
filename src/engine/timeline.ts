@@ -15,6 +15,8 @@
  *
  * `buildDay` aggiunge i riti del fine settimana che reggono la settimana dopo: spesa il sabato, preparazione
  * e revisione la domenica. Sono voci derivate, con tipi propri (`RitualKind`), fuori dal contratto dei dati.
+ * Nei giorni di avvio i pasti prima della prima spesa si fanno con quello che c'è in casa (`preShopping`).
+ * Gli integratori senza una dose vera ("da definire") non entrano nella voce da segnare (`takenSupplements`).
  *
  * Aderenza: fatto = 1, sostituito = 0,5, saltato o non segnato = 0, su tutte le voci tranne `letto`, gli
  * appuntamenti della giornata minima e le voci precedenti al primo avvio dell'app.
@@ -41,7 +43,7 @@ import { estimateItemSec, SESSIONS } from '../data/sessions';
 import { fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
 import { MEAL_SLOTS, isStarterDay, mealsForDate, menuWeekFor } from './menu';
-import { shoppingList, shoppingProgress } from './shopping';
+import { shoppingList, shoppingProgress, type ShoppingLead, type ShoppingOptions } from './shopping';
 import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
 
@@ -53,7 +55,14 @@ export type TimelineState = Pick<AppData, 'plan' | 'dayLogs'> &
 export type RitualKind = 'spesa' | 'preparazione' | 'revisione';
 export type DayItemKind = TimelineKind | RitualKind;
 /** Voce della giornata come la mostra Oggi: una `TimelineItem` oppure un rito del fine settimana. */
-export type DayItem = Omit<TimelineItem, 'kind'> & { kind: DayItemKind };
+export type DayItem = Omit<TimelineItem, 'kind'> & {
+  kind: DayItemKind;
+  /**
+   * Pasto di un giorno di avvio che viene prima della prima spesa: gli ingredienti della ricetta non ci sono
+   * ancora, si mangia con quello che c'è in casa (`buildDay`). La ricetta resta in `ref`.
+   */
+  preShopping?: boolean;
+};
 
 /**
  * Primo avvio dell'app (campo facoltativo `Plan.firstUse`, scritto alla fine del benvenuto): le voci di quel
@@ -209,6 +218,38 @@ export function supplementList(list: Supplement[]): string {
   return listIt(list.map((s, i) => (i === 0 ? s.name : lowerFirst(s.name))));
 }
 
+/**
+ * Integratore senza una dose vera ("Dose da definire con l'esame"): non entra nella voce da segnare, perché
+ * prenderlo a caso è proprio l'abitudine da correggere. Oggi ricorda una volta a settimana di definirla.
+ */
+export function doseUndefined(s: Pick<Supplement, 'dose'>): boolean {
+  return /da\s+definire/i.test(s.dose ?? '');
+}
+
+/** Integratori attivi con una dose definita: quelli che finiscono nelle voci della giornata. */
+export function takenSupplements(plan: Pick<Plan, 'supplements'>): Supplement[] {
+  return (plan.supplements ?? []).filter((s) => s.active && !doseUndefined(s));
+}
+
+/**
+ * Integratori attivi senza dose da ricordare oggi (il lunedì e il giorno del primo avvio), con l'orario del
+ * pasto a cui andrebbero presi. Null se non c'è niente da ricordare. È una riga informativa: non conta.
+ */
+export function supplementDoseDue(iso: ISODate, state: TimelineState): { time: HHMM; names: string[] } | null {
+  const { plan } = state;
+  if (state.dayLogs[iso]?.minimal) return null;
+  const pending = (plan.supplements ?? []).filter((s) => s.active && doseUndefined(s));
+  if (!pending.length) return null;
+  const first = firstUseOf(plan);
+  if (weekdayOf(iso) !== 0 && first?.date !== iso) return null;
+  const wd = weekdayOf(iso);
+  const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
+  const schedule = mealSchedule(day, plan);
+  const timing = pending[0].timing;
+  const time = timing === 'sera' ? curfewFor(iso, plan) : schedule[timing].time;
+  return { time, names: pending.map((s) => s.name) };
+}
+
 const SUPP_TITLE: Record<Supplement['timing'], string> = {
   colazione: 'Integratori',
   pranzo: 'Integratori a pranzo',
@@ -227,7 +268,7 @@ function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
   const t = plan.mealTimes;
   const curfew = curfewFor(iso, plan);
   const bed = bedtimeFor(iso, plan);
-  const supps = plan.supplements.filter((s) => s.active);
+  const supps = takenSupplements(plan);
   const items: TimelineItem[] = [
     {
       id: 'minima:proteine',
@@ -357,8 +398,8 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
   const curfew = curfewFor(iso, plan);
   const bed = bedtimeFor(iso, plan);
 
-  // Integratori, raggruppati per momento.
-  const active = plan.supplements.filter((s) => s.active);
+  // Integratori, raggruppati per momento (senza quelli che non hanno ancora una dose).
+  const active = takenSupplements(plan);
   for (const timing of ['colazione', 'pranzo', 'cena', 'sera'] as const) {
     const group = active.filter((s) => s.timing === timing);
     if (!group.length) continue;
@@ -515,6 +556,9 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
       const end = start + gymTotalMin(day.gymSessionId, state);
       if (at < end + 10 && at + 60 > start) at = round5(end + 15, true);
     }
+    // Chi comincia il sabato fa la spesa dopo il primo avvio, non prima: è la sua prima spesa.
+    const first = firstUseOf(plan);
+    if (first?.date === iso) at = Math.max(at, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true));
     out.push({
       id: 'rito:spesa',
       time: minToHHMM(at),
@@ -553,11 +597,100 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   return out;
 }
 
-/** Voci della giornata come le mostra Oggi: la timeline più i riti del fine settimana. */
+/**
+ * Voci della giornata come le mostra Oggi: la timeline più i riti del fine settimana. Nei giorni di avvio i
+ * pasti prima della prima spesa diventano "con quello che hai in casa" (`preShopping`).
+ */
 export function buildDay(iso: ISODate, state: TimelineState): DayItem[] {
   const base: DayItem[] = buildTimeline(iso, state);
   const rituals = ritualItems(iso, state);
-  return rituals.length ? sortTimeline([...base, ...rituals], state.plan) : base;
+  const items = rituals.length ? sortTimeline([...base, ...rituals], state.plan) : base;
+  return markPreShopping(iso, items, state);
+}
+
+// ───────────────────────── Prima della spesa ─────────────────────────
+
+/** Dettaglio dei pasti prima della prima spesa: cosa mettere nel piatto, senza la ricetta. */
+export const PRE_SHOPPING_DETAIL = 'Con quello che hai: proteine, un carboidrato, frutta o verdura';
+
+export interface FirstShopping {
+  /** Voce della spesa (`rito:spesa-avvio` o la spesa del sabato). */
+  id: string;
+  date: ISODate;
+  time: HHMM;
+}
+
+/**
+ * La prima spesa dopo il primo avvio: quella di avvio, oppure, per chi comincia il venerdì sera o il sabato,
+ * la spesa del sabato (con lo stesso orario di `ritualItems`). Null senza `Plan.firstUse`.
+ */
+export function firstShopping(state: TimelineState): FirstShopping | null {
+  const { plan } = state;
+  const first = firstUseOf(plan);
+  if (!first) return null;
+  const starter = starterShopping(plan);
+  if (starter) return { id: STARTER_SHOPPING_ID, date: starter.date, time: starter.time };
+  const sat = weekdayOf(first.date) === 5 ? first.date : weekdayOf(first.date) === 4 ? addDays(first.date, 1) : null;
+  if (!sat) return null;
+  const spesa = ritualItems(sat, state).find((i) => i.id === 'rito:spesa');
+  return spesa ? { id: spesa.id, date: sat, time: spesa.time } : null;
+}
+
+/**
+ * Pasti del fine settimana da aggiungere alla lista della settimana di `monday`: chi comincia il venerdì sera o il
+ * sabato non ha la spesa di avvio, e la spesa del sabato porta anche i pasti di avvio da dopo la spesa alla
+ * domenica. I pasti del sabato prima della spesa restano fuori (si fanno con quello che c'è in casa). Undefined
+ * per tutte le altre settimane.
+ */
+export function shoppingLeadFor(monday: ISODate, state: TimelineState): ShoppingLead | undefined {
+  const { plan } = state;
+  if (starterShopping(plan)) return undefined;
+  const shop = firstShopping(state);
+  if (!shop || shop.id !== 'rito:spesa' || addDays(shop.date, 2) !== monday) return undefined;
+  const wd = weekdayOf(shop.date);
+  const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
+  const schedule = mealSchedule(day, plan);
+  const limit = dayMinutes(shop.time, plan);
+  const skipSlots = MEAL_SLOTS.filter((slot) => dayMinutes(schedule[slot].time, plan) < limit);
+  return { date: shop.date, ...(skipSlots.length ? { skipSlots } : {}) };
+}
+
+/** Opzioni della lista della spesa di una settimana come la vede l'utente (la settimana del primo avvio, il fine settimana prima). */
+export function shoppingOptionsFor(monday: ISODate, state: TimelineState): ShoppingOptions {
+  const lead = shoppingLeadFor(monday, state);
+  return lead ? { lead } : {};
+}
+
+/** La prima spesa risulta fatta (segnata nel diario o con la lista spuntata)? */
+function shoppingDone(shop: FirstShopping, state: TimelineState): boolean {
+  const st = state.dayLogs[shop.date]?.status?.[shop.id];
+  if (st) return st === 'fatto' || st === 'sostituito';
+  const item: DayItem = { id: shop.id, time: shop.time, kind: 'spesa', title: '' };
+  return derivedStatus(shop.date, state, item) === 'fatto';
+}
+
+/**
+ * Segna i pasti dei giorni di avvio che vengono prima della prima spesa: dal primo avvio fino all'orario
+ * della spesa. Restano fuori i pasti con una ricetta scelta a mano (chi la sceglie ha gli ingredienti), la
+ * giornata minima e tutto quanto, se la spesa è già fatta.
+ */
+function markPreShopping(iso: ISODate, items: DayItem[], state: TimelineState): DayItem[] {
+  const { plan } = state;
+  const first = firstUseOf(plan);
+  // La prima spesa arriva al più tardi il giorno dopo il primo avvio (domenica sera → lunedì).
+  if (!first || iso < first.date || daysBetween(first.date, iso) > 2 || state.dayLogs[iso]?.minimal) return items;
+  const shop = firstShopping(state);
+  if (!shop || iso > shop.date) return items;
+  if (shoppingDone(shop, state)) return items;
+  const limit = iso === shop.date ? dayMinutes(shop.time, plan) : Number.POSITIVE_INFINITY;
+  const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
+  let changed = false;
+  const out = items.map((it) => {
+    if (it.kind !== 'pasto' || dayMinutes(it.time, plan) >= limit || (it.slot && swaps[it.slot])) return it;
+    changed = true;
+    return { ...it, detail: PRE_SHOPPING_DETAIL, preShopping: true };
+  });
+  return changed ? out : items;
 }
 
 // ───────────────────────── Primo avvio ─────────────────────────
@@ -697,7 +830,8 @@ export function derivedStatus(iso: ISODate, state: TimelineState, item: DayItem)
       const monday = starter ? starter.weekStart : addDays(weekStart(iso), 7);
       const checked = state.shoppingChecked?.[monday];
       if (!checked?.length) return undefined;
-      const progress = shoppingProgress(shoppingList(monday, state, starter?.fromDate ? { fromDate: starter.fromDate } : {}), checked);
+      const opts = starter ? (starter.fromDate ? { fromDate: starter.fromDate } : {}) : shoppingOptionsFor(monday, state);
+      const progress = shoppingProgress(shoppingList(monday, state, opts), checked);
       return progress.total > 0 && progress.ratio >= SHOPPING_DONE_RATIO - 1e-9 ? 'fatto' : undefined;
     }
     default:

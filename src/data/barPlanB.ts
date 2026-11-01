@@ -12,7 +12,7 @@ import type { BarOption } from '../domain/types';
 
 /** Etichette e spiegazioni dei verdetti, per l'interfaccia. */
 export const BAR_VERDICTS: Record<BarOption['verdict'], { label: string; hint: string }> = {
-  si: { label: 'Sì', hint: "Scelta buona così com'è" },
+  si: { label: 'Sì', hint: "Scelta buona così com’è" },
   meglio: { label: 'Con un accorgimento', hint: 'Va bene se segui il consiglio' },
   programmato: { label: 'Dolce programmato', hint: 'Solo come uno dei dolci della settimana' },
 };
@@ -23,7 +23,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'panino-bresaola',
     name: 'Panino con bresaola, rucola e grana',
     verdict: 'si',
-    why: 'Il panino migliore del banco: tante proteine magre, pochi grassi. Chiedi un filo d\'olio invece delle salse.',
+    why: 'Il panino migliore del banco: tante proteine magre, pochi grassi. Chiedi un filo d’olio invece delle salse.',
     approx: { kcal: 400, proteinG: 30, carbG: 56, fatG: 6, fiberG: 3 },
   },
   {
@@ -37,15 +37,8 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'insalatona',
     name: 'Insalatona con tonno o pollo e uovo',
     verdict: 'si',
-    why: 'Verdure e proteine nello stesso piatto. Prendi anche il pane: con la sola insalata la fame torna presto.',
+    why: "Verdure e circa 30 g di proteine nello stesso piatto: sazia e resta leggero. Chiedi l’olio a parte, niente salse.",
     approx: { kcal: 430, proteinG: 30, carbG: 12, fatG: 28, fiberG: 5 },
-  },
-  {
-    id: 'pasta-pomodoro',
-    name: 'Piatto di pasta al pomodoro',
-    verdict: 'si',
-    why: 'Amido facile da digerire, ideale nei giorni di calcio. Aggiungi una proteina: tonno, uovo o formaggio.',
-    approx: { kcal: 510, proteinG: 16, carbG: 81, fatG: 12.5, fiberG: 5 },
   },
   {
     id: 'yogurt-frutta',
@@ -65,12 +58,12 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'frutta-secca',
     name: 'Bustina di frutta secca al naturale',
     verdict: 'si',
-    why: "Mandorle, noci o arachidi non salate: grassi buoni che reggono fino all'ora di pranzo. Una bustina, non due.",
+    why: "Mandorle, noci o arachidi non salate: grassi buoni che reggono fino all’ora di pranzo. Una bustina, non due.",
     approx: { kcal: 180, proteinG: 6.5, carbG: 2.5, fatG: 15.5, fiberG: 3.7 },
   },
   {
     id: 'spremuta',
-    name: "Spremuta d'arancia",
+    name: "Spremuta d’arancia",
     verdict: 'si',
     why: 'Vitamina C e nessuno zucchero aggiunto, ma senza la fibra del frutto: un bicchiere basta, e quando puoi scegli il frutto intero.',
     approx: { kcal: 88, proteinG: 1.4, carbG: 19, fatG: 0.4, fiberG: 0.4 },
@@ -92,10 +85,17 @@ export const BAR_OPTIONS: BarOption[] = [
 
   // ───────────────────────── Con un accorgimento ─────────────────────────
   {
+    id: 'pasta-pomodoro',
+    name: 'Piatto di pasta al pomodoro',
+    verdict: 'meglio',
+    why: 'Amido facile da digerire, ideale nei giorni di calcio, ma solo 16 g di proteine: chiedi di aggiungere tonno, un uovo o del formaggio.',
+    approx: { kcal: 510, proteinG: 16, carbG: 81, fatG: 12.5, fiberG: 5 },
+  },
+  {
     id: 'panino-crudo',
     name: 'Panino con prosciutto crudo e pomodoro',
     verdict: 'meglio',
-    why: 'Buone proteine ma molto sale: va bene ogni tanto, con una bottiglietta d\'acqua. Se c\'è, preferisci bresaola o tacchino.',
+    why: 'Buone proteine ma molto sale: va bene ogni tanto, con una bottiglietta d’acqua. Se c’è, preferisci bresaola o tacchino.',
     approx: { kcal: 405, proteinG: 22, carbG: 58, fatG: 9, fiberG: 3.3 },
   },
   {
@@ -123,14 +123,14 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'trancio-pizza',
     name: 'Trancio di pizza margherita',
     verdict: 'meglio',
-    why: 'Va bene a pranzo nei giorni di calcio. Un trancio solo, poi un frutto o un\'insalata per la fibra.',
+    why: 'Va bene a pranzo nei giorni di calcio. Un trancio solo, poi un frutto o un’insalata per la fibra.',
     approx: { kcal: 440, proteinG: 16, carbG: 62, fatG: 13, fiberG: 3.5 },
   },
   {
     id: 'focaccia',
     name: 'Focaccia semplice',
     verdict: 'meglio',
-    why: 'Pane e olio con pochissime proteine: abbinala a un cappuccino o a uno yogurt, altrimenti dopo un\'ora hai di nuovo fame.',
+    why: 'Pane e olio con pochissime proteine: abbinala a un cappuccino o a uno yogurt, altrimenti dopo un’ora hai di nuovo fame.',
     approx: { kcal: 390, proteinG: 9, carbG: 56, fatG: 14, fiberG: 2.5 },
   },
   {

@@ -31,6 +31,7 @@ import {
   Chip,
   CheckRow,
   DayTypeBadge,
+  Disclosure,
   EmptyState,
   Floodlights,
   BallIcon,
@@ -168,7 +169,7 @@ export default function KitScreen() {
 
       <Block
         title="Riflettori"
-        note="L'elemento firma: due batterie di lampade, coni di luce bianco calda e le righe del campo. L'intensità segue la giornata; a giornata chiusa un bagliore breve, dopo il coprifuoco la luce cala verso il lilla."
+        note="L’elemento firma: due torri faro negli angoli, coni di luce bianco calda e le righe del campo. L’intensità segue la giornata; a giornata chiusa un bagliore breve, dopo il coprifuoco la luce cala verso il lilla."
       >
         <div className="relative h-[200px] overflow-hidden rounded-card bg-bg ring-1 ring-inset ring-[var(--bar-line)]">
           <Floodlights {...lightProps} height={200} />
@@ -201,7 +202,7 @@ export default function KitScreen() {
           <span className="t-title">Titolo 28 di sezione</span>
           <span className="t-headline">Titolo di card, Figtree 17</span>
           <p className="t-body text-ink-2">
-            Testo dell&apos;interfaccia a 16 px: frasi brevi, voce attiva, tono da allenatore calmo e competente.
+            Testo dell’interfaccia a 16 px: frasi brevi, voce attiva, tono da allenatore calmo e competente.
           </p>
           <div className="flex items-baseline gap-4">
             <span className="t-num text-[3rem] text-accent-ink">2.600</span>
@@ -340,10 +341,10 @@ export default function KitScreen() {
         </Card>
       </Block>
 
-      <Block title="Avanzamento" note="Tocca l'anello per farlo avanzare: a 100% si chiude con un bagliore.">
+      <Block title="Avanzamento" note="Tocca l’anello per farlo avanzare: la lampada sulla punta segue l’arco, a 100% si chiude con un bagliore.">
         <Card padding="lg" className="flex items-center justify-around gap-2">
-          <button type="button" aria-label="Avanza l'anello" onClick={() => setRing((r) => (r >= 1 ? 0.2 : Math.min(1, r + 0.14)))}>
-            <ProgressRing value={ring} size={132} stroke={11} label="Giornata">
+          <button type="button" aria-label="Avanza l’anello" onClick={() => setRing((r) => (r >= 1 ? 0.2 : Math.min(1, r + 0.14)))}>
+            <ProgressRing value={ring} size={148} stroke={11} label="Giornata" tipLight>
               <span className="t-num text-[2.5rem]">{Math.round(ring * 100)}</span>
               <span className="t-caption -mt-0.5 text-ink-2">per cento</span>
             </ProgressRing>
@@ -495,6 +496,25 @@ export default function KitScreen() {
         </Card>
       </Block>
 
+      <Block title="Dietro un tocco" note="Spiegazioni ed elenchi lunghi restano chiusi: si vede cosa c’è, si apre se serve.">
+        <Card className="flex flex-col gap-1">
+          <Disclosure title="Valori del giorno" summary="2.640 kcal" icon={Flame}>
+            <p className="t-callout">Proteine 142 g su 135, fibre 33 g su 35, 6 porzioni di frutta e verdura.</p>
+          </Disclosure>
+          <div className="h-px bg-line" />
+          <Disclosure title="Già segnate" summary="7 voci" icon={Check}>
+            <p className="t-callout">Controllo del mattino, integratori, colazione, spuntino, pranzo, merenda, acqua.</p>
+          </Disclosure>
+        </Card>
+        <Card className="flex flex-col gap-2">
+          <p className="t-callout text-ink">Alla vigilia della partita i carboidrati salgono.</p>
+          <Disclosure variant="inline" title="Perché">
+            Il giorno prima della gara le scorte di glicogeno si riempiono con i carboidrati: le porzioni di pasta, riso
+            e pane crescono, proteine e grassi restano uguali.
+          </Disclosure>
+        </Card>
+      </Block>
+
       <Block title="Campi">
         <Card padding="lg" className="flex flex-col gap-5">
           <Field label="Spuntino">
@@ -534,12 +554,12 @@ export default function KitScreen() {
           Dolore 4 su 10 ieri sera: oggi mantieni i carichi e salta i balzi. Se domani non scende, senti il fisioterapista.
         </Callout>
         <Callout tone="good" title="Sei notti su sette in orario">
-          Alla revisione di domenica l&apos;orario a letto può anticipare di 15 minuti.
+          Alla revisione di domenica l’orario a letto può anticipare di 15 minuti.
         </Callout>
         <Callout tone="accent" title="Consiglio del giorno" action={<Button size="sm" variant="ghost">Perché</Button>}>
           Una vellutata surgelata a cena vale due porzioni di verdura in cinque minuti.
         </Callout>
-        <Callout title="Anteprima senza rete">Il coach funziona nell&apos;app installata; qui la rete esterna è bloccata.</Callout>
+        <Callout title="Anteprima senza rete">Il coach funziona nell’app installata; qui la rete esterna è bloccata.</Callout>
       </Block>
 
       <Block title="Stati">
@@ -573,7 +593,7 @@ export default function KitScreen() {
             Toast attenzione
           </Button>
         </div>
-        <ListGroup title="Pannelli dell'app">
+        <ListGroup title="Pannelli dell’app">
           {(['recipe', 'checkin', 'session', 'football', 'barPlanB'] as const).map((t) => (
             <ListRow
               key={t}

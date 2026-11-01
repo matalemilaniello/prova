@@ -193,7 +193,7 @@ function PhysioExerciseSheet({ index, onClose }: { index: number | null; onClose
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tried, setTried] = useState(false);
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const nameError = tried && !form.name.trim() ? "Scrivi il nome dell'esercizio." : undefined;
+  const nameError = tried && !form.name.trim() ? "Scrivi il nome dell’esercizio." : undefined;
 
   // Chiusura animata: il foglio esce, poi il genitore lo smonta.
   const close = () => setOpen(false);

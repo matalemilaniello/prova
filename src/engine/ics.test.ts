@@ -180,6 +180,8 @@ describe('eventi dal piano', () => {
     expect(ev[0].summary).toBe('Colazione e integratori');
     expect(ev[0].description).toContain('creatina monoidrato (5 g)');
     expect(ev[0].time).toBe('07:30');
+    // Un integratore con la dose da definire non finisce nel promemoria, come nella giornata.
+    expect(ev[0].description).not.toMatch(/vitamina d/i);
   });
 
   it('senza integratori attivi la colazione resta un promemoria semplice', () => {

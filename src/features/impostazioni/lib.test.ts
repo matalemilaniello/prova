@@ -4,9 +4,12 @@ import {
   carbsToMatch,
   dayActivities,
   dayTypeCounts,
+  elbowSites,
   hasErrors,
+  impactRuleNote,
   initials,
   kcalFromMacros,
+  lowerLegSites,
   matchEveCount,
   matchEveNote,
   mealOrderIssues,
@@ -19,6 +22,7 @@ import {
   suggestedBedtime,
   suggestDayType,
   targetDayCounts,
+  targetDaysLabel,
   validateBody,
   weekSummary,
 } from './lib';
@@ -27,7 +31,7 @@ describe('profilo', () => {
   it('chiede i dati mancanti con gentilezza e controlla i limiti', () => {
     const empty = validateBody({ birthYear: 0, heightCm: 0, startWeightKg: 0 }, 2026);
     expect(Object.keys(empty).sort()).toEqual(['birthYear', 'heightCm', 'startWeightKg']);
-    expect(hasErrors(validateBody({ birthYear: 1996, heightCm: 178, startWeightKg: 72.5 }, 2026))).toBe(false);
+    expect(hasErrors(validateBody({ birthYear: 1988, heightCm: 178, startWeightKg: 72.5 }, 2026))).toBe(false);
     expect(validateBody({ birthYear: 2020, heightCm: 178, startWeightKg: 72 }, 2026).birthYear).toContain('2012');
     expect(validateBody({ birthYear: 1990, heightCm: 1.78, startWeightKg: 72 }, 2026).heightCm).toContain('centimetri');
     expect(validateBody({ birthYear: 1990, heightCm: 178, startWeightKg: 720 }, 2026).startWeightKg).toBeDefined();
@@ -62,6 +66,16 @@ describe('settimana', () => {
     expect(targetDayCounts(noMatch)).toEqual({ calcio: 3, palestra: 2, leggero: 1, riposo: 1 });
     expect(matchEveCount(noMatch)).toBe(0);
     expect(matchEveNote(noMatch)).toBeNull();
+  });
+
+  it('etichetta i giorni di ogni obiettivo, con la vigilia dentro il calcio', () => {
+    expect(targetDaysLabel('calcio', DEFAULT_WEEK)).toBe('3 giorni e la vigilia');
+    expect(targetDaysLabel('palestra', DEFAULT_WEEK)).toBe('2 giorni');
+    expect(targetDaysLabel('leggero', DEFAULT_WEEK)).toBe('1 giorno');
+    expect(targetDaysLabel('riposo', DEFAULT_WEEK)).toBe('nessun giorno');
+    const noMatch = DEFAULT_WEEK.map((d) => (d.weekday === 0 ? { ...d, football: undefined } : d));
+    expect(targetDaysLabel('calcio', noMatch)).toBe('3 giorni');
+    expect(targetDaysLabel('riposo', noMatch)).toBe('1 giorno');
   });
 
   it('descrive le attività del giorno', () => {
@@ -133,5 +147,15 @@ describe('pasti, sonno, macro', () => {
     expect(painLabel(3)).toBe('lieve');
     expect(painLabel(5)).toBe('moderato');
     expect(painLabel(8)).toBe('forte');
+  });
+
+  it('riconosce le zone che cambiano la regola e scrive quella degli impatti', () => {
+    const sites = ['Tibia', 'Gomito', 'Tendine d’Achille', 'Schiena'];
+    expect(lowerLegSites(sites)).toEqual(['Tibia', 'Tendine d’Achille']);
+    expect(elbowSites(sites)).toEqual(['Gomito']);
+    expect(impactRuleNote(sites, 3)).toBe('Per tibia e tendine d’Achille balzi, salti e partita si fermano già sopra 2.');
+    // Soglia già bassa o nessuna zona sotto il ginocchio: la regola generale basta.
+    expect(impactRuleNote(sites, 2)).toBeNull();
+    expect(impactRuleNote(['Gomito', 'Schiena'], 3)).toBeNull();
   });
 });

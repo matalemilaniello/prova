@@ -3,6 +3,7 @@
  *
  * - Progressione doppia: quando tutte le serie arrivano a `repMax` con lo stesso carico, si aggiunge
  *   `incrementKg` e si riparte da `repMin`; altrimenti stesso carico puntando a una ripetizione in più.
+ *   Dopo due esecuzioni di fila sotto `repMin` con lo stesso carico (stallo) il carico scende del 10% circa.
  * - 1RM stimato con la formula di Epley: carico × (1 + ripetizioni / 30).
  * - Carico interno con il metodo session-RPE di Foster: minuti × RPE (unità arbitrarie, UA).
  * - Allarme del carico: settimana oltre il 120% della media delle 4 precedenti, con almeno 2 settimane
@@ -109,6 +110,23 @@ export function lastLogFor(exerciseId: string, logs: readonly WorkoutLog[], opts
   return lastEntryFor(exerciseId, logs, opts)?.log ?? null;
 }
 
+/**
+ * Ultime `count` esecuzioni dell'esercizio (una per seduta, la più recente per prima). Serve alla
+ * progressione per riconoscere uno stallo: `suggestNext(base, recent[0], { previous: recent[1] })`.
+ */
+export function recentLogsFor(exerciseId: string, logs: readonly WorkoutLog[], count = 2, opts: LastLogOptions = {}): ExerciseLog[] {
+  const out: ExerciseLog[] = [];
+  for (const w of logs.slice().sort(byDateDesc)) {
+    if (out.length >= count) break;
+    if (opts.excludeId && w.id === opts.excludeId) continue;
+    if (opts.before && w.date >= opts.before) continue;
+    // Come in lastEntryFor: nella stessa seduta vale l'ultima occorrenza con serie fatte.
+    const ex = w.exercises.slice().reverse().find((x) => x.exerciseId === exerciseId && doneSets(x).length);
+    if (ex) out.push(ex);
+  }
+  return out;
+}
+
 /** Carico di lavoro di un registro: il più alto tra le serie fatte. */
 export function workingWeight(log: ExerciseLog | null | undefined): number {
   return doneSets(log).reduce((m, s) => Math.max(m, s.weightKg), 0);
@@ -125,7 +143,8 @@ export interface SetTarget {
 
 /**
  * nuovo: nessuno storico · aumenta: carico in su · ripetizioni: stesso carico, +1 ripetizione ·
- * ripeti: esercizio senza progressione · mantieni / riduci: frenato dalla regola del dolore.
+ * ripeti: esercizio senza progressione · mantieni / riduci: frenato dalla regola del dolore ·
+ * riduci con `stalled`: carico ridotto dopo uno stallo.
  */
 export type SuggestionKind = 'nuovo' | 'aumenta' | 'ripetizioni' | 'ripeti' | 'mantieni' | 'riduci';
 
@@ -145,6 +164,11 @@ export interface Suggestion {
   rir?: number;
   /** Fase di ingresso: il motivo del volume ridotto (INTRO_REASON). */
   intro?: string;
+  /**
+   * Carico ridotto per uno stallo (due esecuzioni di fila sotto `repMin` con lo stesso carico), non per il
+   * dolore: `kind` è 'riduci', ma l'interfaccia non lo presenta come un allarme.
+   */
+  stalled?: boolean;
 }
 
 export interface SuggestOptions {
@@ -157,6 +181,33 @@ export interface SuggestOptions {
   painNote?: string;
   /** Fase di ingresso (prime esecuzioni della seduta): una serie in meno e una ripetizione di riserva in più. */
   intro?: boolean;
+  /**
+   * Esecuzione precedente a `last` (vedi `recentLogsFor`): se anche lì la media delle ripetizioni è rimasta sotto
+   * `repMin` con lo stesso carico, è uno stallo e il carico scende del 10%.
+   */
+  previous?: ExerciseLog | null;
+}
+
+/** Riduzione del carico dopo uno stallo: −10%, poi si risale con la progressione doppia. */
+export const STALL_REDUCE_FACTOR = 0.9;
+
+/** Media delle ripetizioni delle serie fatte (0 senza serie). */
+function meanReps(log: ExerciseLog | null | undefined): number {
+  const d = doneSets(log);
+  return d.length ? d.reduce((s, x) => s + x.reps, 0) / d.length : 0;
+}
+
+/**
+ * Carico ridotto del `factor` e arrotondato all'incremento, sempre sotto il carico di partenza; null se non si
+ * può scendere (carico già minimo).
+ */
+function reducedLoad(w: number, inc: number, factor: number): number | null {
+  for (const step of [inc, 0.5]) {
+    let r = roundToStep(w * factor, step);
+    if (r >= w - EPS) r = roundToStep(w - step, step);
+    if (r > 0 && r < w - EPS) return r;
+  }
+  return null;
 }
 
 // ───────────────────────── Fase di ingresso ─────────────────────────
@@ -169,7 +220,7 @@ export const INTRO_SESSIONS = 2;
  * serie ripetuta), e non la vicinanza della partita, che vale solo per la B.
  */
 export const INTRO_REASON =
-  "Le prime due volte: una serie in meno e una ripetizione di riserva in più, così l'indolenzimento dei primi giorni non pesa sul calcio";
+  "Le prime due volte: una serie in meno e una ripetizione di riserva in più, così l’indolenzimento dei primi giorni non pesa sul calcio";
 
 /**
  * Fase di ingresso di una seduta: 1 o 2 se la prossima esecuzione è la prima o la seconda registrata,
@@ -219,6 +270,8 @@ function roundToStep(n: number, step: number): number {
  * Doppia progressione: se tutte le serie previste hanno raggiunto `repMax` con il carico precedente,
  * carico + `incrementKg` e `repMin`; altrimenti stesso carico puntando a +1 ripetizione per serie.
  * Nella fase di ingresso (`intro`) le serie scendono di una e le ripetizioni di riserva salgono di una.
+ * Con `previous` riconosce lo stallo: due esecuzioni di fila con la media sotto `repMin` allo stesso carico →
+ * carico −10% circa (arrotondato all'incremento) e `repMin`.
  */
 export function suggestNext(base: SessionExercise, last: ExerciseLog | null | undefined, opts: SuggestOptions = {}): Suggestion {
   const gate = opts.gate ?? 'ok';
@@ -247,7 +300,7 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
   const lastReps = Array.from({ length: n }, (_, i) => (done[i] ?? done[done.length - 1]).reps);
 
   if (item.progression !== 'doppia') {
-    return make(w, lastReps.map((r) => Math.max(item.repMin, r)), 'ripeti', "Come l'ultima volta");
+    return make(w, lastReps.map((r) => Math.max(item.repMin, r)), 'ripeti', "Come l’ultima volta");
   }
 
   const inc = item.incrementKg && item.incrementKg > 0 ? item.incrementKg : DEFAULT_INCREMENT_KG;
@@ -256,6 +309,24 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
   if (gate === 'riduci') {
     const reduced = roundToStep(w * PAIN_REDUCE_FACTOR, Math.min(inc, 2.5));
     return make(reduced, [item.repMin], 'riduci', `${note || 'Dolore alto'}: carico ridotto del 10%, lontano dal cedimento`, w);
+  }
+
+  // Stallo: due esecuzioni di fila con la media sotto repMin allo stesso carico. Riproporre lo stesso carico con
+  // una ripetizione in più non funziona: si scende di circa il 10% e si risale con la progressione doppia.
+  // Vale anche con la regola del dolore a "mantieni" (scendere di carico la rispetta).
+  const prev = opts.previous;
+  if (
+    w > 0 &&
+    doneSets(prev).length > 0 &&
+    Math.abs(workingWeight(prev) - w) < EPS &&
+    meanReps(last) < item.repMin - EPS &&
+    meanReps(prev) < item.repMin - EPS
+  ) {
+    const r = reducedLoad(w, inc, STALL_REDUCE_FACTOR);
+    if (r !== null) {
+      const pct = Math.round((1 - r / w) * 100);
+      return { ...make(r, [item.repMin], 'riduci', `Due volte sotto le ${item.repMin} ripetizioni: carico −${pct}% e risali`, w), stalled: true };
+    }
   }
 
   // "Tutte le serie a repMax" si giudica sulle serie previste oggi (nella fase di ingresso, quelle ridotte).
@@ -271,7 +342,7 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
   }
 
   if (gate === 'mantieni') {
-    return make(w, lastReps.map((r) => clampInt(r, item.repMin, item.repMax)), 'mantieni', `${note || 'Dolore sopra soglia'}: ripeti l'ultima volta`, w);
+    return make(w, lastReps.map((r) => clampInt(r, item.repMin, item.repMax)), 'mantieni', `${note || 'Dolore sopra soglia'}: ripeti l’ultima volta`, w);
   }
 
   const target = lastReps.map((r) => clampInt(r + 1, item.repMin, item.repMax));
@@ -631,6 +702,10 @@ export interface PainGate {
 
 const ELBOW_RE = /gomit/i;
 const LOWER_LEG_RE = /tibi|stinc|cavigl|polpacc|achill|piede|metatars/i;
+/** Zona del profilo sotto il ginocchio (tibia, caviglia, polpaccio, tendine d'Achille, piede): impatti con soglia più bassa. */
+export const isLowerLegSite = (site: string): boolean => LOWER_LEG_RE.test(site);
+/** Zona del profilo al gomito: spinte a presa neutra e varianti `elbowFriendly`. */
+export const isElbowSite = (site: string): boolean => ELBOW_RE.test(site);
 /** Riconosce gli esercizi d'impatto tra quelli senza segnalazione esplicita (es. inseriti dal fisioterapista). */
 const IMPACT_RE = /balz|salt|pliometr|hop/i;
 
@@ -802,7 +877,7 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
     const name = siteName(top.site);
     title =
       top.cause === 'seduta'
-        ? `${name} a ${top.sessionValue} su 10 nell'ultima seduta`
+        ? `${name} a ${top.sessionValue} su 10 nell’ultima seduta`
         : top.cause === 'giorno-dopo'
           ? `${name} da ${top.before} a ${top.value} dopo ${top.after === 'calcio' ? 'il calcio' : 'la seduta'}`
           : top.cause === 'aumento'
@@ -815,8 +890,8 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
       level === 'riduci'
         ? capitalizeFirst(`${per}riduci i carichi del 10% e resta lontano dal cedimento.`)
         : top.cause === 'giorno-dopo'
-          ? `Il giorno dopo il dolore non deve salire: ${per}mantieni i carichi dell'ultima volta, niente aumenti.`
-          : capitalizeFirst(`${per}mantieni i carichi dell'ultima volta, niente aumenti.`),
+          ? `Il giorno dopo il dolore non deve salire: ${per}mantieni i carichi dell’ultima volta, niente aumenti.`
+          : capitalizeFirst(`${per}mantieni i carichi dell’ultima volta, niente aumenti.`),
     ];
     if (elbow) parts.push('Per il gomito usa le varianti a presa neutra proposte.');
     if (impact) parts.push('Niente balzi e salti oggi.');
@@ -828,10 +903,20 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
     title =
       finite(mv) && mv > impactThreshold
         ? `${siteName(impactBy.site)} a ${mv} su 10: niente impatti oggi`
-        : `${siteName(impactBy.site)} a ${impactBy.sessionValue} su 10 nell'ultima seduta: niente impatti oggi`;
+        : `${siteName(impactBy.site)} a ${impactBy.sessionValue} su 10 nell’ultima seduta: niente impatti oggi`;
     message = `Negli impatti la soglia è più bassa, ${impactThreshold} su 10: salta balzi e salti. Il resto come previsto.`;
   }
   return { level, date, sites, flagged, elbow, lowerLeg, impact, ...(impactBy ? { impactSite: impactBy.site } : {}), title, message };
+}
+
+/**
+ * Testi della regola del dolore per una seduta che non è oggi (es. quella di domani nella schermata Allenamento):
+ * la regola si calcola sul controllo di oggi, quindi "niente balzi e salti oggi" diventa "nella prossima seduta".
+ * "Scrivi al fisioterapista oggi" resta: quello vale adesso.
+ */
+export function gateForLater(gate: PainGate): PainGate {
+  const later = (s: string) => s.replace(/(niente impatti|niente balzi e salti) oggi/gi, '$1 nella prossima seduta');
+  return { ...gate, title: later(gate.title), message: later(gate.message) };
 }
 
 /** Esercizio dal catalogo o dagli esercizi del fisioterapista. */
@@ -940,7 +1025,7 @@ export function painNoteForExercise(exercise: Exercise | undefined, gate: PainGa
   const name = siteName(s.site);
   switch (s.cause) {
     case 'seduta':
-      return `${name} a ${s.sessionValue} su 10 nell'ultima seduta`;
+      return `${name} a ${s.sessionValue} su 10 nell’ultima seduta`;
     case 'giorno-dopo':
       return `${name} da ${s.before} a ${s.value} dopo ${s.after === 'calcio' ? 'il calcio' : 'la seduta'}`;
     case 'aumento':

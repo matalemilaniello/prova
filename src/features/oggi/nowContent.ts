@@ -28,6 +28,16 @@ export interface NowContentContext {
   timeShown: boolean;
   /** Durata della seduta come in Allenamento (`gymDuration`): senza, vale `estMin`. */
   gym?: Pick<SessionDuration, 'own' | 'physio'> | null;
+  /** Prima spesa dei giorni di avvio, per i pasti che vengono prima (`DayItem.preShopping`). */
+  shopping?: { time: HHMM; tomorrow: boolean } | null;
+}
+
+/** Cosa dice la card Adesso di un pasto prima della spesa: niente ricetta, solo come comporre il piatto. */
+export const PRE_SHOPPING_HEADLINE = 'Con quello che hai in casa';
+
+function preShoppingSub(shopping: NowContentContext['shopping']): string {
+  const when = !shopping ? '' : shopping.tomorrow ? ` di domani alle ${shopping.time}` : ` delle ${shopping.time}`;
+  return `Proteine, un carboidrato e frutta o verdura. Il menù parte dopo la spesa${when}.`;
 }
 
 /** Il conto alla rovescia sta nell'etichetta solo entro 4 ore. */
@@ -51,6 +61,7 @@ export function mealNutrientsFor(item: DayItem, mealValues: Partial<Record<MealS
 export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
   switch (item.kind) {
     case 'pasto': {
+      if (item.preShopping) return { kicker: item.title, headline: PRE_SHOPPING_HEADLINE, sub: preShoppingSub(ctx.shopping), meta: [] };
       const recipe = item.ref ? RECIPES[item.ref] : undefined;
       if (!recipe) return { kicker: item.title, headline: item.detail ?? item.title, meta: [] };
       const n = mealNutrientsFor(item, ctx.mealValues);
@@ -65,7 +76,6 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       return {
         kicker: item.title,
         headline: s?.subtitle ?? item.title,
-        sub: s?.focus,
         meta: [
           ctx.gym ? fmtMinutes(ctx.gym.own) : s ? fmtMinutes(s.estMin) : '',
           ctx.gym?.physio ? `+ ${ctx.gym.physio} dal fisioterapista` : '',
@@ -93,32 +103,12 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: [] };
     case 'spesa':
       if (item.id === STARTER_SHOPPING_ID) {
-        return {
-          kicker: 'Primi giorni',
-          headline: item.title,
-          sub: 'La lista copre i pasti fino alla prima preparazione: ricette veloci, niente da cucinare in anticipo.',
-          meta: ['Lista pronta'],
-        };
+        return { kicker: 'Primi giorni', headline: item.title, meta: [item.detail?.split(',')[0] ?? '', 'Solo ricette veloci'].filter(Boolean) };
       }
-      return {
-        kicker: 'Rito del sabato',
-        headline: item.title,
-        sub: 'La lista somma tutti i pasti della settimana prossima, divisa per reparto.',
-        meta: ['Lista pronta'],
-      };
+      return { kicker: 'Rito del sabato', headline: item.title, meta: ['Lista pronta, per reparto'] };
     case 'preparazione':
-      return {
-        kicker: 'Rito della domenica',
-        headline: item.title,
-        sub: 'Una volta sola: pranzi e basi pronti per i giorni feriali.',
-        meta: (item.detail ?? '').split(' · ').filter(Boolean),
-      };
+      return { kicker: 'Rito della domenica', headline: item.title, meta: (item.detail ?? '').split(' · ').filter(Boolean) };
     case 'revisione':
-      return {
-        kicker: 'Rito della domenica',
-        headline: 'Revisione della settimana',
-        sub: 'Voti, peso, sonno, dolori e carico: il piano si corregge da qui.',
-        meta: ['10 minuti'],
-      };
+      return { kicker: 'Rito della domenica', headline: 'Revisione della settimana', meta: ['10 minuti'] };
   }
 }

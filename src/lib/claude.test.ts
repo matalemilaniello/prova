@@ -60,15 +60,15 @@ describe('modello', () => {
     expect(modelSupport('claude-sonnet-5')).toMatchObject({ fallback: false });
     expect(modelSupport('claude-sonnet-4-5-20250929')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
     expect(modelSupport('claude-haiku-4-5')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
-    // Haiku 5.5: nessun fallback lato server, il parametro non va mandato.
+    // Una famiglia senza fallback lato server: il parametro non va mandato.
     expect(modelSupport('claude-haiku-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: false });
     expect(modelSupport('claude-fable-5-1')).toMatchObject({ fallback: true });
     expect(modelSupport('qualcosa')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
   });
 });
 
-describe('messaggi per l\'API', () => {
-  it('toglie errori e rifiuti, parte e finisce con l\'utente', () => {
+describe('messaggi per l’API', () => {
+  it('toglie errori e rifiuti, parte e finisce con l’utente', () => {
     const chat = [
       msg('a0', 'assistant', 'Ciao, sono il coach'),
       msg('u1', 'user', 'Sono al bar'),
@@ -105,7 +105,7 @@ describe('messaggi per l\'API', () => {
     expect(blocks(4)[1].text).toBe(PHOTO_ONLY_PROMPT);
   });
 
-  it('usa l\'immagine a risoluzione piena per il messaggio appena scritto', () => {
+  it('usa l’immagine a risoluzione piena per il messaggio appena scritto', () => {
     const full = 'data:image/jpeg;base64,RlVMTA==';
     const out = buildApiMessages([msg('u1', 'user', 'Questo?', { image: IMG })], { imageOverride: { id: 'u1', dataUrl: full } });
     const img = (out[0].content as { type: string; source?: { data: string } }[])[0];
@@ -133,7 +133,7 @@ describe('testo e errori', () => {
     expect(tidyReply('Prendi il panino — meglio con la spremuta')).toBe('Prendi il panino, meglio con la spremuta');
   });
 
-  it('classifica gli errori tipizzati dell\'SDK', async () => {
+  it('classifica gli errori tipizzati dell’SDK', async () => {
     const sdk = await import('@anthropic-ai/sdk');
     const h = new Headers();
     expect(classifyError(sdk, new sdk.AuthenticationError(401, {}, 'x', h))).toBe('chiave');

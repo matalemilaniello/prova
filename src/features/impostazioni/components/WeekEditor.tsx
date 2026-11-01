@@ -8,71 +8,13 @@ import { motion } from 'motion/react';
 import { ChevronRight, Dumbbell, HeartPulse } from 'lucide-react';
 import type { DayType, FootballEvent, FootballKind, ScheduleDay, Weekday } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
-import { DAY_TYPE_LABEL, DAY_TYPES, WEEKDAY_INITIAL, WEEKDAY_LONG, capitalize } from '../../../lib/format';
+import { DAY_TYPE_LABEL, DAY_TYPES, WEEKDAY_LONG, capitalize } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { BallIcon, Button, DAY_TYPE_ICON, DayTypeBadge, Segmented, Sheet, Toggle, cn, renderIcon, springSnappy, staggerItem, toneColor, toneInk, toneRing, toneSoft } from '../../../ui';
+import { BallIcon, Button, DAY_TYPE_ICON, DayTypeBadge, Segmented, Sheet, Toggle, cn, renderIcon, springSnappy, staggerItem, toneColor, toneInk, toneSoft } from '../../../ui';
 import { dayActivities, suggestDayType } from '../lib';
 import { FormRow, MiniStepper, TimePill } from './controls';
 
 const ACTIVITY_ICON = { calcio: BallIcon, palestra: Dumbbell, fisio: HeartPulse } as const;
-
-// ───────────────────────── Nastro dei 7 giorni ─────────────────────────
-
-export interface WeekRibbonProps {
-  week: ScheduleDay[];
-  onSelect?: (weekday: Weekday) => void;
-  /** Giorno evidenziato (es. oggi). */
-  highlight?: Weekday;
-  className?: string;
-}
-
-/** I 7 giorni come tessere colorate per tipo di giorno: un colpo d'occhio sulla settimana. */
-export function WeekRibbon({ week, onSelect, highlight, className }: WeekRibbonProps) {
-  return (
-    <div className={cn('grid grid-cols-7 gap-1.5', className)} role={onSelect ? 'group' : 'img'} aria-label="Settimana tipo">
-      {week.map((d) => {
-        const tone = d.dayType;
-        const inner = (
-          <>
-            <span className={cn('t-label', highlight === d.weekday ? 'text-ink' : 'text-ink-3')}>{WEEKDAY_INITIAL[d.weekday]}</span>
-            <span
-              className="relative grid h-[52px] w-full place-items-center overflow-hidden rounded-[13px]"
-              style={{ background: toneSoft(tone, 15), color: toneInk(tone), boxShadow: highlight === d.weekday ? `inset 0 0 0 1.5px ${toneColor(tone)}` : toneRing(tone, 26) }}
-            >
-              {renderIcon(DAY_TYPE_ICON[tone], 19, 2.2)}
-              <span aria-hidden className="absolute inset-x-2.5 bottom-1.5 flex justify-center gap-[3px]">
-                {d.football && <span className="h-[3px] w-[3px] rounded-full" style={{ background: toneColor('calcio') }} />}
-                {d.gymSessionId && <span className="h-[3px] w-[3px] rounded-full" style={{ background: toneColor('palestra') }} />}
-                {d.physio && <span className="h-[3px] w-[3px] rounded-full" style={{ background: toneColor('leggero') }} />}
-              </span>
-            </span>
-          </>
-        );
-        const label = `${capitalize(WEEKDAY_LONG[d.weekday])}: ${DAY_TYPE_LABEL[tone]}`;
-        return onSelect ? (
-          <motion.button
-            key={d.weekday}
-            type="button"
-            aria-label={label}
-            whileTap={{ scale: 0.92 }}
-            transition={springSnappy}
-            onClick={() => {
-              haptic('selection');
-              onSelect(d.weekday);
-            }}
-            className="flex flex-col items-center gap-1.5"
-          >
-            {inner}
-          </motion.button>
-        ) : (
-          <div key={d.weekday} className="flex flex-col items-center gap-1.5" aria-label={label}>
-            {inner}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ───────────────────────── Elenco dei giorni ─────────────────────────
 

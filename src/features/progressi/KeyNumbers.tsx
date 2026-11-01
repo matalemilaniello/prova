@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { Goal } from '../../domain/types';
 import { MIN_WEIGH_INS, type PeriodStats } from '../../engine/review';
-import { fmtHours } from '../../lib/format';
+import { fmtHours, plural } from '../../lib/format';
 import { Card, Stat, type StatDelta } from '../../ui';
 import { weightTone } from './charts/WeightChart';
 
@@ -39,7 +39,7 @@ function Stable({ children = 'stabile' }: { children?: ReactNode }) {
  * Numeri chiave degli ultimi 7 giorni, confrontati con i 7 precedenti: peso medio, ore a letto,
  * aderenza e fibre stimate. Una sola card divisa in quattro, come i riepiloghi di Salute.
  */
-export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) {
+export function KeyNumbers({ stats, goal, adherenceReady = true }: { stats: PeriodStats; goal: Goal; adherenceReady?: boolean }) {
   // Con meno di 4 pesate la variazione è rumore: si dice quante ne mancano.
   const enoughWeights = stats.weighIns >= MIN_WEIGH_INS;
   const hasPrevWeight = enoughWeights && stats.weightAvg !== null && stats.weightPrevAvg !== null;
@@ -52,7 +52,8 @@ export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) 
     ? delta((stats.sleepAvgH! - stats.prevSleepAvgH!) * 60, 'min', 0, (v) => (v >= 10 ? 'good' : v <= -10 ? 'bad' : 'neutral'))
     : null;
 
-  const adh = stats.adherence !== null ? Math.round(stats.adherence * 100) : null;
+  // Finché nessun giorno chiuso ha qualcosa di segnato l'aderenza non c'è ancora: un trattino, non uno zero.
+  const adh = stats.adherence !== null && adherenceReady ? Math.round(stats.adherence * 100) : null;
   const adhPrev = stats.prevAdherence !== null ? Math.round(stats.prevAdherence * 100) : null;
   const aDelta =
     adh !== null && adhPrev !== null
@@ -61,7 +62,8 @@ export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) 
 
   const fiber = stats.fiberAvgG;
   const target = stats.fiberTargetG;
-  const fiberLow = fiber !== null && fiber < target - 5;
+  // Stessa regola della proposta della revisione: contro il menù di avvio nei primi giorni.
+  const fiberLow = stats.fiberLow;
   const fDelta =
     fiber !== null && stats.prevFiberAvgG !== null
       ? delta(fiber - stats.prevFiberAvgG, 'g', 0, (v) => (v >= 2 && fiber < target + 5 ? 'good' : v <= -2 && fiber < target ? 'bad' : 'neutral'))
@@ -93,7 +95,7 @@ export function KeyNumbers({ stats, goal }: { stats: PeriodStats; goal: Goal }) 
       unit="%"
       delta={aDelta ?? undefined}
       caption={
-        aDelta ? undefined : adhPrev !== null && adh !== null ? <Stable /> : stats.adherenceDays ? `${stats.successfulDays} giornate riuscite` : 'Ancora nessun giorno'
+        aDelta ? undefined : adhPrev !== null && adh !== null ? <Stable /> : adh !== null ? plural(stats.successfulDays, 'giornata riuscita', 'giornate riuscite') : 'dal primo giorno segnato'
       }
     />,
     <Stat

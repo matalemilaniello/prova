@@ -39,8 +39,8 @@ import { dayCarbScale, dayNutritionDetail, recipeNutrition } from './nutrition';
 import { firstReviewDate, reviewAvailable, weeklyStepStatus, weekStats } from './review';
 import { checkInSleepHours, curfewFor, planDayISO } from './sleep';
 import { ageFrom } from './targets';
-import { adherenceSummary, buildDay, effectiveStatus } from './timeline';
-import { bestSet, findExercise, IMPACT_PAIN_THRESHOLD, loadStatus, nextPlannedSession, painGate } from './training';
+import { adherenceSummary, buildDay, doseUndefined, effectiveStatus, takenSupplements } from './timeline';
+import { bestSet, findExercise, IMPACT_PAIN_THRESHOLD, isElbowSite, isLowerLegSite, loadStatus, nextPlannedSession, painGate } from './training';
 
 // ───────────────────────── Prompt di sistema ─────────────────────────
 
@@ -64,31 +64,31 @@ function barSection(): string {
  * Prompt di sistema del coach. Stabile tra una domanda e l'altra (niente date né dati che cambiano):
  * così resta in cache. I dati della giornata arrivano a parte, nel contesto.
  */
-export const COACH_SYSTEM_PROMPT = `Sei il coach di Ritmo, un'app personale che decide la giornata dell'utente: cosa mangiare, come allenarsi intorno al calcio, quando posare il telefono e dormire. Sei un allenatore e un nutrizionista sportivo pratico: parli come un professionista competente e calmo, a bordo campo.
+export const COACH_SYSTEM_PROMPT = `Sei il coach di Ritmo, un’app personale che decide la giornata dell’utente: cosa mangiare, come allenarsi intorno al calcio, quando posare il telefono e dormire. Sei un allenatore e un nutrizionista sportivo pratico: parli come un professionista competente e calmo, a bordo campo.
 
 Chi hai davanti
-- Un calciatore amatoriale che va anche in palestra: partite e allenamenti di sera, sedute di palestra con un programma, esercizi del fisioterapista. Obiettivo, priorità e zone da monitorare sono nel profilo del contesto: rispetta quell'ordine.
-- Insieme a queste istruzioni ricevi il contesto di Ritmo: profilo, piano, giornata di oggi con lo stato di ogni voce, menù con i valori stimati, controlli del mattino, dolori, sedute e calcio recenti. Usalo: rispondi su questa persona e su questa giornata, non in generale. Se un dato manca, dillo in mezza riga e dai comunque l'indicazione migliore.
+- Un calciatore amatoriale che va anche in palestra: partite e allenamenti di sera, sedute di palestra con un programma, esercizi del fisioterapista. Obiettivo, priorità e zone da monitorare sono nel profilo del contesto: rispetta quell’ordine.
+- Insieme a queste istruzioni ricevi il contesto di Ritmo: profilo, piano, giornata di oggi con lo stato di ogni voce, menù con i valori stimati, controlli del mattino, dolori, sedute e calcio recenti. Usalo: rispondi su questa persona e su questa giornata, non in generale. Se un dato manca, dillo in mezza riga e dai comunque l’indicazione migliore.
 - Se nel profilo ci sono competenze dichiarate (per esempio dietista, preparatore atletico o fisioterapista), parla da collega: termini tecnici corretti, niente spiegazioni di base, vai dritto al ragionamento e ai numeri.
 
 Come rispondi
-- In italiano, con frasi brevi e voce attiva. Di norma tra 40 e 120 parole; di più solo se l'utente chiede un approfondimento.
+- In italiano, con frasi brevi e voce attiva. Di norma tra 40 e 120 parole; di più solo se l’utente chiede un approfondimento.
 - Prima la decisione, poi il motivo in una frase. Una proposta concreta, con le porzioni a mano (palmo, pugno, pollice, mano a coppa) e i grammi quando servono.
 - Testo semplice per una chat sul telefono: paragrafi brevi; elenchi con "- " solo per opzioni o passaggi. Niente titoli, tabelle, emoji o trattino lungo. Il grassetto con **...** al massimo per una parola chiave.
 - Numeri in formato italiano: 2.600 kcal, 70,2 kg, 6 h 40, orari come 07:30.
 - Tono calmo, niente esclamazioni a raffica, niente prediche. Se la giornata è andata storta, proponi la giornata minima o il prossimo passo utile, senza colpe.
 
 Cosa sai fare
-- Al bar: scegli dal piano B qui sotto in base all'ora, al pasto e al tipo di giorno (nei giorni di calcio più carboidrati; prima della partita cibi digeribili e poveri di grassi e fibre).
+- Al bar: scegli dal piano B qui sotto in base all’ora, al pasto e al tipo di giorno (nei giorni di calcio più carboidrati; prima della partita cibi digeribili e poveri di grassi e fibre).
 - Foto del piatto: stima porzioni e valori indicativi, confronta con il pasto previsto e con gli obiettivi di oggi, poi suggerisci un solo aggiustamento per il resto della giornata. Le stime da foto sono approssimative: dillo una volta, senza insistere.
-- Cucina: piatti da 15 minuti con ingredienti comuni e verdure comode (surgelati, insalate in busta, legumi in barattolo, vellutate), adattati al tipo di giorno e a quello che l'utente ha in casa.
+- Cucina: piatti da 15 minuti con ingredienti comuni e verdure comode (surgelati, insalate in busta, legumi in barattolo, vellutate), adattati al tipo di giorno e a quello che l’utente ha in casa.
 - Allenamento: decidi se saltare, accorciare o spingere una seduta in base a sonno, dolore, carico della settimana e distanza dalla partita. Di solito accorciare è meglio che saltare. Rispetta la progressione doppia, i RIR e le limitazioni del piano indicate nel contesto.
-- Settimana: leggi aderenza, sonno, peso, dolori e carico; di' cosa ha funzionato e proponi una correzione. Se nel contesto c'è uno scalino della settimana (un solo obiettivo piccolo, come un frutto allo spuntino), aiutalo a centrarlo prima di aggiungere altro. Le modifiche al piano si accettano nella revisione della domenica, nella sezione Progressi: ricordalo quando proponi un cambiamento.
+- Settimana: leggi aderenza, sonno, peso, dolori e carico; di' cosa ha funzionato e proponi una correzione. Se nel contesto c’è uno scalino della settimana (un solo obiettivo piccolo, come un frutto allo spuntino), aiutalo a centrarlo prima di aggiungere altro. Le modifiche al piano si accettano nella revisione della domenica, nella sezione Progressi: ricordalo quando proponi un cambiamento.
 - Ritmo ha queste sezioni: Oggi (timeline da segnare, acqua, dolci, giornata minima), Settimana (menù, spesa, preparazione della domenica), Allenamento (sedute e storico), Coach, Progressi (grafici e revisione della domenica). Indica la sezione giusta quando serve.
 
 Limiti e sicurezza
 - Non fai diagnosi e non prescrivi farmaci né integratori nuovi. Per dosi come quella della vitamina D rimanda al medico e agli esami.
-- Peso: guarda la media di 7 giorni, non la singola pesata. Nelle prime 3-4 settimane di creatina il peso sale di circa 0,5-1 kg per l'acqua nei muscoli: non è grasso e non si correggono le calorie per questo.
+- Peso: guarda la media di 7 giorni, non la singola pesata. Nelle prime 3-4 settimane di creatina il peso sale di circa 0,5-1 kg per l’acqua nei muscoli: non è grasso e non si correggono le calorie per questo.
 - Dolore: se una zona monitorata è sopra la soglia del piano o in aumento, mantieni o riduci il carico e consiglia di sentire il fisioterapista; applica le limitazioni indicate nel contesto. Non cambiare gli esercizi prescritti dal fisioterapista.
 - Segnali da medico, subito: dolore al petto, svenimento, fiato corto anomalo, palpitazioni, gonfiore o arrossamento importante, dolore notturno o a riposo che non passa, febbre, trauma con deformità o impossibilità di caricare il peso. In questi casi dillo per primo, con chiarezza.
 - Niente diete estreme, digiuni lunghi o cali di peso rapidi. Se emergono segnali di un rapporto difficile con il cibo, rispondi con delicatezza e suggerisci un professionista.
@@ -120,9 +120,6 @@ const GOAL_PRIORITIES: Record<AppData['profile']['goal'], string> = {
   massa: 'salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, più muscolo con un surplus contenuto',
   mantenimento: 'salute (infiammazione di basso grado, microbiota), rendimento nel calcio senza infortuni, peso e forma stabili',
 };
-
-const ELBOW_SITE = /gomit/i;
-const LOWER_LEG_SITE = /tibi|stinc|cavigl|polpacc|achill|piede|metatars/i;
 
 const n1 = (x: number) => fmtNumber(x, 1);
 /** "Dose da definire" → "dose da definire" (non tocca sigle come "EPA"). */
@@ -178,7 +175,7 @@ function profileSection(state: AppData, today: ISODate, now: Date): string[] {
   if (weight.length) bits.push(`Peso: ${weight.join(', ')}.`);
   bits.push(`Obiettivo: ${GOAL_LABEL[p.goal] ?? p.goal}.`);
   const lines = [bits.join(' ')];
-  if (GOAL_PRIORITIES[p.goal]) lines.push(`Priorità, in quest'ordine: ${GOAL_PRIORITIES[p.goal]}.`);
+  if (GOAL_PRIORITIES[p.goal]) lines.push(`Priorità, in quest’ordine: ${GOAL_PRIORITIES[p.goal]}.`);
   if (p.expertise?.trim()) lines.push(`Competenze dichiarate: ${p.expertise.trim()}.`);
   if (p.painSites.length) lines.push(`Zone di dolore monitorate: ${listIt(p.painSites)}; soglia del piano ${n0(state.plan.painThreshold)} su 10.`);
   lines.push(`Acqua: ${n1(p.waterTargetL)} l al giorno.`);
@@ -216,14 +213,18 @@ function planSection(state: AppData, today: ISODate): string[] {
   );
   const mt = plan.mealTimes;
   lines.push(`Orari dei pasti: colazione ${mt.colazione}, spuntino ${mt.spuntino}, pranzo ${mt.pranzo}, merenda ${mt.merenda}, cena ${mt.cena} (nei giorni di calcio serale merenda pre-calcio e cena di recupero).`);
-  const supp = plan.supplements.filter((x) => x.active);
+  const supp = takenSupplements(plan);
   if (supp.length) lines.push(`Integratori: ${supp.map((x) => `${x.name}, ${lowerFirst(x.dose)} (${x.timing})`).join('; ')}.`);
+  const undecided = plan.supplements.filter((x) => x.active && doseUndefined(x));
+  if (undecided.length) {
+    lines.push(`Integratori senza dose: ${listIt(undecided.map((x) => x.name))}, dose da definire con l’esame, per ora non si prende${undecided.length > 1 ? 'no' : ''}.`);
+  }
   lines.push(`Dolci previsti: ${n0(plan.sweetsPerWeek)} a settimana.`);
   const sites = state.profile.painSites ?? [];
   const limits: string[] = [];
-  const elbow = sites.find((x) => ELBOW_SITE.test(x));
+  const elbow = sites.find(isElbowSite);
   if (elbow) limits.push(`${elbow.toLowerCase()} monitorato: nelle spinte manubri a presa neutra, niente bilanciere`);
-  const lower = sites.filter((x) => LOWER_LEG_SITE.test(x));
+  const lower = sites.filter(isLowerLegSite);
   if (lower.length) {
     const t = Math.min(plan.painThreshold ?? 3, IMPACT_PAIN_THRESHOLD);
     limits.push(`${listIt(lower.map((x) => x.toLowerCase()))}: balzi e salti solo con dolore fino a ${n0(t)} su 10`);
@@ -271,7 +272,9 @@ function todaySection(state: AppData, today: ISODate): string[] {
   for (const it of items) {
     const st = status[it.id];
     let label = `${it.time} ${it.title}`;
-    if (it.kind === 'pasto' && it.slot) {
+    if (it.preShopping) {
+      label += ': prima della prima spesa, con quello che c’è in casa';
+    } else if (it.kind === 'pasto' && it.slot) {
       const entry = meals.bySlot[it.slot as MealSlot];
       if (entry?.recipe) {
         const nn = recipeNutrition(entry.recipe, meals.dayType, undefined, k);
@@ -388,7 +391,12 @@ function weekSection(state: AppData, today: ISODate): string[] {
     if (s.sleepAvgH !== null) parts.push(`tempo a letto medio ${fmtHours(s.sleepAvgH)}, ${n0(s.nightsOnTarget)} notti in orario su ${n0(Math.max(s.countedNights, s.nightsWithBedtime))}`);
     if (s.firstWeek) parts.unshift(`prima settimana con Ritmo (${plural(s.daysWithRitmo, 'giorno', 'giorni')})`);
     if (s.weightAvg !== null) parts.push(`peso medio ${fmtKg(s.weightAvg)}${s.weightDelta !== null ? ` (${s.weightDelta >= 0 ? '+' : '−'}${n1(Math.abs(s.weightDelta))} kg)` : ''}`);
-    if (s.fiberAvgG !== null) parts.push(`fibre stimate ${n0(s.fiberAvgG)} g al giorno, proteine ${s.proteinAvgG !== null ? n0(s.proteinAvgG) : '?'} g`);
+    if (s.fiberAvgG !== null) {
+      const menu = s.fiberPlannedG !== null ? ` (menù previsto ${n0(s.fiberPlannedG)} g di fibre e ${s.proteinPlannedG !== null ? n0(s.proteinPlannedG) : '?'} g di proteine)` : '';
+      parts.push(
+        `fibre stimate ${n0(s.fiberAvgG)} g al giorno, proteine ${s.proteinAvgG !== null ? n0(s.proteinAvgG) : '?'} g, da ${n0(s.mealsLogged)} pasti segnati su ${n0(s.mealsCounted)}${menu}; pasti sostituiti ${n0(s.mealsReplaced)}, saltati ${n0(s.mealsSkipped)}`,
+      );
+    }
     parts.push(`dolci ${n0(s.sweets)} su ${n0(s.sweetsPlanned)} previsti`);
     parts.push(`${plural(s.gymSessions, 'seduta', 'sedute')} di palestra, ${n0(s.footballSessions)} di calcio`);
     out.push(`${label}: ${parts.join('; ')}.`);
@@ -406,7 +414,7 @@ function weekSection(state: AppData, today: ISODate): string[] {
   // Prima della prima revisione (settimana di avvio troppo corta) il coach non deve mandare a una revisione che non c'è.
   if (!reviewAvailable(today, state.plan)) {
     const first = firstReviewDate(state.plan);
-    if (first) out.push(`Prima revisione della domenica: ${formatDayLong(first)}. Prima di allora non c'è una settimana da rivedere.`);
+    if (first) out.push(`Prima revisione della domenica: ${formatDayLong(first)}. Prima di allora non c’è una settimana da rivedere.`);
   }
   const last = [...state.reviews].sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))[0];
   if (last) {
@@ -425,7 +433,7 @@ function weekSection(state: AppData, today: ISODate): string[] {
 export function buildCoachContext(state: AppData, now: Date = currentDate()): string {
   const today = coachDay(state, now);
   const head = `# Contesto di Ritmo\nAdesso: ${formatDayLong(toISO(now))} ${now.getFullYear()}, ore ${nowHHMM(now)}. Giornata in corso: ${formatDayLong(today)}.${
-    state.settings.demoData ? '\nNota: sono attivi i dati di esempio dell\'app, non dati reali.' : ''
+    state.settings.demoData ? '\nNota: sono attivi i dati di esempio dell’app, non dati reali.' : ''
   }`;
   return [
     head,

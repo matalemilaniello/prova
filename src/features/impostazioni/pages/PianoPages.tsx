@@ -4,14 +4,14 @@ import { AlarmClock, Apple, BedDouble, Cake, Coffee, RotateCcw, Sandwich, Soup, 
 import type { MealSlot, ScheduleDay, Supplement, Weekday } from '../../../domain/types';
 import { DEFAULT_WEEK } from '../../../data/defaults';
 import { curfewFor } from '../../../engine/sleep';
-import { DAY_TYPE_LABEL, MEAL_SLOT_LABEL, listIt, plural } from '../../../lib/format';
+import { MEAL_SLOT_LABEL, listIt, plural } from '../../../lib/format';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, ListGroup, Segmented, toneColor, type AnyTone } from '../../../ui';
+import { Button, Callout, Card, ListGroup, Segmented, type AnyTone } from '../../../ui';
 import { FormRow, MiniStepper, TimePill } from '../components/controls';
 import { SleepStairs, SleepTargetHint } from '../components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../components/SupplementEditor';
-import { DayEditorSheet, WeekDayList, WeekRibbon } from '../components/WeekEditor';
-import { MEAL_ORDER, dayTypeCounts, mealOrderIssues, sleepSteps } from '../lib';
+import { DayEditorSheet, WeekDayList } from '../components/WeekEditor';
+import { MEAL_ORDER, mealOrderIssues, sleepSteps } from '../lib';
 import { Page, type PageProps } from './Page';
 
 // ───────────────────────── Settimana ─────────────────────────
@@ -19,7 +19,6 @@ import { Page, type PageProps } from './Page';
 export function SettimanaPage({ onBack, backLabel }: PageProps) {
   const week = useApp((s) => s.plan.week);
   const [editing, setEditing] = useState<Weekday | null>(null);
-  const counts = dayTypeCounts(week);
   const isDefault = JSON.stringify(week) === JSON.stringify(DEFAULT_WEEK);
 
   const reset = () => {
@@ -30,17 +29,6 @@ export function SettimanaPage({ onBack, backLabel }: PageProps) {
 
   return (
     <Page title="Settimana" subtitle="Calcio, palestra e fisioterapista, giorno per giorno. Vale per tutte le settimane." onBack={onBack} backLabel={backLabel}>
-      <Card padding="md" className="flex flex-col gap-3.5">
-        <WeekRibbon week={week} onSelect={setEditing} />
-        <p className="t-footnote flex flex-wrap gap-x-3 gap-y-1 text-ink-2">
-          {counts.map(({ type, count }) => (
-            <span key={type} className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2 rounded-full" style={{ background: toneColor(type) }} />
-              {count} {DAY_TYPE_LABEL[type].toLowerCase()}
-            </span>
-          ))}
-        </p>
-      </Card>
       <section className="flex flex-col gap-2">
         <WeekDayList week={week} onSelect={setEditing} />
         <p className="t-footnote px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati del menù. Calcio e palestra spostano merenda, cena e fisioterapista nella giornata.</p>

@@ -11,8 +11,9 @@ import { fmtNumber } from '../../../lib/format';
 import { uid } from '../../../lib/id';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Card, Chip, RatingPicker, Sheet, Stepper } from '../../../ui';
+// Una sola scala per palestra e calcio (CR10 di Foster), la stessa del lettore della seduta.
+import { RPE_LABELS } from '../../allenamento/lib';
 
-const RPE_LABELS = ['Molto facile', 'Facile', 'Moderata', 'Un po’ impegnativa', 'Impegnativa', 'Dura', 'Molto dura', 'Durissima', 'Quasi massimale', 'Massimale'];
 
 export interface QuickWorkoutSheetProps {
   open: boolean;
@@ -80,7 +81,10 @@ export function QuickWorkoutSheet({ open, date, sessionId, itemId, onClose, onOp
             Fatica percepita
           </p>
           <p className="t-footnote mt-0.5 text-ink-3">RPE dell’intera seduta</p>
-          <RatingPicker className="mt-3" label="RPE" hideLabel max={10} value={rpe} onChange={setRpe} labels={RPE_LABELS} lowLabel="Molto facile" highLabel="Massimale" />
+          <RatingPicker className="mt-3" label="RPE" hideLabel max={10} value={rpe} onChange={setRpe} labels={RPE_LABELS} lowLabel={RPE_LABELS[0]} highLabel={RPE_LABELS[9]} />
+          <p className="t-callout mt-3 min-h-[1.4em] text-center font-semibold" style={{ color: rpe ? 'var(--ink)' : 'var(--ink-3)' }} aria-live="polite">
+            {rpe ? `${rpe} · ${RPE_LABELS[rpe - 1]}` : 'Tocca un numero da 1 a 10'}
+          </p>
         </Card>
       </div>
     </Sheet>

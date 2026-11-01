@@ -192,10 +192,11 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
                         <Timer aria-hidden size={13} strokeWidth={2.4} className="shrink-0" />
                         <span className="t-mono text-[0.75rem]">{t.minutes}&nbsp;min</span>
                       </span>
-                      <span className={cn('t-footnote mt-1', isDone ? 'text-ink-3' : 'text-ink-2')}>{t.yields}</span>
+                      {/* Fatta: restano titolo e minuti, il resto si toglie. */}
+                      {!isDone && <span className="t-footnote mt-1 text-ink-2">{t.yields}</span>}
                     </span>
                   </button>
-                  {recipes.length > 0 && (
+                  {!isDone && recipes.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pl-[46px]">
                       {recipes.map((r) => {
                         const use = firstUse.get(r.id);
@@ -223,9 +224,6 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
             })}
           </ol>
         </Card>
-        <p className="t-footnote px-1 text-ink-3">
-          Le ricette pronte dalla domenica sono segnate nel menù. Quello che serve da metà settimana in poi va in freezer a porzioni.
-        </p>
       </section>
 
       {playing && (

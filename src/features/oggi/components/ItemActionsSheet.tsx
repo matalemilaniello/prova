@@ -93,7 +93,7 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
     };
     switch (item.kind) {
       case 'pasto':
-        return item.ref ? <ListRow key="detail" icon={ChefHat} iconTone={dayType} title="Apri la ricetta" subtitle="Porzioni, passaggi e alternative" onPress={go} /> : null;
+        return item.ref && !item.preShopping ? <ListRow key="detail" icon={ChefHat} iconTone={dayType} title="Apri la ricetta" subtitle="Porzioni, passaggi e alternative" onPress={go} /> : null;
       case 'palestra':
         return <ListRow key="detail" icon={Play} iconTone="palestra" title="Apri la seduta" subtitle="Esercizi, serie e carichi suggeriti" onPress={go} />;
       case 'calcio':

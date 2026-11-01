@@ -120,7 +120,7 @@ export function OverlayHost() {
             fallback={(reset) => (
               <Sheet open onClose={reset} title="Il pannello non si è aperto">
                 <p className="t-callout pb-2 text-ink-2">
-                  I tuoi dati sono al sicuro. Chiudi e riprova; se succede ancora, riapri l&apos;app.
+                  I tuoi dati sono al sicuro. Chiudi e riprova; se succede ancora, riapri l’app.
                 </p>
               </Sheet>
             )}

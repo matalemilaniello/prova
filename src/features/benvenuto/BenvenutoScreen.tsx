@@ -177,7 +177,10 @@ export default function BenvenutoScreen() {
             exit="exit"
             transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.9 }}
             data-step={step}
-            className="no-scrollbar absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-[calc(var(--gutter)+var(--safe-left))] pb-10 pt-4"
+            className={cn(
+              'no-scrollbar absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-[calc(var(--gutter)+var(--safe-left))] pt-4',
+              step === 0 ? 'pb-5' : 'pb-10',
+            )}
             aria-label={`Passo ${Math.min(step + 1, STEPS)} di ${STEPS}`}
           >
             <div className="mx-auto w-full max-w-[520px]">

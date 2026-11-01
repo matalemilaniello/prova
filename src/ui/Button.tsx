@@ -34,7 +34,8 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, { cls: string; icon: number }> = {
-  sm: { cls: 'h-9 px-3.5 text-[0.875rem] gap-1.5 rounded-[12px]', icon: 16 },
+  // Il piccolo è alto 36 px ma tocca su 44 (hit-44: pseudo-elemento invisibile, l'aspetto non cambia).
+  sm: { cls: 'h-9 px-3.5 text-[0.875rem] gap-1.5 rounded-[12px] hit-44', icon: 16 },
   md: { cls: 'h-11 px-4.5 text-[0.9375rem] gap-2 rounded-control', icon: 18 },
   lg: { cls: 'h-[52px] px-6 text-[1.0625rem] gap-2.5 rounded-[16px]', icon: 20 },
 };

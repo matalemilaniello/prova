@@ -14,7 +14,7 @@ import type { AppData, HHMM, ISODate, Plan, Supplement, TimelineItem, Weekday, W
 import { SESSIONS } from '../data/sessions';
 import { hashString } from '../lib/id';
 import { addDays, daysBetween, hhmmToMin, isHHMM, minToHHMM, nightMinutes, weekdayOf, weekStart } from './dates';
-import { buildTimeline, physioMinutes, supplementList } from './timeline';
+import { buildTimeline, physioMinutes, supplementList, takenSupplements } from './timeline';
 import { firstReviewDate } from './review';
 import { bedtimeFor, curfewFor, dayCutoffMin } from './sleep';
 import { sessionDuration } from './training';
@@ -386,7 +386,7 @@ export function calendarStatus(
 ): CalendarStatus {
   if (!file) return { state: 'assente' };
   if (calendarSignature(state, kinds) !== file.sig) return { state: 'da-aggiornare', at: file.at, reason: 'piano' };
-  const eveningSupps = kinds.includes('colazione') && state.plan.supplements.some((s) => s.active && s.timing === 'sera');
+  const eveningSupps = kinds.includes('colazione') && takenSupplements(state.plan).some((s) => s.timing === 'sera');
   if (!kinds.includes('coprifuoco') && !eveningSupps) return { state: 'aggiornato', at: file.at };
   const current = state.plan.sleep.current;
   const allowed = new Set<HHMM>([stageBedtime(file.sleep, file.at, today)]);
@@ -428,7 +428,8 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
   const want = new Set(kinds);
   const { plan } = state;
   const tl = weekTimelines(state, start);
-  const active = plan.supplements.filter((s) => s.active);
+  // Solo gli integratori con una dose: uno "da definire" non finisce nel promemoria (come in Oggi).
+  const active = takenSupplements(plan);
   const byTiming = (t: Supplement['timing']) => active.filter((s) => s.timing === t);
   const events: ReminderEvent[] = [];
 
@@ -670,5 +671,5 @@ export const ICS_FILE_NAME = 'ritmo-promemoria.ics';
 
 /** Elenco breve per l'interfaccia ("Integratori: creatina monoidrato e omega-3"). */
 export function supplementsSummary(plan: Plan): string {
-  return supplementList(plan.supplements.filter((s) => s.active));
+  return supplementList(takenSupplements(plan));
 }

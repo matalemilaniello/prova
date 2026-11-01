@@ -16,7 +16,7 @@ import { haptic } from '../../lib/haptics';
 import { useNowHHMM, useToday } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, cn, DayTypeBadge, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneSoft, type AnyTone } from '../../ui';
-import { barCombo, barContext, optionsById, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
+import { barCombo, barContext, fitCombo, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
 
 const VERDICT_STYLE: Record<BarOption['verdict'], { tone: AnyTone; icon: LucideIcon }> = {
   si: { tone: 'good', icon: CircleCheck },
@@ -72,10 +72,12 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
     firstScroll.current = false;
   }, [slot, reduce]);
 
+  // Nei giorni di calcio e alla vigilia la scelta si avvicina al pasto previsto dal menù (carboidrati compresi).
+  const planned = useMemo(() => plannedMeal({ plan, dayLogs }, ctx.today, slot), [plan, dayLogs, ctx.today, slot]);
   const combo = useMemo(() => {
-    const c = barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve);
+    const c = fitCombo(barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve), ctx.dayType, planned, slot);
     return { ...c, options: optionsById(c.ids) };
-  }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve]);
+  }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve, planned]);
   const comboTotal = sumApprox(combo.options);
 
   const groups = useMemo(

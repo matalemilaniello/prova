@@ -44,6 +44,13 @@ export interface PageProps {
   backLabel: string;
 }
 
+/**
+ * Nella barra compatta il pulsante indietro ha un quarto della larghezza: un nome lungo ("Impostazioni",
+ * "Fisioterapista") finirebbe sotto il titolo che compare scorrendo. Come su iOS, al suo posto va "Indietro".
+ */
+const MAX_BACK_LABEL = 8;
+export const fittingBackLabel = (label: string): string => (label.length <= MAX_BACK_LABEL ? label : 'Indietro');
+
 export function Page({
   title,
   subtitle,
@@ -58,7 +65,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <Screen title={title} subtitle={subtitle} onBack={onBack} backLabel={backLabel} bottom="safe" contentClassName="gap-7">
+    <Screen title={title} subtitle={subtitle} onBack={onBack} backLabel={fittingBackLabel(backLabel)} bottom="safe" contentClassName="gap-7">
       {children}
     </Screen>
   );

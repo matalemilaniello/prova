@@ -199,7 +199,10 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
   const sleepDelta = s.sleepAvgH !== null && s.prevSleepAvgH !== null ? Math.round((s.sleepAvgH - s.prevSleepAvgH) * 60) : null;
   const pains = s.pain.filter((p) => p.readings > 0);
 
-  const others: { label: string; value: string; unit?: string; detail?: string; warn?: boolean }[] = [
+  // Fibre e proteine sono stime dai pasti segnati: si dice da quanti, una volta sola per le due righe.
+  const fromMeals = s.mealsCounted > 0 && s.nutritionDays > 0 ? `Fibre e proteine stimate da ${s.mealsLogged} pasti segnati su ${s.mealsCounted}` : null;
+  const menuPart = (g: number | null) => (g !== null ? `, menù ${fmtNumber(Math.round(g))} g` : '');
+  const others: { label: string; value: string; unit?: string; detail?: string; warn?: boolean; note?: string }[] = [
     {
       label: 'Aderenza',
       value: s.adherence !== null ? fmtNumber(Math.round(s.adherence * 100)) : '–',
@@ -217,14 +220,15 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
       label: 'Fibre stimate',
       value: s.fiberAvgG !== null ? fmtNumber(Math.round(s.fiberAvgG)) : '–',
       unit: s.fiberAvgG !== null ? 'g' : undefined,
-      detail: `obiettivo ${s.fiberTargetG} g`,
-      warn: s.fiberAvgG !== null && s.fiberAvgG < s.fiberTargetG - 5,
+      detail: `obiettivo ${s.fiberTargetG} g${menuPart(s.fiberPlannedG)}`,
+      warn: s.fiberLow,
     },
     {
       label: 'Proteine stimate',
       value: s.proteinAvgG !== null ? fmtNumber(s.proteinAvgG) : '–',
       unit: s.proteinAvgG !== null ? 'g' : undefined,
-      detail: `obiettivo ${s.proteinTargetG} g`,
+      detail: `obiettivo ${s.proteinTargetG} g${menuPart(s.proteinPlannedG)}`,
+      note: fromMeals ?? undefined,
     },
     {
       label: 'Carico',
@@ -307,7 +311,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
         <Card padding="none">
           <dl>
             {others.map((o, i) => (
-              <div key={o.label} className={cn('flex items-baseline gap-3 px-4 py-2.5', i > 0 && 'border-t border-line')}>
+              <div key={o.label} className={cn('flex flex-wrap items-baseline gap-x-3 px-4 py-2.5', i > 0 && 'border-t border-line')}>
                 <dt className="t-callout min-w-0 flex-1 text-ink-2">{o.label}</dt>
                 <dd className="flex shrink-0 flex-col items-end">
                   <span className="flex items-baseline gap-1">
@@ -318,6 +322,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
                   </span>
                   {o.detail && <span className="t-caption mt-0.5 text-ink-3">{o.detail}</span>}
                 </dd>
+                {o.note && <dd className="t-caption mt-1.5 w-full text-pretty text-ink-3">{o.note}</dd>}
               </div>
             ))}
           </dl>

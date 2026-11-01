@@ -17,7 +17,7 @@ export const SUGGESTIONS: Record<SuggestionId, Suggestion> = {
   bar: { id: 'bar', text: 'Sono al bar, cosa prendo?', short: 'Sono al bar, cosa prendo?', icon: Coffee },
   cucina: { id: 'cucina', text: 'Cosa cucino stasera con quello che ho?', short: 'Cosa cucino stasera?', icon: ChefHat },
   palestra: { id: 'palestra', text: 'Salto la palestra?', short: 'Salto la palestra?', icon: Dumbbell },
-  settimana: { id: 'settimana', text: "Com'è andata la settimana?", short: "Com'è andata la settimana?", icon: CalendarCheck },
+  settimana: { id: 'settimana', text: "Com’è andata la settimana?", short: "Com’è andata la settimana?", icon: CalendarCheck },
 };
 
 export interface SuggestionContext {

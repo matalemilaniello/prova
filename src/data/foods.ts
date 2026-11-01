@@ -140,7 +140,7 @@ const FOOD_LIST: Food[] = [
   },
   {
     id: 'avena',
-    name: "Fiocchi d'avena",
+    name: "Fiocchi d’avena",
     category: 'Pane e cereali',
     per100g: { kcal: 372, proteinG: 13.5, carbG: 58.7, fatG: 7, fiberG: 10 },
     unitGrams: { 'mano a coppa': 40, cucchiaio: 10 },
@@ -348,7 +348,7 @@ const FOOD_LIST: Food[] = [
   },
   {
     id: 'albume',
-    name: "Albume d'uovo",
+    name: "Albume d’uovo",
     category: 'Latticini e uova',
     per100g: { kcal: 48, proteinG: 10.9, carbG: 0.7, fatG: 0.2, fiberG: 0 },
     /** 1 pezzo = l'albume di un uovo; in brick si dosa a ml. */
@@ -734,7 +734,7 @@ const FOOD_LIST: Food[] = [
   // ───────────────────────── Condimenti e spezie (dispensa) ─────────────────────────
   {
     id: 'olio-evo',
-    name: "Olio extravergine d'oliva",
+    name: "Olio extravergine d’oliva",
     category: 'Condimenti',
     per100g: { kcal: 899, proteinG: 0, carbG: 0, fatG: 99.9, fiberG: 0 },
     unitGrams: { cucchiaio: 10, cucchiaino: 4 },

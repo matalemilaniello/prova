@@ -289,7 +289,7 @@ export function SavedKeyCard({ onRemoved }: { onRemoved?: () => void }) {
       <div className="border-t border-line px-4 py-2.5">
         {confirm ? (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between gap-2">
-            <span className="t-footnote text-ink-2">Il coach si ferma finché non ne incolli un'altra.</span>
+            <span className="t-footnote text-ink-2">Il coach si ferma finché non ne incolli un’altra.</span>
             <div className="flex shrink-0 gap-1.5">
               <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>
                 Annulla

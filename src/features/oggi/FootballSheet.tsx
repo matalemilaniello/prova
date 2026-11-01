@@ -11,19 +11,9 @@ import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, Chip, NumberTicker, RatingPicker, Sheet, Stepper, toneInk, toneRing, toneSoft } from '../../ui';
+// Una sola scala per palestra e calcio (CR10 di Foster): il carico della settimana somma minuti × RPE di entrambi.
+import { RPE_LABELS } from '../allenamento/lib';
 
-const RPE_LABELS = [
-  'Molto facile',
-  'Facile',
-  'Moderata',
-  'Un po’ impegnativa',
-  'Impegnativa',
-  'Dura',
-  'Molto dura',
-  'Durissima',
-  'Quasi massimale',
-  'Massimale',
-];
 
 export default function FootballSheet({ date, kind, itemId, onClose }: { date: ISODate; kind: FootballKind; itemId: string; onClose: () => void }) {
   // Istantanea all'apertura: il foglio non si ridisegna mentre si chiude dopo il salvataggio.
@@ -126,7 +116,7 @@ export default function FootballSheet({ date, kind, itemId, onClose }: { date: I
             </div>
           </div>
           <div className="px-4 pb-4 pt-3">
-            <RatingPicker label="RPE" hideLabel max={10} value={rpe} onChange={setRpe} labels={RPE_LABELS} lowLabel="Molto facile" highLabel="Massimale" />
+            <RatingPicker label="RPE" hideLabel max={10} value={rpe} onChange={setRpe} labels={RPE_LABELS} lowLabel={RPE_LABELS[0]} highLabel={RPE_LABELS[9]} />
             <p className="t-callout mt-3 min-h-[1.4em] text-center font-semibold" style={{ color: rpe ? 'var(--ink)' : 'var(--ink-3)' }} aria-live="polite">
               {rpe ? `${rpe} · ${RPE_LABELS[rpe - 1]}` : 'Tocca un numero da 1 a 10'}
             </p>

@@ -16,6 +16,7 @@ import { capitalize, fmtDelta, fmtHours, fmtKg, fmtMinutes } from '../../lib/for
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, Chip, EmptyState, Pill, RatingPicker, ScaleSlider, Sheet, Stepper, cn, spring, toneInk, type AnyTone } from '../../ui';
+import { PAIN_TEST_ALERT, customPainTests, isImpactTest, testGesture, testSafety } from './painTests';
 
 const QUALITY_LABELS = ['Pessima', 'Scarsa', 'Discreta', 'Buona', 'Ottima'];
 
@@ -23,19 +24,8 @@ const painWord = (v: number) => (v === 0 ? 'nessuno' : v <= 3 ? 'lieve' : v <= 6
 const energyWord = (v: number) => (v <= 3 ? 'bassa' : v <= 6 ? 'media' : v <= 8 ? 'buona' : 'ottima');
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Gesto di prova sempre uguale per zona: senza un riferimento il numero cambia con l'umore. */
-const TEST_GESTURES: { re: RegExp; text: string }[] = [
-  { re: /tibi|stinc/i, text: '10 saltelli su una gamba' },
-  { re: /polpacc|achill|cavigl/i, text: '10 sollevamenti sulle punte su una gamba' },
-  { re: /gomit/i, text: 'stringi forte una bottiglia a braccio teso' },
-  { re: /flessor|posterior/i, text: 'ponte su una gamba, 5 ripetizioni' },
-  { re: /addutt|pube|inguin/i, text: 'stringi un pallone tra le ginocchia' },
-  { re: /ginocch/i, text: '5 squat su una gamba, lenti' },
-  { re: /spall/i, text: 'braccio teso sopra la testa' },
-];
-export function testGesture(site: string): string {
-  return TEST_GESTURES.find((g) => g.re.test(site))?.text ?? 'primi passi del mattino';
-}
+/** Gesti di prova per zona: stanno in `painTests.ts`, li usano anche gli avvisi di Oggi. */
+export { testGesture } from './painTests';
 
 /** Ultimo controllo prima della data (per proporre i valori di ieri). */
 function previousCheckIn(checkIns: Record<ISODate, CheckIn>, date: ISODate): CheckIn | undefined {
@@ -91,6 +81,8 @@ function Section({ icon, tone, title, hint, action, children }: { icon: typeof S
 interface QuickOption {
   key: string;
   label: string;
+  /** Per i lettori di schermo, quando l'etichetta è solo un numero ("+15"). */
+  aria?: string;
   value: HHMM | null;
 }
 
@@ -110,6 +102,7 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
   const prev = useMemo(() => previousCheckIn(checkIns, date), [checkIns, date]);
   const lastWeight = useMemo(() => lastValue(checkIns, date, (c) => (c.weightKg && c.weightKg > 0 ? c.weightKg : undefined)), [checkIns, date]);
   const sites = profile.painSites;
+  const customTests = customPainTests(profile);
   // La notte appartiene a ieri: dopo la partita l'orario previsto è più tardi.
   const plannedBed = bedtimeFor(addDays(date, -1), plan);
   const ritual = ritualTimeFor(yesterdayNotes);
@@ -126,16 +119,18 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
 
   const bedOptions: QuickOption[] = [
     ...(ritual && ritual !== plannedBed ? [{ key: 'rito', label: `Rito ${ritual}`, value: ritual }] : []),
+    // Prima del previsto è proprio quello che il piano cerca: deve costare un tocco, come il ritardo.
+    // Etichette brevi, così le scelte stanno su una riga: i minuti li dice "previsto 00:45" accanto.
+    { key: '-15', label: '−15', aria: '15 minuti prima', value: addMinutes(plannedBed, -15) },
     { key: 'orario', label: 'In orario', value: plannedBed },
-    { key: '15', label: '+15 min', value: addMinutes(plannedBed, 15) },
-    { key: '30', label: '+30 min', value: addMinutes(plannedBed, 30) },
-    { key: '60', label: '+1 h', value: addMinutes(plannedBed, 60) },
+    { key: '15', label: '+15', aria: '15 minuti dopo', value: addMinutes(plannedBed, 15) },
+    { key: '30', label: '+30', aria: '30 minuti dopo', value: addMinutes(plannedBed, 30) },
     { key: 'altro', label: 'Altro', value: null },
   ];
   const wakeOptions: QuickOption[] = [
     { key: 'orario', label: 'Prevista', value: plan.sleep.wake },
-    { key: '-15', label: '−15 min', value: addMinutes(plan.sleep.wake, -15) },
-    { key: '+15', label: '+15 min', value: addMinutes(plan.sleep.wake, 15) },
+    { key: '-15', label: '−15', aria: '15 minuti prima', value: addMinutes(plan.sleep.wake, -15) },
+    { key: '+15', label: '+15', aria: '15 minuti dopo', value: addMinutes(plan.sleep.wake, 15) },
     { key: 'altro', label: 'Altro', value: null },
   ];
 
@@ -282,6 +277,14 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
                 />
               ) : null
             }
+            note={
+              bed && lateBy < 0 ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-good-ink">
+                  <Check size={14} strokeWidth={2.6} aria-hidden />
+                  {fmtMinutes(-lateBy)} di letto in più
+                </span>
+              ) : null
+            }
           />
           <div className="my-3 h-px bg-line" />
           <QuickTime
@@ -361,9 +364,15 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
                       lowLabel="Nessuno"
                       highLabel="Massimo"
                     />
+                    {typeof v === 'number' && v > PAIN_TEST_ALERT && isImpactTest(site) && !customTests?.[site] && (
+                      <p role="alert" className="t-footnote mt-2 font-medium text-bad-ink">
+                        Dolore anche senza saltare: scrivi al fisioterapista.
+                      </p>
+                    )}
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                       <p className="t-footnote min-w-0 text-ink-3">
-                        Prova: <span className="text-ink-2">{testGesture(site)}</span>
+                        Prova: <span className="text-ink-2">{testGesture(site, customTests)}</span>
+                        {testSafety(site, customTests) && <span className="block">{testSafety(site, customTests)}</span>}
                       </p>
                       {typeof last === 'number' && v === undefined && (
                         <Chip selected={false} onChange={() => setPain((p) => ({ ...p, [site]: last }))} className="h-9! px-3.5! text-[0.875rem]!">
@@ -413,6 +422,7 @@ function QuickTime({
   selected,
   onPick,
   stepper,
+  note,
 }: {
   icon: typeof Scale;
   label: string;
@@ -422,6 +432,8 @@ function QuickTime({
   selected: string | null;
   onPick: (o: QuickOption) => void;
   stepper: ReactNode;
+  /** Riscontro sotto le scelte (es. "15 min di letto in più"). */
+  note?: ReactNode;
 }) {
   const Icon = icon;
   return (
@@ -434,10 +446,17 @@ function QuickTime({
         </p>
         <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">previsto {planned}</span>
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
         {options.map((o) => (
-          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-10! px-3! text-[0.875rem]!">
-            {o.label}
+          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-10! min-w-12 justify-center px-2.5! text-[0.875rem]! tabular">
+            {o.aria ? (
+              <>
+                <span aria-hidden>{o.label}</span>
+                <span className="sr-only">{o.aria}</span>
+              </>
+            ) : (
+              o.label
+            )}
           </Chip>
         ))}
       </div>
@@ -448,6 +467,11 @@ function QuickTime({
           </motion.div>
         )}
       </AnimatePresence>
+      {note && (
+        <p className="t-footnote mt-2" aria-live="polite">
+          {note}
+        </p>
+      )}
     </div>
   );
 }

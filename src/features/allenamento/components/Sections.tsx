@@ -5,9 +5,9 @@ import type { AppData, ISODate, Plan, WorkoutLog } from '../../../domain/types';
 import { SESSION_LIST } from '../../../data/sessions';
 import { formatWeekdayShort, fromISO } from '../../../engine/dates';
 import { introLevel, physioCoverage, sessionDuration, sessionLoad, workoutVolume, type PersonalRecord } from '../../../engine/training';
-import { fmtDelta, fmtNumber, listIt, WEEKDAY_LONG } from '../../../lib/format';
+import { capitalize, fmtDelta, fmtNumber, listIt, WEEKDAY_LONG } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Card, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
+import { Button, Card, Disclosure, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
 import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone, shortName } from '../lib';
 import { agoLabel, type StrengthRow } from '../useTraining';
 import { SessionGlyph } from './SessionGlyph';
@@ -90,34 +90,40 @@ export function PhysioSection({ physio, plan, onEdit }: { physio: AppData['physi
         Dal fisioterapista
       </SectionTitle>
       {list.length ? (
-        <Card padding="none" className="overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-            <span
-              className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-              style={{ background: toneSoft('leggero', 16), boxShadow: toneRing('leggero'), color: toneInk('leggero') }}
-              aria-hidden
-            >
-              <HeartPulse size={17} strokeWidth={2.2} />
-            </span>
-            <p className="t-footnote min-w-0 flex-1 text-ink-2">
-              <span className="font-semibold text-ink">{list.length === 1 ? '1 esercizio' : `${list.length} esercizi`}</span>
-              {days.length ? ` · ${daysPhrase(days)}` : ' · nessun giorno scelto'}, e in fondo a ogni seduta
+        // L'elenco è sempre lo stesso (lo scrive l'utente): chiuso di base, con i giorni come riassunto.
+        <Card padding="none" className="px-4 py-1.5">
+          <Disclosure
+            icon={
+              <span
+                className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
+                style={{ background: toneSoft('leggero', 16), boxShadow: toneRing('leggero'), color: toneInk('leggero') }}
+                aria-hidden
+              >
+                <HeartPulse size={17} strokeWidth={2.2} />
+              </span>
+            }
+            title={list.length === 1 ? '1 esercizio' : `${list.length} esercizi`}
+            summary={days.length ? listIt(days) : 'nessun giorno'}
+            contentClassName="pb-2 pt-1"
+          >
+            <p className="t-footnote text-ink-2">
+              {days.length ? `${capitalize(daysPhrase(days))}, e in fondo a ogni seduta.` : 'Nessun giorno scelto: li trovi in fondo a ogni seduta.'}
             </p>
-          </div>
-          <ul>
-            {list.map(({ p, ex }, i) => (
-              <li key={`${p.exerciseId}-${i}`} className={cn('flex items-center gap-3 px-4 py-2.5', i > 0 && 'border-t border-line')}>
-                <span className="t-mono w-4 shrink-0 text-[0.75rem] text-ink-3">{i + 1}</span>
-                <span className="t-callout min-w-0 flex-1 text-ink">{ex?.name ?? p.exerciseId}</span>
-                <span className="t-mono shrink-0 text-[0.75rem] text-leggero-ink">{doseLabel(p, { perSide: false })}</span>
-              </li>
-            ))}
-          </ul>
-          {covered.length > 0 && (
-            <p className="t-footnote border-t border-line px-4 py-3 text-ink-3">
-              Nelle sedute salti {listIt(covered)}: lavorano gli stessi tessuti, così il carico non raddoppia.
-            </p>
-          )}
+            <ul className="mt-2">
+              {list.map(({ p, ex }, i) => (
+                <li key={`${p.exerciseId}-${i}`} className="flex items-center gap-3 border-t border-line py-2.5">
+                  <span className="t-mono w-4 shrink-0 text-[0.75rem] text-ink-3">{i + 1}</span>
+                  <span className="t-callout min-w-0 flex-1 text-ink">{ex?.name ?? p.exerciseId}</span>
+                  <span className="t-mono shrink-0 text-[0.75rem] text-leggero-ink">{doseLabel(p, { perSide: false })}</span>
+                </li>
+              ))}
+            </ul>
+            {covered.length > 0 && (
+              <p className="t-footnote border-t border-line pt-3 text-ink-3">
+                Nelle sedute salti {listIt(covered)}: lavorano gli stessi tessuti, così il carico non raddoppia.
+              </p>
+            )}
+          </Disclosure>
         </Card>
       ) : (
         <Card padding="none">
@@ -162,13 +168,13 @@ function Sparkline({ values }: { values: number[] }) {
 export function StrengthSection({ rows, physio }: { rows: StrengthRow[]; physio: AppData['physio'] }) {
   const [all, setAll] = useState(false);
   if (!rows.length) return null;
-  const shown = all ? rows : rows.slice(0, 4);
+  const shown = all ? rows : rows.slice(0, 3);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="forza-titolo">
       <SectionTitle
         id="forza-titolo"
-        subtitle="1RM stimato con la formula di Epley, variazione nelle ultime 4 settimane"
-        action={rows.length > 4 ? { label: all ? 'Meno' : 'Tutti', onPress: () => setAll((v) => !v) } : undefined}
+        subtitle="1RM stimato (Epley) e variazione in 4 settimane"
+        action={rows.length > 3 ? { label: all ? 'Meno' : `Tutti (${rows.length})`, onPress: () => setAll((v) => !v) } : undefined}
       >
         Forza stimata
       </SectionTitle>
@@ -208,10 +214,10 @@ export function HistorySection({
   onStart: () => void;
 }) {
   const [all, setAll] = useState(false);
-  const shown = all ? history : history.slice(0, 5);
+  const shown = all ? history : history.slice(0, 3);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="storico-titolo">
-      <SectionTitle id="storico-titolo" action={history.length > 5 ? { label: all ? 'Mostra meno' : `Tutte (${history.length})`, onPress: () => setAll((v) => !v) } : undefined}>
+      <SectionTitle id="storico-titolo" action={history.length > 3 ? { label: all ? 'Meno' : `Tutte (${history.length})`, onPress: () => setAll((v) => !v) } : undefined}>
         Storico
       </SectionTitle>
       {history.length ? (

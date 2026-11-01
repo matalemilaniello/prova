@@ -70,7 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
         </span>
         <h2 className="t-title-2 text-ink">Questa parte non si è caricata</h2>
         <p className="t-callout max-w-[30ch] text-ink-2">
-          I tuoi dati sono al sicuro sul telefono. Riprova; se succede ancora, chiudi e riapri l&apos;app.
+          I tuoi dati sono al sicuro sul telefono. Riprova; se succede ancora, chiudi e riapri l’app.
         </p>
         <button
           type="button"

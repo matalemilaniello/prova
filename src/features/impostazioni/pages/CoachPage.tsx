@@ -1,13 +1,13 @@
 /** Coach: chiave API (nascosta, con mostra/nascondi) e modello. */
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { ExternalLink, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
+import { Cpu, ExternalLink, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { IS_PREVIEW } from '../../../app/env';
 import { DEFAULT_COACH_MODEL } from '../../../data/defaults';
 import { CONSOLE_KEYS_URL, CONSOLE_LIMITS_URL, isLikelyApiKey, maskKey, modelLabel, normalizeKey } from '../../../lib/claude';
 import { haptic } from '../../../lib/haptics';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, Field, IconButton, Pill, TextInput, springSnappy } from '../../../ui';
+import { Button, Callout, Card, Disclosure, Field, IconButton, Pill, TextInput, springSnappy } from '../../../ui';
 import { ChoiceCards, InlineReveal, tileStyle } from '../components/controls';
 import { Page, type PageProps } from './Page';
 
@@ -131,39 +131,14 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
         </div>
       </InlineReveal>
 
-      <section className="flex flex-col gap-2" aria-labelledby="modello-label">
-        <h3 id="modello-label" className="t-label px-1 text-ink-3">
-          Modello
-        </h3>
-        <ChoiceCards
-          aria-label="Modello del coach"
-          columns={1}
-          value={choice}
-          onChange={(v) => {
-            if (v === OTHER) update({ coachModel: custom.trim() || DEFAULT_COACH_MODEL });
-            else update({ coachModel: v });
-          }}
-          options={[...MODELS, { value: OTHER, label: 'Altro modello', text: 'Scrivi l’identificativo esatto, ad esempio da una novità della console.' }]}
-        />
-        <InlineReveal open={choice === OTHER}>
-          <div className="pt-1">
-            <TextInput
-              value={custom}
-              onChange={(v) => {
-                setCustom(v);
-                const id = v.trim();
-                if (id) update({ coachModel: id });
-              }}
-              placeholder="claude-…"
-              aria-label="Identificativo del modello"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="font-mono"
-            />
-          </div>
-        </InlineReveal>
-        <p className="t-footnote px-1 text-ink-3">Uso tipico: 7-12 $ al mese con Claude Opus 5.5, pagati ad Anthropic con la tua chiave.</p>
+      {/* Il modello si sceglie di rado: la scelta sta dietro un tocco, con il nome di quello attivo a destra. */}
+      <section className="flex flex-col gap-1" aria-label="Modello del coach">
+        <Card padding="none" className="px-4">
+          <Disclosure title="Modello" icon={Cpu} summary={modelLabel(settings.coachModel)} defaultOpen={choice === OTHER} contentClassName="flex flex-col gap-2 pb-4 pt-1">
+            <ModelChoices choice={choice} custom={custom} setCustom={setCustom} />
+          </Disclosure>
+        </Card>
+        <p className="t-footnote px-1 pt-1 text-ink-3">Uso tipico: 7-12 $ al mese con Claude Opus 5.5, pagati ad Anthropic con la tua chiave.</p>
       </section>
 
       <Card padding="none">
@@ -194,6 +169,44 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
         </Button>
       )}
     </Page>
+  );
+}
+
+/** I modelli tra cui scegliere, più "Altro modello" con l'identificativo scritto a mano. */
+function ModelChoices({ choice, custom, setCustom }: { choice: string; custom: string; setCustom: (v: string) => void }) {
+  const update = useApp((s) => s.updateSettings);
+  return (
+    <>
+      <ChoiceCards
+        aria-label="Modello del coach"
+        columns={1}
+        surface="control"
+        value={choice}
+        onChange={(v) => {
+          if (v === OTHER) update({ coachModel: custom.trim() || DEFAULT_COACH_MODEL });
+          else update({ coachModel: v });
+        }}
+        options={[...MODELS, { value: OTHER, label: 'Altro modello', text: 'Scrivi l’identificativo esatto, ad esempio da una novità della console.' }]}
+      />
+      <InlineReveal open={choice === OTHER}>
+        <div className="pt-1">
+          <TextInput
+            value={custom}
+            onChange={(v) => {
+              setCustom(v);
+              const id = v.trim();
+              if (id) update({ coachModel: id });
+            }}
+            placeholder="claude-…"
+            aria-label="Identificativo del modello"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="font-mono"
+          />
+        </div>
+      </InlineReveal>
+    </>
   );
 }
 

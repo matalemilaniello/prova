@@ -36,6 +36,7 @@ Serve Node 22.
 | `npm run typecheck` | controllo dei tipi TypeScript |
 | `npm run screenshots` | PNG di ogni schermata e pannello in `screenshots/` (390×844, tema scuro e chiaro) |
 | `npm run icons` | rigenera le icone in `public/` dal disegno SVG |
+| `npm run check:typography` | apostrofi dritti e trattini lunghi nei testi, per area (`--fix --area <area>` li corregge) |
 
 Gli screenshot leggono la build in un unico file: esegui prima `npm run build:preview`.
 Opzioni: `--only oggi,kit`, `--themes chiaro`, `--out cartella`, `--html percorso`, `--now 18:30`,

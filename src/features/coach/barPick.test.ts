@@ -3,7 +3,7 @@ import { BAR_OPTIONS } from '../../data/barPlanB';
 import { defaultPlan } from '../../data/defaults';
 import { MEAL_SLOTS } from '../../engine/menu';
 import { emptyDayLog } from '../../state/store';
-import { barCombo, barContext, optionsById, sumApprox, sweetsThisWeek } from './barPick';
+import { barCombo, barContext, CALCIO_MEAL_CAP, CALCIO_MEAL_SHARE, fitCombo, optionsById, plannedMeal, sumApprox, sweetsThisWeek } from './barPick';
 
 const plan = defaultPlan('2026-11-09');
 
@@ -80,6 +80,48 @@ describe('piano B al bar', () => {
     const mon = barContext({ plan }, '2026-11-16', '22:50');
     expect(mon.matchEve).toBe(false);
     expect(barCombo('cena', mon.dayType, false, mon.matchEve).why).toMatch(/recuperare/);
+  });
+
+  it('alla vigilia la cena del bar arriva vicino a quella prevista, carboidrati compresi', () => {
+    const c = barContext({ plan }, '2026-11-15', '20:10');
+    const planned = plannedMeal({ plan, dayLogs: {} }, c.today, 'cena')!;
+    expect(planned.kcal).toBeGreaterThan(600);
+    const base = barCombo('cena', c.dayType, false, c.matchEve);
+    expect(sumApprox(optionsById(base.ids)).kcal).toBeLessThan(planned.kcal * CALCIO_MEAL_SHARE);
+    const fit = fitCombo(base, c.dayType, planned, 'cena');
+    const t = sumApprox(optionsById(fit.ids));
+    expect(fit.ids.length).toBeGreaterThan(base.ids.length);
+    expect(fit.ids.slice(0, base.ids.length)).toEqual(base.ids);
+    expect(t.kcal).toBeGreaterThanOrEqual(planned.kcal * CALCIO_MEAL_SHARE);
+    expect(t.carbG).toBeGreaterThanOrEqual(planned.carbG * CALCIO_MEAL_SHARE);
+    expect(t.kcal).toBeLessThanOrEqual(planned.kcal * CALCIO_MEAL_CAP);
+    expect(t.proteinG).toBeGreaterThanOrEqual(30);
+    expect(fit.why).toMatch(/Vigilia/);
+    expect(fit.why).toMatch(/portan?o? i carboidrati vicino alla cena prevista\./);
+  });
+
+  it('il pasto previsto completa solo i giorni di calcio, senza strafare', () => {
+    // Martedì di palestra: la scelta resta quella di base anche se sotto il pasto previsto.
+    const tue = barCombo('cena', 'palestra', false);
+    expect(fitCombo(tue, 'palestra', { kcal: 900, carbG: 120 })).toEqual(tue);
+    // Senza pasto previsto, nessuna aggiunta.
+    const mon = barCombo('cena', 'calcio', false);
+    expect(fitCombo(mon, 'calcio', null)).toEqual(mon);
+    // Già vicina al previsto: resta com'è.
+    const t = sumApprox(optionsById(mon.ids));
+    expect(fitCombo(mon, 'calcio', { kcal: t.kcal, carbG: t.carbG })).toEqual(mon);
+    // Ogni aggiunta resta un'opzione buona, e il trancio arriva solo con la frutta.
+    for (const slot of MEAL_SLOTS) {
+      for (const kcal of [500, 700, 900, 1100]) {
+        const f = fitCombo(barCombo(slot, 'calcio', false, true), 'calcio', { kcal, carbG: kcal * 0.14 }, slot);
+        const opts = optionsById(f.ids);
+        expect(opts.length).toBe(f.ids.length);
+        expect(new Set(f.ids).size).toBe(f.ids.length);
+        for (const o of opts) expect(o.verdict).not.toBe('programmato');
+        if (f.ids.includes('trancio-pizza')) expect(f.ids).toContain('macedonia');
+        expect(f.why).not.toMatch(/—|pane|aggiungi/i);
+      }
+    }
   });
 
   it('senza vigilia il giorno di riposo resta leggero', () => {

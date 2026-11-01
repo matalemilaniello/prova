@@ -1,11 +1,13 @@
-import { motion } from 'motion/react';
-import { ArrowLeftRight, Clock, HeartPulse, History, Layers, ListOrdered, Sprout, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ArrowLeftRight, ChevronDown, Clock, HeartPulse, History, Layers, ListOrdered, Sprout, TrendingDown, TrendingUp } from 'lucide-react';
 import type { ISODate, WorkoutLog } from '../../../domain/types';
 import { compareHHMM, formatDayLong, formatRelativeDay } from '../../../engine/dates';
 import { useNowHHMM } from '../../../state/hooks';
 import { sessionLoad, type PainGate, type Suggestion } from '../../../engine/training';
 import { capitalize as capitalizeFirst, fmtNumber } from '../../../lib/format';
-import { Callout, Pill, cn, staggerItem } from '../../../ui';
+import { Callout, Disclosure, Pill, cn, staggerItem } from '../../../ui';
+import { haptic } from '../../../lib/haptics';
 import { SessionGlyph } from '../components/SessionGlyph';
 import { coveredPhrase, daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, type PlayerPlan } from '../lib';
 
@@ -35,6 +37,10 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
   const upcoming = Boolean(time) && (date > today || (date === today && compareHHMM(nowHHMM, time!) < 0));
   const whenLabel = `${when.charAt(0).toUpperCase()}${when.slice(1)}${upcoming ? ` alle ${time}` : ''}`;
   const increases = plan.items.filter((it) => suggestions[it.key]?.kind === 'aumenta').length;
+  const stalls = plan.items.filter((it) => suggestions[it.key]?.stalled).length;
+  // Riscaldamento e blocco del fisioterapista sono sempre uguali: chiusi di base, si aprono con un tocco.
+  const [openBlocks, setOpenBlocks] = useState<Record<string, boolean>>({});
+  const reduce = useReducedMotion();
   const { duration, covered } = plan;
   const minutes = duration.own;
   const swapped = own.filter((i) => i.replacedFrom);
@@ -76,7 +82,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
           <p className="t-footnote -mt-1 flex items-start gap-2 px-1 text-ink-2">
             <HeartPulse size={14} strokeWidth={2.4} className="mt-0.5 shrink-0 text-leggero-ink" aria-hidden />
             <span>
-              Con {physioCount === 1 ? "l'esercizio" : `i ${physioCount} esercizi`} del fisioterapista circa {duration.physio} min in più,{' '}
+              Con {physioCount === 1 ? "l’esercizio" : `i ${physioCount} esercizi`} del fisioterapista circa {duration.physio} min in più,{' '}
               <span className="font-semibold text-ink">{duration.total} in tutto</span>.
             </span>
           </p>
@@ -86,9 +92,12 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
 
       {plan.intro && (
         <Callout tone="good" icon={Sprout} title={plan.intro === 1 ? 'Prima volta con questa seduta' : 'Seconda volta con questa seduta'}>
-          Una serie in meno per esercizio e una ripetizione di riserva in più. Gli esercizi nuovi danno più indolenzimento,
-          con il picco tra 24 e 72 ore, e dalle volte successive molto meno: così i primi giorni non pesano sul calcio.{' '}
+          Una serie in meno per esercizio e una ripetizione di riserva in più.{' '}
           {plan.intro === 1 ? 'Dalla terza volta la seduta è completa.' : 'Dalla prossima volta la seduta è completa.'}
+          <Disclosure variant="inline" title="Perché" className="mt-1">
+            Gli esercizi nuovi danno più indolenzimento, con il picco tra 24 e 72 ore, e dalle volte successive molto meno
+            (effetto della serie ripetuta): così i primi giorni non pesano sul calcio.
+          </Disclosure>
         </Callout>
       )}
 
@@ -102,6 +111,8 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
         <div className="flex items-start gap-3 rounded-[16px] bg-card-3 px-3.5 py-3">
           {increases > 0 ? (
             <TrendingUp size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
+          ) : stalls > 0 ? (
+            <TrendingDown size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-palestra-ink" aria-hidden />
           ) : (
             <History size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
           )}
@@ -110,65 +121,117 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
               Ultima volta {formatDayLong(lastSession.date)}
             </span>
             {` · ${lastSession.durationMin} min, RPE ${lastSession.rpe}, carico ${fmtNumber(sessionLoad(lastSession.durationMin, lastSession.rpe))} UA. `}
-            {increases > 0
-              ? `Oggi sali di carico in ${increases === 1 ? 'un esercizio' : `${increases} esercizi`}.`
-              : 'Oggi cerchi una ripetizione in più a parità di carico.'}
+            {progressPhrase(increases, stalls)}
           </p>
         </div>
       )}
 
       {plan.blocks.map((b, bi) => {
-        const min = estimateMinutes(b.items.filter((i) => !i.coveredBy).map((i) => i.item));
-        return (
-          <section key={b.title} className="flex flex-col gap-2" aria-label={b.title}>
-            <div className="flex items-baseline justify-between px-1">
-              <h3 className={cn('t-label flex items-center gap-1.5', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>
-                {b.physio && <HeartPulse size={12} strokeWidth={2.4} aria-hidden />}
-                {b.title}
-              </h3>
-              <span className="t-mono text-[0.75rem] text-ink-3">circa {min} min</span>
-            </div>
-            <ol className="overflow-hidden rounded-card bg-card shadow-card">
-              {b.items.map((it, i) => {
-                const s = suggestions[it.key];
-                const w = s?.weightKg ?? 0;
-                const n = it.coveredBy ? null : it.indexInBlock + 1;
-                return (
-                  <motion.li
-                    key={it.key}
-                    {...staggerItem(bi * 3 + i, 0.02, 0.25)}
-                    className={cn('flex items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
-                  >
-                    <span className={cn('t-mono w-4 shrink-0 text-[0.75rem]', it.coveredBy ? 'text-leggero-ink' : 'text-ink-3')}>
-                      {n ?? <HeartPulse size={13} strokeWidth={2.4} aria-hidden />}
+        const todo = b.items.filter((i) => !i.coveredBy);
+        const min = estimateMinutes(todo.map((i) => i.item));
+        const collapsible = b.physio || b.items.every((i) => i.warmup);
+        const open = !collapsible || Boolean(openBlocks[b.title]);
+        const listId = `blocco-${bi}`;
+        // Nel blocco che si apre il titolo sta dentro il pulsante (che a sua volta sta nel titolo h3).
+        const TitleTag = collapsible ? 'span' : 'h3';
+        const heading = (
+          <>
+            <TitleTag className={cn('t-label flex items-center gap-1.5', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>
+              {b.physio && <HeartPulse size={12} strokeWidth={2.4} aria-hidden />}
+              {b.title}
+            </TitleTag>
+            <span className="t-mono flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[0.75rem] text-ink-3">
+              circa {min} min
+              {collapsible && (
+                <motion.span aria-hidden className="inline-flex" animate={{ rotate: open ? 180 : 0 }} transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}>
+                  <ChevronDown size={15} strokeWidth={2.4} />
+                </motion.span>
+              )}
+            </span>
+          </>
+        );
+        const list = (
+          <ol id={listId} className="overflow-hidden rounded-card bg-card shadow-card">
+            {b.items.map((it, i) => {
+              const s = suggestions[it.key];
+              const w = s?.weightKg ?? 0;
+              const n = it.coveredBy ? null : it.indexInBlock + 1;
+              return (
+                <motion.li
+                  key={it.key}
+                  {...staggerItem(bi * 3 + i, 0.02, 0.25)}
+                  className={cn('flex items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
+                >
+                  <span className={cn('t-mono w-4 shrink-0 text-[0.75rem]', it.coveredBy ? 'text-leggero-ink' : 'text-ink-3')}>
+                    {n ?? <HeartPulse size={13} strokeWidth={2.4} aria-hidden />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn('t-callout block font-medium', it.coveredBy ? 'text-ink-3 line-through decoration-ink-4' : 'text-ink')}>
+                      {it.exercise?.name ?? it.item.exerciseId}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={cn('t-callout block font-medium', it.coveredBy ? 'text-ink-3 line-through decoration-ink-4' : 'text-ink')}>
-                        {it.exercise?.name ?? it.item.exerciseId}
-                      </span>
-                      {it.replacedFrom && (
-                        <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
-                          <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
-                          al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
-                        </span>
-                      )}
-                      {it.coveredBy ? (
-                        <span className="t-caption mt-0.5 block font-medium text-leggero-ink">Già nel blocco del fisioterapista</span>
-                      ) : (
-                        <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
-                      )}
-                    </span>
-                    {w > 0 && !it.warmup && !it.coveredBy && (
-                      <span className="flex shrink-0 items-center gap-1">
-                        {s.kind === 'aumenta' && <TrendingUp size={14} strokeWidth={2.6} className="text-good-ink" aria-label="Carico in aumento" />}
-                        <span className={cn('t-callout font-semibold tabular', s.kind === 'aumenta' ? 'text-good-ink' : 'text-ink-2')}>{kgLabel(w)}</span>
+                    {it.replacedFrom && (
+                      <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
+                        <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
+                        al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
                       </span>
                     )}
-                  </motion.li>
-                );
-              })}
-            </ol>
-            {b.physio && (
+                    {it.coveredBy ? (
+                      <span className="t-caption mt-0.5 block font-medium text-leggero-ink">Già nel blocco del fisioterapista</span>
+                    ) : (
+                      <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
+                    )}
+                  </span>
+                  {w > 0 && !it.warmup && !it.coveredBy && (
+                    <span className="flex shrink-0 items-center gap-1">
+                      {s.kind === 'aumenta' && <TrendingUp size={14} strokeWidth={2.6} className="text-good-ink" aria-label="Carico in aumento" />}
+                      {s.stalled && <TrendingDown size={14} strokeWidth={2.6} className="text-palestra-ink" aria-label="Carico ridotto per ripartire" />}
+                      <span className={cn('t-callout font-semibold tabular', s.kind === 'aumenta' ? 'text-good-ink' : 'text-ink-2')}>{kgLabel(w)}</span>
+                    </span>
+                  )}
+                </motion.li>
+              );
+            })}
+          </ol>
+        );
+        return (
+          <section key={b.title} className="flex flex-col gap-2" aria-label={b.title}>
+            {collapsible ? (
+              <h3 className="flex flex-col">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={listId}
+                  onClick={() => {
+                    haptic('selection');
+                    setOpenBlocks((m) => ({ ...m, [b.title]: !open }));
+                  }}
+                  className={cn(
+                    'flex min-h-11 items-center justify-between gap-3 rounded-card px-4 text-left',
+                    // Chiuso è una riga a sé, come una card; aperto torna un'intestazione sopra l'elenco.
+                    open ? '-mb-1' : 'bg-card shadow-card',
+                  )}
+                >
+                  {heading}
+                </button>
+              </h3>
+            ) : (
+              <div className="flex items-baseline justify-between px-1">{heading}</div>
+            )}
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.div
+                  key="lista"
+                  initial={collapsible && !reduce ? { height: 0, opacity: 0 } : false}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  transition={reduce ? { duration: 0 } : { height: { type: 'spring', stiffness: 380, damping: 36 }, opacity: { duration: 0.18 } }}
+                  className={collapsible ? 'overflow-hidden' : undefined}
+                >
+                  {list}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {b.physio && open && (
               <p className="t-footnote px-1 text-ink-3">
                 {plan.physioDay
                   ? 'Oggi il fisioterapista li prevede: falli qui o a casa.'
@@ -184,4 +247,13 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
       })}
     </div>
   );
+}
+
+/** Cosa cambia oggi rispetto all'ultima volta: carichi in salita, carichi ridotti dopo uno stallo o una ripetizione in più. */
+function progressPhrase(increases: number, stalls: number): string {
+  const count = (n: number) => (n === 1 ? 'un esercizio' : `${n} esercizi`);
+  if (increases > 0 && stalls > 0) return `Oggi sali di carico in ${count(increases)} e scendi in ${count(stalls)} per ripartire.`;
+  if (increases > 0) return `Oggi sali di carico in ${count(increases)}.`;
+  if (stalls > 0) return `Oggi scendi di carico in ${count(stalls)} per ripartire, negli altri cerchi una ripetizione in più.`;
+  return 'Oggi cerchi una ripetizione in più a parità di carico.';
 }

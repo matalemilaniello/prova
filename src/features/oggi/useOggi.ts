@@ -13,6 +13,7 @@ import {
   countingStart,
   dayMinutes,
   effectiveStatus,
+  firstShopping,
   firstUseOf,
   isBeforeStart,
   isNightItem,
@@ -84,6 +85,8 @@ export interface OggiData {
   weekSweets: number;
   /** Aderenza media dei giorni chiusi negli ultimi 7, calcolata come in Progressi; null senza giorni chiusi. */
   weekAdherence: number | null;
+  /** Prima spesa dei giorni di avvio, quando oggi ci sono pasti che vengono prima (`DayItem.preShopping`). */
+  shopping: { time: HHMM; tomorrow: boolean } | null;
 }
 
 export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
@@ -177,6 +180,12 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     [today, plan, dayLogs, checkIns, workoutLogs, footballLogs, profile, reviews, physio],
   );
 
+  const shopping = useMemo(() => {
+    if (!items.some((i) => i.preShopping)) return null;
+    const shop = firstShopping(state);
+    return shop ? { time: shop.time, tomorrow: shop.date > today } : null;
+  }, [items, state, today]);
+
   return {
     today,
     state,
@@ -206,5 +215,6 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     eaten,
     weekSweets,
     weekAdherence,
+    shopping,
   };
 }

@@ -103,7 +103,8 @@ export function itemTone(item: DayItem, dayType: DayType): AnyTone {
 export function opensDetail(item: DayItem): boolean {
   switch (item.kind) {
     case 'pasto':
-      return Boolean(item.ref);
+      // Prima della spesa la ricetta non serve: il tocco segna il pasto, il piano B è sotto la voce.
+      return Boolean(item.ref) && !item.preShopping;
     case 'palestra':
     case 'calcio':
     case 'controllo':

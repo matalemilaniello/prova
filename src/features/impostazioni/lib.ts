@@ -5,7 +5,8 @@
 import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
-import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, listIt } from '../../lib/format';
+import { IMPACT_PAIN_THRESHOLD, isElbowSite, isLowerLegSite } from '../../engine/training';
+import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, listIt, plural } from '../../lib/format';
 
 // ───────────────────────── Obiettivo ─────────────────────────
 
@@ -106,6 +107,20 @@ export function targetDayCounts(week: ScheduleDay[]): Record<DayType, number> {
 /** Numero di vigilie della partita che mangiano come un giorno di calcio. */
 export function matchEveCount(week: ScheduleDay[]): number {
   return matchEves(week).length;
+}
+
+/**
+ * I giorni che usano l'obiettivo di un tipo di giorno, per le etichette: "3 giorni e la vigilia" (il calcio con la
+ * vigilia della partita), "2 giorni", "nessun giorno".
+ */
+export function targetDaysLabel(type: DayType, week: ScheduleDay[]): string {
+  const n = targetDayCounts(week)[type];
+  if (!n) return 'nessun giorno';
+  const eves = type === 'calcio' ? matchEveCount(week) : 0;
+  if (!eves) return plural(n, 'giorno', 'giorni');
+  const eveText = eves === 1 ? 'la vigilia' : `${eves} vigilie`;
+  const own = n - eves;
+  return own > 0 ? `${plural(own, 'giorno', 'giorni')} e ${eveText}` : eveText;
 }
 
 /**
@@ -263,6 +278,32 @@ export function sortSupplements(list: Supplement[]): Supplement[] {
 export function normalizeSite(raw: string): string {
   const s = raw.replace(/\s+/g, ' ').trim().slice(0, 28);
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+
+/*
+ * Zone che cambiano la regola del dolore, riconosciute dal nome scelto nel profilo con le stesse regole del
+ * motore dell'allenamento: sotto il ginocchio gli impatti hanno una soglia più bassa, al gomito si propongono
+ * varianti a presa neutra.
+ */
+
+/** Le zone scelte sotto il ginocchio (tibia, caviglia, polpaccio, tendine d'Achille, piede). */
+export const lowerLegSites = (sites: readonly string[]): string[] => sites.filter(isLowerLegSite);
+/** Le zone scelte al gomito. */
+export const elbowSites = (sites: readonly string[]): string[] => sites.filter(isElbowSite);
+
+/** "tibia e caviglia": i nomi delle zone dentro una frase (solo la prima lettera minuscola, "tendine d’Achille" resta). */
+export const sitesInText = (sites: string[]) => listIt(sites.map((s) => s.charAt(0).toLowerCase() + s.slice(1)));
+
+/**
+ * La regola degli impatti per le zone scelte sotto il ginocchio, in una frase, o null se non serve (nessuna zona
+ * sotto il ginocchio, oppure soglia già uguale o più bassa di quella degli impatti).
+ * "Per tibia balzi, salti e partita si fermano già sopra 2."
+ */
+export function impactRuleNote(sites: readonly string[], threshold: number): string | null {
+  const lower = lowerLegSites(sites);
+  const impact = Math.min(threshold, IMPACT_PAIN_THRESHOLD);
+  if (!lower.length || impact >= threshold) return null;
+  return `Per ${sitesInText(lower)} balzi, salti e partita si fermano già sopra ${impact}.`;
 }
 
 export function painLabel(v: number): string {

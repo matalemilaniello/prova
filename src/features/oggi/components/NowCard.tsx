@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { BedDouble, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Timer } from 'lucide-react';
+import { BedDouble, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Store, Timer } from 'lucide-react';
 import type { DayType, HHMM, MealSlot, Nutrients } from '../../../domain/types';
 import { gymDuration, type AdherenceSummary, type DayItem, type NowPick, type StreakInfo } from '../../../engine/timeline';
 import { useApp } from '../../../state/store';
@@ -30,7 +30,11 @@ export interface NowCardProps {
   bedLocked: HHMM | null;
   /** La giornata si è appena chiusa in questa sessione: la serie scorre. */
   justCompleted: boolean;
+  /** Prima spesa dei giorni di avvio (per i pasti che vengono prima): orario e se è domani. */
+  shopping?: { time: HHMM; tomorrow: boolean } | null;
   onMark: (item: DayItem) => void;
+  /** Piano B al bar per il pasto (sempre offerto prima della spesa di avvio). */
+  onPlanB?: (slot?: MealSlot) => void;
   onOpen: (item: DayItem) => void;
   onOptions: (item: DayItem) => void;
   onRitual: () => void;
@@ -38,7 +42,7 @@ export interface NowCardProps {
 
 /** Card "Adesso": la prossima voce da fare, grande, con l'azione principale a portata di pollice. */
 export function NowCard(props: NowCardProps) {
-  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, mealValues, onMark, onOpen, onOptions, onRitual } = props;
+  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, mealValues, shopping, onMark, onOpen, onOptions, onRitual, onPlanB } = props;
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
   if (!pick) return <DoneCard {...props} />;
@@ -47,7 +51,7 @@ export function NowCard(props: NowCardProps) {
   const tone = itemTone(item, dayType);
   const Icon = itemIcon(item);
   const label = stateLabel(pick);
-  const c = nowContent(item, { mealValues, curfewIn, bed, timeShown: Boolean(label.time), gym });
+  const c = nowContent(item, { mealValues, curfewIn, bed, timeShown: Boolean(label.time), gym, shopping });
   const late = pick.state === 'in-ritardo';
   const allDay = item.kind === 'minima' && item.id !== 'minima:telefono' && pick.state === 'adesso';
   const ink = tone === 'neutral' ? 'var(--ink-2)' : toneInk(tone);
@@ -114,7 +118,13 @@ export function NowCard(props: NowCardProps) {
     );
   } else {
     primary = markBtn('primary');
-    if (item.kind === 'pasto' && item.ref) {
+    if (item.kind === 'pasto' && item.preShopping && onPlanB) {
+      secondary = (
+        <Button size="lg" variant="secondary" icon={Store} className="px-5" onClick={() => onPlanB(item.slot)}>
+          Piano B
+        </Button>
+      );
+    } else if (item.kind === 'pasto' && item.ref) {
       secondary = (
         <Button size="lg" variant="secondary" icon={ChefHat} className="px-5" onClick={() => onOpen(item)}>
           Ricetta
@@ -166,7 +176,7 @@ export function NowCard(props: NowCardProps) {
             </div>
           </div>
 
-          <div className="mt-3.5 flex items-center gap-2.5">
+          <div className="mt-3 flex items-center gap-2.5">
             <span
               aria-hidden
               className="grid size-8 shrink-0 place-items-center rounded-[10px]"
@@ -179,7 +189,7 @@ export function NowCard(props: NowCardProps) {
           <p className="t-title mt-2 text-[1.875rem] leading-[1.04] text-ink [text-wrap:balance]">{c.headline}</p>
           {c.sub && <p className="t-footnote mt-2 line-clamp-2 text-ink-2">{c.sub}</p>}
           {c.meta.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Dettagli">
+            <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Dettagli">
               {c.meta.map((m) => (
                 <li key={m} className="t-mono inline-flex h-7 items-center rounded-full px-2.5 text-[0.75rem] font-medium text-ink-2 shadow-[inset_0_0_0_1px_var(--line)]">
                   {m}
@@ -243,10 +253,10 @@ function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem,
             <p className="t-title text-ink">{empty ? 'Niente in programma' : 'Tutto segnato'}</p>
             {!empty &&
               (successful ? (
-                <p className="t-callout mt-0.5 flex items-baseline gap-1.5 text-ink-2">
-                  Serie di
+                <p className="t-callout mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-ink-2">
+                  <span>Giornata al {fmtPercent(summary.score)}, serie di</span>
                   <NumberTicker value={shown} className="t-num text-[1.375rem] leading-none text-accent-ink" />
-                  {plural(target, 'giorno', 'giorni', false)}
+                  <span>{plural(target, 'giorno', 'giorni', false)}</span>
                 </p>
               ) : (
                 <p className="t-callout mt-0.5 text-ink-2">Giornata al {fmtPercent(summary.score)}, sotto il 70%. Domani si riparte.</p>

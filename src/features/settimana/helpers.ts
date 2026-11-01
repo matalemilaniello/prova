@@ -5,6 +5,7 @@
  */
 import type { AppData, DayType, FootballKind, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
 import { addDays, addMinutes, hhmmToMin, isISODate, minToHHMM, weekStart, weekdayOf } from '../../engine/dates';
+import type { ShoppingLead } from '../../engine/shopping';
 import { FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
 
 interface MealSchedule {
@@ -12,10 +13,26 @@ interface MealSchedule {
   title: string;
 }
 
+/** Lo stato che serve alle funzioni della timeline usate qui (i registri sono facoltativi). */
+export type DayState = Pick<AppData, 'plan' | 'dayLogs'> & Partial<AppData>;
+
+interface TimelineDayItem {
+  id: string;
+  time: HHMM;
+  kind: string;
+  title: string;
+  slot?: MealSlot;
+  preShopping?: boolean;
+}
+
 type TimelineModule = {
   mealSchedule?: (day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>) => Record<MealSlot, MealSchedule>;
   daySuccessful?: (iso: ISODate, state: AppData) => boolean;
   starterShopping?: (plan: Pick<Plan, 'startDate' | 'mealTimes'>) => { date: ISODate; time: HHMM } | null;
+  firstShopping?: (state: DayState) => { id: string; date: ISODate; time: HHMM } | null;
+  buildDay?: (iso: ISODate, state: DayState) => TimelineDayItem[];
+  derivedStatus?: (iso: ISODate, state: DayState, item: TimelineDayItem) => string | undefined;
+  shoppingLeadFor?: (monday: ISODate, state: DayState) => ShoppingLead | undefined;
 };
 const timelineModules = import.meta.glob<TimelineModule>('../../engine/timeline.ts', { eager: true });
 const timeline: TimelineModule = Object.values(timelineModules)[0] ?? {};
@@ -175,16 +192,16 @@ export function dayTypePhrase(t: DayType): string {
 }
 
 /**
- * "Per un giorno leggero i carboidrati calano del 10%: le quantità cambiate sono evidenziate."
- * Il fattore comprende il tipo di giorno e la scala del piano.
+ * Quanto cambiano i carboidrati rispetto alla ricetta: "Carboidrati +25% per un giorno di calcio". Il fattore
+ * comprende il tipo di giorno e la scala del piano; il riferimento delle ricette è il giorno di palestra, dove la
+ * differenza viene solo dagli obiettivi del piano.
  */
-export function portionSentence(dayType: DayType, factor: number, matchEve = false): { lead: string; pct: string; tail: string } | null {
+export function portionShort(dayType: DayType, factor: number, matchEve = false): { lead: string; pct: string; tail: string } | null {
   const pct = Math.round(Math.abs(factor - 1) * 100);
   if (!pct) return null;
-  const who = matchEve ? 'Per la vigilia della partita' : `Per un giorno ${dayTypePhrase(dayType)}`;
-  return { lead: `${who} i carboidrati ${factor > 1 ? 'crescono' : 'calano'} del `, pct: `${fmtNumber(pct)}%`, tail: ': le quantità cambiate sono evidenziate.' };
+  const who = matchEve ? 'per la vigilia della partita' : dayType === 'palestra' ? 'per i tuoi obiettivi' : `per un giorno ${dayTypePhrase(dayType)}`;
+  return { lead: 'Carboidrati ', pct: `${factor > 1 ? '+' : '−'}${fmtNumber(pct)}%`, tail: ` ${who}.` };
 }
-
 
 /** Giorno e orario della spesa di avvio (la voce di Oggi), se il motore della timeline la prevede. */
 export function starterShoppingSafe(plan: Plan): { date: ISODate; time: HHMM } | null {
@@ -193,6 +210,63 @@ export function starterShoppingSafe(plan: Plan): { date: ISODate; time: HHMM } |
   } catch {
     return null;
   }
+}
+
+export interface FirstShoppingInfo {
+  /** Voce della spesa in Oggi (`rito:spesa-avvio` o la spesa del sabato). */
+  id: string;
+  date: ISODate;
+  time: HHMM;
+  /** Segnata nel diario o con la lista spuntata (come la conta Oggi). */
+  done: boolean;
+}
+
+/**
+ * La prima spesa dopo il primo avvio, come la vede Oggi (`firstShopping` della timeline: la spesa di avvio,
+ * oppure quella del sabato per chi comincia venerdì sera o sabato), con lo stato. Null senza primo avvio.
+ */
+export function firstShoppingSafe(state: DayState): FirstShoppingInfo | null {
+  try {
+    const shop =
+      timeline.firstShopping?.(state) ??
+      (() => {
+        const s = starterShoppingSafe(state.plan);
+        return s ? { id: 'rito:spesa-avvio', date: s.date, time: s.time } : null;
+      })();
+    if (!shop) return null;
+    const marked = state.dayLogs[shop.date]?.status?.[shop.id];
+    const derived = marked ? undefined : timeline.derivedStatus?.(shop.date, state, { id: shop.id, time: shop.time, kind: 'spesa', title: '' });
+    const done = marked ? marked === 'fatto' || marked === 'sostituito' : derived === 'fatto';
+    return { ...shop, done };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pasti del fine settimana da comprare con la lista della settimana di `monday` (chi comincia il venerdì sera o il
+ * sabato: la spesa del sabato porta anche i pasti di avvio fino alla domenica). Undefined per le altre settimane.
+ */
+export function shoppingLeadSafe(monday: ISODate, state: DayState): ShoppingLead | undefined {
+  try {
+    return timeline.shoppingLeadFor?.(monday, state);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Pasti del giorno che vengono prima della prima spesa: gli ingredienti non ci sono ancora e Oggi li propone
+ * "con quello che hai" (`preShopping` di `buildDay`). Stesso criterio di Oggi, così le due schermate coincidono.
+ */
+export function preShoppingSlots(date: ISODate, state: DayState): Set<MealSlot> {
+  const out = new Set<MealSlot>();
+  try {
+    for (const it of timeline.buildDay?.(date, state) ?? []) if (it.preShopping && it.slot) out.add(it.slot);
+  } catch {
+    /* timeline non disponibile: nessuna pillola */
+  }
+  return out;
 }
 
 /** Abbassa solo l'iniziale, e solo se la seconda lettera è minuscola: "Aceto balsamico di Modena" → "aceto balsamico di Modena". */

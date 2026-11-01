@@ -23,7 +23,9 @@ import {
   proposals,
   reviewAvailable,
   reviewFor,
+  reviewStart,
   reviewWeekFor,
+  STEP_ITEM_ID,
   type PeriodStats,
   type ReviewState,
 } from '../../engine/review';
@@ -40,6 +42,7 @@ import { KeyNumbers } from './KeyNumbers';
 import { ReviewHistory } from './ReviewHistory';
 import { ReviewPrompt } from './ReviewPrompt';
 import { ReviewSheet } from './ReviewSheet';
+import { WhatYouWillSee, type SilhouetteKind } from './WhatYouWillSee';
 import {
   calendarDay,
   calendarSummary,
@@ -89,10 +92,13 @@ export default function ProgressiScreen() {
   const footballLogs = useApp((s) => s.footballLogs);
   const reviews = useApp((s) => s.reviews);
   const physio = useApp((s) => s.physio);
+  const shoppingChecked = useApp((s) => s.shoppingChecked);
+  const prepDone = useApp((s) => s.prepDone);
 
+  // Spesa e preparazione servono ai riti del fine settimana: l'aderenza è la stessa di Oggi.
   const state: ReviewState = useMemo(
-    () => ({ plan, profile, checkIns, dayLogs, workoutLogs, footballLogs, reviews, physio }),
-    [plan, profile, checkIns, dayLogs, workoutLogs, footballLogs, reviews, physio],
+    () => ({ plan, profile, checkIns, dayLogs, workoutLogs, footballLogs, reviews, physio, shoppingChecked, prepDone }),
+    [plan, profile, checkIns, dayLogs, workoutLogs, footballLogs, reviews, physio, shoppingChecked, prepDone],
   );
 
   const [sheetWeek, setSheetWeek] = useState<ISODate | null>(() =>
@@ -144,6 +150,27 @@ export default function ProgressiScreen() {
   const calSummary = useMemo(() => calendarSummary(calendar), [calendar]);
   const load = useMemo(() => loadWeeks(state, today, loadWeekCount(state, today)), [state, today]);
 
+  // ── Primi giorni ──
+  // Senza un controllo del mattino i grafici sarebbero tre stati vuoti uguali: al loro posto una sola card
+  // con le sagome. Senza un giorno chiuso con qualcosa di segnato l'aderenza non è zero: non c'è ancora.
+  const start = useMemo(() => reviewStart(state), [state]);
+  const hasCheckIn = useMemo(() => Object.keys(checkIns).some((d) => d <= today), [checkIns, today]);
+  const hasLoad = workoutLogs.length + footballLogs.length > 0;
+  const hasMarkedDay = useMemo(
+    () =>
+      Object.entries(dayLogs).some(
+        ([d, log]) => d < today && (!start || d >= start) && Object.entries(log?.status ?? {}).some(([k, v]) => k !== STEP_ITEM_ID && Boolean(v)),
+      ),
+    [dayLogs, today, start],
+  );
+  const fresh = !hasCheckIn;
+  const silhouettes: SilhouetteKind[] = hasLoad ? ['peso', 'sonno', 'dolore'] : ['peso', 'sonno', 'dolore', 'carico'];
+  const showNumbers = hasCheckIn || hasMarkedDay;
+  // Carico e calendario compaiono con il primo dato: prima direbbero solo zero (la settimana è già
+  // nell'invito alla revisione, giorno per giorno).
+  const showLoad = hasLoad;
+  const showCalendar = hasMarkedDay || calSummary.successful > 0;
+
   // Settimana 1 è la prima da rivedere: chi comincia nel fine settimana vive prima i giorni di avvio.
   const weekNo = planWeekNumber(today, plan);
   // La revisione appena salvata ha la sua card: lo storico mostra le altre.
@@ -176,36 +203,48 @@ export default function ProgressiScreen() {
     >
       {(promptOnTop || !available) && <Reveal i={i++}>{prompt}</Reveal>}
 
-      <Reveal i={i++}>
-        <KeyNumbers stats={rolling} goal={profile.goal} />
-      </Reveal>
+      {showNumbers && (
+        <Reveal i={i++}>
+          <KeyNumbers stats={rolling} goal={profile.goal} adherenceReady={hasMarkedDay} />
+        </Reveal>
+      )}
 
-      <section className="flex flex-col gap-3" aria-label="Andamento">
-        <SectionTitle>Andamento</SectionTitle>
+      {fresh ? (
         <Reveal i={i++}>
-          <WeightChart points={weight} today={today} />
+          <WhatYouWillSee kinds={silhouettes} today={today} checkInDone={Boolean(checkIns[today])} />
         </Reveal>
-        <Reveal i={i++}>
-          <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} />
-        </Reveal>
-        <Reveal i={i++}>
-          <PainChart series={pain} threshold={plan.painThreshold} />
-        </Reveal>
-      </section>
+      ) : (
+        <section className="flex flex-col gap-3" aria-label="Andamento">
+          <SectionTitle>Andamento</SectionTitle>
+          <Reveal i={i++}>
+            <WeightChart points={weight} today={today} />
+          </Reveal>
+          <Reveal i={i++}>
+            <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} />
+          </Reveal>
+          <Reveal i={i++}>
+            <PainChart series={pain} threshold={plan.painThreshold} />
+          </Reveal>
+        </section>
+      )}
 
-      <section className="flex flex-col gap-3" aria-label="Allenamento">
-        <SectionTitle>Allenamento</SectionTitle>
-        <Reveal i={i++}>
-          <LoadChart weeks={load} />
-        </Reveal>
-      </section>
+      {showLoad && (
+        <section className="flex flex-col gap-3" aria-label="Allenamento">
+          <SectionTitle>Allenamento</SectionTitle>
+          <Reveal i={i++}>
+            <LoadChart weeks={load} />
+          </Reveal>
+        </section>
+      )}
 
-      <section className="flex flex-col gap-3" aria-label="Costanza">
-        <SectionTitle>Costanza</SectionTitle>
-        <Reveal i={i++}>
-          <SuccessHeatmap days={calendar} summary={calSummary} weeks={calWeeks} />
-        </Reveal>
-      </section>
+      {showCalendar && (
+        <section className="flex flex-col gap-3" aria-label="Costanza">
+          <SectionTitle>Costanza</SectionTitle>
+          <Reveal i={i++}>
+            <SuccessHeatmap days={calendar} summary={calSummary} weeks={calWeeks} />
+          </Reveal>
+        </section>
+      )}
 
       {(savedReview || pastReviews.length > 0) && (
         <section className="flex flex-col gap-3">
