@@ -287,7 +287,13 @@ function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; 
           ))}
         </dl>
       </div>
-      {ramp && <p className="t-caption mt-3 text-ink-3">Fibre in aumento graduale: per ora circa {fiberRef}&nbsp;g.</p>}
+      {ramp && (
+        <p className="t-caption mt-3 text-ink-3">
+          Fibre in aumento graduale: per ora circa {fiberRef}&nbsp;g
+          {/* Partita e vigilia: pasta, riso e pane alzati fino a 6 g/kg portano qualche grammo di fibre in più. */}
+          {detail.matchCarbs && Math.round(t.fiberG) > fiberRef + 2 ? `, qualcuna in più con i carboidrati della ${detail.matchCarbs.when}` : ''}.
+        </p>
+      )}
       <div className="mt-5 flex items-center gap-3 border-t border-line pt-4">
         <div className="flex shrink-0 gap-1" aria-hidden>
           {Array.from({ length: 7 }, (_, i) => (
