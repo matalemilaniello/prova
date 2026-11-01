@@ -50,38 +50,38 @@ export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean,
     case 'colazione':
       if (calcio) {
         return {
-          ids: ['cappuccino', 'toast', 'spremuta'],
+          ids: ['cappuccino', 'toast', 'yogurt-frutta'],
           why: eve
-            ? 'Vigilia della partita: proteine dal toast e dal latte, carboidrati facili dalla spremuta. Il pieno vero arriva a pranzo e a cena.'
-            : 'Proteine dal toast e dal latte, carboidrati facili dalla spremuta. Il pieno per il calcio arriva a pranzo e a merenda.',
+            ? 'Vigilia della partita: proteine da latte, toast e yogurt, carboidrati facili dalla frutta. Il pieno vero arriva a pranzo e a cena.'
+            : 'Proteine da latte, toast e yogurt, carboidrati facili dalla frutta. Il pieno per il calcio arriva a pranzo e a merenda.',
         };
       }
       return {
-        ids: ['cappuccino', 'toast', 'macedonia'],
-        why: 'Il toast porta le proteine che alla colazione del bar mancano quasi sempre, il frutto la fibra: arrivi allo spuntino senza fame.',
+        ids: ['cappuccino', 'toast', 'yogurt-frutta'],
+        why: 'Toast e yogurt portano le proteine che alla colazione del bar mancano quasi sempre: arrivi allo spuntino senza fame.',
       };
     case 'spuntino':
       return calcio
         ? {
-            ids: ['panino-tacchino'],
+            ids: ['panino-verdure'],
             why: eve ? 'Alla vigilia servono più carboidrati: un panino magro tiene fino a pranzo.' : 'Nei giorni di calcio servono più carboidrati: un panino magro tiene fino a pranzo.',
           }
         : { ids: ['yogurt-frutta', 'frutta-secca'], why: 'Fermenti dallo yogurt, grassi buoni dalla frutta secca e circa 13 g di proteine in tutto: tiene fino a pranzo.' };
     case 'pranzo':
       if (calcio) {
         return {
-          ids: ['panino-bresaola', 'macedonia', 'spremuta'],
+          ids: ['panino-pollo', 'macedonia', 'spremuta'],
           why: eve
             ? 'Vigilia della partita: tanti carboidrati per riempire le scorte di domani, proteine magre e pochi grassi.'
             : 'Tanti carboidrati, proteine magre e pochi grassi: stasera arrivi in campo carico e leggero.',
         };
       }
       return dayType === 'palestra'
-        ? { ids: ['panino-bresaola', 'macedonia'], why: 'Proteine magre, carboidrati e una porzione di frutta: un pranzo completo in cinque minuti.' }
+        ? { ids: ['panino-pollo', 'macedonia'], why: 'Proteine magre, carboidrati e una porzione di frutta: un pranzo completo in cinque minuti.' }
         : { ids: ['insalatona', 'macedonia'], why: 'Verdure e proteine nello stesso piatto, più un frutto per i carboidrati: un pranzo leggero per una giornata tranquilla.' };
     case 'merenda':
       if (preFootball) {
-        return { ids: ['panino-tacchino', 'spremuta'], why: 'Carboidrati digeribili e pochi grassi: arrivi al calcio carico e leggero.' };
+        return { ids: ['panino-verdure', 'spremuta'], why: 'Carboidrati digeribili e pochi grassi: arrivi al calcio carico e leggero.' };
       }
       return eve
         ? { ids: ['yogurt-frutta', 'macedonia'], why: 'Vigilia della partita: yogurt e frutta, carboidrati facili che non appesantiscono la cena.' }
@@ -89,14 +89,14 @@ export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean,
     case 'cena':
       if (calcio) {
         return {
-          ids: ['panino-bresaola', 'yogurt-frutta'],
+          ids: ['panino-pollo', 'yogurt-frutta'],
           why: eve
             ? 'Vigilia della partita: carboidrati per le scorte e circa 35 g di proteine magre, leggero prima di dormire.'
             : 'Carboidrati e circa 35 g di proteine per recuperare, leggero prima di dormire.',
         };
       }
       return dayType === 'palestra'
-        ? { ids: ['panino-bresaola', 'yogurt-frutta'], why: 'Dopo la palestra: carboidrati e circa 35 g di proteine per il recupero, leggero prima di dormire.' }
+        ? { ids: ['panino-pollo', 'yogurt-frutta'], why: 'Dopo la palestra: carboidrati e circa 35 g di proteine per il recupero, leggero prima di dormire.' }
         : { ids: ['insalatona', 'yogurt-frutta'], why: 'Verdure e proteine, più uno yogurt con la frutta: una cena leggera e completa.' };
   }
 }
@@ -205,8 +205,7 @@ export const BAR_VEG_PORTIONS: Readonly<Record<string, number>> = {
   insalatona: 2,
   macedonia: 2,
   'yogurt-frutta': 1,
-  'panino-tacchino': 0.5,
-  'panino-crudo': 0.5,
+  'panino-verdure': 0.5,
   'pasta-pomodoro': 0.5,
 };
 
@@ -217,7 +216,7 @@ export interface BarOrder {
   vegPortions: number;
 }
 
-/** L'ordine delle voci scelte, o null se non c'è niente: "Panino con bresaola, rucola e grana e macedonia o frutto fresco". */
+/** L'ordine delle voci scelte, o null se non c'è niente: "Panino con pollo, insalata e pomodoro e macedonia o frutto fresco". */
 export function barOrder(list: readonly BarOption[]): BarOrder | null {
   if (!list.length) return null;
   const names = list.map((o, i) => (i === 0 ? o.name : lowerFirst(o.name)));

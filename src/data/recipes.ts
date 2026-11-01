@@ -227,21 +227,21 @@ const RECIPE_LIST: Recipe[] = [
 
   // ───────────────────────── Spuntini da portare fuori casa ─────────────────────────
   {
-    id: 'panino-tacchino-mela',
-    name: 'Panino integrale con fesa di tacchino, mela e mandorle',
+    id: 'panino-tonno-mela',
+    name: 'Panino integrale con tonno, una mela e mandorle',
     slots: ['spuntino'],
     ingredients: [
       i('pane-integrale', 1.5, 'fetta', C),
-      i('tacchino-affettato', 4, 'fetta'),
+      i('tonno', 1, 'pezzo'),
       i('mela', 1, 'pezzo'),
       i('mandorle', 0.5, 'manciata'),
     ],
     steps: [
-      'Farcisci il pane con la fesa di tacchino, anche la sera prima.',
+      'Farcisci il pane con il tonno sgocciolato e un filo d’olio, anche la sera prima.',
       'Avvolgi il panino nella carta; con il caldo mettilo nella borsa termica. Mela e mandorle vanno nello zaino così come sono.',
     ],
     prepMin: 3,
-    tags: ['da portare', 'carne bianca'],
+    tags: ['da portare', 'pesce'],
     swaps: ['crackers-grana-pera', 'frittatine-spinaci'],
   },
   {
@@ -354,16 +354,17 @@ const RECIPE_LIST: Recipe[] = [
 
   // ───────────────────────── Merende e pre-calcio ─────────────────────────
   {
-    id: 'pre-gallette-banana',
-    name: 'Gallette di riso con banana e yogurt greco',
+    id: 'pre-pane-banana',
+    name: 'Pane tostato con crema di arachidi, miele e banana',
     slots: ['merenda'],
     ingredients: [
-      i('gallette-riso', 4, 'pezzo', C),
+      i('pane-bianco', 1, 'fetta', C),
+      i('burro-arachidi', 0.5, 'cucchiaino'),
+      i('miele', 2, 'cucchiaino'),
       i('banana', 1, 'pezzo'),
-      i('yogurt-greco-2', 0.5, 'vasetto'),
     ],
     steps: [
-      'Gallette, banana e yogurt, con calma: carboidrati facili e poca fibra, che si digeriscono in fretta.',
+      'Pane tostato con un velo di crema di arachidi e il miele, poi una banana, con calma: carboidrati facili e poca fibra, che si digeriscono in fretta.',
       'Nei giorni di calcio mangiala 2 ore e mezza prima, poi solo acqua a piccoli sorsi.',
     ],
     prepMin: 2,
@@ -383,7 +384,7 @@ const RECIPE_LIST: Recipe[] = [
     steps: ['Versa i fiocchi di mais nel latte freddo.', 'Aggiungi la banana a rondelle e il miele.'],
     prepMin: 2,
     tags: ['pre-calcio', 'digeribile', 'veloce'],
-    swaps: ['pre-gallette-banana', 'pre-pane-ricotta-miele'],
+    swaps: ['pre-pane-banana', 'pre-pane-ricotta-miele'],
   },
   {
     id: 'pre-pane-ricotta-miele',
@@ -401,7 +402,7 @@ const RECIPE_LIST: Recipe[] = [
     ],
     prepMin: 3,
     tags: ['pre-calcio', 'digeribile', 'veloce'],
-    swaps: ['pre-gallette-banana', 'pre-frullato-banana'],
+    swaps: ['pre-pane-banana', 'pre-frullato-banana'],
   },
   {
     id: 'pre-frullato-banana',
@@ -420,7 +421,7 @@ const RECIPE_LIST: Recipe[] = [
     ],
     prepMin: 3,
     tags: ['pre-calcio', 'digeribile', 'veloce'],
-    swaps: ['pre-gallette-banana', 'pre-fiocchi-mais-latte'],
+    swaps: ['pre-pane-banana', 'pre-fiocchi-mais-latte'],
   },
   {
     id: 'yogurt-cacao-pera',
@@ -493,13 +494,13 @@ const RECIPE_LIST: Recipe[] = [
     swaps: ['yogurt-cacao-pera', 'skyr-frutti-bosco-avena'],
   },
   {
-    id: 'yogurt-clementine-gallette',
-    name: 'Yogurt greco con kiwi e gallette',
+    id: 'yogurt-banana',
+    name: 'Yogurt greco con banana',
     slots: ['merenda', 'spuntino'],
-    ingredients: [i('yogurt-greco-2', 1, 'vasetto'), i('kiwi', 1, 'pezzo'), i('gallette-riso', 3, 'pezzo', C)],
+    ingredients: [i('yogurt-greco-2', 1, 'vasetto'), i('banana', 1, 'pezzo')],
     steps: [
-      'Taglia il kiwi a rondelle e mescolalo allo yogurt, oppure mangialo a parte.',
-      'Le gallette accanto, o sbriciolate sopra per la parte croccante. Circa 20 g di proteine in due minuti.',
+      'Taglia la banana a rondelle e mescolala allo yogurt, oppure mangiala a parte.',
+      'Circa 20 g di proteine in due minuti, senza frigo fino a casa solo se fa fresco.',
     ],
     prepMin: 2,
     tags: ['proteica', 'veloce'],

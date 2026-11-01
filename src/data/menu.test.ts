@@ -733,12 +733,11 @@ describe('spesa della rotazione', () => {
     checkPacks(STARTER_WEEK, 'avvio', new Set(['ceci']));
   });
 
-  it('non compra doppioni: un solo yogurt, un solo cereale da colazione, una sola fesa, un solo salmone', () => {
+  it('non compra doppioni: un solo yogurt, un solo cereale da colazione, un solo salmone', () => {
     const all = new Set(MENU_ROTATION.flatMap((w) => [...purchases(w).keys()]));
     const groups: string[][] = [
       ['yogurt-greco-0', 'yogurt-greco-2', 'skyr'],
       ['avena', 'muesli', 'fiocchi-mais', 'fette-biscottate', 'crackers-integrali'],
-      ['tacchino', 'tacchino-affettato'],
       ['salmone', 'salmone-affumicato'],
       ['riso-basmati', 'riso-integrale'],
     ];

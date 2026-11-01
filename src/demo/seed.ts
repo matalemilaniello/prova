@@ -81,9 +81,9 @@ const round1 = (x: number) => Math.round(x * 10) / 10;
 const clampInt = (x: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(x)));
 
 const MEAL_NOTES = [
-  'Panino al bar con bresaola e rucola',
+  'Panino al bar con pollo e insalata',
   'Pizza margherita con i colleghi',
-  'Piadina con crudo al volo',
+  'Piadina con mozzarella al volo',
   'Insalatona al bar, senza pane',
   'Pasta al pomodoro in mensa',
 ];
@@ -591,9 +591,9 @@ function demoChat(todayIso: ISODate): ChatMessage[] {
       id: 'demo-c2',
       role: 'assistant',
       text:
-        'A metà mattina prendi un toast con prosciutto cotto e una spremuta, oppure uno yogurt bianco con un frutto se c’è. ' +
+        'A metà mattina prendi un toast al formaggio con uno yogurt alla frutta, oppure uno yogurt bianco con un frutto se c’è. ' +
         'Cornetto e succo insieme no: tanti zuccheri, poche proteine e alle 12 hai di nuovo fame. ' +
-        'Stasera c’è il calcetto: toast e spremuta danno proteine e un po’ di carboidrati, il pieno arriva a pranzo e con la merenda prima del campo.',
+        'Stasera c’è il calcetto: toast e yogurt danno proteine e un po’ di carboidrati, il pieno arriva a pranzo e con la merenda prima del campo.',
       createdAt: iso2Date(d2, 10, 41),
     },
     { id: 'demo-c3', role: 'user', text: 'Salto la palestra? Ho dormito poco.', createdAt: iso2Date(d1, 16, 12) },

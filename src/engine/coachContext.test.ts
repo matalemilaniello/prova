@@ -23,7 +23,7 @@ describe('prompt di sistema', () => {
 
   it('contiene il piano B al bar con i verdetti', () => {
     expect(COACH_SYSTEM_PROMPT).toContain('Piano B al bar');
-    expect(COACH_SYSTEM_PROMPT).toContain('Panino con bresaola');
+    expect(COACH_SYSTEM_PROMPT).toContain('Panino con pollo');
     expect(COACH_SYSTEM_PROMPT).toContain('Dolce programmato');
   });
 
@@ -156,8 +156,8 @@ describe('piano B al bar nel contesto', () => {
     const s = demo();
     const log = s.dayLogs[TODAY];
     log.status['pasto:pranzo'] = 'sostituito';
-    log.notes['pasto:pranzo'] = 'Al bar: panino con bresaola, rucola e grana';
-    log.barMeals = { pranzo: { label: 'Panino con bresaola, rucola e grana', nutrients: { kcal: 400, proteinG: 30, carbG: 56, fatG: 6, fiberG: 3 } } };
+    log.notes['pasto:pranzo'] = 'Al bar: panino con pollo, insalata e pomodoro';
+    log.barMeals = { pranzo: { label: 'Panino con pollo, insalata e pomodoro', nutrients: { kcal: 400, proteinG: 30, carbG: 56, fatG: 6, fiberG: 3 } } };
     const ctx = buildCoachContext(s, NOW);
     expect(ctx).toMatch(/sostituito, ordine al bar: 400\skcal, P 30 g, fibre 3 g/);
   });

@@ -101,7 +101,7 @@ describe('rotazione del menù', () => {
           waterGlasses: 0,
           sweets: 0,
           recipeSwaps: {},
-          barMeals: { pranzo: { label: 'Piadina con bresaola', nutrients: order, vegPortions: 1 } },
+          barMeals: { pranzo: { label: 'Piadina con pollo', nutrients: order, vegPortions: 1 } },
         },
       },
     };

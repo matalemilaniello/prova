@@ -72,7 +72,7 @@ describe('messaggi per l’API', () => {
     const chat = [
       msg('a0', 'assistant', 'Ciao, sono il coach'),
       msg('u1', 'user', 'Sono al bar'),
-      msg('a1', 'assistant', 'Prendi un panino con bresaola'),
+      msg('a1', 'assistant', 'Prendi un panino con pollo'),
       msg('u2', 'user', 'E poi?'),
       msg('e2', 'assistant', 'Errore di rete', { error: true }),
       msg('u3', 'user', 'Riprovo'),

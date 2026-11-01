@@ -13,11 +13,11 @@
  *
  * Nei giorni di calcio la merenda è un pre-calcio digeribile (verso le 18:30) e la cena è una cena di recupero
  * veloce, quasi sempre pronta dalla domenica. Partita e vigilia arrivano a 6 g/kg di carboidrati alzando pasta, riso,
- * pane e gallette: perché le proteine non salgano troppo con loro (restano entro il 20% dell'obiettivo e le kcal entro
- * il 5%, verificato in `engine/nutrition.test.ts`), in quei giorni la merenda è il pre-calcio con gallette e banana,
- * anche alla vigilia, e lo spuntino è pane, Parmigiano e una mela. Le gallette restano solo in quel pre-calcio (6
- * merende su 28, mai due volte nello stesso giorno): sono poco sazianti e il riso soffiato porta arsenico inorganico,
- * quindi non si ripetono. La frutta è quella che si trova tutto l'anno (mela, banana, kiwi, frutti di bosco surgelati).
+ * e pane: perché le proteine non salgano troppo con loro (restano entro il 20% dell'obiettivo e le kcal entro
+ * il 5%, verificato in `engine/nutrition.test.ts`), in quei giorni la merenda è il pre-calcio con pane tostato,
+ * miele e banana, anche alla vigilia, e lo spuntino è pane, Parmigiano e un kiwi. Niente gallette né riso soffiato (poco
+ * sazianti, e i prodotti di riso soffiato sono tra quelli con più arsenico inorganico) e niente carni lavorate
+ * (IARC, gruppo 1). La frutta è quella che si trova tutto l'anno (mela, banana, kiwi, frutti di bosco surgelati).
  * Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto principale (nei giorni di calcio solo le lenticchie
  * rosse decorticate, a pranzo; alla vigilia mai a cena), uova 3 volte, carne rossa una volta.
  *
@@ -59,7 +59,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-tonno-pomodoro',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'box-riso-pollo-zucchine',
         },
       },
@@ -89,7 +89,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'cappuccino-fette-skyr',
           spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-ragu-lenticchie',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'riso-saltato-uova-piselli',
         },
       },
@@ -119,7 +119,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'riso-pollo-curcuma',
         },
       },
@@ -172,7 +172,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-ricotta-miele',
           spuntino: 'frittatine-spinaci',
           pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'box-riso-pollo-zucchine',
         },
       },
@@ -202,7 +202,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-ragu-lenticchie',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'riso-saltato-uova-piselli',
         },
       },
@@ -232,7 +232,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'crackers-grana-pera',
           pranzo: 'riso-pollo-curcuma',
-          merenda: 'pre-gallette-banana',
+          merenda: 'pre-pane-banana',
           cena: 'merluzzo-pizzaiola-couscous',
         },
       },
@@ -289,7 +289,7 @@ export const MENU_ROTATION: MenuWeek[] = [
  *   conservazione o surgelati. Il pollo si compra fresco: le porzioni oltre il giorno dopo la spesa vanno in freezer;
  * - poche ricette che si ripetono, di proposito: la colazione è sempre la stessa, lo spuntino da portare
  *   anche (pane, Parmigiano e un kiwi), e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti.
- *   Le gallette, al massimo una volta al giorno, vanno nel pre-calcio o con lo yogurt;
+ *   il pre-calcio è pane tostato con crema di arachidi, miele e banana;
  * - fibre in salita: 28-31 g al giorno (circa 11 g ogni 1.000 kcal) contro i 34-45 g della rotazione. Chi ne
  *   mangiava poche non le raddoppia dal primo giorno: pane comune al posto dell'integrale e i ceci a piccole
  *   dosi (40 g, due volte), prima del piatto di legumi intero. I legumi sono la fibra che fermenta di più.
@@ -313,7 +313,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-tonno-pomodoro',
-        merenda: 'pre-gallette-banana',
+        merenda: 'pre-pane-banana',
         cena: 'couscous-pollo-spinaci',
       },
     },
@@ -323,7 +323,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'uova-spinaci-pane',
-        merenda: 'yogurt-clementine-gallette',
+        merenda: 'yogurt-banana',
         cena: 'merluzzo-pizzaiola-couscous',
       },
     },
@@ -333,7 +333,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-tonno-pomodoro',
-        merenda: 'pre-gallette-banana',
+        merenda: 'pre-pane-banana',
         cena: 'couscous-pollo-spinaci',
       },
     },
@@ -343,7 +343,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'uova-spinaci-pane',
-        merenda: 'pre-gallette-banana',
+        merenda: 'pre-pane-banana',
         cena: 'couscous-pollo-spinaci',
       },
     },
@@ -353,7 +353,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-pollo-spinaci',
-        merenda: 'yogurt-clementine-gallette',
+        merenda: 'yogurt-banana',
         cena: 'merluzzo-ceci-couscous',
       },
     },
@@ -361,7 +361,7 @@ export const STARTER_WEEK: MenuWeek = {
     {
       meals: {
         colazione: 'pane-comune-arachidi-banana',
-        spuntino: 'yogurt-clementine-gallette',
+        spuntino: 'yogurt-banana',
         pranzo: 'pasta-tonno-pomodoro',
         merenda: 'gallette-grana-clementine',
         cena: 'merluzzo-ceci-couscous',
@@ -373,7 +373,7 @@ export const STARTER_WEEK: MenuWeek = {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-pollo-spinaci',
-        merenda: 'pre-gallette-banana',
+        merenda: 'pre-pane-banana',
         cena: 'merluzzo-pizzaiola-couscous',
       },
     },
@@ -398,10 +398,10 @@ export const STARTER_PRODUCTS: readonly string[] = [
   'pane-bianco',
   'pasta',
   'couscous',
-  'gallette-riso',
   'ceci',
   'tonno',
   'passata',
+  'miele',
   'burro-arachidi',
 ];
 

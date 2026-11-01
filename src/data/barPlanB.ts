@@ -20,18 +20,18 @@ export const BAR_VERDICTS: Record<BarOption['verdict'], { label: string; hint: s
 export const BAR_OPTIONS: BarOption[] = [
   // ───────────────────────── Sì ─────────────────────────
   {
-    id: 'panino-bresaola',
-    name: 'Panino con bresaola, rucola e grana',
+    id: 'panino-pollo',
+    name: 'Panino con pollo, insalata e pomodoro',
     verdict: 'si',
-    why: 'Il panino migliore del banco: tante proteine magre, pochi grassi. Chiedi un filo d’olio invece delle salse.',
-    approx: { kcal: 400, proteinG: 30, carbG: 56, fatG: 6, fiberG: 3 },
+    why: 'Il panino migliore del banco: carne fresca e non un affettato, tante proteine e pochi grassi. Chiedi un filo d’olio invece delle salse.',
+    approx: { kcal: 420, proteinG: 32, carbG: 52, fatG: 8, fiberG: 3.5 },
   },
   {
-    id: 'panino-tacchino',
-    name: 'Panino con fesa di tacchino e verdure grigliate',
+    id: 'panino-verdure',
+    name: 'Panino con verdure grigliate',
     verdict: 'si',
-    why: 'Proteine magre e un po’ di verdura. Se lo trovi integrale, ancora meglio.',
-    approx: { kcal: 355, proteinG: 22, carbG: 58, fatG: 3, fiberG: 4 },
+    why: 'Carboidrati digeribili, verdura e pochi grassi. Se lo trovi integrale, ancora meglio.',
+    approx: { kcal: 335, proteinG: 9.5, carbG: 55, fatG: 6.5, fiberG: 5 },
   },
   {
     id: 'insalatona',
@@ -92,18 +92,11 @@ export const BAR_OPTIONS: BarOption[] = [
     approx: { kcal: 510, proteinG: 16, carbG: 81, fatG: 12.5, fiberG: 5 },
   },
   {
-    id: 'panino-crudo',
-    name: 'Panino con prosciutto crudo e pomodoro',
-    verdict: 'meglio',
-    why: 'Buone proteine ma molto sale: va bene ogni tanto, con una bottiglietta d’acqua. Se c’è, preferisci bresaola o tacchino.',
-    approx: { kcal: 405, proteinG: 22, carbG: 58, fatG: 9, fiberG: 3.3 },
-  },
-  {
     id: 'toast',
-    name: 'Toast con prosciutto cotto e formaggio',
+    name: 'Toast al formaggio',
     verdict: 'meglio',
-    why: 'Proteine discrete, ma pane bianco e formaggio fuso saziano poco. Uno solo, con un frutto o una spremuta.',
-    approx: { kcal: 315, proteinG: 17, carbG: 30, fatG: 13.5, fiberG: 1.5 },
+    why: 'Pane bianco e formaggio fuso saziano poco e danno poche proteine. Uno solo, con uno yogurt alla frutta.',
+    approx: { kcal: 260, proteinG: 12, carbG: 26, fatG: 11, fiberG: 1.5 },
   },
   {
     id: 'tramezzino',
@@ -114,10 +107,10 @@ export const BAR_OPTIONS: BarOption[] = [
   },
   {
     id: 'piadina',
-    name: 'Piadina con crudo, rucola e squacquerone',
+    name: 'Piadina con mozzarella, pomodoro e rucola',
     verdict: 'meglio',
-    why: 'Piadina e formaggio molle sono pesanti: chiedila con crudo e rucola, senza squacquerone. Va bene come pranzo, non come spuntino.',
-    approx: { kcal: 635, proteinG: 28.5, carbG: 61, fatG: 30, fiberG: 3.5 },
+    why: 'Piadina e formaggio sono pesanti: va bene come pranzo, non come spuntino. Chiedila senza salse e aggiungi un frutto.',
+    approx: { kcal: 525, proteinG: 21.5, carbG: 54, fatG: 24, fiberG: 3 },
   },
   {
     id: 'trancio-pizza',

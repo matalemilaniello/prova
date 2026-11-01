@@ -325,7 +325,7 @@ describe('fibre e proteine dai pasti segnati', () => {
     const skipped = dayIntake(date, d);
     // Stessa cena sostituita con un ordine al bar da 39 g di proteine e 5 g di fibre.
     d.dayLogs[date].status['pasto:cena'] = 'sostituito';
-    d.dayLogs[date].barMeals = { cena: { label: 'Panino con bresaola e yogurt con frutta', nutrients: { kcal: 555, proteinG: 39, carbG: 74, fatG: 12, fiberG: 5 }, vegPortions: 1 } };
+    d.dayLogs[date].barMeals = { cena: { label: 'Panino con pollo e yogurt con frutta', nutrients: { kcal: 555, proteinG: 39, carbG: 74, fatG: 12, fiberG: 5 }, vegPortions: 1 } };
     const bar = dayIntake(date, d);
     expect(bar.proteinG - skipped.proteinG).toBeCloseTo(39, 6);
     expect(bar.fiberG - skipped.fiberG).toBeCloseTo(5, 6);

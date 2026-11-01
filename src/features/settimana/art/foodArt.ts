@@ -97,7 +97,6 @@ export const FOOD_ART: Record<string, FoodArt> = {
   // Carne e pesce
   pollo: A('slab', 'protein', '#E9C79B', '#B98552'),
   tacchino: A('slab', 'protein', '#ECD2AA', '#BE915E'),
-  'tacchino-affettato': A('folded', 'protein', '#EFC4B2', '#D9A190'),
   manzo: A('slab', 'protein', '#8C4A3A', '#B9705A'),
   salmone: A('fillet', 'protein', '#EF8A5E', '#FFD6BD'),
   'salmone-affumicato': A('folded', 'protein', '#F2835C', '#FFC3A6'),

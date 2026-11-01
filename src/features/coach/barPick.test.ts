@@ -47,7 +47,7 @@ describe('piano B al bar', () => {
       for (const o of opts) {
         // Mai un dolce; "con un accorgimento" solo insieme alla frutta che il suo motivo chiede.
         expect(o.verdict).not.toBe('programmato');
-        if (o.verdict === 'meglio') expect(c.ids.some((id) => id === 'macedonia' || id === 'spremuta')).toBe(true);
+        if (o.verdict === 'meglio') expect(c.ids.some((id) => id === 'macedonia' || id === 'spremuta' || id === 'yogurt-frutta')).toBe(true);
       }
       expect(c.why).not.toMatch(/—/);
       // La spiegazione non promette quello che i valori non contano.
@@ -131,8 +131,8 @@ describe('piano B al bar', () => {
   });
 
   it('somma i valori indicativi', () => {
-    const t = sumApprox(optionsById(['panino-bresaola', 'macedonia']));
-    const a = BAR_OPTIONS.find((o) => o.id === 'panino-bresaola')!.approx;
+    const t = sumApprox(optionsById(['panino-pollo', 'macedonia']));
+    const a = BAR_OPTIONS.find((o) => o.id === 'panino-pollo')!.approx;
     const b = BAR_OPTIONS.find((o) => o.id === 'macedonia')!.approx;
     expect(t.kcal).toBe(a.kcal + b.kcal);
     expect(t.proteinG).toBeCloseTo(a.proteinG + b.proteinG);
@@ -151,9 +151,9 @@ describe('piano B al bar', () => {
 
 describe('ordine al bar nel diario', () => {
   it('somma i valori e le porzioni di vegetali delle voci scelte', () => {
-    const list = optionsById(['panino-bresaola', 'yogurt-frutta']);
+    const list = optionsById(['panino-pollo', 'yogurt-frutta']);
     const order = barOrder(list)!;
-    expect(order.label).toBe('Panino con bresaola, rucola e grana e yogurt bianco con frutta fresca');
+    expect(order.label).toBe('Panino con pollo, insalata e pomodoro e yogurt bianco con frutta fresca');
     expect(order.nutrients).toEqual(sumApprox(list));
     expect(order.vegPortions).toBe(1);
     expect(barOrder([])).toBeNull();
@@ -173,7 +173,7 @@ describe('ordine al bar nel diario', () => {
     useApp.setState({ dayLogs: {} });
     const s = useApp.getState();
     const date = '2026-11-10';
-    const order = barOrder(optionsById(['panino-bresaola', 'yogurt-frutta']))!;
+    const order = barOrder(optionsById(['panino-pollo', 'yogurt-frutta']))!;
     s.setItemStatus(date, 'pasto:cena', 'sostituito', 'Al bar');
     s.setBarMeal(date, 'cena', order);
     expect(useApp.getState().dayLogs[date].barMeals?.cena?.nutrients.proteinG).toBe(order.nutrients.proteinG);

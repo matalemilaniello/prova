@@ -179,7 +179,7 @@ export const TIPS: Tip[] = [
     id: 'proteine-spuntino-fuori',
     topic: 'proteine',
     title: 'Uno spuntino che regge fino a pranzo',
-    text: 'Un panino con bresaola, grana e un frutto reggono qualche ora senza frigo; lo yogurt greco viaggia in una borsa termica. Così arrivi alle 14 senza la fame che spinge verso il bar.',
+    text: 'Un panino integrale con tonno, un frutto e qualche mandorla reggono fino a pranzo; lo yogurt greco viaggia in una borsa termica. Così arrivi alle 14 senza la fame che spinge verso il bar.',
   },
   {
     id: 'proteine-recupero',
@@ -262,7 +262,7 @@ export const TIPS: Tip[] = [
     id: 'bar-proteine-prima',
     topic: 'bar',
     title: 'Al bar, parti dalle proteine',
-    text: 'Toast con prosciutto cotto, tramezzino con uova o tonno, yogurt: scegli prima la fonte di proteine, poi il resto.',
+    text: 'Panino con pollo, tramezzino con uova o tonno, yogurt: scegli prima la fonte di proteine, poi il resto.',
   },
   {
     id: 'bar-cornetto-succo',

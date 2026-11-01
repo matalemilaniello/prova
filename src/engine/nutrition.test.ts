@@ -503,7 +503,7 @@ describe('partita e vigilia: almeno 6 g/kg di carboidrati', () => {
       expect(det.total.carbG, d).toBeLessThan(436);
     }
     // Le sostituzioni del diario non cambiano la scala: vale il menù previsto.
-    const swapped = { ...s, dayLogs: { '2026-11-08': { date: '2026-11-08', status: {}, recipeSwaps: { merenda: 'pre-gallette-banana' } } } };
+    const swapped = { ...s, dayLogs: { '2026-11-08': { date: '2026-11-08', status: {}, recipeSwaps: { merenda: 'pre-pane-banana' } } } };
     expect(dayCarbScale('2026-11-08', swapped as typeof s)).toBe(dayCarbScale('2026-11-08', s));
   });
 

@@ -222,7 +222,7 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
                   onChange={setText}
                   rows={2}
                   maxLength={140}
-                  placeholder={item.kind === 'pasto' ? 'Es. panino con bresaola al bar' : 'Una nota breve'}
+                  placeholder={item.kind === 'pasto' ? 'Es. panino con pollo al bar' : 'Una nota breve'}
                   enterKeyHint="done"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {

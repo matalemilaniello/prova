@@ -267,14 +267,6 @@ const FOOD_LIST: Food[] = [
     buyFactor: 1.3,
   },
   {
-    id: 'tacchino-affettato',
-    name: 'Fesa di tacchino arrosto, affettata',
-    category: 'Carne e pesce',
-    per100g: { kcal: 106, proteinG: 21, carbG: 1, fatG: 2, fiberG: 0 },
-    unitGrams: { fetta: 12 },
-    buyLabel: 'vaschetta da 120 g',
-  },
-  {
     id: 'manzo',
     name: 'Manzo magro (fesa o girello), cotto',
     category: 'Carne e pesce',
