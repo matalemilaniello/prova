@@ -20,19 +20,24 @@ const ICON: Record<Tone, IconLike> = { neutral: Info, accent: Info, good: Circle
 
 /**
  * Riquadro di avviso o consiglio (dolore sopra soglia, anteprima senza rete, privacy…).
- * Nel tema scuro i toni caldi (accento, attenzione) restano su una superficie blu con anello e luce di bordo
- * nel colore del tono: il colore è nella luce, nell'icona e nel titolo, non nel fondo.
+ * I toni caldi (accento, attenzione) non colorano il fondo: nel tema scuro stanno su una superficie blu, nel chiaro
+ * su una superficie bianca (`--callout-warm-bg`), con anello e luce di bordo nel colore del tono. Il colore è nella
+ * luce, nell'icona e nel titolo.
  */
 export function Callout({ tone = 'neutral', title, icon, action, className, children }: CalloutProps) {
   const role = tone === 'bad' || tone === 'warn' ? 'alert' : 'note';
   const neutral = tone === 'neutral';
+  const warm = tone === 'accent' || tone === 'warn';
+  const ring = warm
+    ? `inset 0 0 0 1px color-mix(in srgb, ${toneColor(tone)} var(--callout-warm-ring, 24%), transparent)`
+    : toneRing(tone, 24);
   return (
     <div
       role={role}
       className={cn('flex gap-3 rounded-[16px] p-3.5', className)}
       style={{
-        background: neutral ? 'var(--ink-soft)' : toneSoft(tone, tone === 'accent' || tone === 'warn' ? 9 : 11),
-        boxShadow: neutral ? 'inset 0 0 0 1px var(--control-line)' : `${toneEdge(tone, 42)}, ${toneRing(tone, 24)}`,
+        background: neutral ? 'var(--ink-soft)' : warm ? `var(--callout-warm-bg, ${toneSoft(tone, 9)})` : toneSoft(tone, 11),
+        boxShadow: neutral ? 'inset 0 0 0 1px var(--control-line)' : `${toneEdge(tone, 42)}, ${ring}`,
       }}
     >
       <span className="mt-px shrink-0" style={{ color: neutral ? 'var(--ink-2)' : toneColor(tone) }} aria-hidden>

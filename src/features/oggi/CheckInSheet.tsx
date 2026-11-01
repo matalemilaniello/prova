@@ -444,11 +444,14 @@ function QuickTime({
           {label}
           {value && <span className="t-mono text-[0.9375rem] font-semibold text-ink">{value}</span>}
         </p>
-        <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">previsto {planned}</span>
+        <span className="t-caption shrink-0 text-ink-3">
+          previsto <span className="t-mono text-[0.75rem]">{planned}</span>
+        </span>
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
+      {/* Una riga sola anche a 360 px: le scelte si dividono la larghezza. */}
+      <div className="mt-2.5 flex gap-1">
         {options.map((o) => (
-          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-10! min-w-12 justify-center px-2.5! text-[0.875rem]! tabular">
+          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-10! min-w-0 flex-[1_1_auto] justify-center whitespace-nowrap px-1.5! text-[0.875rem]! tabular">
             {o.aria ? (
               <>
                 <span aria-hidden>{o.label}</span>

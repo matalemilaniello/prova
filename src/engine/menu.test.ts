@@ -87,6 +87,31 @@ describe('rotazione del menù', () => {
     expect(d.total.kcal).toBeCloseTo(dayNutrition('2026-11-10', state).kcal, 6);
     expect(dayNutrition('2026-11-10', state, { onlyDone: true }).kcal).toBe(0);
   });
+
+  it('già mangiato: il pasto preso con il piano B al bar vale l’ordine, un sostituito senza ordine non conta', () => {
+    const order = { kcal: 520, proteinG: 34, carbG: 60, fatG: 14, fiberG: 6 };
+    const s: Pick<AppData, 'plan' | 'dayLogs'> = {
+      plan,
+      dayLogs: {
+        '2026-11-10': {
+          date: '2026-11-10',
+          status: { 'pasto:colazione': 'fatto', 'pasto:pranzo': 'sostituito', 'pasto:cena': 'sostituito' },
+          notes: {},
+          minimal: false,
+          waterGlasses: 0,
+          sweets: 0,
+          recipeSwaps: {},
+          barMeals: { pranzo: { label: 'Piadina con bresaola', nutrients: order, vegPortions: 1 } },
+        },
+      },
+    };
+    const planned = dayNutritionDetail('2026-11-10', s);
+    const eaten = dayNutritionDetail('2026-11-10', s, { onlyDone: true });
+    expect(eaten.bySlot.pranzo).toEqual(order);
+    expect(eaten.bySlot.cena).toBeUndefined();
+    expect(eaten.total.kcal).toBeCloseTo((planned.bySlot.colazione?.kcal ?? 0) + order.kcal, 6);
+    expect(eaten.total.proteinG).toBeCloseTo((planned.bySlot.colazione?.proteinG ?? 0) + order.proteinG, 6);
+  });
 });
 
 describe('vigilia della partita', () => {

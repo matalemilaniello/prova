@@ -1,9 +1,11 @@
 /**
  * Controllo tipografico dei testi: apostrofo tipografico (’) e niente trattino lungo (—).
  *
- * Scorre i sorgenti in src/ (test esclusi) e guarda solo i testi: stringhe tra virgolette, template e testo JSX.
- * I commenti e il codice non contano. Segnala:
- *   - l'apostrofo dritto tra due lettere ("l'orario", 'Com\'è andata') al posto di quello tipografico (’);
+ * Scorre i sorgenti in src/ (test esclusi) e guarda solo i testi: stringhe tra apici o tra virgolette doppie,
+ * template e testo JSX. I commenti e il codice non contano. Segnala:
+ *   - l'apostrofo dritto al posto di quello tipografico (’): tra due lettere ("l'orario", 'Com\'è andata') e dopo
+ *     una parola tronca ("un po' di", 'un po\' di'), scritto com'è, con l'escape \' o come entità HTML nel testo
+ *     JSX. Un apice che apre una citazione ('così') e quello che la chiude non contano;
  *   - il trattino lungo (—), che nei testi dell'interfaccia non si usa (SPEC §3).
  *
  * Uso:
@@ -13,8 +15,9 @@
  *                                                     allenamento, coachProgressi, impostazioni)
  *   node scripts/check-typography.mjs --fix --area oggi
  *                                                     sostituisce gli apostrofi nei testi dei file dell'area,
- *                                                     test compresi (così le attese restano uguali al testo);
- *                                                     il trattino lungo va riscritto a mano
+ *                                                     test compresi (così le attese restano uguali al testo):
+ *                                                     \' diventa ’ senza escape; il trattino lungo va
+ *                                                     riscritto a mano
  *   node scripts/check-typography.mjs --quiet         solo i conteggi
  *
  * Eccezioni: una riga che contiene il commento `tipografia-ok` non viene controllata, per i rari testi che
@@ -47,8 +50,90 @@ const AREAS = [
 ];
 const areaOf = (file) => AREAS.find(([, rules]) => rules.some((r) => r.test(file)))?.[0] ?? 'sistema';
 
-/** Apostrofo dritto tra due lettere, anche scritto come \' o come entità HTML nel testo JSX. */
-const STRAIGHT = /(\p{L})(?:\\?'|&apos;|&#0*39;)(?=\p{L})/gu;
+const LETTER = /\p{L}/u;
+const ENTITY = /^&(?:apos|#0*39|#x0*27);/i;
+
+/** Limiti del contenuto nel sorgente del nodo, senza virgolette, apici inversi, `${` e `}`. */
+function contentBounds(kind, raw) {
+  switch (kind) {
+    case ts.SyntaxKind.JsxText:
+      return [0, raw.length];
+    case ts.SyntaxKind.TemplateHead:
+    case ts.SyntaxKind.TemplateMiddle:
+      return [1, raw.length - 2];
+    default:
+      return [1, raw.length - 1];
+  }
+}
+
+/**
+ * Apostrofi dritti nel testo di un nodo: posizione e lunghezza nel sorgente (`'`, `\'` o un'entità HTML).
+ * Si legge carattere per carattere, con gli escape risolti:
+ *   - tra due lettere è un apostrofo (l'orario);
+ *   - dopo una lettera e prima di uno spazio, di un segno o della fine è un apostrofo di troncamento (po'),
+ *     a meno che chiuda una citazione aperta prima nella stessa stringa ('così');
+ *   - prima di una lettera e dopo un non-lettera apre una citazione e non conta.
+ */
+export function straightApostrophes(kind, raw) {
+  const [from, to] = contentBounds(kind, raw);
+  /** @type {({ ch: string } | { quote: true, at: number, len: number })[]} */
+  const tokens = [];
+  for (let i = from; i < to; ) {
+    const c = raw[i];
+    if (c === '\\') {
+      const n = raw[i + 1];
+      if (n === "'") {
+        tokens.push({ quote: true, at: i, len: 2 });
+        i += 2;
+      } else if (n === 'u' && raw[i + 2] === '{') {
+        const end = raw.indexOf('}', i);
+        const cp = parseInt(raw.slice(i + 3, end), 16);
+        tokens.push({ ch: Number.isFinite(cp) ? String.fromCodePoint(cp) : ' ' });
+        i = end + 1;
+      } else if (n === 'u' || n === 'x') {
+        const len = n === 'u' ? 4 : 2;
+        const cp = parseInt(raw.slice(i + 2, i + 2 + len), 16);
+        tokens.push({ ch: Number.isFinite(cp) ? String.fromCodePoint(cp) : ' ' });
+        i += 2 + len;
+      } else {
+        tokens.push({ ch: ' ' });
+        i += 2;
+      }
+      continue;
+    }
+    if (c === "'") {
+      tokens.push({ quote: true, at: i, len: 1 });
+      i += 1;
+      continue;
+    }
+    if (c === '&') {
+      const m = raw.slice(i, i + 10).match(ENTITY);
+      if (m) {
+        tokens.push({ quote: true, at: i, len: m[0].length });
+        i += m[0].length;
+        continue;
+      }
+    }
+    const cp = raw.codePointAt(i);
+    const ch = String.fromCodePoint(cp);
+    tokens.push({ ch });
+    i += ch.length;
+  }
+  const isLetter = (t) => Boolean(t && 'ch' in t && LETTER.test(t.ch));
+  const found = [];
+  let open = 0;
+  tokens.forEach((t, k) => {
+    if (!('quote' in t)) return;
+    const prev = isLetter(tokens[k - 1]);
+    const next = isLetter(tokens[k + 1]);
+    if (prev && next) found.push({ at: t.at, len: t.len });
+    else if (!prev && next) open++;
+    else if (prev && open > 0) open--;
+    else if (prev) found.push({ at: t.at, len: t.len });
+    else if (open > 0) open--;
+  });
+  return found;
+}
 const EM_DASH = /—/;
 const isTest = (file) => /\.test\.tsx?$/.test(file);
 
@@ -78,7 +163,7 @@ function textNodes(sf) {
       // Gli import non sono testo.
       if (!(node.parent && (ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)))) {
         const start = node.kind === ts.SyntaxKind.JsxText ? node.pos : node.getStart(sf);
-        nodes.push({ start, end: node.end });
+        nodes.push({ start, end: node.end, kind: node.kind });
       }
     }
     ts.forEachChild(node, visit);
@@ -111,15 +196,18 @@ for (const f of files) {
   const entry = (report[area] ??= { apostrophes: 0, dashes: 0, items: [] });
   const edits = [];
 
-  for (const { start, end } of textNodes(sf)) {
+  for (const { start, end, kind } of textNodes(sf)) {
     const raw = src.slice(start, end);
     const line = sf.getLineAndCharacterOfPosition(start).line;
     if (skipLine.has(line)) continue;
-    const apostrophes = raw.match(STRAIGHT)?.length ?? 0;
+    const hits = straightApostrophes(kind, raw);
+    const apostrophes = hits.length;
     const dash = EM_DASH.test(raw);
     if (!apostrophes && !dash) continue;
     if (fix && apostrophes) {
-      edits.push({ start, end, text: raw.replace(STRAIGHT, '$1’') });
+      let text = raw;
+      for (const h of [...hits].reverse()) text = text.slice(0, h.at) + '’' + text.slice(h.at + h.len);
+      edits.push({ start, end, text });
       fixedCount += apostrophes;
     }
     if (isTest(f.rel)) continue;

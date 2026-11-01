@@ -17,7 +17,7 @@ import { PainSitesPicker } from '../impostazioni/components/Pickers';
 import { SleepStairs, SleepTargetHint } from '../impostazioni/components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../impostazioni/components/SupplementEditor';
 import { DayEditorSheet, WeekDayList } from '../impostazioni/components/WeekEditor';
-import { GOAL_OPTIONS, hasErrors, impactRuleNote, matchEveCount, targetDayCounts, targetDaysLabel, validateBody, type ProfileErrors } from '../impostazioni/lib';
+import { GOAL_OPTIONS, hasErrors, impactRuleNote, matchCarbNote, targetDayCounts, targetDaysLabel, validateBody, type ProfileErrors } from '../impostazioni/lib';
 import { DayDial } from './DayDial';
 import { finalizePlan, firstWeekSteps, startInfo } from './firstWeek';
 import { FirstWeekList } from './FirstWeekList';
@@ -48,26 +48,31 @@ const PRINCIPLES: { icon: typeof Hand; tone: 'accent' | 'good' | 'palestra'; tit
     icon: CalendarCheck2,
     tone: 'accent',
     title: 'Decidi una volta, esegui sette',
-    text: 'Durante la settimana non pianifichi niente.',
+    text: 'In settimana non pianifichi niente.',
   },
   {
     icon: Hand,
     tone: 'good',
     title: 'Un tocco per voce',
-    text: 'Fatto, sostituito o saltato. Nei giorni no bastano quattro cose.',
+    text: 'Nei giorni no bastano quattro cose.',
   },
   {
     icon: TrendingUp,
     tone: 'palestra',
     title: 'Il piano impara',
-    text: 'Ogni domenica, dieci minuti di revisione.',
+    text: 'Si corregge ogni domenica.',
   },
 ];
 
-/** Diametro del quadrante: più piccolo sugli schermi bassi, così i tre principi restano sopra il pulsante. */
+/**
+ * Diametro del quadrante: più piccolo sugli schermi bassi, così i tre principi restano sopra il pulsante. Sotto i
+ * 380 px di larghezza i testi vanno a capo prima: il quadrante cede altri 24 px e la pagina resta senza scorrimento.
+ */
 function dialSize(): number {
   const h = typeof window === 'undefined' ? 900 : window.innerHeight;
-  return h >= 900 ? 264 : h >= 800 ? 176 : 156;
+  const w = typeof window === 'undefined' ? 390 : window.innerWidth;
+  const base = h >= 900 ? 264 : h >= 800 ? 176 : 156;
+  return w < 380 && base < 264 ? base - 24 : base;
 }
 
 export function StepWelcome({ plan, install, onRestore }: Pick<StepProps, 'plan'> & { install?: boolean; onRestore?: () => void }) {
@@ -225,7 +230,7 @@ export function StepWeek({ plan, setDay }: StepProps) {
         Calcio, palestra e fisioterapista sono già al loro posto. Tocca un giorno per cambiarlo.
       </StepHeader>
       <WeekDayList week={plan.week} onSelect={setEditing} />
-      <p className="t-footnote -mt-4 px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati: più alti nei giorni di calcio, più bassi nel riposo.</p>
+      <p className="t-footnote -mt-4 px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati.</p>
       <DayEditorSheet day={editing !== null ? (plan.week.find((d) => d.weekday === editing) ?? null) : null} onClose={() => setEditing(null)} onChange={setDay} />
     </div>
   );
@@ -283,7 +288,7 @@ export function StepSleep({ plan, setPlan }: StepProps) {
 export function StepWatch({ profile, plan, setProfile, setPlan }: StepProps) {
   const [editing, setEditing] = useState<{ sup: Supplement | null; n: number } | null>(null);
   const supps = plan.supplements;
-  const impactNote = impactRuleNote(profile.painSites, plan.painThreshold);
+  const impactNote = impactRuleNote(profile.painSites, plan.painThreshold, plan.impactThreshold);
   return (
     <div className="flex flex-col gap-7">
       <StepHeader eyebrow="Passo 5 di 5 · Da tenere d’occhio" title="Dolori e integratori">
@@ -371,7 +376,7 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
   // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo), e lì si contano. Un tipo di
   // giorno che la settimana non usa (di solito il riposo, quando la domenica è la vigilia) non compare.
   const counts = targetDayCounts(plan.week);
-  const eves = matchEveCount(plan.week);
+  const carbNote = matchCarbNote(plan.week, targets.calcio.carbG, profile.startWeightKg);
   const used = DAY_TYPES.filter((t) => counts[t] > 0);
   const name = profile.name?.trim().split(/\s+/)[0];
   // I giorni di avvio finiscono il giorno prima dell'inizio ("fino ad allora") o dentro la settimana 1 (chi
@@ -424,9 +429,9 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
                   <div className={cn('relative flex gap-x-3 gap-y-1', wide ? 'flex-wrap items-end justify-between' : 'flex-col')}>
                     <div className="flex items-baseline gap-1">
                       <NumberTicker value={targets[t].kcal} duration={0.9} className={cn('t-num text-ink', wide ? 'text-[2.5rem]' : 'text-[2rem]')} />
-                      <span className="t-mono text-[0.75rem] text-ink-3">kcal</span>
+                      <span className="t-unit text-ink-3">kcal</span>
                     </div>
-                    <span className={cn('t-mono flex flex-wrap gap-x-2 text-[0.6875rem] text-ink-2', wide && 'pb-1.5')}>
+                    <span className={cn('t-caption tabular flex flex-wrap gap-x-2 text-ink-2', wide && 'pb-1')}>
                       <span className="whitespace-nowrap">P {fmtNumber(targets[t].proteinG)}</span>
                       <span className="whitespace-nowrap">C {fmtNumber(targets[t].carbG)}</span>
                       <span className="whitespace-nowrap">G {fmtNumber(targets[t].fatG)}</span>
@@ -438,7 +443,7 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
           })}
         </div>
         <p className="t-footnote px-1 text-pretty text-ink-3">
-          {eves ? `${eves > 1 ? 'Le vigilie della partita mangiano' : 'La vigilia della partita mangia'} come il calcio, per arrivare in campo con il glicogeno pieno. ` : ''}
+          {carbNote ? `${carbNote} ` : ''}
           Sono numeri di partenza: la revisione della domenica propone le correzioni.
         </p>
       </section>

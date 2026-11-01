@@ -14,9 +14,13 @@ export const VEG_TARGET = 5;
 interface Row {
   key: string;
   label: string;
-  /** Etichetta breve sotto l'anello. */
+  /** Unità accanto al numero dell'anello ('' per le porzioni). */
   short: string;
+  /** Nome breve sotto il numero prima del primo pasto segnato. */
+  name: string;
   unit: string;
+  /** Genere dell'unità per le frasi dei lettori di schermo (le kcal e le porzioni sono femminili). */
+  fem: boolean;
   planned: number;
   eaten: number;
   target: number;
@@ -28,49 +32,43 @@ interface Row {
 const round = (n: number, dec: number) => (dec ? Math.round(n * 2) / 2 : Math.round(n));
 
 /**
- * Anello piccolo di un valore: l'arco neutro è quanto prevede il menù rispetto all'obiettivo, l'arco colorato
- * quanto è già stato mangiato (segnando i pasti). Pieno = obiettivo raggiunto.
+ * Anello piccolo di un valore, coerente con il numero sotto: l'arco è il già mangiato rispetto al previsto dal
+ * menù. Prima del primo pasto segnato l'anello è tratteggiato nel colore del valore: il menù c'è, si deve ancora
+ * mangiare (non un anello vuoto, che sembrerebbe un errore).
  */
-function MiniRing({ planned, eaten, target, tone, icon: Icon }: { planned: number; eaten: number; target: number; tone: AnyTone; icon: typeof Flame }) {
+function MiniRing({ value, dashed, tone, icon: Icon }: { value: number; dashed: boolean; tone: AnyTone; icon: typeof Flame }) {
   const reduce = useReducedMotion();
   const size = 46;
   const stroke = 4.5;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const t = Math.max(target, 1);
-  const p = Math.min(1, planned / t);
-  const e = Math.min(1, eaten / t);
+  const v = Math.max(0, Math.min(1, value));
+  // 16 trattini uguali, senza un pezzo spezzato dove il cerchio si chiude.
+  const seg = c / 16;
   const tr = reduce ? { duration: 0 } : { type: 'spring' as const, stiffness: 140, damping: 24 };
   return (
     <span aria-hidden className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-track)" strokeWidth={stroke} />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="var(--line-strong)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          initial={reduce ? false : { strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c * (1 - p) }}
-          transition={tr}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={toneColor(tone)}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          initial={reduce ? false : { strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c * (1 - e), opacity: e > 0 ? 1 : 0 }}
-          transition={tr}
-        />
+        {dashed ? (
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={toneColor(tone)} strokeWidth={2} strokeDasharray={`${seg * 0.42} ${seg * 0.58}`} />
+        ) : (
+          <>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-track)" strokeWidth={stroke} />
+            <motion.circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={toneColor(tone)}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={c}
+              initial={reduce ? false : { strokeDashoffset: c }}
+              animate={{ strokeDashoffset: c * (1 - v), opacity: v > 0 ? 1 : 0 }}
+              transition={tr}
+            />
+          </>
+        )}
       </svg>
       <Icon size={17} strokeWidth={2.2} className="relative" style={{ color: toneInk(tone) }} />
     </span>
@@ -118,24 +116,31 @@ export interface DayValuesProps {
 
 /**
  * Valori del giorno stimati dal menù, chiusi di base in una riga di quattro anelli (energia, proteine, fibre,
- * frutta e verdura). Il tocco apre il dettaglio con le barre, l'obiettivo e la legenda.
+ * frutta e verdura). Numero e anello dicono la stessa cosa: il già mangiato, "di" quanto prevede il menù; prima del
+ * primo pasto segnato il previsto, con l'anello tratteggiato. Il tocco apre il dettaglio con l'obiettivo.
  */
 export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
   const [open, setOpen] = useState(false);
   const reduce = useReducedMotion();
   const id = useId();
   const rows: Row[] = [
-    { key: 'kcal', label: 'Energia', short: 'kcal', unit: 'kcal', planned: planned.total.kcal, eaten: eaten.total.kcal, target: target.kcal, tone: 'accent', icon: Flame },
-    { key: 'prot', label: 'Proteine', short: 'proteine', unit: 'g', planned: planned.total.proteinG, eaten: eaten.total.proteinG, target: target.proteinG, tone: 'palestra', icon: Drumstick },
-    { key: 'fib', label: 'Fibre', short: 'fibre', unit: 'g', planned: planned.total.fiberG, eaten: eaten.total.fiberG, target: target.fiberG, tone: 'leggero', icon: Wheat },
-    { key: 'veg', label: 'Frutta e verdura', short: 'porzioni', unit: 'porzioni', planned: planned.vegPortions, eaten: eaten.vegPortions, target: VEG_TARGET, tone: 'good', icon: Apple, decimals: 1 },
+    { key: 'kcal', label: 'Energia', short: 'kcal', name: 'energia', unit: 'kcal', fem: true, planned: planned.total.kcal, eaten: eaten.total.kcal, target: target.kcal, tone: 'accent', icon: Flame },
+    { key: 'prot', label: 'Proteine', short: 'g', name: 'proteine', unit: 'g', fem: false, planned: planned.total.proteinG, eaten: eaten.total.proteinG, target: target.proteinG, tone: 'palestra', icon: Drumstick },
+    { key: 'fib', label: 'Fibre', short: 'g', name: 'fibre', unit: 'g', fem: false, planned: planned.total.fiberG, eaten: eaten.total.fiberG, target: target.fiberG, tone: 'leggero', icon: Wheat },
+    { key: 'veg', label: 'Frutta e verdura', short: '', name: 'porzioni', unit: 'porzioni', fem: true, planned: planned.vegPortions, eaten: eaten.vegPortions, target: VEG_TARGET, tone: 'good', icon: Apple, decimals: 1 },
   ];
   const nothing = planned.total.kcal <= 0;
   const eatenOf = (r: Row) => (minimal ? 0 : r.eaten);
+  // Basta un pasto segnato perché i quattro numeri diventino il già mangiato (anche uno 0 di frutta è un dato).
+  const started = !minimal && eaten.total.kcal > 0;
+  const fmt = (r: Row, n: number) => fmtNumber(round(n, r.decimals ?? 0), r.decimals ?? 0);
   const summary = rows
     .map((r) => {
-      const dec = r.decimals ?? 0;
-      return `${r.label}: previsti ${fmtNumber(round(r.planned, dec), dec)} su ${fmtNumber(round(r.target, dec), dec)} ${r.unit}, già mangiati ${fmtNumber(round(eatenOf(r), dec), dec)}`;
+      const [ate, planned] = r.fem ? ['mangiate', 'previste'] : ['mangiati', 'previsti'];
+      const goal = `obiettivo ${fmt(r, r.target)}`;
+      return started
+        ? `${r.label}: ${fmt(r, eatenOf(r))} ${r.unit} già ${ate} su ${fmt(r, r.planned)} ${planned} dal menù, ${goal}`
+        : `${r.label}: ${fmt(r, r.planned)} ${r.unit} ${planned} dal menù, ${goal}`;
     })
     .join('. ');
 
@@ -164,25 +169,23 @@ export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
       >
         <span className="flex items-center justify-between gap-3">
           <span id="oggi-valori" className={cn(BOARD_LABEL, 'text-ink-3')}>
-            Valori del giorno <span className="normal-case tracking-normal font-sans font-medium">· dal menù</span>
+            Valori del giorno
+            <span className="normal-case tracking-normal font-sans font-medium">{started ? ' · già mangiato' : ' · previsti dal menù'}</span>
           </span>
           <ChevronDown size={18} strokeWidth={2.5} aria-hidden className={cn('shrink-0 text-ink-3 transition-transform duration-200', open && 'rotate-180')} />
         </span>
         <span className="sr-only">{summary}</span>
         <span aria-hidden className="mt-2.5 grid grid-cols-4 gap-2">
-          {rows.map((r) => {
-            const dec = r.decimals ?? 0;
-            return (
-              <span key={r.key} className="flex min-w-0 flex-col items-center text-center">
-                <MiniRing planned={r.planned} eaten={eatenOf(r)} target={r.target} tone={r.tone} icon={r.icon} />
-                <span className="t-num mt-1.5 text-[1.0625rem] leading-none text-ink">
-                  {fmtNumber(round(r.planned, dec), dec)}
-                  {r.unit === 'g' && <span className="t-caption ml-0.5 font-sans text-ink-3">g</span>}
-                </span>
-                <span className="t-caption mt-0.5 truncate text-ink-3">{r.short}</span>
+          {rows.map((r) => (
+            <span key={r.key} className="flex min-w-0 flex-col items-center text-center">
+              <MiniRing value={r.planned > 0 ? eatenOf(r) / r.planned : 0} dashed={!started} tone={r.tone} icon={r.icon} />
+              <span className="t-num mt-1.5 whitespace-nowrap text-[1.0625rem] leading-none text-ink">
+                {fmt(r, started ? eatenOf(r) : r.planned)}
+                {r.short && <span className="t-caption ml-0.5 font-sans text-ink-3">{r.short}</span>}
               </span>
-            );
-          })}
+              <span className="t-caption mt-0.5 truncate tabular text-ink-3">{started ? `di ${fmt(r, r.planned)}` : r.name}</span>
+            </span>
+          ))}
         </span>
       </button>
       <AnimatePresence initial={false}>

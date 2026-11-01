@@ -1,13 +1,12 @@
 /** Salute: zone di dolore con soglia, esercizi del fisioterapista. */
 import { Activity, ClipboardCheck, Footprints, Hand, ShieldCheck, TrendingDown } from 'lucide-react';
-import { IMPACT_PAIN_THRESHOLD } from '../../../engine/training';
 import PhysioEditor from '../../allenamento/PhysioEditor';
 import { useApp } from '../../../state/store';
 import { Card, Disclosure, Field, ScaleSlider, TextInput, type AnyTone } from '../../../ui';
 import { testGesture } from '../../oggi/painTests';
-import { tileStyle } from '../components/controls';
+import { MiniStepper, tileStyle } from '../components/controls';
 import { PainSitesPicker } from '../components/Pickers';
-import { elbowSites, lowerLegSites, painLabel, sitesInText } from '../lib';
+import { elbowSites, impactThresholdPatch, impactThresholdView, lowerLegSites, painLabel, sitesInText } from '../lib';
 import { Page, type PageProps } from './Page';
 
 interface Rule {
@@ -19,9 +18,10 @@ interface Rule {
 
 /**
  * La regola del dolore, punto per punto, con la soglia scelta. I punti sotto il ginocchio e al gomito compaiono solo
- * se tra le zone del profilo ce n'è una di quel tipo: si spiega quello che vale per te.
+ * se tra le zone del profilo ce n'è una di quel tipo: si spiega quello che vale per te. `impact` è la soglia per gli
+ * impatti che vale davvero.
  */
-function painRules(sites: readonly string[], t: number): Rule[] {
+function painRules(sites: readonly string[], t: number, impact: number): Rule[] {
   const rules: Rule[] = [
     {
       icon: ShieldCheck,
@@ -43,7 +43,6 @@ function painRules(sites: readonly string[], t: number): Rule[] {
     },
   ];
   const lower = lowerLegSites(sites);
-  const impact = Math.min(t, IMPACT_PAIN_THRESHOLD);
   if (lower.length && impact < t) {
     const tibia = lower.some((s) => /tibi|stinc/i.test(s));
     rules.push({
@@ -58,7 +57,7 @@ function painRules(sites: readonly string[], t: number): Rule[] {
       icon: Hand,
       tone: 'palestra',
       title: 'Gomito',
-      text: 'Al posto delle spinte che danno fastidio propone esercizi a presa neutra, con poco carico sugli estensori del polso.',
+      text: 'Sopra soglia le spinte con i manubri passano a chest press e distensioni ai cavi, che chiedono meno presa. Gli esercizi che caricano il gomito propongono varianti adatte.',
     });
   }
   return rules;
@@ -103,10 +102,42 @@ function PainTestsEditor({ sites }: { sites: readonly string[] }) {
   );
 }
 
+/**
+ * Soglia per gli impatti (balzi, salti, partita) delle zone sotto il ginocchio: la decide il fisioterapista. Lo
+ * stepper mostra quella che vale davvero (predefinita min(soglia, 2)) e non sale oltre la soglia generale, che da lì
+ * frena già tutto. Tornare a 2 toglie il campo: la soglia segue di nuovo il piano.
+ */
+function ImpactThresholdRow() {
+  const painThreshold = useApp((s) => s.plan.painThreshold);
+  const own = useApp((s) => s.plan.impactThreshold);
+  const view = impactThresholdView({ painThreshold, impactThreshold: own });
+  return (
+    <div className="flex flex-col border-t border-line px-5 pb-2 pt-3">
+      <div className="flex items-center gap-3">
+        <span className="t-callout min-w-0 flex-1 font-medium text-ink">
+          Negli impatti
+        </span>
+        <MiniStepper
+          label="Soglia negli impatti"
+          value={view.value}
+          min={0}
+          max={view.max}
+          onChange={(v) => useApp.getState().updatePlan({ impactThreshold: impactThresholdPatch(v) })}
+        />
+      </div>
+      <Disclosure variant="inline" title="Chi la decide">
+        Il fisioterapista. Quando il dolore in una zona sotto il ginocchio supera questo valore, l’app ferma balzi, salti e partita. Senza indicazioni vale {view.fallback}; non va oltre la soglia generale.
+      </Disclosure>
+    </div>
+  );
+}
+
 export function DolorePage({ onBack, backLabel }: PageProps) {
   const sites = useApp((s) => s.profile.painSites);
   const threshold = useApp((s) => s.plan.painThreshold);
-  const rules = painRules(sites, threshold);
+  const ownImpact = useApp((s) => s.plan.impactThreshold);
+  const impact = impactThresholdView({ painThreshold: threshold, impactThreshold: ownImpact }).value;
+  const rules = painRules(sites, threshold, impact);
 
   return (
     <Page title="Zone di dolore" subtitle="Le segni da 0 a 10 nel controllo del mattino e a fine seduta." onBack={onBack} backLabel={backLabel}>
@@ -139,6 +170,8 @@ export function DolorePage({ onBack, backLabel }: PageProps) {
               highLabel="Il peggiore"
             />
           </div>
+          {/* Solo con una zona sotto il ginocchio: altrove la soglia per gli impatti non conta. */}
+          {lowerLegSites(sites).length > 0 && <ImpactThresholdRow />}
           {/* La regola punto per punto, dietro un tocco. */}
           <div className="border-t border-line px-5 py-1">
             <Disclosure title="Come frena il carico" summary={`${rules.length} regole`}>

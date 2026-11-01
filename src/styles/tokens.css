@@ -68,6 +68,9 @@
   --accent-glow: rgb(245 192 74 / 0.32);
   --good-soft: rgb(76 195 138 / 0.14);
   --warn-soft: var(--warm-tint);
+  /* Riquadri di avviso caldi (Callout accento e attenzione): superficie e forza dell'anello di 1 px. */
+  --callout-warm-bg: var(--warm-tint);
+  --callout-warm-ring: 24%;
   --bad-soft: rgb(242 112 106 / 0.15);
   --ink-soft: rgb(140 170 230 / 0.09);
   --scrim: rgb(3 7 14 / 0.62);
@@ -150,7 +153,13 @@
   --accent-soft: rgb(227 162 31 / 0.16);
   --accent-glow: rgb(227 162 31 / 0.3);
   --good-soft: rgb(30 138 87 / 0.11);
-  --warn-soft: rgb(184 106 8 / 0.11);
+  /*
+   * Nel chiaro i toni caldi non velano lo sfondo grigio-blu (diventerebbe beige): l'avviso è una superficie bianca
+   * con anello e luce di bordo ambra, come nel tema scuro il colore sta nella luce.
+   */
+  --warn-soft: color-mix(in srgb, #b86a08 5%, #ffffff);
+  --callout-warm-bg: var(--card);
+  --callout-warm-ring: 40%;
   --bad-soft: rgb(201 55 44 / 0.1);
   --ink-soft: rgb(13 26 44 / 0.05);
   --scrim: rgb(13 26 44 / 0.38);
@@ -232,7 +241,9 @@
     --accent-soft: rgb(227 162 31 / 0.16);
     --accent-glow: rgb(227 162 31 / 0.3);
     --good-soft: rgb(30 138 87 / 0.11);
-    --warn-soft: rgb(184 106 8 / 0.11);
+    --warn-soft: color-mix(in srgb, #b86a08 5%, #ffffff);
+    --callout-warm-bg: var(--card);
+    --callout-warm-ring: 40%;
     --bad-soft: rgb(201 55 44 / 0.1);
     --ink-soft: rgb(13 26 44 / 0.05);
     --scrim: rgb(13 26 44 / 0.38);

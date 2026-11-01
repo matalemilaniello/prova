@@ -4,7 +4,7 @@
  *
  * ?view=revisione apre subito la revisione della settimana appena chiusa (per gli screenshot).
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Settings } from 'lucide-react';
 import type { ISODate } from '../../domain/types';
@@ -17,6 +17,7 @@ import {
   firstReviewWeek,
   isReviewDay,
   MIN_WEIGH_INS,
+  needsDecision,
   periodStats,
   planWeekNumber,
   proposalEffect,
@@ -25,6 +26,7 @@ import {
   reviewFor,
   reviewStart,
   reviewWeekFor,
+  sleepPhaseOn,
   STEP_ITEM_ID,
   type PeriodStats,
   type ReviewState,
@@ -115,7 +117,7 @@ export default function ProgressiScreen() {
     const list = proposals(reviewWeek, state, { today });
     return {
       changes: list.filter(changesPlan).map(proposalEffect).filter((e): e is string => Boolean(e)),
-      count: list.filter((p) => p.apply !== undefined).length,
+      count: list.filter(needsDecision).length,
     };
   }, [available, savedReview, reviewWeek, state, today]);
   // Le sette giornate della settimana da rivedere, per il tabellone dell'invito.
@@ -134,6 +136,8 @@ export default function ProgressiScreen() {
     [state, today],
   );
   const range = useMemo(() => chartRange(today, state), [today, state]);
+  // Il passo della scala del sonno di ogni sera, ricostruito dalle revisioni: le notti passate con l'orario di allora.
+  const phaseOn = useCallback((evening: ISODate) => sleepPhaseOn(evening, { plan, reviews }), [plan, reviews]);
   const weight = useMemo(() => weightSeries(state, range.from, range.to), [state, range]);
   const sleep = useMemo(() => sleepSeries(state, range.from, range.to), [state, range]);
   const pain: PainSeries[] = useMemo(
@@ -213,36 +217,35 @@ export default function ProgressiScreen() {
         <Reveal i={i++}>
           <WhatYouWillSee kinds={silhouettes} today={today} checkInDone={Boolean(checkIns[today])} />
         </Reveal>
-      ) : (
+      ) : null}
+
+      {/* Un solo titolo per tutti i grafici: ogni card ha già il suo nome, i titoli di sezione su una card sola erano rumore. */}
+      {(!fresh || showLoad || showCalendar) && (
         <section className="flex flex-col gap-3" aria-label="Andamento">
           <SectionTitle>Andamento</SectionTitle>
-          <Reveal i={i++}>
-            <WeightChart points={weight} today={today} />
-          </Reveal>
-          <Reveal i={i++}>
-            <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} />
-          </Reveal>
-          <Reveal i={i++}>
-            <PainChart series={pain} threshold={plan.painThreshold} />
-          </Reveal>
-        </section>
-      )}
-
-      {showLoad && (
-        <section className="flex flex-col gap-3" aria-label="Allenamento">
-          <SectionTitle>Allenamento</SectionTitle>
-          <Reveal i={i++}>
-            <LoadChart weeks={load} />
-          </Reveal>
-        </section>
-      )}
-
-      {showCalendar && (
-        <section className="flex flex-col gap-3" aria-label="Costanza">
-          <SectionTitle>Costanza</SectionTitle>
-          <Reveal i={i++}>
-            <SuccessHeatmap days={calendar} summary={calSummary} weeks={calWeeks} />
-          </Reveal>
+          {!fresh && (
+            <>
+              <Reveal i={i++}>
+                <WeightChart points={weight} today={today} />
+              </Reveal>
+              <Reveal i={i++}>
+                <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} phaseOn={phaseOn} />
+              </Reveal>
+              <Reveal i={i++}>
+                <PainChart series={pain} threshold={plan.painThreshold} />
+              </Reveal>
+            </>
+          )}
+          {showLoad && (
+            <Reveal i={i++}>
+              <LoadChart weeks={load} />
+            </Reveal>
+          )}
+          {showCalendar && (
+            <Reveal i={i++}>
+              <SuccessHeatmap days={calendar} summary={calSummary} weeks={calWeeks} />
+            </Reveal>
+          )}
         </section>
       )}
 

@@ -22,6 +22,7 @@ import type {
   ItemStatus,
   MacroTarget,
   MealSlot,
+  Nutrients,
   Overlay,
   Plan,
   Profile,
@@ -225,7 +226,7 @@ function normalizePlan(raw: unknown, fallbackStart: ISODate): Plan {
           } as Supplement),
         )
     : base.supplements;
-  return {
+  return compact({
     ...(p as Partial<Plan>),
     targets: normalizeTargets(p.targets, base.targets),
     week,
@@ -248,8 +249,19 @@ function normalizePlan(raw: unknown, fallbackStart: ISODate): Plan {
     },
     sweetsPerWeek: clampN(Math.round(num(p.sweetsPerWeek, base.sweetsPerWeek)), 0, 21),
     painThreshold: clampN(num(p.painThreshold, base.painThreshold), 0, 10),
+    impactThreshold: normalizeImpactThreshold(p.impactThreshold),
     startDate: isISODate(p.startDate) ? p.startDate : base.startDate,
-  };
+  });
+}
+
+/**
+ * Soglia per gli impatti (facoltativa): un numero da 0 a 10, anche scritto come testo ("2,5"); altrimenti il campo
+ * sparisce e vale il predefinito min(soglia, 2).
+ */
+export function normalizeImpactThreshold(raw: unknown): number | undefined {
+  if (raw === null || typeof raw === 'boolean') return undefined;
+  const n = optNum(raw);
+  return n === undefined ? undefined : clampN(n, 0, 10);
 }
 
 function normalizeProfile(raw: unknown): Profile {
@@ -278,6 +290,51 @@ function normalizePainTests(raw: unknown): Profile['painTests'] {
   return Object.keys(out).length ? out : undefined;
 }
 
+type BarMeal = NonNullable<DayLog['barMeals']>[MealSlot];
+
+/** Tetti dei valori di un ordine al bar: oltre, il dato è rovinato (un pasto, non una giornata). */
+const BAR_MEAL_MAX = { kcal: 3000, grams: 300, veg: 10, label: 120 };
+
+/**
+ * Un pasto preso al bar: etichetta non vuota e valori numerici (anche da testo), tra 0 e un tetto da pasto.
+ * Null se illeggibile (manca l'etichetta o le kcal).
+ */
+export function normalizeBarMeal(raw: unknown): BarMeal | null {
+  if (!isObj(raw)) return null;
+  const label = typeof raw.label === 'string' ? raw.label.trim().slice(0, BAR_MEAL_MAX.label) : '';
+  const n = isObj(raw.nutrients) ? raw.nutrients : null;
+  if (!label || !n) return null;
+  const kcal = optNum(n.kcal);
+  if (kcal === undefined || kcal < 0) return null;
+  const grams = (v: unknown) => clampN(num(typeof v === 'boolean' ? NaN : v, 0), 0, BAR_MEAL_MAX.grams);
+  const nutrients: Nutrients = {
+    kcal: clampN(kcal, 0, BAR_MEAL_MAX.kcal),
+    proteinG: grams(n.proteinG),
+    carbG: grams(n.carbG),
+    fatG: grams(n.fatG),
+    fiberG: grams(n.fiberG),
+  };
+  const veg = optNum(raw.vegPortions);
+  return compact({
+    ...(raw as Partial<NonNullable<BarMeal>>),
+    label,
+    nutrients: { ...(n as Partial<Nutrients>), ...nutrients },
+    vegPortions: veg === undefined || veg < 0 ? undefined : clampN(veg, 0, BAR_MEAL_MAX.veg),
+  } as NonNullable<BarMeal>);
+}
+
+/** Pasti presi al bar del giorno: solo pasti noti e voci leggibili; senza nessuno il campo sparisce. */
+export function normalizeBarMeals(raw: unknown): DayLog['barMeals'] {
+  if (!isObj(raw)) return undefined;
+  const out: NonNullable<DayLog['barMeals']> = {};
+  for (const [slot, v] of Object.entries(raw)) {
+    if (!MEAL_SLOT_SET.has(slot)) continue;
+    const meal = normalizeBarMeal(v);
+    if (meal) out[slot as MealSlot] = meal;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function normalizeDayLogs(raw: unknown): AppData['dayLogs'] {
   if (!isObj(raw)) return {};
   const out: AppData['dayLogs'] = {};
@@ -285,7 +342,7 @@ function normalizeDayLogs(raw: unknown): AppData['dayLogs'] {
     if (!isISODate(k) || !isObj(v)) continue;
     const status: Record<string, ItemStatus> = {};
     if (isObj(v.status)) for (const [id, st] of Object.entries(v.status)) if (ITEM_STATUSES.has(str(st, ''))) status[id] = st as ItemStatus;
-    out[k] = {
+    out[k] = compact({
       ...(v as Partial<DayLog>),
       date: k,
       status,
@@ -294,7 +351,8 @@ function normalizeDayLogs(raw: unknown): AppData['dayLogs'] {
       waterGlasses: clampN(Math.round(num(v.waterGlasses, 0)), 0, 40),
       sweets: clampN(Math.round(num(v.sweets, 0)), 0, 20),
       recipeSwaps: strRecord(v.recipeSwaps, (slot) => MEAL_SLOT_SET.has(slot)),
-    };
+      barMeals: normalizeBarMeals(v.barMeals),
+    } as DayLog);
   }
   return out;
 }
@@ -679,7 +737,17 @@ export const useApp = create<AppState>()(
         completeOnboarding: (profile, plan) =>
           set((s) => ({ profile, plan, onboarded: true, settings: { ...s.settings, demoData: false } })),
         updateProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
-        updatePlan: (patch) => set((s) => ({ plan: { ...s.plan, ...patch } })),
+        updatePlan: (patch) =>
+          set((s) => {
+            const plan = { ...s.plan, ...patch };
+            // La soglia per gli impatti resta un numero da 0 a 10; un valore vuoto o illeggibile torna al predefinito.
+            if ('impactThreshold' in patch) {
+              const v = normalizeImpactThreshold(patch.impactThreshold);
+              if (v === undefined) delete plan.impactThreshold;
+              else plan.impactThreshold = v;
+            }
+            return { plan };
+          }),
         setTarget: (dayType, patch) =>
           set((s) => ({
             plan: { ...s.plan, targets: { ...s.plan.targets, [dayType]: { ...s.plan.targets[dayType], ...patch } } },
@@ -694,6 +762,14 @@ export const useApp = create<AppState>()(
 
         setItemStatus: (date, itemId, status, note) =>
           patchDay(date, (d) => {
+            // Un pasto preso al bar vale finché il pasto resta sostituito: fatto, saltato o annullato lo tolgono.
+            const slot = itemId.startsWith('pasto:') ? itemId.slice(6) : '';
+            if (d.barMeals && MEAL_SLOT_SET.has(slot) && status !== 'sostituito' && d.barMeals[slot as MealSlot]) {
+              const bar = { ...d.barMeals };
+              delete bar[slot as MealSlot];
+              if (Object.keys(bar).length) d.barMeals = bar;
+              else delete d.barMeals;
+            }
             if (status === null) {
               delete d.status[itemId];
               delete d.notes[itemId];
@@ -717,8 +793,11 @@ export const useApp = create<AppState>()(
           }),
         setBarMeal: (date, slot, meal) =>
           patchDay(date, (d) => {
+            if (!MEAL_SLOT_SET.has(slot)) return d;
             const bar = { ...(d.barMeals ?? {}) };
-            if (meal) bar[slot] = meal;
+            // Un ordine illeggibile (senza etichetta o kcal) non si salva: vale come togliere il pasto al bar.
+            const clean = meal ? normalizeBarMeal(meal) : null;
+            if (clean) bar[slot] = clean;
             else delete bar[slot];
             if (Object.keys(bar).length) d.barMeals = bar;
             else delete d.barMeals;

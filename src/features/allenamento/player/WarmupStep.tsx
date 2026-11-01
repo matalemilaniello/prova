@@ -91,7 +91,7 @@ export function WarmupStep({ title, items, logs, onToggle }: WarmupStepProps) {
                         al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
                       </span>
                     )}
-                    <span className="t-mono mt-0.5 block text-[0.75rem] text-ink-3">{doseLabel(it.item)}</span>
+                    <span className="t-footnote mt-0.5 block text-ink-3 tabular">{doseLabel(it.item)}</span>
                   </span>
                   <ChevronDown size={18} strokeWidth={2.2} className={cn('shrink-0 text-ink-3 transition-transform duration-200', expanded && 'rotate-180')} aria-hidden />
                 </button>

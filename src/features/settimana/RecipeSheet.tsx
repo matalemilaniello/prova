@@ -10,13 +10,13 @@ import { ArrowLeftRight, ChefHat, Clock, Undo2, UtensilsCrossed } from 'lucide-r
 import type { DayType, ISODate, MealSlot, PortionUnit, Recipe } from '../../domain/types';
 import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
-import { formatRelativeDay } from '../../engine/dates';
+import { formatRelativeDay, weekdayOf } from '../../engine/dates';
 import { mealsForDate, swapOptions } from '../../engine/menu';
-import { dayCarbScale, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
+import { dayCarbScale, dayTargetFor, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber, fmtPercent, listIt } from '../../lib/format';
 import { useApp } from '../../state/store';
-import { usePlanDay } from '../../state/hooks';
+import { useNutritionState, usePlanDay } from '../../state/hooks';
 import { Button, Card, DayTypeBadge, Disclosure, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
 import { toneInk, toneRing } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
@@ -46,6 +46,8 @@ const DAY_PHRASE: Record<DayType, string> = { calcio: 'di calcio', palestra: 'di
 export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeSheetProps) {
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
+  // Con controlli e profilo: porzioni e obiettivo di partita e vigilia dal peso recente, come in Oggi e nel menù.
+  const nutrition = useNutritionState();
   const today = usePlanDay();
   const reduce = useReducedMotion();
   const [viewId, setViewId] = useState(recipeId);
@@ -61,7 +63,8 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
   const dayType = meals.dayType;
   // Colori ed etichetta seguono il tipo previsto; porzioni e valori il tipo effettivo (vigilia = calcio).
   const colorType = meals.scheduledDayType;
-  const scale = useMemo(() => dayCarbScale(date, { plan, dayLogs }), [date, plan, dayLogs]);
+  const scale = useMemo(() => dayCarbScale(date, nutrition), [date, nutrition]);
+  const targetKcal = useMemo(() => dayTargetFor(date, nutrition)?.kcal ?? 0, [date, nutrition]);
   const schedule = mealScheduleFor(date, plan);
   const slotTitle = slotEff ? schedule[slotEff]?.title : undefined;
   const previewing = Boolean(slotEff && currentId && viewId !== currentId);
@@ -135,19 +138,8 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
           </div>
         )}
 
-        <Hero recipe={recipe} dayType={colorType} label={meals.matchEve ? 'Vigilia della partita' : undefined} />
-        <Values recipe={recipe} dayType={dayType} scale={scale} targetKcal={plan.targets[dayType].kcal} />
-        {recipe.tags.length > 0 && (
-          <ul className="-mt-2 flex flex-wrap gap-1.5" aria-label="Caratteristiche">
-            {recipe.tags.map((t) => (
-              <li key={t}>
-                <Pill variant="outline" tone="neutral">
-                  {t}
-                </Pill>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Hero recipe={recipe} dayType={colorType} label={meals.matchEve ? 'Vigilia della partita' : undefined} sunday={weekdayOf(date) === 6} />
+        <Values recipe={recipe} dayType={dayType} scale={scale} targetKcal={targetKcal} />
         <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} />
         <Steps recipe={recipe} />
         {slotEff && entry && (
@@ -172,7 +164,7 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
 
 // ───────────────────────── Parti ─────────────────────────
 
-function Hero({ recipe, dayType, label }: { recipe: Recipe; dayType: DayType; label?: string }) {
+function Hero({ recipe, dayType, label, sunday }: { recipe: Recipe; dayType: DayType; label?: string; sunday?: boolean }) {
   return (
     <div className="relative overflow-hidden rounded-card shadow-card">
       <DishArt recipe={recipe} dayType={dayType} variant="hero" className="aspect-[360/220] w-full" />
@@ -187,7 +179,7 @@ function Hero({ recipe, dayType, label }: { recipe: Recipe; dayType: DayType; la
         {recipe.batch && (
           <span className="glass t-footnote inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--bar-line)] px-2.5 font-semibold text-ink">
             <ChefHat aria-hidden size={14} strokeWidth={2.4} />
-            Pronta dalla domenica
+            {sunday ? 'Dalla preparazione di oggi' : 'Pronta dalla domenica'}
           </span>
         )}
       </div>
@@ -212,7 +204,7 @@ function Values({ recipe, dayType, scale, targetKcal }: { recipe: Recipe; dayTyp
           <p className="t-label text-ink-3">Valori stimati</p>
           <p className="mt-1.5 flex items-baseline gap-1.5">
             <span className="t-num text-[2.5rem] leading-none text-ink">{fmtNumber(Math.round(n.kcal))}</span>
-            <span className="t-mono text-[0.8125rem] text-ink-2">kcal</span>
+            <span className="t-unit text-[0.875rem] text-ink-2">kcal</span>
           </p>
           {targetKcal > 0 && <p className="t-footnote mt-1 text-ink-2">{fmtPercent(n.kcal / targetKcal)} della giornata</p>}
         </div>
@@ -231,7 +223,7 @@ function Values({ recipe, dayType, scale, targetKcal }: { recipe: Recipe; dayTyp
             <dt className="t-caption text-ink-3">{m.label}</dt>
             <dd className="flex items-baseline gap-0.5">
               <span className="t-num text-[1.375rem] leading-none text-ink">{fmtNumber(Math.round(m.v))}</span>
-              <span className="t-mono text-[0.6875rem] text-ink-3">g</span>
+              <span className="t-unit text-ink-3">g</span>
             </dd>
           </div>
         ))}
@@ -302,7 +294,7 @@ function Ingredients({
                     <span className="t-callout font-semibold" style={{ color: scaled ? toneInk(colorType) : 'var(--ink)' }}>
                       {p.portion}
                     </span>
-                    {hand && p.grams > 0 && <span className="t-mono text-[0.75rem] text-ink-3">≈ {p.grams}&nbsp;g</span>}
+                    {hand && p.grams > 0 && <span className="t-caption tabular text-ink-3">≈&nbsp;{p.grams}&nbsp;g</span>}
                   </span>
                 </div>
               </li>
@@ -322,7 +314,7 @@ function Ingredients({
 function Steps({ recipe }: { recipe: Recipe }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-passaggi">
-      <SectionTitle id="ricetta-passaggi" subtitle={recipe.batch ? 'Una parte è pronta dalla domenica.' : undefined}>
+      <SectionTitle id="ricetta-passaggi">
         Passaggi
       </SectionTitle>
       <Card padding="lg">
@@ -343,6 +335,9 @@ function Steps({ recipe }: { recipe: Recipe }) {
     </section>
   );
 }
+
+/** Alternative in vista prima di "Tutte". */
+const ALT_SHOWN = 3;
 
 function Alternatives({
   slot,
@@ -370,12 +365,18 @@ function Alternatives({
   push(currentId);
   push(plannedId);
   for (const r of swapOptions(plannedId || currentId, slot, 6)) push(r.id);
-  const list = ids.filter((id) => id !== viewId).slice(0, 6);
-  if (!list.length) return null;
+  const [all, setAll] = useState(false);
+  const full = ids.filter((id) => id !== viewId).slice(0, 6);
+  // Tre bastano per scegliere: le altre dietro un tocco.
+  const list = all ? full : full.slice(0, ALT_SHOWN);
+  if (!full.length) return null;
   const view = recipeNutrition(RECIPES[viewId], dayType, FOODS, scale);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-alternative">
-      <SectionTitle id="ricetta-alternative" subtitle="Stesso pasto, valori adattati a questo giorno.">
+      <SectionTitle
+        id="ricetta-alternative"
+        action={full.length > ALT_SHOWN ? { label: all ? 'Meno' : `Tutte (${full.length})`, onPress: () => setAll((v) => !v) } : undefined}
+      >
         Alternative
       </SectionTitle>
       <Card padding="none">
@@ -395,7 +396,7 @@ function Alternatives({
                       <span className="t-footnote text-ink-2">
                         <span className="tabular">{fmtNumber(Math.round(n.kcal))} kcal</span>
                         {Math.abs(dk) >= 15 && (
-                          <span className="t-mono text-[0.6875rem] text-ink-3">
+                          <span className="t-caption tabular text-ink-3">
                             {' '}
                             {dk > 0 ? '+' : '−'}
                             {fmtNumber(Math.abs(dk))}

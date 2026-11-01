@@ -422,7 +422,7 @@ function PotButton({ week, taskId, pot, timer, now }: { week: ISODate; taskId: s
     >
       <span className="flex w-full items-center justify-between gap-3">
         <span>Avvia: {pot.label.toLowerCase()}</span>
-        <span className="t-mono text-[0.8125rem] text-ink-2">{pot.minutes}&nbsp;min</span>
+        <span className="t-footnote font-medium tabular text-ink-2">{pot.minutes}&nbsp;min</span>
       </span>
     </Button>
   );

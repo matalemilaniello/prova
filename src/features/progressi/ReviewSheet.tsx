@@ -3,15 +3,17 @@
  * 1) Numeri: verdetto, le sette giornate come un tabellone, peso, tempo a letto e dolore con la loro linea;
  * 2) Voti: quattro scale da 1 a 10 (l'energia ha la media dei controlli del mattino come tacca);
  * 3) Misure: la vita in evidenza, le pliche a scomparsa, una riga di nota;
- * 4) Proposte: una card per proposta ("Accetta" o "Non ora") e lo scalino della settimana.
- * Alla chiusura i riflettori si accendono e si legge cosa cambia da lunedì.
+ * 4) Proposte: "Da decidere" (quelle che cambiano la settimana dopo, con "Accetta" o "Non ora" e "Accetta tutte"
+ *    accanto al titolo), "Da sapere" (consigli da leggere, senza scelta) e lo scalino della settimana.
+ * Il piede ha solo i puntini, la freccia indietro e l'azione del passo. Alla chiusura i riflettori si accendono e
+ * si legge cosa cambia da lunedì.
  *
  * Le proposte accettate cambiano il piano solo alla chiusura, così uscire a metà non lascia il piano a metà
  * e una proposta non si applica due volte. Numeri e proposte si fissano all'apertura.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, Footprints, Moon, Plus, Undo2 } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, Footprints, Plus, Undo2 } from 'lucide-react';
 import type { ISODate, Proposal, WeeklyReview } from '../../domain/types';
 import { addMinutes, formatDayLong, formatWeekRange, weekDates } from '../../engine/dates';
 import { checkInSleepHours } from '../../engine/sleep';
@@ -19,6 +21,8 @@ import {
   changesPlan,
   firstReviewDate,
   isReviewableWeek,
+  MIN_NUTRITION_DAYS,
+  needsDecision,
   previousReview,
   proposals as buildProposals,
   proposeWeeklyStep,
@@ -39,7 +43,7 @@ import { capitalize, fmtDelta, fmtKcal, fmtNumber, fmtPercent, listIt, plural } 
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { useCalendarStatus } from '../impostazioni/reminders';
-import { Button, Card, Chip, cn, Field, Floodlights, NumberInput, ScaleSlider, Sheet, TextArea, toneColor, toneInk } from '../../ui';
+import { Button, Card, Chip, cn, Disclosure, Field, Floodlights, NumberInput, ScaleSlider, SectionTitle, Sheet, TextArea, toneColor, toneInk } from '../../ui';
 import { SKINFOLD_SITES, VOTE_FIELDS, type VoteKey } from './areas';
 import { HoursValue } from './charts/ChartCard';
 import { SITE_TONES } from './charts/PainChart';
@@ -68,6 +72,12 @@ const STEP_SHORT: Record<WeeklyStepId, string> = {
   caffe: 'Caffè',
 };
 
+/** Cosa vuol dire, da lunedì, un impegno accettato. */
+const COMMITMENT_DETAIL: Partial<Record<Proposal['area'], string>> = {
+  scarico: 'Stessi esercizi con metà delle serie e RIR 3-4; il calcio resta com’è.',
+  allenamento: 'Salta la seduta facoltativa e tieni le altre a RIR 3.',
+};
+
 // ───────────────────────── Verdetto ─────────────────────────
 
 /** Titolo e riga del primo passo, con la voce del coach. La prima settimana si racconta, non si giudica. */
@@ -85,9 +95,12 @@ export function verdict(s: WeekStats): { title: string; line: string } {
       line: parts.length ? `${capitalize(days)} con Ritmo: ${listIt(parts)}. Da qui si parte.` : `${capitalize(days)} con Ritmo. Questa revisione fissa il punto di partenza.`,
     };
   }
-  if (s.adherence === null) return { title: 'Settimana senza voci', line: 'Nessuna voce segnata: si parte dai numeri che ci sono, peso, ore a letto e dolore.' };
+  if (s.adherence === null || s.adherenceDays === 0) return { title: 'Settimana senza voci', line: 'Nessuna voce segnata: si parte dai numeri che ci sono, peso, ore a letto e dolore.' };
+  // Il titolo segue le giornate riuscite (la misura della serie, del jolly e della riga sotto) o l'aderenza
+  // media, la migliore delle due: 5 giornate su 6 non sono mai una settimana "discreta".
+  const share = Math.max(s.successfulDays / s.adherenceDays, s.adherence);
   const up = s.prevAdherence !== null && s.adherence - s.prevAdherence >= 0.1;
-  const title = s.adherence >= 0.8 ? 'Settimana solida' : s.adherence >= 0.6 ? 'Settimana discreta' : up ? 'Settimana in ripresa' : 'Settimana da riprendere';
+  const title = share >= 0.8 ? 'Settimana solida' : share >= 0.6 ? 'Settimana buona' : up ? 'Settimana in ripresa' : 'Settimana da riprendere';
   const extra: string[] = [];
   if (s.sleepAvgH !== null && s.prevSleepAvgH !== null) {
     const d = Math.round((s.sleepAvgH - s.prevSleepAvgH) * 60);
@@ -177,7 +190,7 @@ function DeltaRow({
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="inline-flex items-baseline gap-1">
             {typeof value === 'string' ? <span className="t-num text-[2rem] leading-none text-ink">{value}</span> : value}
-            {unit && <span className="t-mono text-[0.75rem] text-ink-2">{unit}</span>}
+            {unit && <span className="text-[0.8125rem] font-medium text-ink-2">{unit}</span>}
           </span>
           {delta}
         </p>
@@ -199,36 +212,32 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
   const sleepDelta = s.sleepAvgH !== null && s.prevSleepAvgH !== null ? Math.round((s.sleepAvgH - s.prevSleepAvgH) * 60) : null;
   const pains = s.pain.filter((p) => p.readings > 0);
 
-  // Fibre e proteine sono stime dai pasti segnati: si dice da quanti, una volta sola per le due righe.
-  const fromMeals = s.mealsCounted > 0 && s.nutritionDays > 0 ? `Fibre e proteine stimate da ${s.mealsLogged} pasti segnati su ${s.mealsCounted}` : null;
+  // Fibre e proteine sono stime dai pasti segnati: valgono da 3 giorni con almeno 3 pasti su 5 segnati.
+  const mealsReady = s.nutritionDays >= MIN_NUTRITION_DAYS;
+  const notReady = `servono ${MIN_NUTRITION_DAYS} giorni di pasti segnati`;
+  const fiber = mealsReady ? s.fiberAvgG : null;
+  const protein = mealsReady ? s.proteinAvgG : null;
   const menuPart = (g: number | null) => (g !== null ? `, menù ${fmtNumber(Math.round(g))} g` : '');
-  const others: { label: string; value: string; unit?: string; detail?: string; warn?: boolean; note?: string }[] = [
+  const others: { label: string; value: string; unit?: string; detail?: string; warn?: boolean }[] = [
     {
       label: 'Aderenza',
       value: s.adherence !== null ? fmtNumber(Math.round(s.adherence * 100)) : '–',
       unit: s.adherence !== null ? '%' : undefined,
-      detail: s.adherenceDays ? `${s.successfulDays} ${s.successfulDays === 1 ? 'riuscita' : 'riuscite'} su ${s.adherenceDays}` : 'nessun giorno chiuso',
-    },
-    {
-      label: 'Notti in orario',
-      value: `${s.nightsOnTarget}`,
-      unit: `su ${s.countedNights}`,
-      detail: s.nightsWithBedtime < s.countedNights ? `${s.countedNights - s.nightsWithBedtime} senza orario` : undefined,
+      detail: s.adherenceDays ? undefined : 'nessun giorno chiuso',
     },
     { label: 'Energia al mattino', value: s.energyAvg !== null ? fmtNumber(s.energyAvg, 1, true) : '–', unit: s.energyAvg !== null ? 'su 10' : undefined },
     {
       label: 'Fibre stimate',
-      value: s.fiberAvgG !== null ? fmtNumber(Math.round(s.fiberAvgG)) : '–',
-      unit: s.fiberAvgG !== null ? 'g' : undefined,
-      detail: `obiettivo ${s.fiberTargetG} g${menuPart(s.fiberPlannedG)}`,
-      warn: s.fiberLow,
+      value: fiber !== null ? fmtNumber(Math.round(fiber)) : '–',
+      unit: fiber !== null ? 'g' : undefined,
+      detail: mealsReady ? `obiettivo ${s.fiberTargetG} g${menuPart(s.fiberPlannedG)}` : notReady,
+      warn: mealsReady && s.fiberLow,
     },
     {
       label: 'Proteine stimate',
-      value: s.proteinAvgG !== null ? fmtNumber(s.proteinAvgG) : '–',
-      unit: s.proteinAvgG !== null ? 'g' : undefined,
-      detail: `obiettivo ${s.proteinTargetG} g${menuPart(s.proteinPlannedG)}`,
-      note: fromMeals ?? undefined,
+      value: protein !== null ? fmtNumber(protein) : '–',
+      unit: protein !== null ? 'g' : undefined,
+      detail: mealsReady ? `obiettivo ${s.proteinTargetG} g${menuPart(s.proteinPlannedG)}` : notReady,
     },
     {
       label: 'Carico',
@@ -318,15 +327,21 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
                     <span className="t-num text-[1.25rem] leading-none" style={{ color: o.warn ? 'var(--warn-ink)' : 'var(--ink)' }}>
                       {o.value}
                     </span>
-                    {o.unit && <span className="t-mono text-[0.6875rem] text-ink-3">{o.unit}</span>}
+                    {o.unit && <span className="text-[0.75rem] font-medium text-ink-3">{o.unit}</span>}
                   </span>
                   {o.detail && <span className="t-caption mt-0.5 text-ink-3">{o.detail}</span>}
                 </dd>
-                {o.note && <dd className="t-caption mt-1.5 w-full text-pretty text-ink-3">{o.note}</dd>}
               </div>
             ))}
           </dl>
         </Card>
+        {mealsReady && s.mealsCounted > 0 && (
+          <Disclosure variant="inline" title="Come si stimano fibre e proteine" className="mt-2 px-1">
+            Da {s.mealsLogged} pasti segnati su {s.mealsCounted}: un pasto fatto vale la ricetta del menù
+            {s.mealsAtBar > 0 ? `, ${s.mealsAtBar === 1 ? 'quello preso' : `i ${s.mealsAtBar} presi`} al bar i valori dell’ordine` : ', uno preso al bar i valori dell’ordine'}, uno
+            sostituito con altro metà del pasto previsto, uno saltato niente. Contano i giorni con almeno 3 pasti segnati su 5.
+          </Disclosure>
+        )}
       </section>
     </div>
   );
@@ -400,7 +415,7 @@ function MeasuresStep({
   return (
     <div className="flex flex-col gap-4">
       <p className="t-callout text-pretty text-ink-2">
-        Al mattino a digiuno, una volta a settimana: conta la tendenza, non il singolo numero. Se oggi non l’hai misurata, lascia vuoto: la aggiungi domani riaprendo la revisione.
+        Una volta a settimana, al mattino a digiuno: conta la tendenza. Se oggi non l’hai misurata lascia vuoto, la aggiungi riaprendo la revisione.
       </p>
       <Card className="flex flex-col gap-4">
         <div className="flex items-end justify-between gap-3">
@@ -409,7 +424,7 @@ function MeasuresStep({
             {waist !== undefined ? (
               <p className="mt-1 flex items-baseline gap-1">
                 <span className="t-num text-[2.75rem] leading-none text-ink">{fmtNumber(waist, 1, true)}</span>
-                <span className="t-mono text-[0.8125rem] text-ink-2">cm</span>
+                <span className="text-[0.875rem] font-medium text-ink-2">cm</span>
               </p>
             ) : (
               <p className="t-headline mt-1.5 text-ink-2">Da misurare</p>
@@ -487,7 +502,7 @@ function MeasuresStep({
                 {foldSum !== null && (
                   <p className="t-footnote flex items-baseline justify-between rounded-[12px] bg-ink-soft px-3 py-2.5 text-ink-2">
                     <span>Somma delle pliche</span>
-                    <span className="t-mono text-ink">
+                    <span className="font-semibold tabular text-ink">
                       {fmtNumber(foldSum, 1, true)} mm
                       {sameSites && prevFoldSum !== null && (
                         <span style={{ color: foldSum - prevFoldSum < 0 ? 'var(--good-ink)' : 'var(--ink-2)' }}> · {fmtDelta(foldSum - prevFoldSum, 'mm', 1)}</span>
@@ -535,15 +550,18 @@ function StepPicker({
           <Footprints size={20} strokeWidth={2.1} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="t-label text-ink-3">{!chosen ? 'Nessuno scalino' : chosen === suggestion.suggested.id ? 'Consigliato' : 'Scelto da te'}</p>
+          <p className="t-label text-ink-3">
+            {!chosen ? 'Nessuno scalino' : `${chosen === suggestion.suggested.id ? 'Consigliato' : 'Scelto da te'} · ${STEP_TARGET_DAYS} giorni su 7`}
+          </p>
           {def ? (
             <>
               <h4 className="t-headline mt-0.5 text-ink">{def.title}</h4>
               <p className="t-footnote mt-1 text-pretty text-ink-2">{def.how}</p>
-              {option && <p className="t-caption mt-2 text-pretty text-ink-3">{option.reason}</p>}
-              <p className="t-caption mt-2 font-semibold text-ink-2">
-                Obiettivo: {STEP_TARGET_DAYS} giorni su 7, lo trovi ogni giorno in Oggi.
-              </p>
+              {option && (
+                <Disclosure variant="inline" title="Perché" className="mt-1">
+                  {option.reason} Il conteggio dei giorni è in Oggi.
+                </Disclosure>
+              )}
             </>
           ) : (
             <p className="t-footnote mt-1 text-ink-2">La settimana va avanti con il menù e il piano, senza un obiettivo in più.</p>
@@ -714,10 +732,12 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
   const missing = VOTE_FIELDS.filter((f) => votes[f.key] === undefined);
   const stateOf = (p: Proposal): ProposalState =>
     applied.has(p.id) ? 'applicata' : decisions[p.id] === 'accettata' ? 'accettata' : decisions[p.id] === 'rimandata' ? 'rimandata' : 'da-decidere';
-  const actionable = list.filter((p) => p.apply !== undefined);
-  const informative = list.filter((p) => p.apply === undefined);
+  // Si decide su quello che cambia la settimana dopo; pesate, dolore, fibre e dolci sono da sapere.
+  const actionable = list.filter(needsDecision);
+  const informative = list.filter((p) => !needsDecision(p));
   const pending = actionable.filter((p) => stateOf(p) === 'da-decidere');
-  const accepted = actionable.filter((p) => decisions[p.id] === 'accettata' || applied.has(p.id)).map((p) => p.id);
+  // Le proposte già accettate in una revisione salvata restano accettate anche se oggi sono da sapere.
+  const accepted = list.filter((p) => applied.has(p.id) || (needsDecision(p) && decisions[p.id] === 'accettata')).map((p) => p.id);
   const toApply = list.filter((p) => decisions[p.id] === 'accettata' && !applied.has(p.id) && changesPlan(p));
 
   const go = (i: StepIndex) => {
@@ -786,8 +806,8 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
         });
       }
     }
-    for (const p of list.filter((x) => decisions[x.id] === 'accettata' && !applied.has(x.id) && x.apply?.type === 'none')) {
-      changes.push({ key: p.id, icon: <AreaIcon area={p.area} size={36} />, title: p.title, detail: 'Un impegno per la settimana: il piano non cambia.' });
+    for (const p of actionable.filter((x) => decisions[x.id] === 'accettata' && !applied.has(x.id) && !changesPlan(x))) {
+      changes.push({ key: p.id, icon: <AreaIcon area={p.area} size={36} />, title: p.title, detail: COMMITMENT_DETAIL[p.area] ?? 'Vale per la prossima settimana.' });
     }
     if (stepDef && stepDef.id !== savedStep?.id) {
       changes.push({
@@ -847,7 +867,8 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
   }
 
   const range = formatWeekRange(weekStart);
-  const closeLabel = saved ? 'Aggiorna la revisione' : current ? 'Chiudi la settimana' : 'Salva la revisione';
+  // Nel piede c'è spazio per una parola o tre, accanto ai puntini e alla freccia indietro, anche a 360 px.
+  const closeLabel = saved ? 'Aggiorna' : current ? 'Chiudi la settimana' : 'Salva';
 
   const footer = closed ? (
     <div className="flex flex-col gap-1.5">
@@ -865,30 +886,23 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
           {missing.length === 4 ? 'Dai i quattro voti per andare avanti' : `Manca il voto a ${listIt(missing.map((m) => m.label.toLowerCase()))}`}
         </p>
       )}
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
+      {/* Una riga sola: dove sei, indietro e l'azione del passo (all'ultimo, chiudere la settimana). */}
+      <div className="flex items-center gap-1">
+        <div className="shrink-0">
           <StepDots step={step} max={maxStep} onGo={go} />
         </div>
+        <span aria-hidden className="min-w-2 flex-1" />
         {step > 0 && <Button variant="ghost" size="lg" icon={ArrowLeft} aria-label="Passo precedente" onClick={() => go((step - 1) as StepIndex)} className="!px-3" />}
         {step < 3 ? (
           <Button size="lg" iconRight={ArrowRight} disabled={step === 1 && missing.length > 0} onClick={next} haptic={false} className="min-w-[132px]">
             Avanti
           </Button>
-        ) : current && pending.length > 0 ? (
-          <Button variant="secondary" size="lg" icon={Check} onClick={acceptAll} haptic={false}>
-            Accetta tutte
+        ) : (
+          <Button size="lg" onClick={save} haptic={false} className="min-w-[132px] !px-5">
+            {closeLabel}
           </Button>
-        ) : toApply.length > 0 ? (
-          <span className="t-footnote shrink-0 text-good-ink" aria-live="polite">
-            {toApply.length === 1 ? '1 proposta cambia il piano' : `${toApply.length} proposte cambiano il piano`}
-          </span>
-        ) : null}
+        )}
       </div>
-      {step === 3 && (
-        <Button size="lg" fullWidth icon={Moon} onClick={save} haptic={false}>
-          {closeLabel}
-        </Button>
-      )}
     </div>
   );
 
@@ -938,9 +952,13 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                     {!current && <p className="t-callout text-ink-2">Proposte di una settimana passata: si possono solo rileggere.</p>}
                     {actionable.length > 0 && (
                       <section className="flex flex-col gap-3" aria-labelledby="proposte-decidere">
-                        <h4 id="proposte-decidere" className="t-label px-1 text-ink-3">
+                        <SectionTitle
+                          as="h3"
+                          id="proposte-decidere"
+                          action={current && pending.length > 1 ? { label: 'Accetta tutte', onPress: acceptAll } : undefined}
+                        >
                           {current ? 'Da decidere' : 'Proposte'}
-                        </h4>
+                        </SectionTitle>
                         {actionable.map((p) => (
                           <ProposalCard
                             key={p.id}
@@ -957,9 +975,9 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                     )}
                     {informative.length > 0 && (
                       <section className="flex flex-col gap-3" aria-labelledby="proposte-sapere">
-                        <h4 id="proposte-sapere" className="t-label px-1 text-ink-3">
+                        <SectionTitle as="h3" id="proposte-sapere">
                           Da sapere
-                        </h4>
+                        </SectionTitle>
                         {informative.map((p) => (
                           <ProposalCard key={p.id} proposal={p} plan={plan} state="da-decidere" actionable={false} />
                         ))}

@@ -17,18 +17,19 @@
  *   - scarico: ogni 6-8 settimane dall'inizio (o dall'ultimo scarico), o prima con sonno < 6 h per 3 notti
  *     e dolore in aumento.
  *
- * Una proposta senza `apply` è informativa (nessun pulsante "Accetta"); `{ type: 'none' }` si accetta
- * come impegno senza toccare il piano; `sleepCurrent` e `kcalDelta` cambiano il piano con `applyProposal`.
+ * `sleepCurrent` e `kcalDelta` cambiano il piano con `applyProposal`; `{ type: 'none' }` è un impegno senza
+ * toccare il piano. Nella revisione si decide solo su quello che cambia la settimana dopo (`needsDecision`:
+ * piano, scarico, settimana più leggera); il resto è da sapere.
  * Gli id sono stabili e uguali all'area ('sonno', 'calorie', …): una proposta per area.
  *
  * Nessuna funzione legge l'orologio: la data arriva dagli argomenti.
  */
-import type { AppData, Goal, ISODate, MealSlot, Plan, Proposal, WeeklyReview } from '../domain/types';
+import type { AppData, Goal, HHMM, ISODate, MealSlot, Plan, Proposal, WeeklyReview } from '../domain/types';
 import { FOODS } from '../data/foods';
 import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
 import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
-import { effectiveDayType, mealsForDate } from './menu';
-import { dayCarbScale, recipeNutrition, recipeVegPortions } from './nutrition';
+import { mealsForDate } from './menu';
+import { dayCarbScale, dayTargetFor, recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
 import {
   adherenceSummary,
@@ -135,6 +136,38 @@ export function planWeekNumber(weekStart: ISODate, plan: Pick<Plan, 'startDate'>
   return Math.max(0, weekIndexSince(first, weekStartOf(weekStart)) + 1);
 }
 
+// ───────────────────────── Scala del sonno nel tempo ─────────────────────────
+
+/**
+ * Orario a letto in vigore la sera `evening` (il gradino della scala del sonno di quella settimana). Ogni
+ * revisione che accetta la proposta del sonno anticipa l'orario dal lunedì dopo la settimana rivista: andando
+ * indietro, prima di ogni cambio l'orario era un passo più tardi (il valore salvato nella proposta, se c'è, più
+ * `stepMin`). Senza revisioni vale l'orario attuale del piano. Così le notti di tre settimane fa si giudicano
+ * con l'orario di allora, non con quello di oggi.
+ */
+export function sleepPhaseOn(evening: ISODate, state: { plan: Pick<Plan, 'sleep'>; reviews?: readonly WeeklyReview[] }): HHMM {
+  const { current, stepMin } = state.plan.sleep;
+  const changes = (state.reviews ?? [])
+    .filter((r) => Array.isArray(r.acceptedProposals) && r.acceptedProposals.includes('sonno'))
+    .map((r) => {
+      const p = r.proposals?.find((x) => x.id === 'sonno');
+      return { from: addDays(weekStartOf(r.weekStart), 7), value: p?.apply?.type === 'sleepCurrent' ? p.apply.value : null };
+    })
+    .sort((a, b) => (a.from < b.from ? 1 : a.from > b.from ? -1 : 0));
+  let phase = current;
+  for (const c of changes) {
+    if (evening >= c.from) break;
+    phase = addMinutes(c.value ?? phase, stepMin);
+  }
+  return phase;
+}
+
+/** Il piano con l'orario a letto in vigore la sera `evening` (per `isOnTargetFor` e `bedtimeFor`). */
+export function planOnEvening<P extends Pick<Plan, 'sleep'>>(evening: ISODate, state: { plan: P; reviews?: readonly WeeklyReview[] }): P {
+  const current = sleepPhaseOn(evening, state);
+  return current === state.plan.sleep.current ? state.plan : { ...state.plan, sleep: { ...state.plan.sleep, current } };
+}
+
 // ───────────────────────── Numeri del periodo ─────────────────────────
 
 export type Trend = 'su' | 'giu' | 'stabile';
@@ -182,6 +215,7 @@ export interface PeriodStats {
   nightsOnTarget: number;
   shortNights: number;
   // Alimentazione stimata dai pasti segnati (i pasti senza stato non contano come saltati)
+  /** Giorni con almeno 3 pasti su 5 segnati: la stima vale da `MIN_NUTRITION_DAYS` in su. */
   nutritionDays: number;
   fiberAvgG: number | null;
   prevFiberAvgG: number | null;
@@ -192,11 +226,16 @@ export interface PeriodStats {
   /** Fibre e proteine del menù previsto negli stessi giorni (sostituzioni di ricetta comprese). */
   fiberPlannedG: number | null;
   proteinPlannedG: number | null;
-  /** Pasti del menù nei giorni chiusi e quanti sono segnati: "da 23 pasti segnati su 30". */
+  /**
+   * Pasti del menù nei giorni chiusi e quanti segnati entrano nella stima (quelli dei giorni con almeno 3 pasti
+   * su 5 segnati): "da 23 pasti segnati su 30".
+   */
   mealsCounted: number;
   mealsLogged: number;
   mealsReplaced: number;
   mealsSkipped: number;
+  /** Pasti presi con il piano B al bar, contati con i valori dell'ordine. */
+  mealsAtBar: number;
   /** Fibre perse per pasto nei pasti sostituiti o saltati, sommate sul periodo. */
   fiberLostBySlot: Partial<Record<MealSlot, number>>;
   /** I giorni segnati sono per lo più di avvio: le fibre salgono per gradi e il riferimento è quel menù. */
@@ -296,8 +335,18 @@ function adherenceOf(state: ReviewState, dates: ISODate[]) {
   return { avg: days ? sum / days : null, successful: ok, minimal, days };
 }
 
-/** Quota di un pasto sostituito che si conta: si è mangiato altro, di solito più povero di fibre. */
+/**
+ * Quota di un pasto sostituito che si conta quando non si sa cosa si è mangiato: di solito qualcosa di più
+ * povero di fibre. Un pasto preso con il piano B al bar (`DayLog.barMeals`) vale invece per i valori dell'ordine.
+ */
 export const REPLACED_SHARE = 0.5;
+
+/**
+ * Quota dei pasti del menù che deve essere segnata perché un giorno entri nella stima di fibre e proteine
+ * (3 pasti su 5). Mezza giornata, come il primo avvio del pomeriggio con la sola merenda, confrontata con un
+ * obiettivo giornaliero darebbe un numero sbagliato.
+ */
+export const MIN_DAY_MEAL_SHARE = 0.6;
 
 export interface IntakeValues {
   fiberG: number;
@@ -316,12 +365,18 @@ const addIntake = (a: IntakeValues, b: IntakeValues, k = 1): IntakeValues => ({
 export interface DayIntake extends IntakeValues {
   /** Almeno un pasto segnato (fatto, sostituito o saltato). */
   logged: boolean;
+  /** Pasti del menù del giorno, anche quelli che non contano (di solito 5). */
+  menuMeals: number;
   /** Pasti del menù che contano nel giorno (non quelli prima del primo avvio o della prima spesa). */
   meals: number;
   /** Pasti segnati (fatto, sostituito o saltato). */
   mealsLogged: number;
+  /** Abbastanza pasti segnati (`MIN_DAY_MEAL_SHARE` del menù) per entrare nella stima della settimana. */
+  complete: boolean;
   replaced: MealSlot[];
   skipped: MealSlot[];
+  /** Pasti sostituiti con il piano B al bar, contati con i valori dell'ordine. */
+  bar: MealSlot[];
   /** Valori del menù per i soli pasti segnati: la base con cui si confronta quanto stimato. */
   plannedLogged: IntakeValues;
   /** Valori del menù per tutta la giornata (sostituzioni di ricetta e scala del piano comprese). */
@@ -347,20 +402,33 @@ function uncountedMealSlots(iso: ISODate, state: ReviewState): Set<MealSlot> {
   return out;
 }
 
+const finiteOr0 = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
+
+/** Valori di un pasto preso con il piano B al bar, se il pasto è sostituito e l'ordine è leggibile. */
+function barIntake(log: AppData['dayLogs'][string] | undefined, slot: MealSlot): IntakeValues | null {
+  const bar = log?.barMeals?.[slot];
+  if (!bar || typeof bar !== 'object' || !bar.nutrients) return null;
+  return { fiberG: finiteOr0(bar.nutrients.fiberG), proteinG: finiteOr0(bar.nutrients.proteinG), vegPortions: finiteOr0(bar.vegPortions) };
+}
+
 /**
- * Fibre, proteine e porzioni di vegetali del giorno dai pasti segnati: fatto = ricetta intera, sostituito =
- * metà, saltato = niente. I pasti senza stato restano fuori (né zero né interi): `planned` e `plannedLogged`
- * servono a stimare la settimana senza contarli. Le giornate minime non hanno pasti da contare.
+ * Fibre, proteine e porzioni di vegetali del giorno dai pasti segnati: fatto = ricetta intera, preso con il
+ * piano B al bar = i valori dell'ordine, sostituito con altro = metà, saltato = niente. I pasti senza stato
+ * restano fuori (né zero né interi): `planned` e `plannedLogged` servono a stimare la settimana senza
+ * contarli. Le giornate minime non hanno pasti da contare.
  */
 export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
   const log = state.dayLogs[iso];
   const out: DayIntake = {
     ...ZERO_INTAKE,
     logged: false,
+    menuMeals: 0,
     meals: 0,
     mealsLogged: 0,
+    complete: false,
     replaced: [],
     skipped: [],
+    bar: [],
     plannedLogged: { ...ZERO_INTAKE },
     planned: { ...ZERO_INTAKE },
     fiberLost: {},
@@ -371,6 +439,7 @@ export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
   const scale = dayCarbScale(iso, state);
   const skip = uncountedMealSlots(iso, state);
   out.starter = Boolean(day.starter);
+  out.menuMeals = day.meals.length;
   for (const m of day.meals) {
     if (skip.has(m.slot)) continue;
     out.meals++;
@@ -382,18 +451,24 @@ export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
     out.logged = true;
     out.mealsLogged++;
     out.plannedLogged = addIntake(out.plannedLogged, v);
-    const k = st === 'fatto' ? 1 : st === 'sostituito' ? REPLACED_SHARE : 0;
-    Object.assign(out, addIntake(out, v, k));
+    const bar = st === 'sostituito' ? barIntake(log, m.slot) : null;
+    const eaten = bar ?? (st === 'fatto' ? v : st === 'sostituito' ? addIntake(ZERO_INTAKE, v, REPLACED_SHARE) : ZERO_INTAKE);
+    Object.assign(out, addIntake(out, eaten));
     if (st === 'sostituito') out.replaced.push(m.slot);
     else if (st === 'saltato') out.skipped.push(m.slot);
-    if (k < 1 && v.fiberG > 0) out.fiberLost[m.slot] = (out.fiberLost[m.slot] ?? 0) + v.fiberG * (1 - k);
+    if (bar) out.bar.push(m.slot);
+    const lost = v.fiberG - eaten.fiberG;
+    if (st !== 'fatto' && lost > 0) out.fiberLost[m.slot] = (out.fiberLost[m.slot] ?? 0) + lost;
   }
+  out.complete = out.logged && out.mealsLogged >= Math.ceil(out.menuMeals * MIN_DAY_MEAL_SHARE - 1e-9);
   return out;
 }
 
 interface WeekIntake {
-  /** Giorni con almeno un pasto segnato. */
+  /** Giorni con abbastanza pasti segnati (`DayIntake.complete`): quelli della stima. */
   days: number;
+  /** Pasti presi con il piano B al bar nei giorni della stima. */
+  bar: number;
   fiber: number | null;
   protein: number | null;
   veg: number | null;
@@ -410,11 +485,12 @@ interface WeekIntake {
 /**
  * Stima del periodo: il menù previsto nei giorni con pasti segnati, per la quota che ne è arrivata nei pasti
  * segnati. Chi segna 3 pasti su 5 tutti fatti ha preso il menù intero, non tre quinti: i pasti non segnati
- * valgono come quelli segnati, non come pasti saltati.
+ * valgono come quelli segnati, non come pasti saltati. Entrano solo i giorni con almeno 3 pasti su 5 segnati:
+ * mezza giornata (il primo avvio del pomeriggio, un giorno con la sola merenda) non dice com'è andata.
  */
 function intakeOf(state: ReviewState, dates: ISODate[]): WeekIntake {
   const all = dates.map((d) => dayIntake(d, state));
-  const days = all.filter((x) => x.logged);
+  const days = all.filter((x) => x.complete);
   const sum = (f: (x: DayIntake) => number) => days.reduce((s, x) => s + f(x), 0);
   const estimate = (key: keyof IntakeValues): number | null => {
     if (!days.length) return null;
@@ -426,13 +502,15 @@ function intakeOf(state: ReviewState, dates: ISODate[]): WeekIntake {
   for (const x of days) for (const [slot, g] of Object.entries(x.fiberLost) as [MealSlot, number][]) fiberLost[slot] = (fiberLost[slot] ?? 0) + g;
   return {
     days: days.length,
+    bar: sum((x) => x.bar.length),
     fiber: estimate('fiberG'),
     protein: estimate('proteinG'),
     veg: estimate('vegPortions'),
     plannedFiber: days.length ? mean(days.map((x) => x.planned.fiberG)) : null,
     plannedProtein: days.length ? mean(days.map((x) => x.planned.proteinG)) : null,
     meals: all.reduce((s, x) => s + x.meals, 0),
-    mealsLogged: all.reduce((s, x) => s + x.mealsLogged, 0),
+    // I pasti segnati che entrano nella stima: quelli dei giorni abbastanza completi.
+    mealsLogged: sum((x) => x.mealsLogged),
     replaced: sum((x) => x.replaced.length),
     skipped: sum((x) => x.skipped.length),
     fiberLost,
@@ -454,7 +532,7 @@ function fiberReference(target: number, planned: number | null, starterDays: num
 
 function targetAvg(state: ReviewState, dates: ISODate[], key: 'fiberG' | 'proteinG'): number {
   // Obiettivo del giorno come in Oggi: la vigilia della partita vale come un giorno di calcio.
-  const vals = dates.map((d) => state.plan.targets[effectiveDayType(d, state.plan)]?.[key]);
+  const vals = dates.map((d) => dayTargetFor(d, state)?.[key]);
   return Math.round(mean(vals.filter(isNum)) ?? state.plan.targets.palestra[key]);
 }
 
@@ -545,8 +623,9 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     const bed = state.checkIns[d]?.bedTime;
     if (!bed) continue;
     nightsWithBedtime++;
-    // Ogni controllo si confronta con l'orario della sera prima (dopo la partita vale 00:15).
-    if (isOnTargetFor(bed, d, state.plan)) nightsOn++;
+    // Ogni controllo si confronta con l'orario della sera prima (dopo la partita vale 00:15), con il gradino
+    // della scala in vigore quella sera.
+    if (isOnTargetFor(bed, d, planOnEvening(addDays(d, -1), state))) nightsOn++;
   }
 
   // Pasti
@@ -579,7 +658,8 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     shortNights: sleep.filter((h) => h < SHORT_NIGHT_H).length,
     nutritionDays: intake.days,
     fiberAvgG: intake.fiber === null ? null : round1(intake.fiber),
-    prevFiberAvgG: intakePrev.fiber === null ? null : round1(intakePrev.fiber),
+    // Il confronto con la settimana prima serve solo se anche quella ha abbastanza giorni.
+    prevFiberAvgG: intakePrev.fiber === null || intakePrev.days < MIN_NUTRITION_DAYS ? null : round1(intakePrev.fiber),
     proteinAvgG: intake.protein === null ? null : Math.round(intake.protein),
     vegPortionsAvg: intake.veg === null ? null : round1(intake.veg),
     fiberTargetG,
@@ -590,6 +670,7 @@ export function periodStats(dates: ISODate[], prevDates: ISODate[], state: Revie
     mealsLogged: intake.mealsLogged,
     mealsReplaced: intake.replaced,
     mealsSkipped: intake.skipped,
+    mealsAtBar: intake.bar,
     fiberLostBySlot: intake.fiberLost,
     fiberStarter: fiberRef.starter,
     fiberLow: intake.days >= MIN_NUTRITION_DAYS && intake.fiber !== null && intake.fiber < fiberRef.ref - FIBER_MARGIN_G,
@@ -938,14 +1019,14 @@ function painProposal(stats: WeekStats, plan: Plan): Proposal | null {
     const from = p.prevAvg !== null ? ` da ${fmtNumber(p.prevAvg, 1)} a ${avg}` : '';
     return `${p.site} in aumento${from}`;
   });
-  const elbow = flagged.some((p) => /gomit/i.test(p.site));
-  const tips = ['Togli una serie agli esercizi che la caricano e niente aumenti di carico'];
-  if (elbow) tips.push('per il gomito usa solo le varianti a presa neutra');
+  // Le sedute sono già a presa neutra: sopra soglia cambia l'esercizio (elbowSwitch in training.ts).
+  const elbowOver = flagged.some((p) => /gomit/i.test(p.site) && p.overThreshold);
+  const elbowTip = elbowOver ? ' Con il gomito sopra soglia, la panca con i manubri passa alla chest press e ai cavi.' : '';
   return {
     id: 'dolore',
     area: 'dolore',
     title: flagged.length === 1 ? `${flagged[0].site}: riduci il carico` : 'Dolore: riduci il carico',
-    reason: `${capital(listIt(parts))}. ${listIt(tips)}. Senti il fisioterapista prima della prossima partita.`,
+    reason: `${capital(listIt(parts))}. Togli una serie agli esercizi che la caricano e niente aumenti di carico.${elbowTip} Senti il fisioterapista prima della prossima partita.`,
     apply: { type: 'none' },
   };
 }
@@ -1039,6 +1120,18 @@ export function acceptable(list: readonly Proposal[]): Proposal[] {
 /** Proposte che cambiano davvero il piano. */
 export function changesPlan(p: Proposal): boolean {
   return p.apply?.type === 'sleepCurrent' || p.apply?.type === 'kcalDelta';
+}
+
+/** Impegni della settimana dopo che cambiano il programma anche se non toccano il piano salvato. */
+const WEEK_COMMITMENTS: readonly Proposal['area'][] = ['scarico', 'allenamento'];
+
+/**
+ * Proposte su cui decidere ("Accetta" o "Non ora"): quelle che cambiano il piano (orario a letto, calorie) e gli
+ * impegni della settimana dopo (scarico, settimana più leggera: lo scarico accettato fa ripartire il conto delle
+ * settimane). Le altre (pesate, dolore, fibre, dolci) sono consigli da sapere: niente da accettare.
+ */
+export function needsDecision(p: Proposal): boolean {
+  return p.apply !== undefined && (changesPlan(p) || WEEK_COMMITMENTS.includes(p.area));
 }
 
 /** Descrizione breve dell'effetto sul piano, per il riepilogo dopo il salvataggio. */

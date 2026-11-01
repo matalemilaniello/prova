@@ -1,7 +1,9 @@
 /**
  * Dati di esempio: un'app in uso da 3 settimane.
  *
- * Deterministico (generatore con seme, dipende solo da `todayIso` e dall'ora passata).
+ * Deterministico: ogni giornata ha il suo generatore con seme, ricavato dal giorno (posizione dall'inizio del
+ * piano) e dalla sezione. L'ora passata decide solo quali voci di oggi risultano già segnate: lo storico dei
+ * giorni passati (diario, controlli, sedute, calcio) è lo stesso a qualunque ora.
  * Legge a runtime RECIPES, SESSIONS, EXERCISES e MENU_ROTATION: funziona anche se sono vuoti
  * e produce dati più ricchi quando i contenuti ci sono. Nessun dato reale dell'utente.
  */
@@ -38,6 +40,7 @@ import {
 import { MEAL_SLOTS, menuWeekFor, mealsForDate } from '../engine/menu';
 import { shoppingList } from '../engine/shopping';
 import { isOnTargetFor, sleepHours } from '../engine/sleep';
+import { hashString } from '../lib/id';
 
 // Il motore della timeline appartiene a un altro modulo: se c'è, i suoi id guidano il diario.
 // `buildDay` aggiunge i riti del fine settimana (spesa, preparazione, revisione), come in Oggi.
@@ -62,6 +65,15 @@ export function rng(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * Generatore della giornata `i` (giorni dall'inizio del piano) per una sezione dei dati. Un flusso per giornata
+ * e per sezione: quello che succede oggi (voci saltate perché non ancora arrivate) non sposta i numeri dei
+ * giorni passati né delle altre sezioni.
+ */
+function dayRng(section: string, i: number): () => number {
+  return rng(hashString(`ritmo-demo:${section}:${i}`));
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -198,7 +210,6 @@ export interface DemoOptions {
 
 /** Costruisce i dati di esempio per la data di oggi. */
 export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
-  const r = rng(20251110);
   const nowMin = opts.nowMin ?? 13 * 60;
   const start = weekStart(addDays(todayIso, -21));
   const year = fromISO(todayIso).getFullYear();
@@ -240,6 +251,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   for (let i = 0; i <= histDays; i++) {
     const iso = addDays(start, i);
     if (skipCheckIn.has(i)) continue;
+    const r = dayRng('controllo', i);
     const p = histDays ? i / histDays : 1;
     const wd = weekdayOf(iso);
     const late = lateNight(i);
@@ -271,6 +283,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   for (let i = 0; i <= histDays; i++) {
     const iso = addDays(start, i);
     const isToday = i === histDays;
+    const r = dayRng('diario', i);
     const p = histDays ? i / histDays : 1;
     const log: DayLog = {
       date: iso,
@@ -352,6 +365,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
       doneC = true;
     }
     if (minimalDays.has(i)) continue;
+    const r = dayRng('palestra', i);
     const session = SESSIONS[sid];
     const exercises: ExerciseLog[] = session
       ? session.blocks.flatMap((b) => b.items).map((it) => exerciseLogFor(it, weekNo, r))
@@ -382,6 +396,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
     const f = data.plan.week[weekdayOf(iso)]?.football;
     if (!f) continue;
     if (i === 9) continue; // un calcetto saltato
+    const r = dayRng('calcio', i);
     const rpe = f.kind === 'partita' ? clampInt(7.4 + (r() - 0.5) * 1.6, 6, 9) : clampInt(6.4 + (r() - 0.5) * 1.6, 5, 8);
     football.push({
       id: `demo-f-${iso}`,
@@ -403,7 +418,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
   // integratori, fisio, spesa, preparazione) finché ogni giornata riuscita sta tra il 72 e l'88% e ogni
   // giornata storta sotto il 60%. Le voci che vengono dai registri (controllo, palestra, calcio) e la notte non
   // si toccano.
-  balanceDays(data, start, histDays, failDays, r);
+  balanceDays(data, start, histDays, failDays);
 
   // ── Revisioni della domenica ──
   // Le ultime due settimane chiuse (la prima è rimasta senza revisione): l'ultima ha scelto lo scalino
@@ -465,7 +480,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
 /** Voci del diario che il bilanciamento può cambiare. */
 const BALANCE_KINDS = new Set<string>(['pasto', 'integratori', 'fisio', 'spesa', 'preparazione']);
 
-function balanceDays(data: AppData, start: ISODate, histDays: number, failDays: Set<number>, r: () => number) {
+function balanceDays(data: AppData, start: ISODate, histDays: number, failDays: Set<number>) {
   const summary = timelineModule?.adherenceSummary;
   const counts = timelineModule?.itemCounts;
   if (!summary || !counts) return;
@@ -473,6 +488,7 @@ function balanceDays(data: AppData, start: ISODate, histDays: number, failDays: 
     const iso = addDays(start, i);
     const log = data.dayLogs[iso];
     if (!log) continue;
+    const r = dayRng('bilancio', i);
     const items = itemsFor(iso, data);
     if (log.minimal) {
       // Giornata minima: le quattro voci fatte, la giornata vale.

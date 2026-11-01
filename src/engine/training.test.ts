@@ -9,10 +9,12 @@ import {
   e1rm,
   e1rmHistory,
   elbowFriendlyAlternatives,
+  elbowSwitchFor,
   gateForExercise,
   gateForLater,
   INTRO_REASON,
   introItem,
+  impactThresholdFor,
   introLevel,
   isImpactExercise,
   lastEntryFor,
@@ -26,6 +28,7 @@ import {
   personalRecords,
   physioCoverage,
   sessionDuration,
+  sessionFocus,
   tissueOf,
   plannedLoadRemaining,
   plannedSessionFor,
@@ -36,6 +39,7 @@ import {
   weeklyLoad,
   weeklyLoadSeries,
   workingWeight,
+  volumeFactor,
   workoutSetCount,
   workoutVolume,
 } from './training';
@@ -339,8 +343,22 @@ describe('e1rm (Epley) e record personali', () => {
   });
 
   it('somma volume e serie fatte', () => {
-    expect(workoutVolume(w1)).toBe(20 * 8 * 2 + 50 * 10);
+    // La panca si fa con due manubri: il carico segnato (per manubrio) conta due volte.
+    expect(workoutVolume(w1)).toBe(20 * 8 * 2 * 2 + 50 * 10);
     expect(workoutSetCount(w2)).toBe(4);
+  });
+
+  it('nel volume contano i due manubri e i due lati', () => {
+    expect(volumeFactor('panca-manubri-presa-neutra')).toBe(2);
+    expect(volumeFactor('lat-machine-presa-neutra')).toBe(1);
+    expect(volumeFactor('rematore-manubrio-una-mano', true)).toBe(2);
+    expect(volumeFactor('affondo-bulgaro-manubri', true)).toBe(4);
+    // Il lato si legge dalla seduta: il rematore della A è per lato.
+    const row = exLog('rematore-manubrio-una-mano', [[20, 10]]);
+    expect(workoutVolume({ exercises: [row], sessionId: 'A' })).toBe(400);
+    expect(workoutVolume({ exercises: [row] })).toBe(200);
+    // Una variante presa al posto dell'esercizio previsto non eredita il lato.
+    expect(workoutVolume({ exercises: [{ ...row, swappedFrom: 'pulley-basso-presa-neutra' }], sessionId: 'A' })).toBe(200);
   });
 });
 
@@ -462,9 +480,13 @@ describe('painGate', () => {
     const g = painGate(make([ci('2026-11-02', { Tibia: 1, Gomito: 4 })]), '2026-11-02');
     expect(g.level).toBe('mantieni');
     expect(g.elbow).toBe(true);
+    expect(g.elbowOver).toBe(true);
     expect(g.lowerLeg).toBe(false);
     expect(g.title).toBe('Gomito a 4 su 10, sopra soglia');
-    expect(g.message).toContain('presa neutra');
+    // Niente frase generica sulla presa neutra: le sedute sono già tutte a presa neutra.
+    expect(g.message).not.toContain('presa neutra');
+    expect(g.threshold).toBe(3);
+    expect(g.impactThreshold).toBe(2);
   });
 
   it('in peggioramento anche sotto soglia → mantieni', () => {
@@ -500,7 +522,10 @@ describe('painGate', () => {
     const trap = painFlagFor(EXERCISES['stacco-trap-bar'], gate);
     expect(trap).not.toBeNull();
     expect(trap!.alternatives.every((id) => EXERCISES[id].elbowFriendly)).toBe(true);
-    expect(painFlagFor(EXERCISES['panca-manubri-presa-neutra'], gate)).toBeNull();
+    expect(trap!.reason).toBe('Gomito a 5 su 10: meglio una variante adatta');
+    // La panca con i manubri passa alla chest press, e la chest press resta.
+    expect(painFlagFor(EXERCISES['panca-manubri-presa-neutra'], gate)?.alternatives[0]).toBe('chest-press-presa-neutra');
+    expect(painFlagFor(EXERCISES['chest-press-presa-neutra'], gate)).toBeNull();
     const jumps = painFlagFor(EXERCISES['balzi-del-pattinatore'], gate);
     expect(jumps?.alternatives).toContain('equilibrio-su-una-gamba-a-stella');
     expect(painFlagFor(EXERCISES['stacco-trap-bar'], painGate(make([]), '2026-11-02'))).toBeNull();
@@ -529,8 +554,11 @@ describe('painGate', () => {
   });
 
   it('il mattino dopo il calcio il dolore non deve salire', () => {
-    // Lunedì 2 novembre partita (dal piano), martedì mattina la tibia sale da 1 a 2.
-    const g = painGate(make([ci('2026-11-02', { Tibia: 1, Gomito: 1 }), ci('2026-11-03', { Tibia: 2, Gomito: 2 })]), '2026-11-03');
+    // Lunedì 2 novembre partita (dal piano), martedì mattina la tibia sale da 1 a 2. Senza seduta il titolo va
+    // sulla zona che blocca gli impatti; con la seduta A del martedì sul gomito (vedi sotto).
+    const checks = [ci('2026-11-02', { Tibia: 1, Gomito: 1 }), ci('2026-11-03', { Tibia: 2, Gomito: 2 })];
+    expect(painGate(make(checks), '2026-11-03').title).toBe('Gomito da 1 a 2 dopo il calcio');
+    const g = painGate(make(checks), '2026-11-03', { sessionId: null });
     expect(g.level).toBe('mantieni');
     const tibia = g.sites.find((s) => s.site === 'Tibia');
     expect(tibia).toMatchObject({ cause: 'giorno-dopo', before: 1, after: 'calcio', noImpact: true });
@@ -667,6 +695,143 @@ describe('painGate: cosa frena e cosa procede', () => {
   it('senza zona il motivo resta generico', () => {
     const last = exLog(bench.exerciseId, [[20, 10], [20, 10], [20, 10]]);
     expect(suggestNext(bench, last, { gate: 'mantieni' }).reason).toBe('Dolore sopra soglia: niente aumenti di carico oggi');
+  });
+});
+
+// ───────────────────────── Regola del dolore per seduta ─────────────────────────
+
+describe('painGate per seduta: la zona che la seduta carica', () => {
+  const ci = (date: string, pain: Record<string, number>): CheckIn => ({ date, pain });
+  const make = (checkIns: CheckIn[], plan = PLAN) => ({
+    plan,
+    profile: { painSites: ['Tibia', 'Gomito'] } as never,
+    checkIns: Object.fromEntries(checkIns.map((c) => [c.date, c])),
+  });
+  // Martedì 3 novembre: il piano prevede la seduta A.
+  const TUE = '2026-11-03';
+
+  it('la A carica il gomito, B e C la gamba', () => {
+    expect(sessionFocus(SESSIONS.A)).toBe('alto');
+    expect(sessionFocus(SESSIONS.B)).toBe('basso');
+    // La C è corpo intero (2 e 2): a pari merito conta la gamba.
+    expect(sessionFocus(SESSIONS.C)).toBe('basso');
+  });
+
+  it('gomito 5 e tibia 4 con la seduta A: titolo sul gomito, la panca passa alla chest press', () => {
+    const state = make([ci(TUE, { Gomito: 5, Tibia: 4 })]);
+    const g = painGate(state, TUE);
+    expect(g.sessionId).toBe('A');
+    expect(g.title).toMatch(/^Gomito a 5 su 10/);
+    expect(g.message).toContain('Le spinte con i manubri passano a chest press e distensioni ai cavi.');
+    expect(g.message).not.toContain('presa neutra');
+    // La A non ha balzi: la frase sugli impatti non serve qui (resta negli avvisi del calcio).
+    expect(g.message).not.toContain('balzi');
+    expect(g.impact).toBe(true);
+    // Tibia a 2 punti sopra la soglia degli impatti: rimando al fisioterapista.
+    expect(g.message).toContain('Tibia a 4\u00a0su\u00a010: se domani è ancora sopra soglia, scrivi al fisioterapista.');
+    expect(elbowSwitchFor(EXERCISES['panca-manubri-presa-neutra'], g)).toMatchObject({ to: 'chest-press-presa-neutra', reason: 'Gomito a 5 su 10: meglio una variante con meno presa' });
+    expect(elbowSwitchFor(EXERCISES['panca-inclinata-manubri-presa-neutra'], g)?.to).toBe('distensioni-ai-cavi-presa-neutra');
+    expect(elbowSwitchFor(EXERCISES['lat-machine-presa-neutra'], g)).toBeNull();
+  });
+
+  it('con la B e la C lo stesso controllo mette la tibia nel titolo', () => {
+    const state = make([ci(TUE, { Gomito: 5, Tibia: 4 })]);
+    const b = painGate(state, TUE, { sessionId: 'B' });
+    expect(b.title).toMatch(/^Tibia a 4 su 10/);
+    expect(b.message).toContain('Niente balzi e salti oggi.');
+    expect(b.message).toContain('Se domani è ancora sopra soglia, scrivi al fisioterapista.');
+    expect(b.message).not.toContain('Tibia a 4\u00a0su\u00a010:');
+    expect(painGate(state, TUE, { sessionId: 'C' }).title).toMatch(/^Tibia/);
+    // Senza seduta: prima la zona che blocca gli impatti, come nei giorni di calcio.
+    expect(painGate(state, TUE, { sessionId: null }).title).toMatch(/^Tibia/);
+  });
+
+  it('il livello più grave vince sulla seduta', () => {
+    const g = painGate(make([ci(TUE, { Gomito: 4, Tibia: 7 })]), TUE);
+    expect(g.level).toBe('riduci');
+    expect(g.title).toMatch(/^Tibia a 7 su 10/);
+    expect(g.message.endsWith('Scrivi al fisioterapista oggi.')).toBe(true);
+    expect(g.message).not.toContain('se domani');
+  });
+
+  it('con il gomito in aumento ma entro la soglia la panca resta', () => {
+    const g = painGate(make([ci('2026-10-31', { Gomito: 0 }), ci('2026-11-01', { Gomito: 0 }), ci(TUE, { Gomito: 2 })]), TUE);
+    expect(g.elbow).toBe(true);
+    expect(g.elbowOver).toBe(false);
+    expect(elbowSwitchFor(EXERCISES['panca-manubri-presa-neutra'], g)).toBeNull();
+    expect(g.message).not.toContain('chest press');
+  });
+
+  it('la soglia degli impatti del fisioterapista sostituisce min(soglia, 2)', () => {
+    expect(impactThresholdFor({ painThreshold: 3 })).toBe(2);
+    expect(impactThresholdFor({ painThreshold: 1 })).toBe(1);
+    expect(impactThresholdFor({ painThreshold: 3, impactThreshold: 3 })).toBe(3);
+    expect(impactThresholdFor({ painThreshold: 3, impactThreshold: 0 })).toBe(0);
+    // Più alta della soglia generale non ha effetto: sopra la soglia la regola ferma comunque gli impatti.
+    expect(impactThresholdFor({ painThreshold: 2, impactThreshold: 4 })).toBe(2);
+    // Tibia a 3, stabile, con il via libera del fisioterapista fino a 3: il calcio non si salta.
+    const ok = painGate(make([ci('2026-11-02', { Tibia: 3 })], { ...PLAN, impactThreshold: 3 }), '2026-11-02');
+    expect(ok.impact).toBe(false);
+    expect(ok.level).toBe('ok');
+    expect(ok.impactThreshold).toBe(3);
+    // Senza, la soglia degli impatti è 2 e gli impatti si fermano.
+    expect(painGate(make([ci('2026-11-02', { Tibia: 3 })]), '2026-11-02').impact).toBe(true);
+    // Una soglia più bassa vale anche nel testo.
+    const low = painGate(make([ci('2026-11-02', { Tibia: 2 })], { ...PLAN, impactThreshold: 1 }), '2026-11-02');
+    expect(low.impact).toBe(true);
+    expect(low.message).toContain('1 su 10');
+  });
+
+  it('solo impatti, molto sopra la loro soglia: rimando al fisioterapista', () => {
+    const g = painGate(make([ci('2026-11-02', { Tibia: 4 })], { ...PLAN, painThreshold: 5 }), '2026-11-02');
+    expect(g.level).toBe('ok');
+    expect(g.impact).toBe(true);
+    expect(g.message.endsWith('Se domani è ancora sopra soglia, scrivi al fisioterapista.')).toBe(true);
+    expect(painGate(make([ci('2026-11-02', { Tibia: 3 })], { ...PLAN, painThreshold: 5 }), '2026-11-02').message).not.toContain('fisioterapista');
+  });
+});
+
+describe('suggestNext: variante presa per il dolore', () => {
+  const press: SessionExercise = { ...bench, exerciseId: 'chest-press-presa-neutra', incrementKg: 2.5 };
+
+  it('carico ridotto del 10-20% sull’ultima volta con la variante', () => {
+    const last = exLog(press.exerciseId, [[40, 10], [40, 10], [40, 9]]);
+    const s = suggestNext(press, last, { switched: true, painNote: 'Gomito a 5 su 10', gate: 'mantieni' });
+    expect(s.kind).toBe('sostituisci');
+    expect(s.weightKg).toBe(35);
+    expect(s.reps).toBe(6);
+    expect(1 - s.weightKg / 40).toBeGreaterThanOrEqual(0.1);
+    expect(1 - s.weightKg / 40).toBeLessThanOrEqual(0.2);
+    expect(s.reason).toBe('Gomito a 5 su 10: carico −13% rispetto all’ultima volta');
+    expect(s.reason).not.toContain('ripetizione in più');
+  });
+
+  it('se anche l’ultima volta era una sostituzione il carico resta', () => {
+    const last = { ...exLog(press.exerciseId, [[35, 8], [35, 8], [35, 7]]), swappedFrom: 'panca-manubri-presa-neutra' };
+    const s = suggestNext(press, last, { switched: true, painNote: 'Gomito a 5 su 10' });
+    expect(s).toMatchObject({ kind: 'sostituisci', weightKg: 35, reason: 'Gomito a 5 su 10: stesso carico dell’ultima volta' });
+    expect(s.sets.map((x) => x.reps)).toEqual([8, 8, 7]);
+  });
+
+  it('la prima volta con la variante: una ripetizione di riserva in più', () => {
+    const s = suggestNext(press, null, { switched: true, painNote: 'Gomito a 5 su 10' });
+    expect(s).toMatchObject({ kind: 'sostituisci', weightKg: 0, rir: 3 });
+    expect(s.reason).toBe('Gomito a 5 su 10: scegli un carico che ti lasci 3 ripetizioni di riserva');
+  });
+});
+
+describe('catalogo: varianti per il gomito', () => {
+  it('ogni variante parte da una spinta con due manubri e porta a un esercizio adatto tra le alternative', () => {
+    const sources = Object.values(EXERCISES).filter((e) => e.elbowSwitch);
+    expect(sources.map((e) => e.id).sort()).toEqual(['panca-inclinata-manubri-presa-neutra', 'panca-manubri-presa-neutra']);
+    for (const e of sources) {
+      const to = EXERCISES[e.elbowSwitch!.to];
+      expect(e.category).toBe('spinta');
+      expect(e.equipment).toMatch(/\bManubri\b/);
+      expect(to?.elbowFriendly, e.id).toBe(true);
+      expect(to.equipment).not.toMatch(/manubr/i);
+      expect(e.alternatives).toContain(to.id);
+    }
   });
 });
 

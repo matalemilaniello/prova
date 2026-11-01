@@ -25,6 +25,7 @@ import {
   firstShopping,
   PRE_SHOPPING_DETAIL,
   supplementDoseDue,
+  setupTask,
   derivedStatus,
   effectiveStatus,
   isEveningFootball,
@@ -174,10 +175,35 @@ describe('timeline · giorni di calcio', () => {
     expect(byId(mon, 'fisio')).toBeUndefined();
     // Controllo, 5 pasti, integratori, partita, coprifuoco: 9 voci che contano.
     expect(adherenceSummary(MON, state).total).toBe(9);
-    // Al suo posto, una riga di configurazione che non conta, all'orario degli esercizi.
+    // Al suo posto, fuori dalla timeline, l'invito a inserirli: non conta e non ha orario.
     expect(physioSetupDue(MON, state)).toBe('15:30');
     expect(physioSetupDue(WED, state)).toBe('15:30');
     expect(physioSetupDue(THU, state)).toBeNull();
+    expect(buildDay(MON, state).some((i) => i.kind === 'fisio')).toBe(false);
+  });
+
+  it('la configurazione da completare è fuori dalla timeline, una cosa alla volta', () => {
+    // Lunedì: mancano esercizi del fisioterapista e dose della vitamina D; prima il fisioterapista.
+    expect(setupTask(MON, state)).toEqual({ kind: 'fisio' });
+    const withPhysio = makeState({
+      physio: {
+        exercises: [],
+        prescriptions: [{ exerciseId: 'x', sets: 3, repMin: 12, repMax: 15, unit: 'reps', restSec: 45, progression: 'nessuna' }],
+      },
+    });
+    // Con gli esercizi inseriti tocca alla dose; nessuna delle due diventa una voce.
+    expect(setupTask(MON, withPhysio)).toEqual({ kind: 'dose', names: ['Vitamina D'] });
+    expect(buildDay(MON, withPhysio).map((i) => i.id).some((id) => id.startsWith('setup'))).toBe(false);
+    // Mercoledì c'è il fisioterapista ma la dose si ricorda solo il lunedì; giovedì niente.
+    expect(setupTask(WED, state)).toEqual({ kind: 'fisio' });
+    expect(setupTask(WED, withPhysio)).toBeNull();
+    expect(setupTask(THU, state)).toBeNull();
+    // Nella giornata minima niente da completare.
+    const minimal = makeState({ dayLogs: { [MON]: log(MON, {}, { minimal: true }) } });
+    expect(setupTask(MON, minimal)).toBeNull();
+    // Il primo avvio di un giovedì ricorda la dose anche se non è lunedì.
+    const firstThu: AppData = { ...state, plan: { ...state.plan, firstUse: { date: THU, time: '15:30' } } };
+    expect(setupTask(THU, firstThu)).toEqual({ kind: 'dose', names: ['Vitamina D'] });
   });
 
   it('il fisio conta esercizi e minuti quando ci sono', () => {

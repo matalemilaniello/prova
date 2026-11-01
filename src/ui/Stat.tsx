@@ -45,7 +45,7 @@ export function Stat({ label, value, unit, format, decimals = 0, delta, caption,
         <span className={cn('t-num', VALUE_SIZE[size])} style={{ color: empty ? 'var(--ink-3)' : (color ?? 'var(--ink)') }}>
           {empty ? '–' : typeof value === 'number' ? <NumberTicker value={value} format={format} decimals={decimals} /> : value}
         </span>
-        {unit && !empty && <span className={cn('t-mono text-ink-2', size === 'lg' ? 'text-[0.9375rem]' : 'text-[0.75rem]')}>{unit}</span>}
+        {unit && !empty && <span className={cn('t-unit text-ink-2', size === 'lg' ? 'text-[0.9375rem]' : 'text-[0.75rem]')}>{unit}</span>}
       </span>
       {delta && (
         <span

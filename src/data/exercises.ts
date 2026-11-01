@@ -21,7 +21,10 @@
  *             impatti viene sostituito da un'alternativa senza volo;
  *   startKg · tre carichi di partenza tipici per la prima volta (totali per bilanciere, trap bar e macchine,
  *             per manubrio con i manubri), pensati per lasciare 2-3 ripetizioni di riserva a un adulto
- *             allenato ma senza programma. Sono un punto di partenza: il lettore li propone, l'utente sceglie.
+ *             allenato ma senza programma. Sono un punto di partenza: il lettore li propone, l'utente sceglie;
+ *   elbowSwitch · con il gomito sopra soglia l'esercizio lascia il posto a questa variante, che chiede meno
+ *             presa e meno stabilizzazione al polso (la panca con i manubri passa alla macchina o ai cavi).
+ *             `incrementKg` è il passo del carico sulla variante, se diverso da quello della seduta.
  */
 import type { Exercise } from '../domain/types';
 
@@ -31,6 +34,8 @@ export interface CatalogExercise extends Exercise {
   impact?: boolean;
   /** Carichi di partenza tipici in kg (tre valori crescenti) per la prima volta con l'esercizio. */
   startKg?: readonly number[];
+  /** Variante che prende il posto dell'esercizio con il gomito sopra soglia (meno presa sui manubri). */
+  elbowSwitch?: { to: string; incrementKg?: number };
 }
 
 /** Catalogo in ordine di categoria (riscaldamento, mobilità, spinte, tirate, gambe, core, prevenzione). */
@@ -263,6 +268,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     ],
     elbowFriendly: true,
     startKg: [12, 16, 20],
+    elbowSwitch: { to: 'chest-press-presa-neutra', incrementKg: 2.5 },
     alternatives: ['chest-press-presa-neutra', 'distensioni-ai-cavi-presa-neutra', 'piegamenti-su-impugnature'],
     videoQuery: 'panca piana manubri presa neutra tecnica',
   },
@@ -278,6 +284,8 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     ],
     elbowFriendly: true,
     startKg: [10, 14, 18],
+    // Al posto della panca inclinata i cavi, non una seconda volta la chest press già al posto della panca piana.
+    elbowSwitch: { to: 'distensioni-ai-cavi-presa-neutra', incrementKg: 2.5 },
     alternatives: ['distensioni-ai-cavi-presa-neutra', 'lento-manubri-presa-neutra', 'panca-manubri-presa-neutra'],
     videoQuery: 'panca inclinata manubri presa neutra 30 gradi',
   },
@@ -471,7 +479,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     cues: [
       'Collo del piede dietro sulla panca, passo lungo quanto basta',
       'Scendi in verticale finché il ginocchio dietro sfiora terra',
-      "Busto un po' in avanti, spingi con il tallone della gamba davanti",
+      "Busto un po’ in avanti, spingi con il tallone della gamba davanti",
     ],
     elbowFriendly: true,
     startKg: [6, 10, 14],
@@ -588,7 +596,7 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
     category: 'gambe',
     equipment: 'Macchina leg curl da seduto',
     cues: [
-      "Ginocchio allineato al perno della macchina, busto un po' in avanti",
+      "Ginocchio allineato al perno della macchina, busto un po’ in avanti",
       'Piega fino in fondo e tieni un secondo',
       'Torna in 3 secondi fino a gamba quasi tesa',
     ],
@@ -927,4 +935,9 @@ export const EXERCISES: Record<string, CatalogExercise> = Object.fromEntries(EXE
 /** Carichi di partenza tipici di un esercizio del catalogo (vuoto se non previsti). */
 export function startLoads(exercise: Exercise | undefined): readonly number[] {
   return (exercise as CatalogExercise | undefined)?.startKg ?? [];
+}
+
+/** Variante per il gomito sopra soglia (`elbowSwitch`), se l'esercizio del catalogo ne ha una. */
+export function elbowSwitchOf(exercise: Exercise | undefined): CatalogExercise['elbowSwitch'] {
+  return (exercise as CatalogExercise | undefined)?.elbowSwitch;
 }

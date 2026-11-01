@@ -134,7 +134,7 @@ export default function FootballSheet({ date, kind, itemId, onClose }: { date: I
             </div>
             <p className="flex items-baseline gap-1">
               {rpe ? <NumberTicker value={load} className="t-num text-[2rem] text-ink" /> : <span className="t-num text-[2rem] text-ink-3">–</span>}
-              <span className="t-mono text-ink-3">UA</span>
+              <span className="t-unit text-ink-3">UA</span>
             </p>
           </div>
         </Card>

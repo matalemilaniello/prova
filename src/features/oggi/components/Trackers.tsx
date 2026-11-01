@@ -113,7 +113,7 @@ function RowShell({ id, icon: Icon, tone, label, title, visual, count, countLabe
             <Icon size={19} strokeWidth={2.2} />
           </span>
           <span aria-hidden className="min-w-0 flex-1">
-            {label && <span className={cn(BOARD_LABEL, 'mb-1 block text-[0.6875rem] text-accent-ink')}>{label}</span>}
+            {label && <span className={cn(BOARD_LABEL, 'mb-1 block text-[0.6875rem] text-ink-3')}>{label}</span>}
             <span className="t-callout block truncate font-semibold text-ink">{title}</span>
             <span className="mt-1.5 flex items-center gap-3">
               <span className="flex min-w-0 flex-1 items-center">{visual}</span>

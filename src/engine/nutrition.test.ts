@@ -1,16 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { DayType, Food, IngredientLine, Plan, Recipe } from '../domain/types';
-import { defaultPlan } from '../data/defaults';
+import type { CheckIn, DayType, Food, IngredientLine, Plan, PortionUnit, Profile, Recipe } from '../domain/types';
+import { DEFAULT_PROFILE, defaultPlan } from '../data/defaults';
+import { FOODS } from '../data/foods';
+import { RECIPES } from '../data/recipes';
 import { addDays } from './dates';
+import { isMatchDay, isMatchEve } from './menu';
 import {
   carbFactor,
   dayCarbScale,
   dayNutrition,
   dayNutritionDetail,
+  dayTargetFor,
   fiberRampFactor,
   fiberRampWeek,
   formatPortion,
+  lineQty,
+  matchCarbs,
   planCarbScale,
+  PORTION_TOLERANCE,
+  portionPhrase,
+  referenceWeightKg,
   totalCarbFactor,
   lineGrams,
   portionParts,
@@ -19,7 +28,9 @@ import {
   recipeVegPortions,
   roundGrams,
   roundHalf,
+  UNIT_WORDS,
 } from './nutrition';
+import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
 
 const foods: Record<string, Food> = {
   riso: {
@@ -175,8 +186,8 @@ describe('porzioni a occhio', () => {
 
   it('formatPortion adatta la porzione al tipo di giorno', () => {
     const l = line({ foodId: 'riso', qty: 1, unit: 'pugno', carbScaled: true });
-    expect(formatPortion(l, 'calcio', foods)).toBe('1 pugno e mezzo · ≈ 190 g');
-    expect(formatPortion(l, 'riposo', foods)).toBe('1 pugno · ≈ 115 g');
+    expect(formatPortion(l, 'calcio', foods)).toBe('1 pugno abbondante · ≈ 190 g');
+    expect(formatPortion(l, 'riposo', foods)).toBe('quasi 1 pugno · ≈ 115 g');
     const f = line({ foodId: 'pane', qty: 2, unit: 'fetta', carbScaled: true });
     expect(formatPortion(f, 'calcio', foods)).toBe('2 fette e mezza · ≈ 100 g');
   });
@@ -189,6 +200,70 @@ describe('porzioni a occhio', () => {
 
   it('senza grammi noti mostra solo la porzione', () => {
     expect(formatPortion(line({ foodId: 'pollo', qty: 1, unit: 'pugno' }), 'palestra', foods)).toBe('1 pugno');
+  });
+
+  it('porzione a parole con "abbondante" e "quasi" quando la mezza unità non torna con i grammi', () => {
+    expect(portionPhrase(1.5, 'fetta')).toBe('1 fetta e mezza');
+    expect(portionPhrase(1.05, 'fetta')).toBe('1 fetta');
+    expect(portionPhrase(1.25, 'fetta')).toBe('1 fetta abbondante');
+    expect(portionPhrase(1.35, 'fetta')).toBe('quasi 1 fetta e mezza');
+    expect(portionPhrase(1.8, 'fetta')).toBe('quasi 2 fette');
+    expect(portionPhrase(2.25, 'fetta')).toBe('2 fette abbondanti');
+    expect(portionPhrase(0.6, 'pugno')).toBe('mezzo pugno abbondante');
+    expect(portionPhrase(0.42, 'pugno')).toBe('quasi mezzo pugno');
+    expect(portionPhrase(0.2, 'pugno')).toBe('meno di mezzo pugno');
+    // Il caso della vigilia: 1,25 fette da 40 g sono 50 g, non "1 fetta e mezza".
+    expect(formatPortion(line({ foodId: 'pane', qty: 1, unit: 'fetta', carbScaled: true }), 'calcio', foods)).toBe(
+      '1 fetta abbondante · ≈ 50 g',
+    );
+  });
+});
+
+/** Quantità e scarto ammesso che una porzione a parole promette ("quasi 1 fetta e mezza" → 1,5, sotto, 0,25). */
+function promised(text: string, unit: Exclude<PortionUnit, 'g' | 'ml'>): { ref: number; side: 'eq' | 'su' | 'giu' | 'sotto' } {
+  const w = UNIT_WORDS[unit];
+  let t = text;
+  let side: 'eq' | 'su' | 'giu' | 'sotto' = 'eq';
+  if (t.startsWith('quasi ')) [side, t] = ['giu', t.slice(6)];
+  else if (t.startsWith('meno di ')) [side, t] = ['sotto', t.slice(8)];
+  if (/ abbondant[ei]$/.test(t)) [side, t] = ['su', t.replace(/ abbondant[ei]$/, '')];
+  const mezzo = w.fem ? 'mezza' : 'mezzo';
+  if (t === `${mezzo} ${w.one}`) return { ref: 0.5, side };
+  const m = t.match(new RegExp(`^(\\d+) (?:${w.one}|${w.many})( e ${mezzo})?$`));
+  if (!m) throw new Error(`porzione non riconosciuta: ${text}`);
+  return { ref: Number(m[1]) + (m[2] ? 0.5 : 0), side };
+}
+
+describe('porzioni coerenti con i grammi in tutte le ricette', () => {
+  const types: DayType[] = ['calcio', 'palestra', 'leggero', 'riposo'];
+  // Scale del piano tipiche: obiettivi più bassi o più alti di quelli predefiniti, partita e vigilia.
+  const scales = [0.8, 0.9, 1, 1.1, 1.2, 1.35];
+
+  it('la porzione detta a parole sta entro il 10% dei grammi, o lo dice con "abbondante" o "quasi"', () => {
+    let checked = 0;
+    for (const r of Object.values(RECIPES)) {
+      for (const l of r.ingredients) {
+        if (l.unit === 'g' || l.unit === 'ml') continue;
+        const per = FOODS[l.foodId]?.unitGrams[l.unit];
+        if (!per) continue;
+        for (const t of types) {
+          for (const k of l.carbScaled ? scales : [1]) {
+            const q = lineQty(l, t, k);
+            const grams = lineGrams(l, t, FOODS, k);
+            expect(q * per).toBeCloseTo(grams, 6);
+            const { portion } = portionParts(l, t, FOODS, k);
+            const { ref, side } = promised(portion, l.unit);
+            const where = `${r.id} · ${l.foodId} · ${t} × ${k}: ${portion} per ${q.toFixed(2)}`;
+            if (side === 'eq') expect(Math.abs(ref - q) / q, where).toBeLessThanOrEqual(PORTION_TOLERANCE + 1e-9);
+            else if (side === 'su') expect(q > ref && q - ref <= 0.25, where).toBe(true);
+            else if (side === 'giu') expect(q < ref && ref - q <= 0.25, where).toBe(true);
+            else expect(q < ref, where).toBe(true);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(1000);
   });
 });
 
@@ -203,14 +278,21 @@ describe('le porzioni seguono gli obiettivi del piano', () => {
   });
   const days = Array.from({ length: 14 }, (_, i) => addDays(start, i));
 
-  it('con gli obiettivi predefiniti la scala è 1', () => {
-    for (const d of days) expect(dayCarbScale(d, { plan: base, dayLogs: {} })).toBe(1);
+  const match = (d: string) => isMatchDay(d, base) || isMatchEve(d, base);
+
+  it('con gli obiettivi predefiniti la scala è 1 (partita e vigilia a parte)', () => {
+    for (const d of days) {
+      if (match(d)) expect(dayCarbScale(d, { plan: base, dayLogs: {} })).toBeGreaterThan(1);
+      else expect(dayCarbScale(d, { plan: base, dayLogs: {} })).toBe(1);
+    }
     expect(planCarbScale('palestra', base)).toBe(1);
   });
 
   it('+150 kcal nel piano → circa +150 kcal nel piatto, ogni giorno delle due settimane', () => {
     const plus = withDelta(150);
     for (const d of days) {
+      // Partita e vigilia restano al minimo di carboidrati, che è già sopra l'obiettivo +150 kcal.
+      if (match(d)) continue;
       const before = dayNutrition(d, { plan: base, dayLogs: {} }).kcal;
       const after = dayNutrition(d, { plan: plus, dayLogs: {} }).kcal;
       expect(after - before).toBeGreaterThan(120);
@@ -253,5 +335,81 @@ describe('le porzioni seguono gli obiettivi del piano', () => {
     // I giorni di avvio prima del lunedì di inizio sono già nella prima settimana; prima ancora, niente avvio.
     expect(fiberRampWeek(addDays(start, -1), base)).toBe(1);
     expect(fiberRampWeek(addDays(start, -8), base)).toBeNull();
+  });
+});
+
+describe('partita e vigilia: almeno 6 g/kg di carboidrati', () => {
+  const start = '2026-11-09'; // lunedì: partita (settimana predefinita)
+  const monday = start;
+  const sunday = addDays(start, 6); // vigilia della partita del lunedì dopo
+  const wednesday = addDays(start, 2); // calcetto
+  const thursday = addDays(start, 3); // allenamento
+  // Obiettivi di un profilo generico da 72 kg, come li calcola il benvenuto: calcio 2.700 kcal, 360 g di carboidrati.
+  const plan: Plan = {
+    ...defaultPlan(start),
+    targets: {
+      calcio: { kcal: 2700, proteinG: 135, fatG: 75, carbG: 360, fiberG: 35 },
+      palestra: { kcal: 2500, proteinG: 135, fatG: 75, carbG: 310, fiberG: 35 },
+      leggero: { kcal: 2350, proteinG: 135, fatG: 75, carbG: 275, fiberG: 35 },
+      riposo: { kcal: 2200, proteinG: 135, fatG: 75, carbG: 235, fiberG: 35 },
+    },
+  };
+  const weighIn = (date: string, weightKg: number): CheckIn => ({ date, weightKg, pain: {} });
+  const profile: Profile = { ...DEFAULT_PROFILE, startWeightKg: 74 };
+  const state = { plan, dayLogs: {}, profile, checkIns: { '2026-11-07': weighIn('2026-11-07', 72) } };
+
+  it('il minimo vale il giorno della partita e la vigilia, non per calcetto e allenamento', () => {
+    expect(matchCarbs(monday, state)?.when).toBe('partita');
+    expect(matchCarbs(sunday, state)?.when).toBe('vigilia');
+    expect(matchCarbs(wednesday, state)).toBeNull();
+    expect(matchCarbs(thursday, state)).toBeNull();
+    expect(dayTargetFor(wednesday, state)).toEqual(plan.targets.calcio);
+    expect(dayTargetFor(thursday, state)).toEqual(plan.targets.calcio);
+    expect(dayCarbScale(wednesday, state)).toBe(dayCarbScale(wednesday, { plan, dayLogs: {} }));
+  });
+
+  it('obiettivo della data: 6 g/kg di carboidrati, la differenza in kcal', () => {
+    const m = matchCarbs(monday, state)!;
+    expect(m.gPerKg).toBe(MATCH_CARB_G_PER_KG);
+    expect(m.floorG).toBe(430); // 6 × 72 = 432, arrotondato a 5 g
+    expect(m.extraG).toBe(70);
+    expect(m.extraKcal).toBe(280);
+    const t = dayTargetFor(monday, state);
+    expect(t.carbG).toBe(430);
+    expect(t.kcal).toBe(2980);
+    expect(t.proteinG).toBe(plan.targets.calcio.proteinG);
+    expect(t.fatG).toBe(plan.targets.calcio.fatG);
+    expect(dayTargetFor(sunday, state).carbG).toBe(430);
+  });
+
+  it('nel piatto ci sono davvero 6 g/kg: i carboidrati del menù previsto arrivano al minimo', () => {
+    for (const d of [monday, sunday]) {
+      const det = dayNutritionDetail(d, state);
+      expect(det.target.carbG).toBe(430);
+      expect(det.matchCarbs?.floorG).toBe(430);
+      expect(det.total.carbG).toBeGreaterThanOrEqual(429);
+      expect(det.total.carbG).toBeLessThan(436);
+      // Le kcal restano vicine all'obiettivo della data.
+      expect(Math.abs(det.total.kcal - det.target.kcal) / det.target.kcal).toBeLessThan(0.1);
+    }
+  });
+
+  it('peso di riferimento: media dei 7 giorni fino all’ultima pesata, poi profilo, poi proteine del piano', () => {
+    const checkIns = {
+      '2026-10-20': weighIn('2026-10-20', 80),
+      '2026-11-02': weighIn('2026-11-02', 71),
+      '2026-11-06': weighIn('2026-11-06', 73),
+      '2026-11-20': weighIn('2026-11-20', 60),
+    };
+    expect(referenceWeightKg(monday, { plan, dayLogs: {}, checkIns })).toBeCloseTo(72, 6);
+    expect(referenceWeightKg(monday, { plan, dayLogs: {}, checkIns: {}, profile })).toBe(74);
+    expect(referenceWeightKg(monday, { plan, dayLogs: {} })).toBeCloseTo(135 / PROTEIN_G_PER_KG, 6);
+  });
+
+  it('un obiettivo già sopra il minimo non cambia', () => {
+    const high: Plan = { ...plan, targets: { ...plan.targets, calcio: { ...plan.targets.calcio, carbG: 450, kcal: 3060 } } };
+    const s = { ...state, plan: high };
+    expect(matchCarbs(monday, s)?.extraG).toBe(0);
+    expect(dayTargetFor(monday, s)).toEqual(high.targets.calcio);
   });
 });

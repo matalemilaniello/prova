@@ -206,7 +206,8 @@ export default function KitScreen() {
           </p>
           <div className="flex items-baseline gap-4">
             <span className="t-num text-[3rem] text-accent-ink">2.600</span>
-            <span className="t-mono whitespace-nowrap text-ink-2">kcal · 07:30 · 6&nbsp;h&nbsp;40</span>
+            <span className="t-unit text-ink-2">kcal</span>
+            <span className="t-mono whitespace-nowrap text-ink-2">07:30 · 23:45</span>
           </div>
         </Card>
       </Block>
@@ -341,10 +342,10 @@ export default function KitScreen() {
         </Card>
       </Block>
 
-      <Block title="Avanzamento" note="Tocca l’anello per farlo avanzare: la lampada sulla punta segue l’arco, a 100% si chiude con un bagliore.">
+      <Block title="Avanzamento" note="Tocca l’anello per farlo avanzare: la lampada sulla punta segue l’arco, la tacca segna il 70%, a 100% si chiude con un bagliore.">
         <Card padding="lg" className="flex items-center justify-around gap-2">
           <button type="button" aria-label="Avanza l’anello" onClick={() => setRing((r) => (r >= 1 ? 0.2 : Math.min(1, r + 0.14)))}>
-            <ProgressRing value={ring} size={148} stroke={11} label="Giornata" tipLight>
+            <ProgressRing value={ring} size={148} stroke={11} label="Giornata, riuscita dal 70%" tipLight marker={0.7} markerSurface="var(--card)">
               <span className="t-num text-[2.5rem]">{Math.round(ring * 100)}</span>
               <span className="t-caption -mt-0.5 text-ink-2">per cento</span>
             </ProgressRing>
@@ -393,7 +394,7 @@ export default function KitScreen() {
         <Card className="flex items-center justify-between">
           <div className="flex items-baseline gap-1.5">
             <NumberTicker value={ticker} className="t-num text-[2.75rem]" />
-            <span className="t-mono text-ink-2">kcal</span>
+            <span className="t-unit text-ink-2">kcal</span>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={() => setTicker((t) => Math.max(0, t - 320))}>

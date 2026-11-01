@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { Card, EmptyState, cn, type IconLike } from '../../../ui';
+import { Card, Disclosure, EmptyState, cn, type IconLike } from '../../../ui';
 
 export interface ChartCardProps {
   title: string;
@@ -13,16 +13,27 @@ export interface ChartCardProps {
   /** Fascia tra intestazione e grafico (es. un controllo segmentato). */
   toolbar?: ReactNode;
   legend?: ReactNode;
-  /** Nota in fondo, sotto la legenda. */
+  /**
+   * La legenda è una chiave di lettura e non un dato: sta dentro "Come si legge" insieme alla nota, non sotto gli
+   * occhi. Lasciala visibile (default) solo quando porta numeri, come le medie per zona del dolore.
+   */
+  legendBehind?: boolean;
+  /** Come si legge il grafico: sta dietro un tocco ("Come si legge"), chiusa di base. */
   footnote?: ReactNode;
   empty?: { icon?: IconLike; title: string; text?: ReactNode; action?: ReactNode } | null;
   className?: string;
   children?: ReactNode;
 }
 
-/** Card di un grafico: titolo, valore che risponde alla lettura, grafico a tutta larghezza, legenda. */
-export function ChartCard({ title, subtitle, value, caption, badge, toolbar, legend, footnote, empty, className, children }: ChartCardProps) {
+/**
+ * Card di un grafico: titolo, valore che risponde alla lettura, grafico a tutta larghezza, legenda. La spiegazione
+ * non resta sotto gli occhi: si apre con "Come si legge", come nelle app per la salute che mostrano il dato.
+ */
+export function ChartCard({ title, subtitle, value, caption, badge, toolbar, legend, legendBehind, footnote, empty, className, children }: ChartCardProps) {
   const id = useId();
+  const shownLegend = legendBehind ? null : legend;
+  const key = legendBehind && legend ? legend : null;
+  const behind = key || footnote;
   return (
     <Card as="section" padding="none" aria-labelledby={id} className={cn('overflow-hidden', className)}>
       <header className="flex items-start justify-between gap-3 px-4 pt-4">
@@ -48,13 +59,27 @@ export function ChartCard({ title, subtitle, value, caption, badge, toolbar, leg
       ) : (
         <>
           <div className="px-2 pt-3">{children}</div>
-          {(legend || footnote) && (
-            <footer className="flex flex-col gap-2 px-4 pb-4 pt-2">
-              {legend && <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">{legend}</div>}
-              {footnote && <p className="t-caption text-ink-3">{footnote}</p>}
+          {(shownLegend || behind) && (
+            <footer className={cn('flex flex-col gap-1 px-4 pt-2', behind ? 'pb-2' : 'pb-4')}>
+              {shownLegend && <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">{shownLegend}</div>}
+              {behind && (
+                <Disclosure
+                  variant="inline"
+                  tone="quiet"
+                  title={
+                    <>
+                      Come si legge<span className="sr-only">: {title.toLowerCase()}</span>
+                    </>
+                  }
+                  contentClassName="pb-2"
+                >
+                  {key && <span className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">{key}</span>}
+                  {footnote}
+                </Disclosure>
+              )}
             </footer>
           )}
-          {!legend && !footnote && <div className="h-3" />}
+          {!shownLegend && !behind && <div className="h-3" />}
         </>
       )}
     </Card>
@@ -68,7 +93,7 @@ export function BigValue({ value, unit, color }: { value: string; unit?: string;
       <span className="t-num text-[1.75rem] leading-none" style={{ color: color ?? 'var(--ink)' }}>
         {value}
       </span>
-      {unit && <span className="t-mono text-[0.75rem] text-ink-2">{unit}</span>}
+      {unit && <span className="text-[0.8125rem] font-medium text-ink-2">{unit}</span>}
     </>
   );
 }
@@ -114,7 +139,7 @@ export function HoursValue({ hours, size = 'text-[1.75rem]' }: { hours: number; 
     <span className="inline-flex items-baseline gap-1">
       <span className="sr-only">{m > 0 ? `${h} ore e ${m} minuti` : `${h} ore`}</span>
       <span aria-hidden className={cn('t-num leading-none text-ink', size)}>{h}</span>
-      <span aria-hidden className="t-mono text-[0.75rem] text-ink-2">h</span>
+      <span aria-hidden className="text-[0.8125rem] font-medium text-ink-2">h</span>
       {m > 0 && (
         <span aria-hidden className={cn('t-num leading-none text-ink', size)}>
           {String(m).padStart(2, '0')}

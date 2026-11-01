@@ -15,16 +15,12 @@ import { EXERCISES } from '../../data/exercises';
 import { SESSIONS } from '../../data/sessions';
 import { weekStart } from '../../engine/dates';
 import {
-  gateForExercise,
   introLevel,
   lastEntryFor,
   loadStatus,
   painFlagFor,
   painGate,
-  painNoteForExercise,
   plannedSessionFor,
-  recentLogsFor,
-  suggestNext,
   workoutVolume,
   type LoadStatus,
   type PersonalRecord,
@@ -36,7 +32,7 @@ import { usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, EmptyState, FullScreenModal, IconButton, spring } from '../../ui';
 import { draftDoneSets, useSessionDraft, type SessionDraft } from './draft';
-import { buildPlayerPlan, exerciseFor, isBodyweight, kgLabel, plannedSets, sessionTone, strengthRecords, type PlayerItem, type PlayerStep } from './lib';
+import { buildPlayerPlan, exerciseFor, isBodyweight, kgLabel, plannedSets, sessionTone, strengthRecords, suggestionForItem, type PlayerItem, type PlayerStep } from './lib';
 import { ExerciseStep } from './player/ExerciseStep';
 import { FinishStep } from './player/FinishStep';
 import { IntroStep } from './player/IntroStep';
@@ -136,9 +132,10 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   // dolore mentre si guarda il riepilogo.
   const [historyAtOpen] = useState(history);
   const [intro] = useState(() => introLevel(session.id, history));
+  // La regola letta per questa seduta: il titolo va sulla zona che la seduta carica (il gomito nella A).
   const gate = useMemo(
-    () => painGate({ plan, checkIns, profile, workoutLogs: historyAtOpen, footballLogs }, date),
-    [plan, checkIns, profile, historyAtOpen, footballLogs, date],
+    () => painGate({ plan, checkIns, profile, workoutLogs: historyAtOpen, footballLogs }, date, { sessionId: session.id }),
+    [plan, checkIns, profile, historyAtOpen, footballLogs, date, session.id],
   );
   const pplan = useMemo(() => buildPlayerPlan(session, physio, plan, date, { gate, intro }), [session, physio, plan, date, gate, intro]);
   const catalog = useMemo(() => ({ ...EXERCISES, ...Object.fromEntries(physio.exercises.map((e) => [e.id, e])) }), [physio.exercises]);
@@ -191,16 +188,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
 
   // Suggerimento per un esercizio: le ultime due esecuzioni servono a riconoscere uno stallo.
   const suggestFor = useCallback(
-    (it: PlayerItem, id: string): Suggestion => {
-      const ex = catalog[id];
-      const [last = null, previous = null] = recentLogsFor(id, history, 2);
-      return suggestNext({ ...it.base, exerciseId: id }, last, {
-        gate: gateForExercise(ex, gate),
-        painNote: painNoteForExercise(ex, gate),
-        intro: !it.physio && Boolean(pplan.intro),
-        previous,
-      });
-    },
+    (it: PlayerItem, id: string): Suggestion => suggestionForItem(it, { history, gate, intro: Boolean(pplan.intro), catalog, exerciseId: id }),
     [catalog, gate, history, pplan.intro],
   );
 
@@ -212,7 +200,9 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
     (it: PlayerItem, exerciseId = it.item.exerciseId): ExerciseLog => {
       // `suggestions` segue l'esercizio attuale: tornando a quello previsto da un'alternativa va ricalcolato.
       const s = (exerciseId === currentIdOf(it) ? suggestions[it.key] : undefined) ?? suggestFor(it, exerciseId);
-      const swappedFrom = exerciseId !== it.item.exerciseId ? it.item.exerciseId : it.replacedFrom;
+      // L'esercizio previsto dalla seduta è quello prima di una sostituzione automatica per il dolore.
+      const planned = it.replacedFrom ?? it.item.exerciseId;
+      const swappedFrom = exerciseId !== planned ? planned : undefined;
       return {
         exerciseId,
         sets: s.sets.map((t) => ({ weightKg: t.weightKg, reps: t.reps, done: false })),
@@ -331,7 +321,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       setEditIndex(null);
       setSheet(null);
       haptic('success');
-      toast(exerciseId === it.item.exerciseId ? "Tornato all’esercizio previsto" : `Sostituito con ${catalog[exerciseId]?.name ?? "l’alternativa"}`, 'good');
+      toast(exerciseId === (it.replacedFrom ?? it.item.exerciseId) ? "Tornato all’esercizio previsto" : `Sostituito con ${catalog[exerciseId]?.name ?? "l’alternativa"}`, 'good');
     },
     [writeLog, initialLog, toast, catalog],
   );
@@ -686,7 +676,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           onNotes={setNotes}
           setsDone={doneSets}
           setsPlanned={totalPlanned}
-          volume={workoutVolume({ exercises: draftLogs })}
+          volume={workoutVolume({ exercises: draftLogs, sessionId: session.id })}
           weekLoad={weekLoadBefore.load}
           average={weekLoadBefore.average}
         />
@@ -730,11 +720,14 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
         <AlternativesSheet
           open={sheet === 'alt'}
           onClose={() => setSheet(null)}
-          planned={current.exercise}
+          planned={current.replacedFrom ? catalog[current.replacedFrom] : current.exercise}
           currentId={currentLog?.exerciseId ?? current.item.exerciseId}
           catalog={catalog}
           history={history}
-          recommended={painFlagFor(catalog[currentLog?.exerciseId ?? current.item.exerciseId], gate, catalog)?.alternatives ?? painFlagFor(current.exercise, gate, catalog)?.alternatives ?? []}
+          recommended={
+            (painFlagFor(catalog[currentLog?.exerciseId ?? current.item.exerciseId], gate, catalog) ??
+              painFlagFor(catalog[current.replacedFrom ?? current.item.exerciseId], gate, catalog))?.alternatives ?? []
+          }
           doneSets={currentLog?.sets.filter((s) => s.done).length ?? 0}
           onPick={(id) => swapTo(current, id)}
         />

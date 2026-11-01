@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { Goal } from '../../domain/types';
-import { MIN_WEIGH_INS, type PeriodStats } from '../../engine/review';
+import { MIN_NUTRITION_DAYS, MIN_WEIGH_INS, type PeriodStats } from '../../engine/review';
 import { fmtHours, plural } from '../../lib/format';
 import { Card, Stat, type StatDelta } from '../../ui';
 import { weightTone } from './charts/WeightChart';
@@ -60,7 +60,9 @@ export function KeyNumbers({ stats, goal, adherenceReady = true }: { stats: Peri
       ? delta(adh - adhPrev, Math.abs(adh - adhPrev) === 1 ? 'punto' : 'punti', 0, (v) => (v >= 3 ? 'good' : v <= -3 ? 'bad' : 'neutral'))
       : null;
 
-  const fiber = stats.fiberAvgG;
+  // Fibre stimate solo da 3 giorni con almeno 3 pasti su 5 segnati: mezza giornata non è una media.
+  const fiberReady = stats.nutritionDays >= MIN_NUTRITION_DAYS;
+  const fiber = fiberReady ? stats.fiberAvgG : null;
   const target = stats.fiberTargetG;
   // Stessa regola della proposta della revisione: contro il menù di avvio nei primi giorni.
   const fiberLow = stats.fiberLow;
@@ -103,9 +105,15 @@ export function KeyNumbers({ stats, goal, adherenceReady = true }: { stats: Peri
       label="Fibre stimate"
       value={fiber !== null ? Math.round(fiber) : null}
       unit="g"
-      color={fiberLow ? 'var(--warn-ink)' : undefined}
+      color={fiberLow && fiberReady ? 'var(--warn-ink)' : undefined}
       delta={fDelta ?? undefined}
-      caption={fDelta || fiber === null || stats.prevFiberAvgG === null ? `obiettivo ${target} g` : <Stable>stabili, obiettivo {target} g</Stable>}
+      caption={
+        !fiberReady
+          ? `servono ${MIN_NUTRITION_DAYS} giorni di pasti segnati`
+          : fDelta || fiber === null || stats.prevFiberAvgG === null
+            ? `obiettivo ${target} g`
+            : <Stable>stabili, obiettivo {target} g</Stable>
+      }
     />,
   ];
 

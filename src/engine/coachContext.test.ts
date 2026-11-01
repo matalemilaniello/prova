@@ -109,7 +109,7 @@ describe('zone e priorità dal profilo', () => {
     const ctx = buildCoachContext(s, NOW);
     expect(ctx).toContain('Limitazioni del piano: gomito monitorato: nelle spinte manubri a presa neutra');
     expect(ctx).toMatch(/tibia: balzi e salti solo con dolore fino a \d su 10/);
-    expect(ctx).toContain('Limitazioni di oggi: niente balzi né salti; spinte solo con manubri a presa neutra.');
+    expect(ctx).toContain('Limitazioni di oggi: niente balzi né salti; panca con i manubri sostituita da chest press e cavi.');
   });
 
   it('le priorità seguono l’obiettivo', () => {
@@ -117,7 +117,7 @@ describe('zone e priorità dal profilo', () => {
     expect(buildCoachContext(s, NOW)).toContain("Priorità, in quest’ordine: salute");
     s.profile = { ...s.profile, goal: 'dimagrimento' };
     expect(buildCoachContext(s, NOW)).toContain('calo di grasso graduale');
-    expect(COACH_SYSTEM_PROMPT).not.toContain("un po' di muscolo");
+    expect(COACH_SYSTEM_PROMPT).not.toContain("un po’ di muscolo");
   });
 });
 
@@ -148,5 +148,17 @@ describe('riassunto per la chat', () => {
     expect(s.checkInDone).toBe(false);
     expect(s.sleepH).toBeNull();
     expect(s.pain).toBeNull();
+  });
+});
+
+describe('piano B al bar nel contesto', () => {
+  it('un pasto preso al bar porta i valori dell’ordine', () => {
+    const s = demo();
+    const log = s.dayLogs[TODAY];
+    log.status['pasto:pranzo'] = 'sostituito';
+    log.notes['pasto:pranzo'] = 'Al bar: panino con bresaola, rucola e grana';
+    log.barMeals = { pranzo: { label: 'Panino con bresaola, rucola e grana', nutrients: { kcal: 400, proteinG: 30, carbG: 56, fatG: 6, fiberG: 3 } } };
+    const ctx = buildCoachContext(s, NOW);
+    expect(ctx).toMatch(/sostituito, ordine al bar: 400\skcal, P 30 g, fibre 3 g/);
   });
 });

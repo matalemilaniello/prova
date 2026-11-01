@@ -46,7 +46,8 @@ const MIN_PROTEIN = 125;
 const MIN_FIBER = 28;
 /**
  * Tetti di fibra: chi parte da un consumo basso le aumenta per gradi, e una giornata da 50 g gonfia.
- * Al massimo 45 g al giorno (l'obiettivo è 35 g, il minimo LARN 25 g) e 40 g quando la sera c'è il calcio.
+ * Al massimo 45 g al giorno (l'obiettivo è 35 g, il minimo LARN 25 g) e 40 g quando la sera c'è il calcio o il
+ * giorno dopo c'è la partita (vigilia).
  */
 const MAX_FIBER = 45;
 const MAX_FIBER_FOOTBALL = 40;
@@ -62,6 +63,16 @@ const FIBER_STEP = 6;
 const MIN_FAT_SHARE = 0.2;
 const FAT_SLACK = 15;
 const MIN_VEG = 5;
+/**
+ * Minimo di carboidrati il giorno della partita e alla vigilia (`MATCH_CARB_G_PER_KG` in engine/targets): 6 g/kg
+ * del peso su cui sono costruite le proteine del piano (1,9 g/kg), arrotondato a 5 g. Il menù lo raggiunge
+ * alzando le righe di carboidrati (`dayCarbScale`): anche così le fibre devono restare sotto il tetto.
+ */
+const MATCH_CARB_G_PER_KG = 6;
+const REF_WEIGHT_KG = MACRO_TARGET.calcio.proteinG / 1.9;
+const MATCH_FLOOR_G = Math.round((MATCH_CARB_G_PER_KG * REF_WEIGHT_KG) / 5) * 5;
+/** Giorno della partita (lunedì) e vigilia (domenica), 0 = lunedì. */
+const MATCH_DAYS = [0, 6];
 
 const FISH = new Set(['salmone', 'salmone-affumicato', 'merluzzo', 'gamberi', 'tonno', 'sgombro']);
 const LEGUMES = new Set(['ceci', 'cannellini', 'borlotti', 'lenticchie', 'lenticchie-rosse', 'pasta-lenticchie']);
@@ -171,6 +182,8 @@ const DAYS: DayRow[] = dayRows(MENU_ROTATION, 'S');
 const STARTER_DAYS: DayRow[] = dayRows([STARTER_WEEK], 'Avvio');
 
 const fmt = (n: number, d = 0) => n.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d });
+/** Nome da lista della spesa: senza lo stato di cottura ("Riso basmati, cotto" → "Riso basmati"). */
+const shopNameOf = (f: Food) => f.name.replace(/,\s*(cott[oaie]|sgocciolat[oaie]|rinvenut[oa])$/u, '');
 
 function printTable(days: DayRow[] = DAYS, title = 'Totali giornalieri del menù (porzioni adattate al tipo di giorno)') {
   const head = ['giorno', 'tipo', 'kcal', 'obiettivo', 'scarto', 'proteine', 'carboidrati', 'grassi', '% grassi', 'fibre', 'g/1000', 'vegetali', 'legumi'];
@@ -208,9 +221,31 @@ function checkNutrition(days: DayRow[], minFiber = MIN_FIBER) {
 
 function checkFiberCap(days: DayRow[]) {
   for (const d of days) {
-    const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fiberG, 1)} g di fibre`;
-    expect(d.totals.fiberG, where).toBeLessThanOrEqual(d.football ? MAX_FIBER_FOOTBALL : MAX_FIBER);
+    const where = `${d.label} (${d.dayType}${d.eve ? ', vigilia' : ''}): ${fmt(d.totals.fiberG, 1)} g di fibre`;
+    expect(d.totals.fiberG, where).toBeLessThanOrEqual(d.football || d.eve ? MAX_FIBER_FOOTBALL : MAX_FIBER);
   }
+}
+
+/**
+ * Legumi intorno al calcio: nei giorni di calcio solo le lenticchie rosse decorticate e solo a pranzo (la sera
+ * c'è il campo); alla vigilia della partita niente legumi a cena, perché fermentano nella notte prima della gara.
+ */
+function checkLegumesAroundFootball(week: MenuWeek, label: string) {
+  week.days.forEach((day, di) => {
+    const eve = PORTION_TYPES[di] !== WEEK_TYPES[di];
+    for (const slot of SLOTS) {
+      const r = RECIPES[day.meals[slot] ?? ''];
+      if (!r) continue;
+      const legumes = r.ingredients.filter((l) => LEGUMES.has(l.foodId) || DRY_LEGUMES.has(l.foodId));
+      if (!legumes.length) continue;
+      const where = `${label} ${WEEKDAYS[di]} ${slot}: ${r.id}`;
+      if (FOOTBALL_DAY[di]) {
+        expect(slot === 'pranzo', `${where}, legumi fuori dal pranzo in un giorno di calcio`).toBe(true);
+        expect(legumes.every((l) => l.foodId === 'lenticchie-rosse'), `${where}, solo lenticchie rosse nei giorni di calcio`).toBe(true);
+      }
+      if (eve) expect(slot === 'cena', `${where}, legumi a cena alla vigilia`).toBe(false);
+    }
+  });
 }
 
 function checkFat(days: DayRow[]) {
@@ -242,6 +277,118 @@ function checkFootballMeals(week: MenuWeek, label: string) {
     expect(RECIPES[day.meals.cena ?? '']?.tags.includes('recupero'), `${where} cena`).toBe(calcio);
     if (calcio) expect(recipeTotals(RECIPES[day.meals.pranzo ?? ''], 'calcio').fiberG, `${where} pranzo`).toBeLessThanOrEqual(20);
   });
+}
+
+
+// ───────────────────────── Spesa: pochi prodotti, confezioni usate ─────────────────────────
+
+/** Prodotti da comprare in una settimana (olio, sale e spezie esclusi): oltre i 40 la spesa diventa un lavoro. */
+const MAX_WEEK_PRODUCTS = 40;
+/** Quota minima di una confezione da usare: sotto la metà il resto finisce buttato o dimenticato. */
+const MIN_PACK_SHARE = 0.5;
+
+/**
+ * Surgelati, dispensa, cereali e legumi secchi aspettano la settimana dopo senza rovinarsi. Gli altri, una volta
+ * aperti (legumi in barattolo, latticini, insalate in busta), vanno finiti in pochi giorni.
+ */
+const isLongLife = (f: Food) =>
+  f.category === 'Surgelati' ||
+  f.category === 'Dispensa' ||
+  f.category === 'Pane e cereali' ||
+  (f.category === 'Legumi' && (f.buyFactor ?? 1) < 1);
+
+/** Grammi della confezione indicata in `buyLabel` ("barattolo da 400 g", "confezione da 6" uova). */
+function packGrams(f: Food): number | undefined {
+  const m = /^\s*\p{L}+\s+da\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml)?\s*$/u.exec(f.buyLabel ?? '');
+  if (!m) return undefined;
+  const n = Number(m[1].replace(',', '.'));
+  const unit = m[2];
+  if (!unit) return f.unitGrams.pezzo ? n * f.unitGrams.pezzo : undefined;
+  const density = f.unitGrams.ml ?? 1;
+  return unit === 'kg' ? n * 1000 : unit === 'g' ? n : unit === 'l' ? n * 1000 * density : n * density;
+}
+
+interface Purchase {
+  food: Food;
+  /** Grammi da comprare (mangiati × buyFactor), porzioni del tipo di giorno. */
+  buyG: number;
+  /** Pasti della settimana che lo usano. */
+  meals: number;
+}
+
+/** Prodotti da comprare per una settimana del menù (niente dispensa di base: olio, sale, spezie). */
+function purchases(week: MenuWeek): Map<string, Purchase> {
+  const out = new Map<string, Purchase>();
+  week.days.forEach((day, di) => {
+    for (const slot of SLOTS) {
+      const recipe = RECIPES[day.meals[slot] ?? ''];
+      if (!recipe) continue;
+      const seen = new Set<string>();
+      for (const line of recipe.ingredients) {
+        const food = FOODS[line.foodId];
+        if (!food || food.pantry) continue;
+        const p = out.get(food.id) ?? { food, buyG: 0, meals: 0 };
+        p.buyG += lineGrams(line, PORTION_TYPES[di]) * (food.buyFactor ?? 1);
+        if (!seen.has(food.id)) p.meals++;
+        seen.add(food.id);
+        out.set(food.id, p);
+      }
+    }
+  });
+  return out;
+}
+
+/** Grammi comprati in tutta la rotazione, per alimento: la confezione a lunga conservazione può finire la settimana dopo. */
+const ROTATION_BUY = new Map<string, number>();
+for (const week of MENU_ROTATION) for (const [id, p] of purchases(week)) ROTATION_BUY.set(id, (ROTATION_BUY.get(id) ?? 0) + p.buyG);
+
+/**
+ * Confezioni usate davvero: di un prodotto fresco si usa almeno metà confezione nella settimana; uno a lunga
+ * conservazione torna in almeno due pasti della settimana, oppure la rotazione ne usa almeno metà confezione.
+ */
+function checkPacks(week: MenuWeek, label: string, stored: ReadonlySet<string> = new Set()) {
+  for (const p of purchases(week).values()) {
+    const pack = packGrams(p.food);
+    if (!pack || stored.has(p.food.id)) continue;
+    const share = p.buyG / pack;
+    if (share >= MIN_PACK_SHARE) continue;
+    const where = `${label}: ${p.food.name}, ${fmt(p.buyG)} g di ${p.food.buyLabel} in ${p.meals} ${p.meals === 1 ? 'pasto' : 'pasti'}`;
+    expect(isLongLife(p.food), `${where}: un prodotto fresco aperto va usato almeno per metà`).toBe(true);
+    const later = (ROTATION_BUY.get(p.food.id) ?? 0) / pack >= MIN_PACK_SHARE;
+    expect(p.meals >= 2 || later, `${where}: deve tornare in un secondo pasto`).toBe(true);
+  }
+}
+
+// ───────────────────────── Passaggi senza quantità degli ingredienti che si adattano ─────────────────────────
+
+/** Parole con cui i passaggi nominano un alimento, oltre alla prima del nome ("Pane integrale" → "pane"). */
+const STEP_WORDS: Record<string, string[]> = {
+  pasta: ['ditalini', 'rigatoni', 'spaghetti'],
+  'pasta-integrale': ['spaghetti', 'pasta'],
+  avena: ['avena'],
+  couscous: ['cous'],
+  'couscous-integrale': ['cous'],
+};
+const QTY_WORD = String.raw`(?:\d+(?:[.,]\d+)?|un|uno|una|un’|mezzo|mezza|due|tre|quattro|cinque|sei)`;
+const UNIT_WORD = String.raw`(?:fett[ae]|pugn[oi]|cucchia[io]|cucchiai|manciat[ae]|tazz[ae]|pezz[oi]|porzion[ei]|pacchett[oi])`;
+
+/** Alimenti `carbScaled` di una ricetta citati nei passaggi con una quantità ("una fetta di pane", "due gallette"). */
+function scaledQuantitiesInSteps(recipe: Recipe): string[] {
+  const out: string[] = [];
+  for (const line of recipe.ingredients) {
+    if (!line.carbScaled) continue;
+    const food = FOODS[line.foodId];
+    if (!food) continue;
+    const words = [food.name.split(/[\s,]/)[0].toLowerCase(), ...(STEP_WORDS[food.id] ?? [])];
+    for (const w of words) {
+      const re = new RegExp(String.raw`(?:^|[^\p{L}])${QTY_WORD}\s*(?:${UNIT_WORD}\s+(?:di\s+|d’)?)?${w}(?![\p{L}])`, 'iu');
+      for (const step of recipe.steps) {
+        const m = re.exec(step);
+        if (m) out.push(`${food.id}: «${m[0].trim()}» in "${step}"`);
+      }
+    }
+  }
+  return out;
 }
 
 // ───────────────────────── Test ─────────────────────────
@@ -348,6 +495,12 @@ describe('ricette', () => {
     }
   });
 
+  it('nei passaggi non danno quantità per gli ingredienti che si adattano al tipo di giorno', () => {
+    // Le porzioni di pane, pasta, riso e patate cambiano con il giorno: i passaggi rimandano agli ingredienti.
+    const found = Object.values(RECIPES).flatMap((r) => scaledQuantitiesInSteps(r).map((x) => `${r.id} ${x}`));
+    expect(found).toEqual([]);
+  });
+
   it('hanno proteine 30-45 g nei pasti principali (porzione di riferimento)', () => {
     for (const r of recipes) {
       if (!r.slots.some((s) => s === 'pranzo' || s === 'cena')) continue;
@@ -416,6 +569,42 @@ describe('menù a rotazione', () => {
     for (const d of DAYS) expect(d.legumeServings, d.label).toBeLessThanOrEqual(1);
   });
 
+  it('la domenica cucina sul momento: nessuna ricetta da preparazione', () => {
+    // La preparazione della domenica serve i pasti da lunedì a sabato; la domenica stessa non ne ha una.
+    MENU_ROTATION.forEach((week, wi) => {
+      for (const slot of SLOTS) expect(RECIPES[week.days[6].meals[slot] ?? '']?.batch, `S${wi + 1} dom ${slot}`).toBeFalsy();
+    });
+  });
+
+  it('con il minimo di carboidrati di partita e vigilia resta sotto i 40 g di fibre e vicino alle kcal', () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      for (const di of MATCH_DAYS) {
+        const day = week.days[di];
+        let fixedC = 0;
+        let scaled = zero();
+        let base = zero();
+        for (const slot of SLOTS) {
+          const r = RECIPES[day.meals[slot] ?? ''];
+          if (!r) continue;
+          base = add(base, recipeTotals(r, 'calcio'));
+          scaled = add(scaled, recipeTotals({ ...r, ingredients: r.ingredients.filter((l) => l.carbScaled) }, 'calcio'));
+          fixedC += recipeTotals({ ...r, ingredients: r.ingredients.filter((l) => !l.carbScaled) }, 'calcio').carbG;
+        }
+        const k = Math.max(1, (MATCH_FLOOR_G - fixedC) / scaled.carbG);
+        const fiber = base.fiberG + scaled.fiberG * (k - 1);
+        const kcal = base.kcal + scaled.kcal * (k - 1);
+        const target = KCAL_TARGET.calcio + Math.round((Math.max(0, MATCH_FLOOR_G - MACRO_TARGET.calcio.carbG) * 4) / 10) * 10;
+        const where = `S${wi + 1} ${WEEKDAYS[di]}: carboidrati × ${fmt(k, 2)}, ${fmt(fiber, 1)} g di fibre, ${fmt(kcal)} kcal su ${fmt(target)}`;
+        expect(fiber, where).toBeLessThanOrEqual(MAX_FIBER_FOOTBALL);
+        expect(Math.abs(kcal / target - 1), where).toBeLessThanOrEqual(KCAL_TOLERANCE);
+      }
+    });
+  });
+
+  it('nei giorni di calcio ha solo lenticchie rosse a pranzo, e alla vigilia niente legumi a cena', () => {
+    MENU_ROTATION.forEach((week, wi) => checkLegumesAroundFootball(week, `S${wi + 1}`));
+  });
+
   it('è vario: pesce 2-3 volte, legumi 4+, uova 2-3, carne rossa al massimo 1 a settimana', () => {
     MENU_ROTATION.forEach((week, wi) => {
       const meals = week.days.flatMap((day) => SLOTS.map((slot) => ({ slot, recipe: RECIPES[day.meals[slot] ?? ''] })));
@@ -464,6 +653,35 @@ describe('menù a rotazione', () => {
         }
       });
     });
+  });
+});
+
+describe('spesa della rotazione', () => {
+  it(`chiede al massimo ${MAX_WEEK_PRODUCTS} prodotti a settimana`, () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      const bought = [...purchases(week).values()];
+      console.log(`\nSpesa della settimana ${wi + 1}: ${bought.length} prodotti (${bought.map((p) => shopNameOf(p.food)).join(', ')})\n`);
+      expect(bought.length, `settimana ${wi + 1}`).toBeLessThanOrEqual(MAX_WEEK_PRODUCTS);
+    });
+  });
+
+  it('usa almeno metà di ogni confezione fresca e fa tornare quelle a lunga conservazione', () => {
+    MENU_ROTATION.forEach((week, wi) => checkPacks(week, `settimana ${wi + 1}`));
+    // Avvio: i ceci entrano a piccole dosi (40 g, due volte); la ricetta dice di congelare quelli avanzati.
+    expect(RECIPES['merluzzo-ceci-couscous'].steps.some((x) => x.includes('freezer'))).toBe(true);
+    checkPacks(STARTER_WEEK, 'avvio', new Set(['ceci']));
+  });
+
+  it('non compra doppioni: un solo yogurt, un solo cereale da colazione, una sola fesa, un solo salmone', () => {
+    const all = new Set(MENU_ROTATION.flatMap((w) => [...purchases(w).keys()]));
+    const groups: string[][] = [
+      ['yogurt-greco-0', 'yogurt-greco-2', 'skyr'],
+      ['avena', 'muesli', 'fiocchi-mais', 'fette-biscottate', 'crackers-integrali'],
+      ['tacchino', 'tacchino-affettato'],
+      ['salmone', 'salmone-affumicato'],
+      ['riso-basmati', 'riso-integrale'],
+    ];
+    for (const g of groups) expect(g.filter((id) => all.has(id)).length, g.join(', ')).toBeLessThanOrEqual(1);
   });
 });
 

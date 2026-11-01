@@ -133,7 +133,14 @@
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
-/* Orari e dati tecnici. */
+/* Unità accanto a un numero (kcal, g, kg, UA, min, rip.): Figtree 500, mai in monospazio. */
+@utility t-unit {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.75rem;
+  letter-spacing: 0;
+}
+/* Orari e numeri tecnici: mai parole né unità. */
 @utility t-mono {
   font-family: var(--font-mono);
   font-size: 0.8125rem;

@@ -10,7 +10,8 @@
  *   di storico.
  * - Regola del dolore (Silbernagel adattata): dolore entro la soglia del piano → avanti; sopra soglia o in
  *   peggioramento → mantieni o riduci, solo per gli esercizi che caricano la zona; con il gomito si propongono
- *   varianti adatte (elbowFriendly).
+ *   varianti adatte (elbowFriendly) e, sopra soglia, le spinte con i manubri lasciano il posto alla variante del
+ *   catalogo (elbowSwitch) con un carico più basso. La zona del titolo è quella che la seduta carica di più.
  * - Esercizi del fisioterapista: la prevenzione della seduta che lavora lo stesso tessuto di un suo esercizio
  *   si salta (physioCoverage), e la durata della seduta lo dice (sessionDuration).
  *
@@ -30,7 +31,7 @@ import type {
   WorkoutLog,
   WorkoutSession,
 } from '../domain/types';
-import { EXERCISES, type CatalogExercise } from '../data/exercises';
+import { EXERCISES, elbowSwitchOf, type CatalogExercise } from '../data/exercises';
 import { SESSIONS, estimateItemSec } from '../data/sessions';
 import { addDays, daysBetween, weekStart as weekStartOf, weekdayOf } from './dates';
 
@@ -144,9 +145,11 @@ export interface SetTarget {
 /**
  * nuovo: nessuno storico · aumenta: carico in su · ripetizioni: stesso carico, +1 ripetizione ·
  * ripeti: esercizio senza progressione · mantieni / riduci: frenato dalla regola del dolore ·
- * riduci con `stalled`: carico ridotto dopo uno stallo.
+ * riduci con `stalled`: carico ridotto dopo uno stallo · sostituisci: variante presa al posto dell'esercizio
+ * previsto per il dolore (es. la chest press al posto della panca con il gomito sopra soglia), con il carico
+ * ridotto rispetto all'ultima volta sulla variante.
  */
-export type SuggestionKind = 'nuovo' | 'aumenta' | 'ripetizioni' | 'ripeti' | 'mantieni' | 'riduci';
+export type SuggestionKind = 'nuovo' | 'aumenta' | 'ripetizioni' | 'ripeti' | 'mantieni' | 'riduci' | 'sostituisci';
 
 export interface Suggestion {
   /** Carico proposto (lo stesso per tutte le serie). */
@@ -186,10 +189,18 @@ export interface SuggestOptions {
    * `repMin` con lo stesso carico, è uno stallo e il carico scende del 10%.
    */
   previous?: ExerciseLog | null;
+  /**
+   * L'esercizio è la variante presa al posto di quello previsto per il dolore (`elbowSwitchFor`): kind
+   * 'sostituisci', carico −15% circa sull'ultima volta con la variante (uguale se anche l'ultima volta era una
+   * sostituzione), alla prima volta una ripetizione di riserva in più.
+   */
+  switched?: boolean;
 }
 
 /** Riduzione del carico dopo uno stallo: −10%, poi si risale con la progressione doppia. */
 export const STALL_REDUCE_FACTOR = 0.9;
+/** Riduzione del carico sulla variante presa per il dolore: −15% circa (tra il 10 e il 20%, secondo l'incremento). */
+export const SWITCH_REDUCE_FACTOR = 0.85;
 
 /** Media delle ripetizioni delle serie fatte (0 senza serie). */
 function meanReps(log: ExerciseLog | null | undefined): number {
@@ -285,6 +296,13 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
     return { weightKg, reps: sets[0].reps, sets, kind, reason, ...(lastW !== undefined ? { lastWeightKg: lastW } : {}), ...extra };
   };
 
+  if (!done.length && opts.switched) {
+    // Prima volta con la variante e il dolore sopra soglia: più lontano dal cedimento.
+    const rirUp = Math.min(4, (item.rir ?? 2) + 1);
+    const note = opts.painNote?.trim() || 'Dolore sopra soglia';
+    return { ...make(0, [item.repMin], 'sostituisci', `${note}: scegli un carico che ti lasci ${rirUp} ripetizioni di riserva`), rir: rirUp };
+  }
+
   if (!done.length) {
     const reason =
       item.progression === 'doppia'
@@ -298,6 +316,20 @@ export function suggestNext(base: SessionExercise, last: ExerciseLog | null | un
   const w = workingWeight(last);
   // Ripetizioni dell'ultima volta, serie per serie (la serie mancante ripete l'ultima fatta).
   const lastReps = Array.from({ length: n }, (_, i) => (done[i] ?? done[done.length - 1]).reps);
+
+  if (opts.switched) {
+    const note = opts.painNote?.trim() || 'Dolore sopra soglia';
+    const held = lastReps.map((r) => clampInt(r, item.repMin, item.repMax));
+    // Anche l'ultima volta era una sostituzione: il carico è già quello adatto, scendere ancora non serve.
+    if (item.progression !== 'doppia' || w <= 0 || last?.swappedFrom) {
+      return make(w, held, 'sostituisci', `${note}: stesso carico dell’ultima volta`, w);
+    }
+    const incSwitch = item.incrementKg && item.incrementKg > 0 ? item.incrementKg : DEFAULT_INCREMENT_KG;
+    const r = reducedLoad(w, incSwitch, SWITCH_REDUCE_FACTOR);
+    if (r === null) return make(w, held, 'sostituisci', `${note}: stesso carico dell’ultima volta`, w);
+    const pct = Math.round((1 - r / w) * 100);
+    return make(r, [item.repMin], 'sostituisci', `${note}: carico −${pct}% rispetto all’ultima volta`, w);
+  }
 
   if (item.progression !== 'doppia') {
     return make(w, lastReps.map((r) => Math.max(item.repMin, r)), 'ripeti', "Come l’ultima volta");
@@ -438,9 +470,27 @@ export function e1rmHistory(exerciseId: string, logs: readonly WorkoutLog[]): E1
   return pts;
 }
 
-/** Volume della seduta: somma di carico × ripetizioni delle serie fatte (kg). */
-export function workoutVolume(log: Pick<WorkoutLog, 'exercises'>): number {
-  return log.exercises.reduce((tot, ex) => tot + doneSets(ex).reduce((s, set) => s + set.weightKg * set.reps, 0), 0);
+/**
+ * Quante volte conta il carico segnato nel volume: con due manubri (il carico si segna per manubrio) e negli
+ * esercizi per lato (le ripetizioni si segnano per lato) il carico sollevato davvero è il doppio.
+ */
+export function volumeFactor(exerciseId: string, perSide = false): number {
+  const ex = EXERCISES[exerciseId];
+  const pair = ex ? /\bmanubri\b/i.test(ex.equipment) : false;
+  return (pair ? 2 : 1) * (perSide ? 2 : 1);
+}
+
+/**
+ * Volume della seduta: somma di carico × ripetizioni delle serie fatte (kg), con i due manubri e i due lati
+ * (vedi `volumeFactor`). Il lato si legge dalla seduta (`sessionId`), solo per l'esercizio previsto.
+ */
+export function workoutVolume(log: Pick<WorkoutLog, 'exercises'> & Partial<Pick<WorkoutLog, 'sessionId'>>): number {
+  const session = log.sessionId ? SESSIONS[log.sessionId] : undefined;
+  const perSide = new Set((session?.blocks ?? []).flatMap((b) => b.items.filter((it) => it.perSide).map((it) => it.exerciseId)));
+  return log.exercises.reduce((tot, ex) => {
+    const k = volumeFactor(ex.exerciseId, !ex.swappedFrom && perSide.has(ex.exerciseId));
+    return tot + doneSets(ex).reduce((s, set) => s + set.weightKg * set.reps * k, 0);
+  }, 0);
 }
 
 /** Serie fatte nella seduta. */
@@ -654,6 +704,23 @@ export const PAIN_NEXT_DAY_DELTA = 1;
  * per un tendine.
  */
 export const IMPACT_PAIN_THRESHOLD = 2;
+/**
+ * Di quanto una zona sotto il ginocchio deve superare la soglia degli impatti perché l'avviso rimandi al
+ * fisioterapista se il giorno dopo non scende.
+ */
+export const PHYSIO_REFERRAL_MARGIN = 2;
+
+/**
+ * Soglia degli impatti del piano: quella scelta con il fisioterapista (`Plan.impactThreshold`), altrimenti
+ * min(soglia del dolore, 2). Non supera mai la soglia generale: sopra quella la regola ferma comunque gli
+ * impatti. La usano la regola del dolore, gli avvisi di Oggi e del calcio, i consigli, il coach, le impostazioni.
+ */
+export function impactThresholdFor(plan: Pick<Plan, 'painThreshold' | 'impactThreshold'>): number {
+  const general = plan.painThreshold ?? 3;
+  const own = plan.impactThreshold;
+  if (typeof own === 'number' && Number.isFinite(own)) return Math.min(general, 10, Math.max(0, own));
+  return Math.min(general, IMPACT_PAIN_THRESHOLD);
+}
 
 /** Perché una zona frena il carico. */
 export type PainCause = 'soglia' | 'seduta' | 'giorno-dopo' | 'aumento';
@@ -696,8 +763,24 @@ export interface PainGate {
   impact: boolean;
   /** Zona che blocca gli impatti, per i testi. */
   impactSite?: string;
+  /** Il gomito è sopra la soglia (mattino o fine seduta): le spinte con i manubri passano alla variante (elbowSwitch). */
+  elbowOver: boolean;
+  /** Soglia del dolore del piano e soglia degli impatti usate. */
+  threshold: number;
+  impactThreshold: number;
+  /** Seduta per cui è letta la regola (titolo sulla zona che carica di più), se c'è. */
+  sessionId?: string;
   title: string;
   message: string;
+}
+
+export interface PainGateOptions {
+  /**
+   * Seduta di palestra per cui si legge la regola: a parità di livello il titolo va sulla zona che la seduta carica
+   * di più (gomito per la A, gamba per B e C), il messaggio dice quali spinte cambiano e tace i balzi se la seduta
+   * non ne ha. Senza, la seduta prevista dal piano in quella data; null per nessuna seduta.
+   */
+  sessionId?: string | null;
 }
 
 const ELBOW_RE = /gomit/i;
@@ -710,6 +793,7 @@ export const isElbowSite = (site: string): boolean => ELBOW_RE.test(site);
 const IMPACT_RE = /balz|salt|pliometr|hop/i;
 
 const LEVEL_RANK: Record<GateLevel, number> = { ok: 0, mantieni: 1, riduci: 2 };
+const UPPER_CATEGORIES: readonly ExerciseCategory[] = ['spinta', 'tirata'];
 const CAUSE_RANK: Record<PainCause, number> = { soglia: 0, seduta: 1, 'giorno-dopo': 2, aumento: 3 };
 
 /** Letture del dolore di una zona tra due date comprese, in ordine di data. */
@@ -753,6 +837,32 @@ function gateScope(flagged: readonly PainSiteStatus[]): { words: string; rest: s
     : { words: all, rest: 'Le gambe procedono come previsto.' };
 }
 
+/** Parte del corpo di una zona, per i testi e per la seduta: 'alto', 'basso' o null se sconosciuta. */
+const sitePart = (site: string): 'alto' | 'basso' | null => SITE_SCOPE.find(([re]) => re.test(site))?.[2] ?? null;
+
+/**
+ * Parte del corpo che una seduta carica di più, dal blocco principale: più spinte e tirate che esercizi di gambe
+ * → 'alto' (la A); altrimenti, anche a pari merito (la C, corpo intero), 'basso': per chi gioca a calcio il carico
+ * sulla gamba è quello che conta di più.
+ */
+export function sessionFocus(session: Pick<WorkoutSession, 'blocks'>): 'alto' | 'basso' {
+  const main = session.blocks.filter((b) => /principale/i.test(b.title)).flatMap((b) => b.items);
+  let upper = 0;
+  let lower = 0;
+  for (const it of main) {
+    const cat = EXERCISES[it.exerciseId]?.category;
+    if (cat && UPPER_CATEGORIES.includes(cat)) upper++;
+    else if (cat === 'gambe') lower++;
+  }
+  return upper > lower ? 'alto' : 'basso';
+}
+
+/** "Panca piana con manubri a presa neutra" → "panca piana", "Distensioni ai cavi in piedi…" → "distensioni ai cavi". */
+function briefName(name: string): string {
+  const cut = name.split(/ (?:con|a presa|in piedi|al|alla|da|su)(?= )/)[0].trim() || name;
+  return cut.charAt(0).toLowerCase() + cut.slice(1);
+}
+
 type PainState = Pick<TrainingState, 'plan'> & Partial<Pick<AppData, 'checkIns' | 'profile' | 'workoutLogs' | 'footballLogs'>>;
 
 /** Attività del giorno: seduta o calcio registrati, oppure calcio previsto dal piano. */
@@ -770,14 +880,18 @@ function activityOn(iso: ISODate, state: PainState): 'seduta' | 'calcio' | null 
  * - dolore registrato a fine seduta nell'ultima seduta entro 2 giorni sopra la soglia → mantieni;
  * - il mattino dopo una seduta o un calcio il dolore sale di almeno 1 punto rispetto al mattino prima
  *   → mantieni (per i tendini conta da 2 su 10 in su, sotto il ginocchio sempre);
- * - zone sotto il ginocchio: gli impatti hanno una soglia più bassa (al massimo 2 su 10), perché il dolore
- *   lungo la tibia è da stress osseo e non si gestisce come un tendine.
+ * - zone sotto il ginocchio: gli impatti hanno una soglia più bassa (quella del fisioterapista, altrimenti al
+ *   massimo 2 su 10), perché il dolore lungo la tibia può essere da stress osseo e non si gestisce come un
+ *   tendine; 2 punti sopra quella soglia l'avviso rimanda al fisioterapista se il giorno dopo non scende.
  * Gli argomenti facoltativi `workoutLogs` e `footballLogs` attivano le regole sulla seduta e sul giorno dopo.
+ * `opts.sessionId` legge la regola per una seduta (vedi `PainGateOptions`).
  */
-export function painGate(state: PainState, iso: ISODate): PainGate {
+export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions = {}): PainGate {
   const checkIns = state.checkIns ?? {};
   const threshold = state.plan.painThreshold ?? 3;
-  const impactThreshold = Math.min(threshold, IMPACT_PAIN_THRESHOLD);
+  const impactThreshold = impactThresholdFor(state.plan);
+  const sessionId = opts.sessionId === undefined ? (state.plan.week ? plannedSessionFor(iso, state.plan)?.sessionId : undefined) : opts.sessionId;
+  const session = sessionId ? SESSIONS[sessionId] : undefined;
   const monitored = state.profile?.painSites ?? [];
   const watched = (site: string) => !monitored.length || monitored.includes(site);
   const strong = Math.max(5, threshold + 2);
@@ -860,15 +974,30 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
       ...(noImpact ? { noImpact } : {}),
     });
   }
-  sites.sort(
-    (a, b) => LEVEL_RANK[b.level] - LEVEL_RANK[a.level] || Number(Boolean(b.noImpact)) - Number(Boolean(a.noImpact)) || b.value - a.value,
+  // A parità di livello: con una seduta prima la zona che la seduta carica (il gomito nella A, la gamba in B e C),
+  // poi la più alta; senza seduta prima la zona che blocca gli impatti (il calcio della giornata).
+  const focus = session ? sessionFocus(session) : null;
+  const inFocus = (s: PainSiteStatus) => (focus && sitePart(s.site) === focus ? 1 : 0);
+  sites.sort((a, b) =>
+    focus
+      ? LEVEL_RANK[b.level] - LEVEL_RANK[a.level] || inFocus(b) - inFocus(a) || b.value - a.value
+      : LEVEL_RANK[b.level] - LEVEL_RANK[a.level] || Number(Boolean(b.noImpact)) - Number(Boolean(a.noImpact)) || b.value - a.value,
   );
   const flagged = sites.filter((s) => s.level !== 'ok');
   const level = flagged.reduce<GateLevel>((m, s) => (LEVEL_RANK[s.level] > LEVEL_RANK[m] ? s.level : m), 'ok');
   const elbow = flagged.some((s) => ELBOW_RE.test(s.site));
+  const elbowOver = flagged.some((s) => ELBOW_RE.test(s.site) && (s.over || (s.sessionValue ?? 0) > threshold || s.value > threshold));
   const lowerLeg = flagged.some((s) => s.lowerLeg);
   const impactBy = sites.find((s) => s.noImpact);
   const impact = Boolean(impactBy);
+  // Con una seduta senza balzi né salti "niente balzi oggi" non serve (resta negli avvisi del calcio).
+  const sessionImpact = session ? session.blocks.some((b) => b.items.some((it) => isImpactExercise(EXERCISES[it.exerciseId]))) : true;
+  // Le spinte della seduta che lasciano il posto alla variante: "chest press e distensioni ai cavi".
+  const switchTargets = session && elbowOver
+    ? [...new Set(session.blocks.flatMap((b) => b.items.map((it) => elbowSwitchOf(EXERCISES[it.exerciseId])?.to).filter((id): id is string => Boolean(id && EXERCISES[id]))))]
+    : [];
+  // Zona sotto il ginocchio oltre la soglia degli impatti di 2 punti o più: se domani non scende, il fisioterapista.
+  const referral = sites.find((s) => s.lowerLeg && Math.max(s.value, s.sessionValue ?? 0) >= impactThreshold + PHYSIO_REFERRAL_MARGIN);
 
   let title = 'Dolore sotto controllo';
   let message = date || lastWorkout ? 'Segui la progressione come previsto.' : 'Nessun controllo del mattino recente: ascolta le sensazioni.';
@@ -890,13 +1019,14 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
       level === 'riduci'
         ? capitalizeFirst(`${per}riduci i carichi del 10% e resta lontano dal cedimento.`)
         : top.cause === 'giorno-dopo'
-          ? `Il giorno dopo il dolore non deve salire: ${per}mantieni i carichi dell’ultima volta, niente aumenti.`
-          : capitalizeFirst(`${per}mantieni i carichi dell’ultima volta, niente aumenti.`),
+          ? `Il giorno dopo il dolore non deve salire: ${per}mantieni i carichi dell’ultima volta.`
+          : capitalizeFirst(`${per}mantieni i carichi dell’ultima volta.`),
     ];
-    if (elbow) parts.push('Per il gomito usa le varianti a presa neutra proposte.');
-    if (impact) parts.push('Niente balzi e salti oggi.');
+    if (switchTargets.length) parts.push(`Le spinte con i manubri passano a ${joinIt(switchTargets.map((id) => briefName(EXERCISES[id].name)))}.`);
+    if (impact && sessionImpact) parts.push('Niente balzi e salti oggi.');
     if (scope?.rest) parts.push(scope.rest);
     if (level === 'riduci') parts.push('Scrivi al fisioterapista oggi.');
+    else if (referral) parts.push(referralSentence(referral, referral === top, Math.max(referral.value, referral.sessionValue ?? 0)));
     message = parts.join(' ');
   } else if (impactBy) {
     const mv = date ? morning[impactBy.site] : undefined;
@@ -905,8 +1035,35 @@ export function painGate(state: PainState, iso: ISODate): PainGate {
         ? `${siteName(impactBy.site)} a ${mv} su 10: niente impatti oggi`
         : `${siteName(impactBy.site)} a ${impactBy.sessionValue} su 10 nell’ultima seduta: niente impatti oggi`;
     message = `Negli impatti la soglia è più bassa, ${impactThreshold} su 10: salta balzi e salti. Il resto come previsto.`;
+    if (referral) message += ` ${referralSentence(referral, referral === impactBy, Math.max(referral.value, referral.sessionValue ?? 0))}`;
   }
-  return { level, date, sites, flagged, elbow, lowerLeg, impact, ...(impactBy ? { impactSite: impactBy.site } : {}), title, message };
+  return {
+    level,
+    date,
+    sites,
+    flagged,
+    elbow,
+    lowerLeg,
+    impact,
+    ...(impactBy ? { impactSite: impactBy.site } : {}),
+    elbowOver,
+    threshold,
+    impactThreshold,
+    ...(session ? { sessionId: session.id } : {}),
+    title,
+    message,
+  };
+}
+
+/** "a e b", "a, b e c". */
+const joinIt = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : (xs[0] ?? ''));
+
+/** Rinvio al fisioterapista per una zona sotto il ginocchio molto sopra la soglia degli impatti. */
+function referralSentence(site: PainSiteStatus, isTitle: boolean, value: number): string {
+  return isTitle
+    ? 'Se domani è ancora sopra soglia, scrivi al fisioterapista.'
+    : // Spazi indivisibili: "4 su 10" non va a capo a metà.
+      `${siteName(site.site)} a ${value}\u00a0su\u00a010: se domani è ancora sopra soglia, scrivi al fisioterapista.`;
 }
 
 /**
@@ -946,22 +1103,60 @@ export function noImpactAlternatives(exercise: Exercise | undefined, catalog: Re
 export interface PainFlag {
   /** Perché l'esercizio è segnalato. */
   reason: string;
-  /** Alternative consigliate (id). */
+  /** Alternative consigliate (id), la migliore per prima. */
   alternatives: string[];
   /** Motivo: gomito sopra soglia o impatti da evitare per la gamba. */
   kind?: 'gomito' | 'impatto';
 }
 
+/** Zona del gomito che frena, con la causa in breve: "Gomito a 5 su 10", "Gomito in aumento". */
+function elbowNote(gate: PainGate): string {
+  const s = gate.flagged.find((x) => ELBOW_RE.test(x.site));
+  if (!s) return 'Gomito sopra soglia';
+  const name = siteName(s.site);
+  if (s.cause === 'seduta') return `${name} a ${s.sessionValue} su 10 nell’ultima seduta`;
+  if (s.cause === 'giorno-dopo') return `${name} da ${s.before} a ${s.value}`;
+  if (s.cause === 'aumento') return `${name} in aumento`;
+  return `${name} a ${s.value} su 10`;
+}
+
+export interface ElbowSwitch {
+  /** Variante da usare al posto dell'esercizio. */
+  to: string;
+  /** Passo del carico sulla variante, se diverso da quello della seduta. */
+  incrementKg?: number;
+  /** Motivo breve: "Gomito a 5 su 10: meglio una variante con meno presa". */
+  reason: string;
+}
+
 /**
- * Esercizio da sostituire per la regola del dolore: con il gomito sopra soglia gli esercizi non adatti
- * (elbowFriendly false) propongono le alternative adatte; con una zona sotto il ginocchio oltre la soglia
- * degli impatti gli esercizi d'impatto propongono le alternative senza volo.
+ * Variante per il gomito sopra soglia: le spinte con i manubri del catalogo che hanno `elbowSwitch` (panca piana,
+ * panca inclinata) lasciano il posto alla macchina o ai cavi, che chiedono meno presa e meno stabilizzazione al
+ * polso. Solo sopra soglia: con il gomito in aumento ma ancora entro la soglia si tengono i carichi e basta.
+ */
+export function elbowSwitchFor(exercise: Exercise | undefined, gate: PainGate, catalog: Record<string, Exercise> = EXERCISES): ElbowSwitch | null {
+  if (!exercise || !gate.elbowOver) return null;
+  const sw = elbowSwitchOf(exercise);
+  if (!sw || !catalog[sw.to]) return null;
+  return { to: sw.to, ...(sw.incrementKg ? { incrementKg: sw.incrementKg } : {}), reason: `${elbowNote(gate)}: meglio una variante con meno presa` };
+}
+
+/**
+ * Esercizio da sostituire per la regola del dolore: con il gomito sopra soglia le spinte con i manubri propongono
+ * la variante del catalogo (elbowSwitch) e gli esercizi non adatti (elbowFriendly false) le alternative adatte;
+ * con una zona sotto il ginocchio oltre la soglia degli impatti gli esercizi d'impatto propongono le alternative
+ * senza volo.
  */
 export function painFlagFor(exercise: Exercise | undefined, gate: PainGate, catalog: Record<string, Exercise> = EXERCISES): PainFlag | null {
   if (!exercise) return null;
+  const sw = elbowSwitchFor(exercise, gate, catalog);
+  if (sw) {
+    const alts = [sw.to, ...elbowFriendlyAlternatives(exercise.id, catalog).map((e) => e.id).filter((id) => id !== sw.to)];
+    return { reason: sw.reason, alternatives: alts, kind: 'gomito' };
+  }
   if (gate.elbow && exercise.elbowFriendly === false) {
     const alts = elbowFriendlyAlternatives(exercise.id, catalog).map((e) => e.id);
-    return { reason: 'Gomito sopra soglia: meglio una variante adatta', alternatives: alts, kind: 'gomito' };
+    return { reason: `${elbowNote(gate)}: meglio una variante adatta`, alternatives: alts, kind: 'gomito' };
   }
   if (gate.impact && isImpactExercise(exercise)) {
     const alts = noImpactAlternatives(exercise, catalog).map((e) => e.id);

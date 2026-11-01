@@ -10,7 +10,7 @@ import { currentDate } from '../../../engine/dates';
 import { maskKey, modelLabel } from '../../../lib/claude';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, IconButton, ListGroup, ListRow, Sheet } from '../../../ui';
-import { CostCard, KeyForm, PreviewCallout, PrivacyCard, SavedKeyCard, SetupSteps, TemporaryKeyNotice } from './KeySetup';
+import { KeyForm, PreviewCallout, SavedKeyCard, SetupFacts, SetupSteps, TemporaryKeyNotice } from './KeySetup';
 
 // ───────────────────────── Opzioni ─────────────────────────
 
@@ -215,12 +215,11 @@ export function KeySheet({ open, onClose }: { open: boolean; onClose: () => void
         ) : (
           <>
             <Card padding="lg">
-              <SetupSteps />
+              <SetupSteps>
+                <KeyForm onSaved={onClose} />
+              </SetupSteps>
             </Card>
-            <KeyForm onSaved={onClose} />
-            <TemporaryKeyNotice />
-            <CostCard />
-            <PrivacyCard />
+            <SetupFacts />
           </>
         )}
       </div>

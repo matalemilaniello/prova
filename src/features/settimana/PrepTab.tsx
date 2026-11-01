@@ -65,7 +65,7 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
   // Settimana di avvio: chi ha iniziato dopo quella domenica (o la domenica sera stessa) non ha preparato nulla.
   const first = firstUseDate(plan);
   if (first && prepSkipped(plan, weekStart, isStarterDay(weekStart, plan))) {
-    return <StarterPrep first={first} plan={plan} weekStart={weekStart} offset={offset} onOpenWeek={onOpenWeek} />;
+    return <StarterPrep plan={plan} weekStart={weekStart} offset={offset} onOpenWeek={onOpenWeek} />;
   }
 
   if (!tasks.length) {
@@ -101,7 +101,7 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
           <div className="min-w-0">
             <p className="flex items-baseline gap-1.5">
               <span className="t-num text-[3.25rem] leading-none text-ink">{total}</span>
-              <span className="t-mono text-[0.9375rem] text-ink-2">min</span>
+              <span className="t-unit text-[0.9375rem] text-ink-2">min</span>
             </p>
             <p className="t-footnote mt-1.5 text-ink-2">
               di preparazione per {plural(recipeIds.size, 'ricetta', 'ricette')} della settimana
@@ -138,19 +138,17 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
       {offset === 0 && wd >= 5 && (
         <Callout
           tone="accent"
-          title={wd === 6 ? 'Oggi si prepara la settimana che inizia domani' : 'Domani è il giorno della preparazione'}
+          title={wd === 6 ? 'Oggi si prepara la settimana che inizia domani' : 'Domani si prepara la settimana che inizia lunedì'}
           action={
             <Button variant="ghost" size="sm" iconRight={ChevronRight} onClick={() => onOpenWeek(1)}>
               Apri la prossima settimana
             </Button>
           }
-        >
-          Questa è la preparazione della settimana in corso, fatta domenica scorsa.
-        </Callout>
+        />
       )}
 
       <section className="flex flex-col gap-3" aria-labelledby="prep-ordine">
-        <SectionTitle id="prep-ordine" subtitle="Parti da ciò che cuoce più a lungo: mentre va sul fuoco, prepari il resto.">
+        <SectionTitle id="prep-ordine" subtitle={allDone ? undefined : 'Parti da ciò che cuoce più a lungo: mentre va sul fuoco, prepari il resto.'}>
           Ordine consigliato
         </SectionTitle>
         <Card padding="none" as="section">
@@ -190,7 +188,7 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
                       </span>
                       <span className={cn('t-footnote mt-0.5 inline-flex items-center gap-1', isDone ? 'text-good-ink' : 'text-ink-2')}>
                         <Timer aria-hidden size={13} strokeWidth={2.4} className="shrink-0" />
-                        <span className="t-mono text-[0.75rem]">{t.minutes}&nbsp;min</span>
+                        <span className="t-caption font-medium tabular">{t.minutes}&nbsp;min</span>
                       </span>
                       {/* Fatta: restano titolo e minuti, il resto si toglie. */}
                       {!isDone && <span className="t-footnote mt-1 text-ink-2">{t.yields}</span>}
@@ -242,17 +240,15 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
 
 
 /**
- * Settimana di avvio: niente preparazione da fare (né da recuperare). Dice fino a quando si cucina sul momento
- * e porta alla prima preparazione vera, quella della domenica prima della settimana normale.
+ * Settimana di avvio: niente preparazione da fare (né da recuperare). Titolo, una frase con la prima
+ * preparazione vera (la domenica prima della settimana normale) e il pulsante per guardarla.
  */
 function StarterPrep({
-  first,
   plan,
   weekStart,
   offset,
   onOpenWeek,
 }: {
-  first: ISODate;
   plan: Plan;
   weekStart: ISODate;
   offset: number;
@@ -281,15 +277,10 @@ function StarterPrep({
           </div>
         </div>
         <p className="t-callout mt-3 text-ink-2">
-          Hai iniziato {formatDayLong(first)}: {firstPrep ? `fino a ${formatDayLong(firstPrep)}` : 'in questi giorni'} le ricette si cucinano sul
-          momento, in 15 minuti al massimo, con i prodotti della spesa di avvio.
+          {firstPrep
+            ? `La prima preparazione è ${formatDayLong(firstPrep)}${minutes > 0 ? `, ${fmtMinutes(minutes)}` : ''}: fino ad allora si cucina sul momento.`
+            : 'In questi giorni si cucina sul momento, in 15 minuti al massimo.'}
         </p>
-        {firstPrep && (
-          <p className="t-footnote mt-2 text-ink-2">
-            La prima preparazione è {formatDayLong(firstPrep)}
-            {minutes > 0 ? `: ${fmtMinutes(minutes)} per i pasti della settimana dopo.` : '.'}
-          </p>
-        )}
         {firstPrep && nextTasks.length > 0 && (
           <Button variant="secondary" iconRight={ChevronRight} fullWidth onClick={() => onOpenWeek(offset + ahead)} className="mt-4">
             Guarda la prima preparazione

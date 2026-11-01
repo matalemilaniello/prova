@@ -11,7 +11,7 @@ import { BigValue, ChartCard, LegendItem } from './ChartCard';
 import { ChartSvg, EndDot, ScrubRule, useGeometry, useScrub, YGrid } from './frame';
 import { areaPath, linear, monotonePath, niceDomain, safeId, segments } from './scale';
 
-const HEIGHT = 184;
+const HEIGHT = 160;
 
 /** "−1,0 kg", "+0,4 kg", "0,0 kg": sempre un decimale, segno tipografico. */
 export function signedKg(v: number): string {
@@ -86,7 +86,6 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
   return (
     <ChartCard
       title="Peso"
-      subtitle="Media mobile di 7 giorni"
       value={shownValue !== null && shown ? <BigValue value={fmtNumber(shownValue, 1, true)} unit="kg" /> : undefined}
       caption={caption}
       empty={
@@ -103,6 +102,8 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
               ),
             }
       }
+      legendBehind
+      footnote="Il peso di un giorno oscilla di mezzo chilo con acqua e sale: conta la media."
       legend={
         <>
           <LegendItem color="var(--ink-3)">Pesata</LegendItem>
@@ -111,6 +112,7 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
           </LegendItem>
         </>
       }
+
     >
       <div ref={ref}>
         {hasData && (

@@ -75,7 +75,8 @@ l'utente li conferma o li cambia nell'onboarding e tutto resta salvato solo sul 
   esempio caricati. Deve poter aprire i pannelli (ricetta, controllo del mattino, seduta, coach, revisione).
   Supporta l'URL `?demo=1` che carica i dati di esempio e salta l'onboarding, e `?theme=chiaro|scuro`.
   Supporta anche `?overlay=recipe|checkin|session|football|barPlanB` per aprire un pannello e
-  `?onboarding=1` per mostrare l'onboarding.
+  `?onboarding=1` per mostrare l'onboarding. La vista `oggi-primo-giorno` simula il primo giorno di un utente nuovo
+  (dati svuotati, primo avvio alle 15:30 di un mercoledì, senza dati di esempio).
 
 ### Pubblicazione
 
@@ -251,6 +252,17 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   `formatPortion(line, dayType)` → "1 pugno e mezzo · ≈ 225 g" (arrotonda le porzioni a mezze unità),
   `dayNutrition(date, state)` somma i pasti del giorno (con eventuali sostituzioni di ricetta). Le righe
   `carbScaled` seguono anche gli obiettivi del piano (`dayCarbScale`): +150 kcal nel piano, +150 kcal nel piatto.
+  Partita e vigilia hanno un minimo di carboidrati di 6 g/kg (`MATCH_CARB_G_PER_KG` in `targets.ts`, `isMatchDay`
+  in `menu.ts`): `referenceWeightKg` (media delle pesate dei 7 giorni, poi il peso del profilo, poi proteine / 1,9),
+  `matchCarbs(date, state)` (minimo, base, grammi e kcal da aggiungere), `dayTargetFor(date, state)` (obiettivo
+  della data: tipo di giorno effettivo più il minimo) e `dayCarbScale`, che alza le righe di carboidrati del menù
+  previsto fino al minimo, così i 6 g/kg sono nel piatto e non solo nell'obiettivo. Calcetto e allenamento non
+  cambiano. Le funzioni accettano `NutritionState` (piano e diario, controlli e profilo facoltativi: senza peso il
+  minimo si ricava dalle proteine); `DayNutritionDetail.target` e `.matchCarbs` danno a ogni schermata lo stesso
+  obiettivo (`useNutritionState()` in `state/hooks.ts`). Con `onlyDone` un pasto sostituito con il piano B al bar
+  vale i valori dell'ordine (`DayLog.barMeals`), come nella revisione. Le porzioni a occhio usano `portionPhrase`:
+  mezze unità, con "abbondante" o "quasi" quando l'arrotondamento si allontanerebbe dai grammi di oltre il 10%
+  ("1 fetta abbondante · ≈ 50 g", "quasi 2 fette").
 - `menu.ts` · `menuWeekFor(iso, planStart)` (rotazione su `MENU_ROTATION`), `mealsForDate(iso, state)`:
   restituisce per ogni slot la ricetta effettiva (sostituzioni comprese) e il tipo di giorno delle porzioni
   (`effectiveDayType`: la vigilia della partita mangia come un giorno di calcio). Nei giorni di avvio
@@ -296,6 +308,7 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   Le chiavi delle spunte sono gli id degli alimenti. Chi comincia il venerdì sera o il sabato non ha la spesa di
   avvio: la lista della settimana dopo comprende anche i pasti di avvio da dopo la spesa del sabato alla domenica
   (`lead`, calcolato da `shoppingLeadFor` in `timeline.ts`), senza note di congelamento per quei giorni.
+  `shoppingList` accetta `NutritionState`: le quantità di partita e vigilia seguono il minimo di carboidrati.
 - `training.ts` · `lastLogFor(exerciseId, logs)`, `suggestNext(sessionExercise, lastLog)` (progressione
   doppia: se tutte le serie hanno raggiunto `repMax` con il carico precedente, proponi carico +incremento e
   `repMin`; altrimenti stesso carico puntando a +1 ripetizione; dopo due esecuzioni di fila con la media delle
@@ -307,7 +320,16 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   peggioramento → "mantieni o riduci", e suggerisci alternative `elbowFriendly` quando la zona è il gomito).
   Con `workoutLogs` e `footballLogs` conta anche il dolore registrato a fine seduta (entro 2 giorni) e il
   giorno dopo una seduta o un calcio (il dolore del mattino sale di almeno 1 punto). Per le zone sotto il
-  ginocchio gli impatti (balzi, salti, partita) hanno soglia min(soglia, 2): `gate.impact`.
+  ginocchio gli impatti (balzi, salti, partita) hanno la soglia `impactThresholdFor(plan)`: `Plan.impactThreshold`
+  scelta con il fisioterapista, altrimenti min(soglia, 2), mai sopra la soglia generale (`gate.impact`). La usano
+  anche Oggi, i consigli, il coach e le impostazioni. `painGate(state, iso, { sessionId })` legge la regola per una
+  seduta (senza opzioni quella prevista quel giorno): il titolo va sulla zona che la seduta carica di più (A gomito,
+  B e C gamba, `sessionFocus`), il messaggio tace i balzi se la seduta non ne ha. Con il gomito sopra soglia
+  (`gate.elbowOver`) le spinte con i manubri passano da sole alla variante del catalogo (`elbowSwitch`: panca piana
+  → chest press, panca inclinata → distensioni ai cavi; `elbowSwitchFor`), con carichi di partenza ridotti del 15%
+  circa e la panca riprendibile con un tocco. Una zona sotto il ginocchio a soglia degli impatti + 2 o più
+  (`PHYSIO_REFERRAL_MARGIN`) rimanda al fisioterapista se il giorno dopo è ancora sopra soglia. `workoutVolume`
+  conta i due manubri e i due lati (`volumeFactor`).
   `introLevel`: nelle prime 2 esecuzioni di una seduta una serie in meno e un RIR in più (non per le sedute
   già leggere). Nel catalogo degli esercizi `impact` e `startKg` (carichi di partenza) stanno in un tipo
   locale, non nel contratto. `physioCoverage`: la prevenzione della seduta che lavora lo stesso tessuto di un
@@ -318,7 +340,12 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   tibiali di prevenzione, e la nota dice quale zona e perché.
 - `review.ts` · `weekStats(weekStart, state)` (peso medio e variazione, pesate, aderenza, sonno medio,
   notti in orario, fibre e proteine stimate dai pasti fatti, dolore medio per zona e tendenza, carico, dolci
-  fuori programma) e `proposals(weekStart, state): Proposal[]` con queste regole:
+  fuori programma) e `proposals(weekStart, state): Proposal[]` con queste regole. Fibre e proteine contano solo i
+  giorni con almeno 3 pasti su 5 segnati (`MIN_DAY_MEAL_SHARE`; con meno di 3 giorni la media è null e
+  l'interfaccia mostra "–"); un pasto preso con il piano B al bar vale i valori dell'ordine; le notti in orario si
+  giudicano con l'orario a letto di quella settimana, ricostruito dalle revisioni accettate (`sleepPhaseOn`,
+  `planOnEvening`). Si decide solo sulle proposte che cambiano il piano (`needsDecision`: orario a letto, calorie,
+  scarico, settimana più leggera); pesate, dolore, fibre e dolci sono informative, in "Da sapere", senza pulsanti.
   - sonno: ≥ 5 notti a letto entro `current` + 15 min → anticipa di `stepMin` (fino a `target`);
   - calorie (ricomposizione): servono ≥ 4 pesate; calo medio > 0,5% del peso → +150 kcal; aumento > 0,5% →
     −100 kcal; altrimenti invariato (proposta informativa);
@@ -364,6 +391,12 @@ Qualità da professionista: un professionista della nutrizione e dell'allenament
   ±8% dalle kcal obiettivo, proteine ≥ 125 g, fibre ≥ 28 g, almeno 5 porzioni di frutta e verdura.
   Varietà: pesce 2-3 volte a settimana, legumi 4+ volte, carne rossa al massimo 1 volta, uova 2-3 volte.
   Ogni settimana ha 4-6 attività di preparazione domenicale (60-90 minuti totali).
+  Spesa: al massimo 40 prodotti a settimana (oggi 36 in entrambe), con un solo yogurt, l'avena per le colazioni,
+  un pollo e un pesce. Confezioni: un fresco si usa almeno per metà confezione nella settimana; un prodotto a lunga
+  conservazione torna in almeno due pasti della settimana o arriva a metà confezione nelle due settimane. Le
+  alternative mettono prima le ricette con gli stessi prodotti. Nei passaggi non si scrivono le quantità degli
+  ingredienti scalati (le dicono le porzioni). Vigilia della partita: fibre ≤ 40 g anche con il minimo di
+  carboidrati, niente legumi a cena, niente ricette da preparazione della domenica.
 - `BAR_OPTIONS`: 15-20 opzioni reali di un bar italiano con verdetto ('si', 'meglio', 'programmato') e motivo.
 - Scrivi uno script di verifica `scripts/check-menu.ts` (eseguibile con `npx tsx` o come test Vitest
   `src/data/menu.test.ts`) che stampa i totali per giorno e fallisce se i vincoli non sono rispettati.
@@ -466,7 +499,8 @@ fa, 21 giorni di diario credibile (aderenza 60-90%, qualche giornata minima, qua
 controlli del mattino con peso che oscilla intorno a 70 kg in lieve calo, sonno che migliora da 6,2 a 7,2 h,
 dolore alla tibia che scende da 3 a 1 e al gomito da 3 a 2, 7-8 sedute registrate con progressione
 realistica, partite e calcetti con RPE, 2 revisioni, qualche messaggio di chat. Deterministico (niente
-`Math.random()` senza seme). L'interfaccia mostra sempre un'etichetta "Dati di esempio" quando sono attivi.
+`Math.random()` senza seme): ogni giorno e ogni sezione hanno il proprio generatore, quindi l'ora (`?now=`) cambia
+solo le voci di oggi e non i giorni passati. L'interfaccia mostra sempre un'etichetta "Dati di esempio" quando sono attivi.
 
 ## 11. Qualità
 
@@ -579,5 +613,27 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
 - `Plan.impactThreshold?: number` (revisione, giro 4): soglia di dolore per gli impatti nelle zone sotto il
   ginocchio, modificabile nelle impostazioni del dolore d'accordo con il fisioterapista. Senza il campo vale
   min(painThreshold, 2).
+  Nelle impostazioni lo stepper "Negli impatti" va da 0 alla soglia generale; tornare a 2 toglie il campo (min(soglia,
+  2) e min(2, soglia) coincidono sempre). `impactThresholdFor` in `engine/training.ts` la limita comunque alla soglia
+  generale.
 - `DayLog.barMeals?` (revisione, giro 4): pasti presi con il piano B al bar, con etichetta e valori stimati
   dell'ordine, così la revisione conta proteine, fibre e vegetali veri invece della quota fissa dei sostituiti.
+  Lo scrive `setBarMeal(date, slot, meal | null)` (solo ordini validi, `normalizeBarMeals`); si toglie da solo se la
+  voce non è più sostituita o se la si segna sostituita con una nota scritta a mano. Valori del giorno (`onlyDone`),
+  revisione e coach lo leggono.
+- Tipi del motore della nutrizione (sistema, giro 4, nessun campo in `types.ts`): `MATCH_CARB_G_PER_KG` = 6,
+  `isMatchDay`, `NutritionState`, `referenceWeightKg`, `MatchCarbs` e `matchCarbs`, `dayTargetFor`,
+  `DayNutritionDetail.target` e `.matchCarbs`, `portionPhrase` e `PORTION_TOLERANCE`; `useNutritionState()` in
+  `state/hooks.ts`. `shoppingList` accetta `NutritionState` (controlli e profilo facoltativi, compatibile).
+- Tipi del motore dell'allenamento (Allenamento, giro 4, nessun campo in `types.ts`): `impactThresholdFor`,
+  `PHYSIO_REFERRAL_MARGIN`, `PainGateOptions`, `PainGate.elbowOver`, `.threshold`, `.impactThreshold`, `.sessionId`,
+  `elbowSwitchFor` ed `ElbowSwitch`, `SuggestionKind` 'sostituisci' (carico × 0,85 arrotondato all'incremento, uguale se
+  anche l'ultima volta era una sostituzione) con `SuggestOptions.switched` e `SWITCH_REDUCE_FACTOR`, `sessionFocus`, `volumeFactor`,
+  `workoutVolume` con `sessionId` facoltativo; `CatalogExercise.elbowSwitch` ed `elbowSwitchOf` in `data/exercises.ts`.
+- Tipi del motore della revisione e del coach (Progressi e Coach, giro 4, nessun campo in `types.ts`):
+  `MIN_DAY_MEAL_SHARE` (0,6), `DayIntake.menuMeals`, `.complete`, `.bar`, `PeriodStats.mealsAtBar`, `mealsLogged`
+  contato solo sui giorni completi, `prevFiberAvgG` null con meno di 3 giorni, `sleepPhaseOn(evening, state)`,
+  `planOnEvening` e `needsDecision` in `engine/review.ts`; `LoadWeek.previousWeeks` in `features/progressi/series.ts`;
+  `BAR_VEG_PORTIONS` e `barOrder` in `features/coach/barPick.ts` (`plannedMeal` accetta `NutritionState`).
+- Impostazioni (giro 4, nessun campo in `types.ts`): `impactThresholdView`, `impactThresholdPatch`, `painSummary`,
+  `matchCarbNote` in `features/impostazioni/lib.ts`; `impactRuleNote` ha un terzo argomento facoltativo.

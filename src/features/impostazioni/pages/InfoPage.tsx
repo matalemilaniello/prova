@@ -29,7 +29,7 @@ export default function InfoPage({ onBack, backLabel }: PageProps) {
         <div className="flex flex-col gap-1">
           <h2 className="t-title text-ink">Ritmo</h2>
           <p className="t-callout text-ink-2">La tua giornata, già decisa.</p>
-          <p className="t-mono text-[0.75rem] text-ink-3">
+          <p className="t-caption tabular text-ink-3">
             Versione {APP_VERSION}
             {isISODate(BUILD_DATE) ? ` · ${buildLabel(BUILD_DATE)}` : ''}
             {IS_PREVIEW ? ' · anteprima' : ''}

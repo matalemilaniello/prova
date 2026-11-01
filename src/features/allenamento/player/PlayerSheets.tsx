@@ -30,6 +30,8 @@ export function AlternativesSheet({ open, onClose, planned, currentId, catalog, 
     ...(planned && currentId !== planned.id ? [{ ex: planned, original: true }] : []),
     ...ids.filter((id) => id !== currentId).map((id) => ({ ex: catalog[id], original: false })),
   ];
+  // "Adatto al gomito" solo se distingue qualcosa: quando tutte le opzioni lo sono è rumore.
+  const elbowTag = options.some((o) => !o.ex.elbowFriendly);
   return (
     <Sheet
       open={open}
@@ -68,7 +70,7 @@ export function AlternativesSheet({ open, onClose, planned, currentId, catalog, 
                       <span className="mt-1.5 flex flex-wrap gap-1.5">
                         {original && <Pill tone="palestra">Torna a quello previsto</Pill>}
                         {rec && <Pill tone="good" icon={Check}>Consigliata oggi</Pill>}
-                        {ex.elbowFriendly && <Pill>Adatto al gomito</Pill>}
+                        {elbowTag && ex.elbowFriendly && <Pill>Adatto al gomito</Pill>}
                       </span>
                       {last && (
                         <span className="t-footnote mt-1.5 block text-ink-3">
@@ -177,7 +179,7 @@ export function OverviewSheet({ open, onClose, steps, current, logs, nameOf, onJ
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="t-callout block font-medium text-ink">{nameOf(st)}</span>
-                  <span className="t-mono mt-0.5 block text-[0.75rem] text-ink-3">
+                  <span className="t-footnote mt-0.5 block text-ink-3 tabular">
                     {st.kind === 'warmup' ? `${st.items.length} esercizi` : doseLabel(st.item.item)}
                   </span>
                 </span>

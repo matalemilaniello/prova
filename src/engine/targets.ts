@@ -22,6 +22,13 @@ export const GOAL_DELTA_KCAL: Record<Goal, number> = {
 };
 
 export const PROTEIN_G_PER_KG = 1.9;
+/**
+ * Carboidrati minimi il giorno della partita e la vigilia, in g per kg di peso: UEFA expert group statement on
+ * nutrition in elite football (Collins et al., BJSM 2021) indica 6-8 g/kg nel giorno prima e nel giorno della gara
+ * da 90 minuti. Il piano tiene il minimo dell'intervallo; calcetto e allenamento restano al giorno di calcio.
+ * Si applica per data (`matchCarbs` in `engine/nutrition.ts`), non al tipo di giorno.
+ */
+export const MATCH_CARB_G_PER_KG = 6;
 export const FAT_SHARE = 0.28;
 /** Fibre: circa 14 g ogni 1.000 kcal (LARN 2014: 12,6-16,7 g/1.000 kcal, almeno 25 g al giorno). */
 export const FIBER_G = 35;

@@ -65,7 +65,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <Screen title={title} subtitle={subtitle} onBack={onBack} backLabel={fittingBackLabel(backLabel)} bottom="safe" contentClassName="gap-7">
+    <Screen title={title} subtitle={subtitle} onBack={onBack} backLabel={fittingBackLabel(backLabel)} bottom="safe">
       {children}
     </Screen>
   );

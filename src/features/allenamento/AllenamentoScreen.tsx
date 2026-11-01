@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { CircleCheck, Dumbbell } from 'lucide-react';
 import type { WorkoutLog } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
-import { daysBetween, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
+import { daysBetween, formatDayTitle, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
 import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
 import { gateForLater, introLevel, sessionLoad } from '../../engine/training';
 import { useNow, usePlanDay } from '../../state/hooks';
@@ -20,6 +20,20 @@ import { draftDoneSets, useSessionDraft } from './draft';
 import { buildPlayerPlan, exerciseFor, plannedSets, shortName } from './lib';
 import { PhysioEditorSheet } from './PhysioEditor';
 import { relativeDayShort, useTraining } from './useTraining';
+
+/**
+ * "Partita domani alle 21:00", "Partita giovedì alle 21:00". Da 5 giorni in là la partita dello stesso giorno della
+ * settimana è passata da poco ("lunedì" sarebbe ieri o l'altro ieri): si scrive la data, "Prossima partita lunedì 9".
+ */
+function matchLabel(match: NonNullable<ReturnType<typeof useTraining>['nextMatch']>, today: string): string {
+  const d = daysBetween(today, match.date);
+  const kind = FOOTBALL_LABEL[match.event.kind];
+  if (d >= 5) {
+    const day = formatDayTitle(match.date);
+    return `Prossima ${kind.toLowerCase()} ${day.charAt(0).toLowerCase()}${day.slice(1)} alle ${match.event.time}`;
+  }
+  return `${kind} ${relativeDayShort(match.date, today)} alle ${match.event.time}`;
+}
 
 export default function AllenamentoScreen() {
   const today = usePlanDay();
@@ -54,9 +68,7 @@ export default function AllenamentoScreen() {
         ? `Settimana ${week} del piano`
         : formatMonth(today);
   const match = data.nextMatch;
-  const subtitle = match ? (
-    <DayTypeBadge dayType="calcio" label={`${FOOTBALL_LABEL[match.event.kind]} ${relativeDayShort(match.date, today)} alle ${match.event.time}`} />
-  ) : undefined;
+  const subtitle = match ? <DayTypeBadge dayType="calcio" label={matchLabel(match, today)} /> : undefined;
 
   const startSession = (sessionId: string, date = today) => open({ type: 'session', sessionId, date });
 

@@ -149,7 +149,7 @@ export function Stepper({
         {btn(-1)}
         <div className="flex min-w-0 flex-1 items-baseline justify-center gap-1">
           <NumberTicker value={value} format={fmt} duration={0.25} className={cn('t-num text-ink', big ? 'text-[2.75rem]' : 'text-[2rem]')} />
-          {unit && <span className={cn('t-mono text-ink-2', big ? 'text-[0.9375rem]' : 'text-[0.8125rem]')}>{unit}</span>}
+          {unit && <span className={cn('t-unit text-ink-2', big ? 'text-[0.9375rem]' : 'text-[0.8125rem]')}>{unit}</span>}
         </div>
         {btn(1)}
       </div>

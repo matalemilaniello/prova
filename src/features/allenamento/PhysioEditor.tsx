@@ -96,7 +96,7 @@ function PhysioEditorContent({ showDays = true, className }: Omit<PhysioEditorPr
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="t-callout block font-medium text-ink">{ex?.name ?? 'Esercizio senza nome'}</span>
-                      <span className="t-mono mt-0.5 block text-[0.75rem] text-leggero-ink">
+                      <span className="t-footnote mt-0.5 block text-leggero-ink tabular">
                         {doseLabel(p)} · recupero {restLabel(p.restSec)}
                       </span>
                       {p.note && <span className="t-footnote mt-1 block text-ink-3">{p.note}</span>}

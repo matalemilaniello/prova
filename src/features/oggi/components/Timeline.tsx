@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, Ellipsis, HeartPulse, Plus, Store } from 'lucide-react';
+import { ChevronDown, Ellipsis, Store } from 'lucide-react';
 import type { DayType, HHMM, ItemStatus, MealSlot, Plan } from '../../../domain/types';
 import { dayMinutes, type DayItem, type StatusSource } from '../../../engine/timeline';
 import { cn, keepHyphens, spring, useLongPress } from '../../../ui';
@@ -22,22 +22,10 @@ export interface TimelineProps {
   /** Voce mostrata nella card "Adesso". */
   currentId?: string;
   overdueIds: Set<string>;
-  /** Righe di configurazione che non contano (es. aggiungi gli esercizi del fisioterapista, la dose di un integratore). */
-  setupRows?: SetupRowData[];
   onToggle: (item: DayItem) => void;
   onBody: (item: DayItem) => void;
   onOptions: (item: DayItem) => void;
   onPlanB: (slot?: MealSlot) => void;
-}
-
-export interface SetupRowData {
-  id: string;
-  time: HHMM;
-  title: string;
-  detail: string;
-  /** Icona del cerchio tratteggiato (predefinita: il cuore del fisioterapista). */
-  icon?: typeof HeartPulse;
-  onPress: () => void;
 }
 
 const STATUS_TEXT: Record<ItemStatus, string> = { fatto: 'fatto', sostituito: 'sostituito', saltato: 'saltato' };
@@ -45,11 +33,26 @@ const STATUS_TEXT: Record<ItemStatus, string> = { fatto: 'fatto', sostituito: 's
 const COLLAPSE_FROM = 4;
 /** Da quante voci precedenti al primo avvio si raccolgono in una riga. */
 const BEFORE_COLLAPSE_FROM = 2;
+/**
+ * Le voci oltre queste ore da adesso si raccolgono in una riga "Più tardi", se sono almeno `LATER_COLLAPSE_FROM` e
+ * dopo l'ultimo appuntamento della giornata (calcio, palestra, revisione), che non si nasconde mai.
+ */
+const LATER_WINDOW_MIN = 5 * 60;
+const LATER_COLLAPSE_FROM = 3;
+/** Gli appuntamenti della giornata: mai dentro "Più tardi". */
+const ALWAYS_SHOWN = new Set<DayItem['kind']>(['calcio', 'palestra', 'revisione']);
 
 type ItemEntry = { type: 'item'; item: DayItem; m: number };
-type Entry = ItemEntry | { type: 'setup'; row: SetupRowData; m: number } | { type: 'done'; items: DayItem[]; m: number } | { type: 'before'; items: DayItem[]; m: number };
+type Entry =
+  | ItemEntry
+  | { type: 'done'; items: DayItem[]; m: number }
+  | { type: 'before'; items: DayItem[]; m: number }
+  | { type: 'later'; items: DayItem[]; m: number };
 
-/** Timeline della giornata: orario, cerchio da toccare, voce; la linea dell'ora attuale scorre tra le voci. */
+/**
+ * Timeline della giornata: orario, cerchio da toccare, voce; la linea dell'ora attuale scorre tra le voci. Le voci
+ * già segnate in apertura e quelle oltre le prossime 5 ore si raccolgono in una riga ciascuna.
+ */
 export function Timeline({
   items,
   dayType,
@@ -62,7 +65,6 @@ export function Timeline({
   plan,
   currentId,
   overdueIds,
-  setupRows = [],
   onToggle,
   onBody,
   onOptions,
@@ -72,6 +74,7 @@ export function Timeline({
   const itemEntries: ItemEntry[] = items.map((item) => ({ type: 'item' as const, item, m: dayMinutes(item.time, plan) }));
   const [expanded, setExpanded] = useState(false);
   const [showBefore, setShowBefore] = useState(false);
+  const [showLater, setShowLater] = useState(false);
   const entries: Entry[] = [];
   let from = 0;
   // Primo giorno: le voci prima dell'inizio non contano, si raccolgono in una riga.
@@ -88,13 +91,24 @@ export function Timeline({
     entries.push({ type: 'done', items: itemEntries.slice(from, run).map((e) => e.item), m: itemEntries[from].m });
     from = run;
   }
-  entries.push(...itemEntries.slice(from));
-  for (const row of setupRows) {
-    const m = dayMinutes(row.time, plan);
-    const at = entries.findIndex((e) => e.type === 'item' && e.m > m);
-    entries.splice(at === -1 ? entries.length : at, 0, { type: 'setup', row, m });
+  // La sera lontana si raccoglie in una riga: in vista resta quello che viene nelle prossime ore.
+  // Calcio, palestra e revisione restano sempre in vista: la riga comincia dopo l'ultimo di questi.
+  let to = itemEntries.length;
+  if (!showLater) {
+    let at = itemEntries.findIndex((e, i) => i >= from && e.m > nowM + LATER_WINDOW_MIN);
+    if (at !== -1) {
+      for (let i = itemEntries.length - 1; i >= at; i--) {
+        if (ALWAYS_SHOWN.has(itemEntries[i].item.kind)) {
+          at = i + 1;
+          break;
+        }
+      }
+    }
+    if (at !== -1 && itemEntries.length - at >= LATER_COLLAPSE_FROM && !itemEntries.slice(at).some((e) => e.item.id === currentId || overdueIds.has(e.item.id))) to = at;
   }
-  let nowIndex = entries.findIndex((e) => (e.type === 'item' || e.type === 'setup') && e.m > nowM);
+  entries.push(...itemEntries.slice(from, to));
+  if (to < itemEntries.length) entries.push({ type: 'later', items: itemEntries.slice(to).map((e) => e.item), m: itemEntries[to].m });
+  let nowIndex = entries.findIndex((e) => (e.type === 'item' || e.type === 'later') && e.m > nowM);
   if (nowIndex === -1) nowIndex = entries.length;
   // Le righe raccolte stanno sempre prima della linea dell'ora.
   while (nowIndex < entries.length && (entries[nowIndex].type === 'before' || entries[nowIndex].type === 'done')) nowIndex++;
@@ -108,7 +122,7 @@ export function Timeline({
       {entries.map((e, i) => {
         const first = i === 0 && nowIndex !== 0;
         const last = i === entries.length - 1 && nowIndex !== entries.length;
-        const key = e.type === 'item' ? e.item.id : e.type === 'setup' ? `setup:${e.row.id}` : e.type;
+        const key = e.type === 'item' ? e.item.id : e.type;
         return (
           <Fragment key={key}>
             {i === nowIndex && <NowLine now={now} first={i === 0} />}
@@ -116,8 +130,8 @@ export function Timeline({
               <BeforeRun items={e.items} first={first} last={last} onExpand={() => setShowBefore(true)} />
             ) : e.type === 'done' ? (
               <DoneRun items={e.items} dayType={dayType} status={status} first={first} last={last} onExpand={() => setExpanded(true)} />
-            ) : e.type === 'setup' ? (
-              <SetupRow {...e.row} first={first} last={last} />
+            ) : e.type === 'later' ? (
+              <LaterRun items={e.items} dayType={dayType} status={status} first={first} last={last} onExpand={() => setShowLater(true)} />
             ) : e.type === 'item' ? (
               <TimelineRow
                 item={e.item}
@@ -198,6 +212,58 @@ function DoneRun({
   );
 }
 
+/** Voci della sera lontana raccolte in una riga, con l'icona di ciascuna: un tocco le mostra. */
+function LaterRun({
+  items,
+  dayType,
+  status,
+  first,
+  last,
+  onExpand,
+}: {
+  items: DayItem[];
+  dayType: DayType;
+  status: Record<string, ItemStatus>;
+  first: boolean;
+  last: boolean;
+  onExpand: () => void;
+}) {
+  const end = items[items.length - 1].time;
+  return (
+    <li className="relative flex items-stretch">
+      <span aria-hidden className="w-[46px] shrink-0 pr-1 pt-[15px] text-right leading-[12px]">
+        <span className="t-mono text-[0.75rem] leading-[12px] text-ink-3">{items[0].time}</span>
+      </span>
+      <Rail first={first} last={last}>
+        <span aria-hidden className="relative mt-[6px] grid size-[30px] place-items-center rounded-full bg-card-2 text-ink-2 shadow-[inset_0_0_0_1px_var(--line-strong)]">
+          <span className="t-num text-[0.9375rem] leading-none">{items.length}</span>
+        </span>
+      </Rail>
+      <span className="flex min-w-0 flex-1 flex-col pb-1 pr-3">
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-expanded={false}
+          className="flex min-h-12 w-full items-start gap-2 rounded-[14px] py-[9px] pl-1.5 pr-1 text-left transition-colors duration-150 active:bg-ink-soft"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="t-callout block font-semibold leading-snug text-ink-2">
+              Più tardi, fino alle <span className="t-mono text-[0.875rem]">{end}</span>
+            </span>
+            <span className="mt-1.5 flex flex-wrap items-center gap-1" aria-hidden>
+              {items.map((it) => (
+                <StatusMark key={it.id} item={it} dayType={dayType} status={status[it.id]} size={18} />
+              ))}
+            </span>
+            <span className="sr-only">{`${items.length} voci: ${items.map((it) => it.title).join(', ')}. Mostra`}</span>
+          </span>
+          <ChevronDown size={18} strokeWidth={2.5} aria-hidden className="mt-0.5 shrink-0 text-accent-ink" />
+        </button>
+      </span>
+    </li>
+  );
+}
+
 /** Voci precedenti al primo avvio raccolte in una riga: non contano, si possono comunque mostrare. */
 function BeforeRun({ items, first, last, onExpand }: { items: DayItem[]; first: boolean; last: boolean; onExpand: () => void }) {
   return (
@@ -252,38 +318,6 @@ function Rail({ first, last, children }: { first: boolean; last: boolean; childr
       {!last && <span aria-hidden className="absolute bottom-0 left-1/2 top-[40px] w-px -translate-x-1/2 bg-line" />}
       {children}
     </span>
-  );
-}
-
-/** Riga di configurazione: non conta, apre l'editor. */
-function SetupRow({ time, title, detail, icon: Icon = HeartPulse, onPress, first, last }: SetupRowData & { first: boolean; last: boolean }) {
-  return (
-    <li className="relative flex items-stretch">
-      <span aria-hidden className="w-[46px] shrink-0 pr-1 pt-[15px] text-right leading-[12px]">
-        <span className="t-mono text-[0.75rem] leading-[12px] text-ink-3">{time}</span>
-      </span>
-      <Rail first={first} last={last}>
-        <span aria-hidden className="relative mt-[6px] grid size-[30px] place-items-center rounded-full border-[1.5px] border-dashed border-line-strong text-ink-3">
-          <Icon size={15} strokeWidth={2.2} />
-        </span>
-      </Rail>
-      <span className="flex min-w-0 flex-1 flex-col pb-1 pr-3">
-        <button
-          type="button"
-          onClick={onPress}
-          aria-haspopup="dialog"
-          className="flex min-h-12 w-full items-start gap-2 rounded-[14px] py-[9px] pl-1.5 pr-1 text-left transition-colors duration-150 active:bg-ink-soft"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="t-callout flex items-center gap-1.5 font-semibold text-accent-ink">
-              <Plus size={15} strokeWidth={2.6} aria-hidden />
-              {title}
-            </span>
-            <span className="t-footnote mt-0.5 block text-ink-3">{detail}</span>
-          </span>
-        </button>
-      </span>
-    </li>
   );
 }
 

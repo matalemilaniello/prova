@@ -12,6 +12,29 @@ describe('dati di esempio', () => {
     expect(JSON.stringify(buildDemo(today, { nowMin: 13 * 60 }))).toBe(JSON.stringify(demo));
   });
 
+  it('lo storico dei giorni passati non dipende dall’ora', () => {
+    for (const day of ['2026-11-03', '2026-11-12', '2026-11-15']) {
+      const noon = buildDemo(day, { nowMin: 12 * 60 + 30 });
+      const evening = buildDemo(day, { nowMin: 17 * 60 });
+      const late = buildDemo(day, { nowMin: 22 * 60 + 40 });
+      for (const other of [evening, late]) {
+        expect(other.workoutLogs).toEqual(noon.workoutLogs);
+        expect(other.footballLogs).toEqual(noon.footballLogs);
+        expect(other.checkIns).toEqual(noon.checkIns);
+        for (const d of Object.keys(noon.dayLogs)) {
+          if (d < day) expect(other.dayLogs[d]).toEqual(noon.dayLogs[d]);
+        }
+      }
+    }
+  });
+
+  it('l’ora decide solo quali voci di oggi sono già segnate', () => {
+    const morning = buildDemo(today, { nowMin: 9 * 60 });
+    const evening = buildDemo(today, { nowMin: 20 * 60 });
+    const marked = (d: typeof demo) => Object.keys(d.dayLogs[today].status).length;
+    expect(marked(evening)).toBeGreaterThan(marked(morning));
+  });
+
   it('piano iniziato tre settimane fa, di lunedì', () => {
     expect(weekdayOf(demo.plan.startDate)).toBe(0);
     expect(daysBetween(demo.plan.startDate, today)).toBeGreaterThanOrEqual(21);

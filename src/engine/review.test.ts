@@ -13,7 +13,9 @@ import {
   firstReviewWeek,
   isReviewableWeek,
   periodStats,
+  planOnEvening,
   planWeekNumber,
+  sleepPhaseOn,
   dayIntake,
   fiberAdditions,
   proposeWeeklyStep,
@@ -24,6 +26,7 @@ import {
   isReviewDay,
   kcalCorrection,
   loadingSince,
+  needsDecision,
   previousReview,
   PROPOSAL_ORDER,
   proposalEffect,
@@ -271,13 +274,13 @@ describe('fibre e proteine dai pasti segnati', () => {
 
   it('i pasti non segnati non contano come saltati', () => {
     const d = base();
-    // Solo colazione e pranzo segnati, tutti fatti: la stima è il menù intero, non due quinti.
-    for (const date of weekDates(W2)) markMeals(d, date, { colazione: 'fatto', pranzo: 'fatto' });
+    // Solo colazione, pranzo e cena segnati, tutti fatti: la stima è il menù intero, non tre quinti.
+    for (const date of weekDates(W2)) markMeals(d, date, { colazione: 'fatto', pranzo: 'fatto', cena: 'fatto' });
     const s = weekStats(W2, d);
     const menu = weekDates(W2).reduce((sum, date) => sum + plannedFiber(d, date), 0) / 7;
     expect(s.fiberPlannedG!).toBeCloseTo(menu, 0);
     expect(s.fiberAvgG!).toBeCloseTo(menu, 0);
-    expect(s.mealsLogged).toBe(14);
+    expect(s.mealsLogged).toBe(21);
     expect(s.mealsCounted).toBe(35);
     expect(s.fiberLow).toBe(false);
     expect(byId(proposals(W2, d), 'fibre')).toBeUndefined();
@@ -301,14 +304,65 @@ describe('fibre e proteine dai pasti segnati', () => {
 
   it('un solo pasto fuori menù: lo nomina, con l’articolo giusto', () => {
     const d = base();
-    markMeals(d, addDays(W2, 0), { cena: 'fatto' });
-    markMeals(d, addDays(W2, 1), { cena: 'saltato' });
-    markMeals(d, addDays(W2, 2), { cena: 'fatto' });
+    // Tre pasti segnati al giorno (il minimo perché il giorno conti), la cena è quello che pesa di più.
+    markMeals(d, addDays(W2, 0), { spuntino: 'fatto', merenda: 'fatto', cena: 'fatto' });
+    markMeals(d, addDays(W2, 1), { spuntino: 'fatto', merenda: 'fatto', cena: 'saltato' });
+    markMeals(d, addDays(W2, 2), { spuntino: 'fatto', merenda: 'fatto', cena: 'fatto' });
+    // Obiettivo appena sopra il menù: il menù basta, la cena saltata porta la stima sotto il margine.
+    const menu = [0, 1, 2].reduce((sum, i) => sum + plannedFiber(d, addDays(W2, i)), 0) / 3;
+    for (const t of Object.values(d.plan.targets)) t.fiberG = Math.round(menu) + 1;
     const p = byId(proposals(W2, d, { today: addDays(W2, 3) }), 'fibre')!;
     expect(p.reason).toContain('mancano nella cena saltata');
     // Davanti a "otto" l'articolo è "gli".
     for (let i = 0; i < 4; i++) markMeals(d, addDays(W2, i), { colazione: 'fatto', spuntino: 'fatto', pranzo: 'saltato', merenda: 'fatto', cena: i < 3 ? 'saltato' : 'sostituito' });
     expect(byId(proposals(W2, d, { today: addDays(W2, 4) }), 'fibre')!.reason).toMatch(/negli 8\spasti sostituiti o saltati/);
+  });
+
+  it('il piano B al bar conta con i valori dell’ordine, non come mezzo pasto', () => {
+    const d = base();
+    const date = addDays(W2, 1);
+    markMeals(d, date, { colazione: 'fatto', spuntino: 'fatto', pranzo: 'fatto', merenda: 'fatto', cena: 'saltato' });
+    const skipped = dayIntake(date, d);
+    // Stessa cena sostituita con un ordine al bar da 39 g di proteine e 5 g di fibre.
+    d.dayLogs[date].status['pasto:cena'] = 'sostituito';
+    d.dayLogs[date].barMeals = { cena: { label: 'Panino con bresaola e yogurt con frutta', nutrients: { kcal: 555, proteinG: 39, carbG: 74, fatG: 12, fiberG: 5 }, vegPortions: 1 } };
+    const bar = dayIntake(date, d);
+    expect(bar.proteinG - skipped.proteinG).toBeCloseTo(39, 6);
+    expect(bar.fiberG - skipped.fiberG).toBeCloseTo(5, 6);
+    expect(bar.vegPortions - skipped.vegPortions).toBeCloseTo(1, 6);
+    expect(bar.bar).toEqual(['cena']);
+    expect(bar.replaced).toEqual(['cena']);
+    // Le fibre perse sono quelle che mancano davvero rispetto alla cena del menù.
+    expect(bar.fiberLost.cena ?? 0).toBeCloseTo(Math.max(0, (skipped.fiberLost.cena ?? 0) - 5), 6);
+    // Senza l'ordine, sostituito vale metà della cena prevista.
+    delete d.dayLogs[date].barMeals;
+    expect(dayIntake(date, d).bar).toEqual([]);
+    // Un ordine rimasto su un pasto fatto non conta: vale la ricetta.
+    d.dayLogs[date].status['pasto:cena'] = 'fatto';
+    d.dayLogs[date].barMeals = { cena: { label: 'Ordine', nutrients: { kcal: 300, proteinG: 1, carbG: 1, fatG: 1, fiberG: 0 } } };
+    expect(dayIntake(date, d).bar).toEqual([]);
+    const s = weekStats(W2, d, { today: addDays(W2, 2) });
+    expect(s.mealsAtBar).toBe(0);
+  });
+
+  it('il giorno del primo avvio con la sola merenda non entra nella stima', () => {
+    const start = '2026-11-04'; // mercoledì, primo avvio alle 14:20
+    const d = base(start);
+    d.plan.firstUse = { date: start, time: '14:20' };
+    markMeals(d, start, { merenda: 'fatto' });
+    const day = dayIntake(start, d);
+    expect(day.logged).toBe(true);
+    expect(day.complete).toBe(false);
+    const s = periodStats([start], [], d, { today: addDays(start, 1) });
+    expect(s.fiberAvgG).toBeNull();
+    expect(s.proteinAvgG).toBeNull();
+    expect(s.nutritionDays).toBe(0);
+    // Due pasti segnati su cinque non bastano; tre sì.
+    const next = addDays(start, 1);
+    markMeals(d, next, { colazione: 'fatto', pranzo: 'fatto' });
+    expect(dayIntake(next, d).complete).toBe(false);
+    markMeals(d, next, { colazione: 'fatto', pranzo: 'fatto', cena: 'fatto' });
+    expect(dayIntake(next, d).complete).toBe(true);
   });
 
   it('menù sotto l’obiettivo: aggiunte su misura, con le calorie', () => {
@@ -385,7 +439,7 @@ describe('dolore', () => {
     expect(p.reason).toContain('fisioterapista');
   });
 
-  it('in aumento rispetto alla settimana prima, con il consiglio per il gomito', () => {
+  it('in aumento rispetto alla settimana prima: niente cambio di esercizio sotto soglia', () => {
     const d = base();
     pains(d, W1, 'Gomito', [1, 1, 2, 1, 1, 2, 1]);
     pains(d, W2, 'Gomito', [2, 2, 3, 2, 2, 3, 2]);
@@ -394,7 +448,17 @@ describe('dolore', () => {
     expect(g.overThreshold).toBe(false);
     const p = byId(proposals(W2, d), 'dolore')!;
     expect(p.reason).toContain('Gomito in aumento da 1,3 a 2,3');
-    expect(p.reason).toContain('presa neutra');
+    expect(p.reason).not.toContain('presa neutra');
+    expect(p.reason).not.toContain('chest press');
+  });
+
+  it('gomito sopra soglia: la panca con i manubri passa alla chest press e ai cavi', () => {
+    const d = base();
+    pains(d, W2, 'Gomito', [4, 4, 5, 4, 4, 5, 4]);
+    const p = byId(proposals(W2, d), 'dolore')!;
+    expect(p.reason).toContain('sopra la soglia di 3');
+    expect(p.reason).toContain('la panca con i manubri passa alla chest press e ai cavi');
+    expect(p.reason).not.toContain('presa neutra');
   });
 
   it('dolore basso e in calo: nessuna proposta', () => {
@@ -533,6 +597,19 @@ describe('proposte e revisioni', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(acceptable(list).map((p) => p.id)).toEqual(expect.arrayContaining(['sonno', 'calorie', 'dolci']));
     expect(list.every((p) => !/—/.test(p.title + p.reason))).toBe(true);
+    // Si decide solo su quello che cambia la settimana dopo; i dolci sono un consiglio da sapere.
+    expect(list.filter(needsDecision).map((p) => p.id)).toEqual(list.filter((p) => p.id === 'sonno' || p.id === 'calorie').filter((p) => p.apply).map((p) => p.id));
+  });
+
+  it('da decidere: piano, scarico e settimana più leggera; il resto si legge soltanto', () => {
+    const p = (area: Proposal['area'], apply?: Proposal['apply']): Proposal => ({ id: area, area, title: '', reason: '', apply });
+    expect(needsDecision(p('sonno', { type: 'sleepCurrent', value: '00:30' }))).toBe(true);
+    expect(needsDecision(p('calorie', { type: 'kcalDelta', value: 150 }))).toBe(true);
+    expect(needsDecision(p('scarico', { type: 'none' }))).toBe(true);
+    expect(needsDecision(p('allenamento', { type: 'none' }))).toBe(true);
+    for (const area of ['peso', 'dolore', 'fibre', 'dolci'] as const) expect(needsDecision(p(area, { type: 'none' }))).toBe(false);
+    expect(needsDecision(p('sonno'))).toBe(false);
+    expect(needsDecision(p('calorie'))).toBe(false);
   });
 
   it('effetti, voto medio, pliche e revisione precedente', () => {
@@ -770,5 +847,51 @@ describe('scalino della settimana', () => {
     for (const o of s.options) {
       expect(o.title + o.reason).not.toMatch(/—|NaN|undefined/);
     }
+  });
+});
+
+describe('scala del sonno nel tempo', () => {
+  const votes = { energia: 7, digestione: 7, umore: 7, campo: 7 };
+  const W3 = addDays(W2, 7);
+
+  it('ricostruisce l’orario a letto di ogni settimana dalle revisioni accettate', () => {
+    const d = base();
+    d.plan.sleep = { ...d.plan.sleep, current: '00:15', stepMin: 15 };
+    expect(sleepPhaseOn(W1, d)).toBe('00:15');
+    d.reviews = [
+      // Revisione senza istantanea delle proposte: un passo.
+      { weekStart: W1, votes, acceptedProposals: ['sonno'] },
+      {
+        weekStart: W2,
+        votes,
+        acceptedProposals: ['sonno'],
+        proposals: [{ id: 'sonno', area: 'sonno', title: 'A letto alle 00:15', reason: '', apply: { type: 'sleepCurrent', value: '00:15' } }],
+      },
+      // Una revisione senza la proposta del sonno accettata non sposta nulla.
+      { weekStart: W3, votes, acceptedProposals: ['peso'] },
+    ];
+    expect(sleepPhaseOn(W3, d)).toBe('00:15');
+    expect(sleepPhaseOn(addDays(W3, 10), d)).toBe('00:15');
+    expect(sleepPhaseOn(addDays(W2, 6), d)).toBe('00:30');
+    expect(sleepPhaseOn(W2, d)).toBe('00:30');
+    expect(sleepPhaseOn(addDays(W1, 6), d)).toBe('00:45');
+    expect(planOnEvening(W3, d)).toBe(d.plan);
+    expect(planOnEvening(W1, d).sleep.current).toBe('00:45');
+  });
+
+  it('le notti di una settimana passata si contano con l’orario di allora', () => {
+    const d = base();
+    d.plan.sleep = { ...d.plan.sleep, current: '00:15', stepMin: 15 };
+    bedtimes(d, W1, ['00:40', '00:40', '00:40', '00:40', '00:40', '00:40', '00:40']);
+    // Senza revisioni l'orario è 00:15 anche per la prima settimana: 00:40 è tardi.
+    expect(weekStats(W1, d, { today: addDays(W1, 6) }).nightsOnTarget).toBe(0);
+    // Con due passi accettati dopo, la prima settimana valeva 00:45.
+    d.reviews = [
+      { weekStart: W1, votes, acceptedProposals: ['sonno'] },
+      { weekStart: W2, votes, acceptedProposals: ['sonno'] },
+    ];
+    const s = weekStats(W1, d, { today: addDays(W1, 6) });
+    expect(s.nightsOnTarget).toBe(s.nightsWithBedtime);
+    expect(s.nightsOnTarget).toBeGreaterThan(0);
   });
 });

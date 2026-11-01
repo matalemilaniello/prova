@@ -6,7 +6,8 @@ import { RECIPES } from '../data/recipes';
 import { weekDates } from './dates';
 import { emptyDayLog as emptyLog } from '../state/store';
 import { effectiveDayType } from './menu';
-import { lineGrams } from './nutrition';
+import { dayCarbScale, lineGrams } from './nutrition';
+import { shoppingLeadFor } from './timeline';
 import {
   FRESH_LAST_WEEKDAY,
   SHOP_CATEGORIES,
@@ -118,8 +119,12 @@ describe('lista della settimana', () => {
     expect(pasta).toBeDefined();
     const line = RECIPES[pastaId].ingredients.find((l) => l.foodId === 'pasta')!;
     // Settimana tipo: 3 giorni di calcio, 2 di palestra, 1 leggero e la domenica, vigilia della partita, da calcio.
-    const expected = weekDates('2026-11-02').reduce((a, d) => a + lineGrams(line, effectiveDayType(d, plan)), 0);
-    expect(expected).toBeCloseTo(4 * lineGrams(line, 'calcio') + 2 * lineGrams(line, 'palestra') + lineGrams(line, 'leggero'), 5);
+    const days = weekDates('2026-11-02');
+    expect(days.map((d) => effectiveDayType(d, plan))).toEqual(['calcio', 'palestra', 'calcio', 'calcio', 'palestra', 'leggero', 'calcio']);
+    // Porzioni come nel menù: tipo di giorno e scala del piano, con il minimo di carboidrati di partita e vigilia.
+    const expected = days.reduce((a, d) => a + lineGrams(line, effectiveDayType(d, plan), FOODS, dayCarbScale(d, state())), 0);
+    const plain = 4 * lineGrams(line, 'calcio') + 2 * lineGrams(line, 'palestra') + lineGrams(line, 'leggero');
+    expect(expected).toBeGreaterThan(plain);
     expect(pasta!.eatenG).toBeCloseTo(expected, 5);
     expect(pasta!.buyG).toBeCloseTo(expected * (FOODS.pasta.buyFactor ?? 1), 5);
     expect(pasta!.days).toHaveLength(7);
@@ -330,5 +335,29 @@ describe('avanzamento e testo da copiare', () => {
     if (uova) expect(shoppingLine(uova)).toMatch(/^\d+ uov[oa]$/);
     const pollo = list.items.find((i) => i.foodId === 'pollo');
     if (pollo) expect(sp(shoppingLine(pollo))).toMatch(/^Petto di pollo: ≈ \d+ g$/);
+  });
+});
+
+describe('spesa corta', () => {
+  /** Oltre i 40 prodotti (olio, sale e spezie a parte) la spesa diventa un lavoro: vedi anche data/menu.test.ts. */
+  const MAX_PRODUCTS = 40;
+
+  it('ogni settimana della rotazione chiede al massimo 40 prodotti, con le porzioni vere del menù', () => {
+    for (const monday of ['2026-11-02', '2026-11-09']) {
+      const l = shoppingList(monday, state());
+      expect(l.items.length, monday).toBeLessThanOrEqual(MAX_PRODUCTS);
+      expect(l.items.length, monday).toBeGreaterThan(20);
+    }
+  });
+
+  it('anche la prima spesa del sabato, con i pasti di avvio del fine settimana, resta entro 40 prodotti', () => {
+    // Chi comincia il sabato mattina: niente spesa di avvio, la lista della settimana dopo comprende il fine settimana.
+    const startPlan = { ...defaultPlan('2026-11-09'), firstUse: { date: '2026-11-07', time: '10:00' } };
+    const st = { plan: startPlan, dayLogs: {} };
+    const lead = shoppingLeadFor('2026-11-09', st);
+    expect(lead?.date).toBe('2026-11-07');
+    const l = shoppingList('2026-11-09', st, { lead });
+    expect(l.leadDates).toEqual(['2026-11-07', '2026-11-08']);
+    expect(l.items.length).toBeLessThanOrEqual(MAX_PRODUCTS);
   });
 });

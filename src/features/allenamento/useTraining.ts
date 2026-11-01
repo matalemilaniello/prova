@@ -114,7 +114,8 @@ export function useTraining(today: ISODate): TrainingData {
     const planned = plannedLoadRemaining(ws, state, today).load;
     const next = nextPlannedSession(today, state);
     const after = next ? nextPlannedSession(today, state, { after: next.date, skipOptional: true }) : null;
-    const gate = painGate({ plan, checkIns, profile, workoutLogs, footballLogs }, today);
+    // Regola del dolore di oggi letta per la prossima seduta: il titolo va sulla zona che quella seduta carica.
+    const gate = painGate({ plan, checkIns, profile, workoutLogs, footballLogs }, today, { sessionId: next?.sessionId ?? null });
     const history = workoutLogs.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     const recordById: Record<string, PersonalRecord | null> = {};
     for (const w of history) recordById[w.id] = headlineRecord(w, workoutLogs, physio);

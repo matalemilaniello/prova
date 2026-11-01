@@ -15,7 +15,8 @@
  * Le chiavi delle voci sono gli id degli alimenti: restano stabili anche se il menù cambia.
  *
  * Le porzioni sono quelle che l'utente vede nel menù: tipo di giorno effettivo (la vigilia della partita
- * mangia come un giorno di calcio) e scala del piano (`dayCarbScale`).
+ * mangia come un giorno di calcio) e scala del piano (`dayCarbScale`). Con `checkIns` e `profile` nello stato il
+ * minimo di carboidrati di partita e vigilia usa il peso recente, come nelle altre schermate.
  *
  * Conservazione: la spesa si fa nel fine settimana. Carne e pesce freschi da crudi reggono in frigo
  * 1-2 giorni; se un pasto cucinato sul momento li usa da mercoledì in poi, la voce porta una nota che dice
@@ -35,8 +36,8 @@ import { FOODS } from '../data/foods';
 import { MENU_ROTATION } from '../data/menu';
 import { WEEKDAY_LONG, listIt } from '../lib/format';
 import { addDays, weekDates, weekStart, weekdayOf } from './dates';
-import { mealsForDate, menuWeekFor, type MenuState } from './menu';
-import { dayCarbScale, lineGrams } from './nutrition';
+import { mealsForDate, menuWeekFor } from './menu';
+import { dayCarbScale, lineGrams, type NutritionState } from './nutrition';
 
 const NBSP = ' ';
 
@@ -359,7 +360,7 @@ function preparedAhead(foodId: string, recipeId: string, batch: boolean | undefi
 const collator = new Intl.Collator('it-IT', { sensitivity: 'base' });
 
 /** Lista della spesa della settimana che contiene `weekStartIso` (si allinea al lunedì). */
-export function shoppingList(weekStartIso: ISODate, state: MenuState, opts: ShoppingOptions = {}): ShoppingList {
+export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts: ShoppingOptions = {}): ShoppingList {
   const foods = opts.foods ?? FOODS;
   const rotation = opts.rotation ?? MENU_ROTATION;
   const monday = weekStart(weekStartIso);

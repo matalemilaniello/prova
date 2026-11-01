@@ -147,13 +147,10 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
         </h3>
         <Card padding="lg" className="flex flex-col gap-4">
           <StatGrid s={summary} />
-          <div className="flex items-center justify-between gap-3">
-            <span className="t-footnote text-ink-2">
-              {summary.from && summary.to ? `Dal ${fmtDateShort(summary.from)} al ${fmtDateShort(summary.to)} · ` : ''}
-              file di {fmtBytes(size)}
-            </span>
-            {state.settings.demoData && <Pill tone="riposo">Dati di esempio</Pill>}
-          </div>
+          <span className="t-footnote text-ink-2">
+            {summary.from && summary.to ? `Dal ${fmtDateShort(summary.from)} al ${fmtDateShort(summary.to)} · ` : ''}
+            file di {fmtBytes(size)}
+          </span>
           {hasKey && (
             <div className="overflow-hidden rounded-[14px] bg-card-2">
               <FormRow label="Includi la chiave del coach" hint={withKey ? 'Chi ha il file può usarla: conservalo con cura' : 'Di base resta fuori dal file'}>
@@ -180,7 +177,8 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
           </div>
         </Card>
         <p className="t-footnote px-1 text-ink-3">
-          {lastAt ? `Ultimo backup: ${fmtDateLong(isoDay(lastAt))}.` : 'Non hai ancora fatto un backup da questo telefono.'} Salvalo in File o in iCloud Drive.
+          {lastAt ? `Ultimo backup: ${fmtDateLong(isoDay(lastAt))}.` : 'Non hai ancora fatto un backup da questo telefono.'}{' '}
+          {IS_PREVIEW ? 'Nell’anteprima il backup va negli appunti: incollalo in una nota per conservarlo.' : 'Salvalo in File o in iCloud Drive.'}
         </p>
         {persist === 'protetta' ? (
           <p className="t-footnote flex items-center gap-1.5 px-1 text-good-ink">
@@ -194,23 +192,18 @@ export default function BackupPage({ onBack, backLabel }: PageProps) {
         )}
       </section>
 
-      {IS_PREVIEW && (
-        <Callout tone="warn" title="Anteprima senza download">
-          Qui i file non si scaricano: il backup viene copiato negli appunti. Incollalo in una nota per conservarlo.
-        </Callout>
-      )}
-
       <section className="flex flex-col gap-2" aria-labelledby="importa-label">
         <h3 id="importa-label" className="t-label px-1 text-ink-3">
           Importa
         </h3>
         <Card padding="lg" className="flex flex-col gap-3">
           <p className="t-callout text-ink-2">Ripristina un backup di Ritmo: prima di sostituire i dati ti mostro cosa contiene.</p>
-          <div className="flex gap-2.5">
-            <Button variant="secondary" className="flex-1" icon={FileUp} onClick={() => fileRef.current?.click()}>
+          {/* Affiancati da 390 px; più stretti vanno uno sotto l'altro, senza uscire dalla card. */}
+          <div className="flex flex-wrap gap-2.5">
+            <Button variant="secondary" className="flex-1 basis-[9rem]" icon={FileUp} onClick={() => fileRef.current?.click()}>
               Scegli un file
             </Button>
-            <Button variant="secondary" className="flex-1" icon={ClipboardPaste} onClick={() => (setPasting((v) => !v), setError(null))}>
+            <Button variant="secondary" className="flex-1 basis-[9rem]" icon={ClipboardPaste} onClick={() => (setPasting((v) => !v), setError(null))}>
               Incolla il testo
             </Button>
           </div>

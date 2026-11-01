@@ -15,14 +15,39 @@
  * ricetta. Le funzioni accettano un ultimo argomento facoltativo `scale`: un numero già calcolato
  * (`dayCarbScale(data, stato)`, esatto per il giorno) oppure il piano (`planCarbScale`, media del tipo di giorno).
  * Senza `scale` i valori restano quelli del menù predefinito.
+ *
+ * Partita e vigilia: il giorno della partita e quello prima i carboidrati non scendono sotto 6 g/kg
+ * (`MATCH_CARB_G_PER_KG`, dal peso recente). La differenza dall'obiettivo del tipo di giorno passa dalle stesse righe
+ * di carboidrati (`dayCarbScale`) ed entra nell'obiettivo della data (`dayTargetFor`, `DayNutritionDetail.target`).
+ * Per il peso servono `checkIns` o `profile` nello stato (`NutritionState`); senza, vale il peso su cui sono
+ * costruite le proteine del piano.
  */
-import type { AppData, DayType, Food, IngredientLine, ISODate, MealSlot, Nutrients, Plan, PortionUnit, Recipe } from '../domain/types';
+import type {
+  AppData,
+  DayType,
+  Food,
+  IngredientLine,
+  ISODate,
+  MacroTarget,
+  MealSlot,
+  Nutrients,
+  Plan,
+  PortionUnit,
+  Recipe,
+} from '../domain/types';
 import { FOODS } from '../data/foods';
 import { MENU_ROTATION } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { DEFAULT_TARGETS, DEFAULT_WEEK, defaultPlan } from '../data/defaults';
-import { addDays, daysBetween } from './dates';
-import { effectiveDayType, mealsForDate, menuDayFor, type MenuState } from './menu';
+import { addDays, daysBetween, isISODate } from './dates';
+import { effectiveDayType, isMatchDay, isMatchEve, mealsForDate, menuDayFor, type MenuState } from './menu';
+import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
+
+/**
+ * Stato per i valori di una data: quello del menù più, se ci sono, controlli e profilo per il peso (minimo di
+ * carboidrati di partita e vigilia). Passa sempre anche `checkIns` e `profile` quando li hai.
+ */
+export type NutritionState = MenuState & Partial<Pick<AppData, 'checkIns' | 'profile'>>;
 
 export const CARB_FACTOR: Record<DayType, number> = {
   calcio: 1.25,
@@ -69,19 +94,39 @@ export const CARB_SCALE_MAX = 1.6;
 
 const clampScale = (x: number) => (Number.isFinite(x) ? Math.min(CARB_SCALE_MAX, Math.max(CARB_SCALE_MIN, x)) : 1);
 
-/** Kcal delle righe `carbScaled` di un elenco di ricette, con il fattore del tipo di giorno. */
-function carbScaledKcal(recipeIds: (string | undefined)[], dayType: DayType, foods: Record<string, Food> = FOODS): number {
-  let kcal = 0;
+interface CarbParts {
+  /** Kcal delle righe `carbScaled`. */
+  scaledKcal: number;
+  /** Carboidrati delle righe `carbScaled`. */
+  scaledCarbG: number;
+  /** Carboidrati delle altre righe (non cambiano con la scala). */
+  fixedCarbG: number;
+}
+
+/** Kcal e carboidrati delle righe di un elenco di ricette, con il fattore del tipo di giorno e scala 1. */
+function carbParts(recipeIds: (string | undefined)[], dayType: DayType, foods: Record<string, Food> = FOODS): CarbParts {
+  const out: CarbParts = { scaledKcal: 0, scaledCarbG: 0, fixedCarbG: 0 };
   for (const id of recipeIds) {
     const r = id ? RECIPES[id] : undefined;
     if (!r) continue;
     for (const line of r.ingredients) {
-      if (!line.carbScaled) continue;
       const f = foods[line.foodId];
-      if (f) kcal += (lineGrams(line, dayType, foods) * f.per100g.kcal) / 100;
+      if (!f) continue;
+      const g = lineGrams(line, dayType, foods);
+      if (line.carbScaled) {
+        out.scaledKcal += (g * f.per100g.kcal) / 100;
+        out.scaledCarbG += (g * f.per100g.carbG) / 100;
+      } else {
+        out.fixedCarbG += (g * f.per100g.carbG) / 100;
+      }
     }
   }
-  return kcal;
+  return out;
+}
+
+/** Kcal delle righe `carbScaled` di un elenco di ricette, con il fattore del tipo di giorno. */
+function carbScaledKcal(recipeIds: (string | undefined)[], dayType: DayType, foods: Record<string, Food> = FOODS): number {
+  return carbParts(recipeIds, dayType, foods).scaledKcal;
 }
 
 const avgCache = new Map<DayType, number>();
@@ -130,18 +175,96 @@ export function planCarbScale(dayType: DayType, plan: Pick<Plan, 'targets'> | un
   return scaleFrom(targetDelta(dayType, plan), menuCarbKcal(dayType));
 }
 
+// ───────────────────────── Partita e vigilia ─────────────────────────
+
+const validWeight = (w: unknown): w is number => typeof w === 'number' && Number.isFinite(w) && w >= 30 && w <= 250;
+
+/**
+ * Peso di riferimento per la data: media delle pesate dei 7 giorni che finiscono con l'ultima pesata entro la
+ * data (una pesata storta non sposta il piano), poi il peso del profilo, poi il peso su cui sono costruite le
+ * proteine del piano (1,9 g/kg). Null se non si ricava.
+ */
+export function referenceWeightKg(date: ISODate, state: NutritionState): number | null {
+  const checkIns = state.checkIns;
+  if (checkIns && typeof checkIns === 'object') {
+    const dated = Object.keys(checkIns)
+      .filter((d) => isISODate(d) && d <= date && validWeight(checkIns[d]?.weightKg))
+      .sort();
+    const last = dated[dated.length - 1];
+    if (last) {
+      const from = addDays(last, -6);
+      const recent = dated.filter((d) => d >= from).map((d) => checkIns[d].weightKg as number);
+      return recent.reduce((a, b) => a + b, 0) / recent.length;
+    }
+  }
+  if (validWeight(state.profile?.startWeightKg)) return state.profile.startWeightKg;
+  const protein = Number(state.plan?.targets?.calcio?.proteinG);
+  return protein > 0 ? protein / PROTEIN_G_PER_KG : null;
+}
+
+export interface MatchCarbs {
+  /** 'partita' il giorno della gara, 'vigilia' il giorno prima. */
+  when: 'partita' | 'vigilia';
+  weightKg: number;
+  /** Grammi per kg del minimo (6). */
+  gPerKg: number;
+  /** Minimo di carboidrati del giorno, arrotondato a 5 g. */
+  floorG: number;
+  /** Carboidrati dell'obiettivo del tipo di giorno. */
+  baseG: number;
+  /** Carboidrati aggiunti per arrivare al minimo (0 se l'obiettivo lo raggiunge già). */
+  extraG: number;
+  /** Kcal aggiunte (4 kcal/g, arrotondate a 10). */
+  extraKcal: number;
+}
+
+/**
+ * Minimo di carboidrati del giorno della partita e della vigilia (6 g/kg dal peso recente). Null negli altri
+ * giorni, quando il peso non si ricava o quando la data non è valida.
+ */
+export function matchCarbs(date: ISODate, state: NutritionState): MatchCarbs | null {
+  const plan = state.plan;
+  if (!plan || !isISODate(date)) return null;
+  const when = isMatchDay(date, plan) ? 'partita' : isMatchEve(date, plan) ? 'vigilia' : null;
+  if (!when) return null;
+  const weightKg = referenceWeightKg(date, state);
+  if (!weightKg) return null;
+  const baseG = Number(plan.targets?.[effectiveDayType(date, plan)]?.carbG) || 0;
+  const floorG = Math.round((MATCH_CARB_G_PER_KG * weightKg) / 5) * 5;
+  const extraG = Math.max(0, floorG - baseG);
+  return { when, weightKg, gPerKg: MATCH_CARB_G_PER_KG, floorG, baseG, extraG, extraKcal: Math.round((extraG * 4) / 10) * 10 };
+}
+
+/**
+ * Obiettivo della data: quello del tipo di giorno effettivo (la vigilia vale come calcio) più il minimo di
+ * carboidrati di partita e vigilia. È l'obiettivo da mostrare accanto ai valori del giorno.
+ */
+export function dayTargetFor(date: ISODate, state: NutritionState): MacroTarget {
+  const base = state.plan.targets[effectiveDayType(date, state.plan)];
+  const m = matchCarbs(date, state);
+  if (!base || !m?.extraG) return base;
+  return { ...base, carbG: base.carbG + m.extraG, kcal: base.kcal + m.extraKcal };
+}
+
 /**
  * Scala delle righe di carboidrati per la data: la differenza di kcal dell'obiettivo divisa per le kcal
  * delle righe di carboidrati del menù previsto quel giorno. Così il totale del giorno segue l'obiettivo
- * (+150 kcal nel piano → circa +150 kcal nel piatto).
+ * (+150 kcal nel piano → circa +150 kcal nel piatto). Il giorno della partita e la vigilia la scala sale
+ * almeno quanto serve perché i carboidrati del menù previsto arrivino al minimo (`matchCarbs`): nel piatto ci
+ * sono davvero 6 g/kg, non solo nell'obiettivo.
  */
-export function dayCarbScale(date: ISODate, state: MenuState): number {
+export function dayCarbScale(date: ISODate, state: NutritionState): number {
   const dayType = effectiveDayType(date, state.plan);
   const delta = targetDelta(dayType, state.plan);
-  if (!delta) return 1;
+  const match = matchCarbs(date, state);
+  if (!delta && !match?.extraG) return 1;
   const planned = menuDayFor(date, state.plan.startDate);
-  const base = planned ? carbScaledKcal(Object.values(planned.meals ?? {}), dayType) : 0;
-  return scaleFrom(delta, base > 0 ? base : menuCarbKcal(dayType));
+  const parts = planned ? carbParts(Object.values(planned.meals ?? {}), dayType) : null;
+  const base = parts && parts.scaledKcal > 0 ? parts.scaledKcal : menuCarbKcal(dayType);
+  const scale = scaleFrom(delta, base);
+  if (!match?.extraG || !parts || !(parts.scaledCarbG > 0)) return scale;
+  const needed = (match.floorG - parts.fixedCarbG) / parts.scaledCarbG;
+  return needed > scale ? clampScale(needed) : scale;
 }
 
 /** Risolve l'argomento `scale` delle funzioni di questo file. */
@@ -289,6 +412,27 @@ export function portionWords(qty: number, unit: Exclude<PortionUnit, 'g' | 'ml'>
   return half ? `${base} e ${mezzo}` : base;
 }
 
+/** Scarto massimo tra la porzione detta a parole e i grammi, oltre il quale si aggiunge "abbondante" o "quasi". */
+export const PORTION_TOLERANCE = 0.1;
+
+/**
+ * Porzione a parole coerente con i grammi. Se la mezza unità più vicina si discosta di più del 10% dalla quantità
+ * vera, lo dice con "abbondante" o "quasi", al massimo un quarto di unità di scarto, e preferisce le unità intere:
+ * 1,25 → "1 fetta abbondante", 1,35 → "quasi 1 fetta e mezza", 1,8 → "quasi 2 fette", 0,6 → "mezza fetta
+ * abbondante". Così "1 fetta abbondante · ≈ 50 g" torna con la fetta da 40 g.
+ */
+export function portionPhrase(qty: number, unit: Exclude<PortionUnit, 'g' | 'ml'>): string {
+  if (!(qty > 0)) return portionWords(0.5, unit);
+  const half = roundHalf(qty);
+  if (Math.abs(half - qty) / qty <= PORTION_TOLERANCE) return portionWords(half, unit);
+  const whole = Math.round(qty);
+  const ref = whole >= 1 && Math.abs(qty - whole) <= 0.25 ? whole : Math.floor(qty) + 0.5;
+  const words = portionWords(ref, unit);
+  if (qty > ref) return `${words} ${Math.floor(ref) >= 2 ? 'abbondanti' : 'abbondante'}`;
+  if (ref - qty > 0.25) return `meno di ${words}`;
+  return `quasi ${words}`;
+}
+
 /** Arrotondamento umano dei grammi: sotto 10 g al grammo, poi a 5 g. */
 export function roundGrams(g: number): number {
   if (!(g > 0)) return 0;
@@ -305,7 +449,10 @@ export interface PortionParts {
   text: string;
 }
 
-/** Porzione leggibile della riga, adattata al tipo di giorno (e al piano, con `scale`). */
+/**
+ * Porzione leggibile della riga, adattata al tipo di giorno (e al piano, con `scale`). Le unità a occhio usano
+ * `portionPhrase`: mezze unità, con "abbondante" o "quasi" quando l'arrotondamento si allontanerebbe dai grammi.
+ */
 export function portionParts(
   line: IngredientLine,
   dayType: DayType,
@@ -325,7 +472,7 @@ export function portionParts(
     const text = density !== undefined && density !== 1 && grams ? `${portion} · ≈ ${grams} g` : portion;
     return { portion, grams, text };
   }
-  const portion = portionWords(lineQty(line, dayType, k), line.unit);
+  const portion = portionPhrase(lineQty(line, dayType, k), line.unit);
   return { portion, grams, text: grams ? `${portion} · ≈ ${grams} g` : portion };
 }
 
@@ -338,14 +485,28 @@ export function formatPortion(line: IngredientLine, dayType: DayType, foods: Rec
 
 export interface DayNutritionOptions {
   /**
-   * Conta solo i pasti segnati come fatti nel diario (voce 'pasto:<slot>' con stato 'fatto').
-   * Default false: valori previsti dal menù.
+   * Conta solo i pasti segnati come fatti nel diario (voce 'pasto:<slot>' con stato 'fatto') e, per i pasti
+   * sostituiti con il piano B al bar (`DayLog.barMeals`), i valori dell'ordine. Default false: valori previsti
+   * dal menù.
    */
   onlyDone?: boolean;
 }
 
+const nonNeg = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+
+/** Valori di un ordine al bar letti in modo difensivo (dati salvati o importati). */
+function barMealNutrients(meal: { nutrients?: Partial<Nutrients> } | undefined): Nutrients | null {
+  const n = meal?.nutrients;
+  if (!n || typeof n !== 'object') return null;
+  return { kcal: nonNeg(n.kcal), proteinG: nonNeg(n.proteinG), carbG: nonNeg(n.carbG), fatG: nonNeg(n.fatG), fiberG: nonNeg(n.fiberG) };
+}
+
 export interface DayNutritionDetail {
   total: Nutrients;
+  /** Obiettivo della data (`dayTargetFor`): tipo di giorno effettivo più il minimo di partita e vigilia. */
+  target: MacroTarget;
+  /** Minimo di carboidrati di partita e vigilia, se vale per la data (`matchCarbs`). */
+  matchCarbs: MatchCarbs | null;
   vegPortions: number;
   bySlot: Partial<Record<MealSlot, Nutrients>>;
   /** Tipo di giorno delle porzioni (la vigilia della partita vale come calcio). */
@@ -357,27 +518,42 @@ export interface DayNutritionDetail {
 /** Valori del giorno con dettaglio per pasto e porzioni di vegetali. */
 export function dayNutritionDetail(
   date: ISODate,
-  state: MenuState | AppData,
+  state: NutritionState | AppData,
   opts: DayNutritionOptions = {},
 ): DayNutritionDetail {
   const { dayType, meals } = mealsForDate(date, state);
   const carbScale = dayCarbScale(date, state);
-  const status = state.dayLogs[date]?.status ?? {};
+  const log = state.dayLogs[date];
+  const status = log?.status ?? {};
   let total: Nutrients = { ...ZERO_NUTRIENTS };
   let veg = 0;
   const bySlot: Partial<Record<MealSlot, Nutrients>> = {};
   for (const m of meals) {
-    if (opts.onlyDone && status[`pasto:${m.slot}`] !== 'fatto') continue;
+    if (opts.onlyDone) {
+      const st = status[`pasto:${m.slot}`];
+      if (st === 'sostituito') {
+        // Preso con il piano B al bar: valgono i valori dell'ordine, come nella revisione.
+        const bar = log?.barMeals?.[m.slot];
+        const n = barMealNutrients(bar);
+        if (n) {
+          bySlot[m.slot] = n;
+          total = addNutrients(total, n);
+          veg += nonNeg(bar?.vegPortions);
+        }
+        continue;
+      }
+      if (st !== 'fatto') continue;
+    }
     const n = recipeNutrition(m.recipe, dayType, FOODS, carbScale);
     bySlot[m.slot] = n;
     total = addNutrients(total, n);
     veg += recipeVegPortions(m.recipe, dayType, FOODS, carbScale);
   }
-  return { total, vegPortions: veg, bySlot, dayType, carbScale };
+  return { total, target: dayTargetFor(date, state), matchCarbs: matchCarbs(date, state), vegPortions: veg, bySlot, dayType, carbScale };
 }
 
 /** Somma dei pasti del giorno (sostituzioni di ricetta comprese). */
-export function dayNutrition(date: ISODate, state: MenuState | AppData, opts: DayNutritionOptions = {}): Nutrients {
+export function dayNutrition(date: ISODate, state: NutritionState | AppData, opts: DayNutritionOptions = {}): Nutrients {
   return dayNutritionDetail(date, state, opts).total;
 }
 

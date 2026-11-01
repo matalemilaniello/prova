@@ -20,7 +20,7 @@ import { isStarterDay, menuWeekFor, rotationIndexFor } from '../../engine/menu';
 import { shoppingList, shoppingProgress } from '../../engine/shopping';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
-import { usePlanDay } from '../../state/hooks';
+import { useNutritionState, usePlanDay } from '../../state/hooks';
 import { Button, IconButton, Screen } from '../../ui';
 import { MenuTab } from './MenuTab';
 import { PrepTab } from './PrepTab';
@@ -39,6 +39,8 @@ export default function SettimanaScreen() {
   const today = usePlanDay();
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
+  // Piano, diario, controlli e profilo: le porzioni della spesa sono quelle del menù, minimo di partita compreso.
+  const nutrition = useNutritionState();
   const initialTab = useUrlParam('tab');
   const weekParam = useUrlParam('settimana');
   const guideParam = useUrlParam('guida');
@@ -80,8 +82,8 @@ export default function SettimanaScreen() {
   const shopMonday = addDays(thisMonday, offsetFor('spesa') * 7);
   const shopFrom = shoppingFromDate(plan, shopMonday);
   const list = useMemo(
-    () => shoppingList(shopMonday, { plan, dayLogs }, { fromDate: shopFrom, lead: shoppingLeadSafe(shopMonday, { plan, dayLogs }) }),
-    [shopMonday, shopFrom, plan, dayLogs],
+    () => shoppingList(shopMonday, nutrition, { fromDate: shopFrom, lead: shoppingLeadSafe(shopMonday, { plan, dayLogs }) }),
+    [shopMonday, shopFrom, nutrition, plan, dayLogs],
   );
   const lead = useMemo(() => shoppingLeadSafe(monday, { plan, dayLogs }), [monday, plan, dayLogs]);
   const checked = useApp((s) => s.shoppingChecked[shopMonday] ?? EMPTY);
@@ -242,8 +244,7 @@ export default function SettimanaScreen() {
               {tab === 'spesa' && (
                 <ShoppingTab
                   weekStart={monday}
-                  plan={plan}
-                  dayLogs={dayLogs}
+                  state={nutrition}
                   offset={offset}
                   today={today}
                   fromDate={shoppingFromDate(plan, monday)}

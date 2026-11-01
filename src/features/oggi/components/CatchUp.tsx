@@ -1,6 +1,7 @@
 /**
  * Recupero delle voci rimaste indietro: il foglio "Recupera" per oggi (il pomeriggio) e la card "Ieri sera" per
- * sistemare la giornata precedente il mattino dopo. Ogni riga ha Fatto, Sostituito e Saltato in linea.
+ * sistemare la giornata precedente il mattino dopo. Ogni riga ha Fatto, Sostituito e Saltato in linea (coprifuoco,
+ * letto e telefono fuori solo Fatto e Saltato).
  */
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -12,7 +13,7 @@ import { haptic } from '../../../lib/haptics';
 import { plural } from '../../../lib/format';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Card, Sheet, cn, spring } from '../../../ui';
-import { BOARD_LABEL } from '../kinds';
+import { BOARD_LABEL, canReplace } from '../kinds';
 import { StatusMark } from './StatusMark';
 
 const CHOICES: { status: ItemStatus; label: string }[] = [
@@ -37,14 +38,18 @@ export interface CatchUpRowProps {
   onOpen?: (item: DayItem) => void;
 }
 
-/** Riga con le tre scelte in linea; toccare la scelta attiva la toglie. */
+/** Riga con le scelte in linea; toccare la scelta attiva la toglie. */
 export function CatchUpRow({ item, dayType, status, onSet, onOpen }: CatchUpRowProps) {
   const data = Boolean(onOpen) && needsData(item) && !status;
+  // Senza un'alternativa sensata restano Fatto (largo, come l'azione dei pannelli) e Saltato.
+  const twoWay = !canReplace(item) && status !== 'sostituito';
+  const choices = twoWay ? CHOICES.filter((c) => c.status !== 'sostituito') : CHOICES;
   return (
     <div className="py-3">
       <div className="flex items-center gap-3">
         <StatusMark item={item} dayType={dayType} status={status} size={28} />
-        <p className="t-callout min-w-0 flex-1 truncate font-semibold text-ink">{item.title}</p>
+        {/* "Cena di recupero, veloce e digeribile" si legge "Cena di recupero": la riga resta intera. */}
+        <p className="t-callout min-w-0 flex-1 truncate font-semibold text-ink">{item.title.split(',')[0]}</p>
         <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{item.time}</span>
       </div>
       {data ? (
@@ -69,7 +74,7 @@ export function CatchUpRow({ item, dayType, status, onSet, onOpen }: CatchUpRowP
         </div>
       ) : (
       <div role="radiogroup" aria-label={`Stato: ${item.title}`} className="mt-2.5 grid grid-cols-3 gap-2 pl-10">
-        {CHOICES.map((c) => {
+        {choices.map((c) => {
           const on = status === c.status;
           return (
             <button
@@ -83,6 +88,7 @@ export function CatchUpRow({ item, dayType, status, onSet, onOpen }: CatchUpRowP
               }}
               className={cn(
                 't-footnote h-11 min-w-0 rounded-[12px] px-1 font-semibold transition-[transform,background-color,box-shadow] duration-150 active:scale-95',
+                twoWay && c.status === 'fatto' && 'col-span-2',
                 on
                   ? c.status === 'fatto'
                     ? 'bg-good text-[var(--on-good)]'
@@ -203,9 +209,8 @@ export function YesterdayCard({ date, items, dayType, onMore, onOpen }: Yesterda
           {evening ? 'Ieri sera' : `Ieri, ${formatWeekday(date)}`}
         </h2>
         <p className="t-footnote mt-1.5 text-ink-2">
-          {items.length === 1
-            ? '1 voce ancora aperta. Segnala ora: una dimenticanza non spezza la serie.'
-            : `${items.length} voci ancora aperte. Chiudile ora: una dimenticanza non spezza la serie.`}
+          {/* Il numero delle voci lo dicono le righe qui sotto. */}
+          {items.length === 1 ? 'Segnala ora: una dimenticanza non spezza la serie.' : 'Chiudile ora: una dimenticanza non spezza la serie.'}
         </p>
       </div>
       <div className="divide-y divide-line px-4">

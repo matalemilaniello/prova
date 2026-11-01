@@ -4,12 +4,12 @@ import { ArrowLeftRight, ChevronDown, Clock, HeartPulse, History, Layers, ListOr
 import type { ISODate, WorkoutLog } from '../../../domain/types';
 import { compareHHMM, formatDayLong, formatRelativeDay } from '../../../engine/dates';
 import { useNowHHMM } from '../../../state/hooks';
-import { sessionLoad, type PainGate, type Suggestion } from '../../../engine/training';
-import { capitalize as capitalizeFirst, fmtNumber } from '../../../lib/format';
+import type { PainGate, Suggestion } from '../../../engine/training';
+import { capitalize as capitalizeFirst } from '../../../lib/format';
 import { Callout, Disclosure, Pill, cn, staggerItem } from '../../../ui';
 import { haptic } from '../../../lib/haptics';
 import { SessionGlyph } from '../components/SessionGlyph';
-import { coveredPhrase, daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, type PlayerPlan } from '../lib';
+import { coveredPhrase, daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, shortName, type PlayerPlan } from '../lib';
 
 export interface IntroStepProps {
   plan: PlayerPlan;
@@ -36,15 +36,17 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
   const when = formatRelativeDay(date, today);
   const upcoming = Boolean(time) && (date > today || (date === today && compareHHMM(nowHHMM, time!) < 0));
   const whenLabel = `${when.charAt(0).toUpperCase()}${when.slice(1)}${upcoming ? ` alle ${time}` : ''}`;
-  const increases = plan.items.filter((it) => suggestions[it.key]?.kind === 'aumenta').length;
-  const stalls = plan.items.filter((it) => suggestions[it.key]?.stalled).length;
+  const kinds = plan.items.map((it) => suggestions[it.key]);
+  const increases = kinds.filter((k) => k?.kind === 'aumenta').length;
+  const stalls = kinds.filter((k) => k?.stalled).length;
+  // Esercizi frenati o cambiati dalla regola del dolore: lì niente "una ripetizione in più".
+  const braked = kinds.filter((k) => k && !k.stalled && (k.kind === 'mantieni' || k.kind === 'riduci' || k.kind === 'sostituisci')).length;
   // Riscaldamento e blocco del fisioterapista sono sempre uguali: chiusi di base, si aprono con un tocco.
   const [openBlocks, setOpenBlocks] = useState<Record<string, boolean>>({});
   const reduce = useReducedMotion();
   const { duration, covered } = plan;
   const minutes = duration.own;
-  const swapped = own.filter((i) => i.replacedFrom);
-  const physioCount = plan.items.filter((i) => i.physio).length;
+  const swapped = own.filter((i) => i.replacedKind === 'impatto');
 
   return (
     <div className="flex flex-col gap-6 pb-8 pt-3">
@@ -73,21 +75,15 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
               </dt>
               <dd className="flex items-baseline gap-1">
                 <span className="t-num text-[1.75rem] text-ink">{s.value}</span>
-                {s.unit && <span className="t-mono text-[0.75rem] text-ink-2">{s.unit}</span>}
+                {s.unit && <span className="t-unit text-ink-2">{s.unit}</span>}
               </dd>
             </div>
           ))}
         </dl>
-        {duration.physio > 0 && (
-          <p className="t-footnote -mt-1 flex items-start gap-2 px-1 text-ink-2">
-            <HeartPulse size={14} strokeWidth={2.4} className="mt-0.5 shrink-0 text-leggero-ink" aria-hidden />
-            <span>
-              Con {physioCount === 1 ? "l’esercizio" : `i ${physioCount} esercizi`} del fisioterapista circa {duration.physio} min in più,{' '}
-              <span className="font-semibold text-ink">{duration.total} in tutto</span>.
-            </span>
-          </p>
-        )}
-        <p className="t-callout text-ink-2">{session.focus}</p>
+        {/* Il perché della seduta dietro un tocco; i minuti del fisioterapista stanno sul loro blocco, in fondo. */}
+        <Disclosure variant="inline" title="Com’è pensata" className="-mt-1 px-1">
+          {session.focus}
+        </Disclosure>
       </header>
 
       {plan.intro && (
@@ -117,11 +113,9 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
             <History size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
           )}
           <p className="t-footnote text-ink-2">
-            <span className="font-semibold text-ink">
-              Ultima volta {formatDayLong(lastSession.date)}
-            </span>
-            {` · ${lastSession.durationMin} min, RPE ${lastSession.rpe}, carico ${fmtNumber(sessionLoad(lastSession.durationMin, lastSession.rpe))} UA. `}
-            {progressPhrase(increases, stalls)}
+            <span className="block font-semibold text-ink">Ultima volta {formatDayLong(lastSession.date)}</span>
+            {`${lastSession.durationMin}\u00a0min, RPE\u00a0${lastSession.rpe}. `}
+            {progressPhrase(increases, stalls, braked)}
           </p>
         </div>
       )}
@@ -140,8 +134,8 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
               {b.physio && <HeartPulse size={12} strokeWidth={2.4} aria-hidden />}
               {b.title}
             </TitleTag>
-            <span className="t-mono flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[0.75rem] text-ink-3">
-              circa {min} min
+            <span className="t-footnote flex shrink-0 items-center gap-1.5 whitespace-nowrap text-ink-3 tabular">
+              {min}&nbsp;min
               {collapsible && (
                 <motion.span aria-hidden className="inline-flex" animate={{ rotate: open ? 180 : 0 }} transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}>
                   <ChevronDown size={15} strokeWidth={2.4} />
@@ -172,13 +166,13 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
                     {it.replacedFrom && (
                       <span className="t-caption mt-0.5 flex items-center gap-1 font-medium text-warn-ink">
                         <ArrowLeftRight size={11} strokeWidth={2.4} aria-hidden />
-                        al posto di: {exerciseFor(it.replacedFrom)?.name.toLowerCase() ?? it.replacedFrom}
+                        al posto di: {shortName(exerciseFor(it.replacedFrom)?.name ?? it.replacedFrom, it.replacedFrom)}
                       </span>
                     )}
                     {it.coveredBy ? (
                       <span className="t-caption mt-0.5 block font-medium text-leggero-ink">Già nel blocco del fisioterapista</span>
                     ) : (
-                      <span className={cn('t-mono mt-0.5 block text-[0.75rem]', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
+                      <span className={cn('t-footnote mt-0.5 block tabular', b.physio ? 'text-leggero-ink' : 'text-ink-3')}>{doseLabel(it.item)}</span>
                     )}
                   </span>
                   {w > 0 && !it.warmup && !it.coveredBy && (
@@ -249,9 +243,13 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
   );
 }
 
-/** Cosa cambia oggi rispetto all'ultima volta: carichi in salita, carichi ridotti dopo uno stallo o una ripetizione in più. */
-function progressPhrase(increases: number, stalls: number): string {
+/**
+ * Cosa cambia oggi rispetto all'ultima volta: carichi in salita, carichi ridotti dopo uno stallo o una ripetizione in
+ * più. Con esercizi frenati dalla regola del dolore la ripetizione in più non si nomina: lo dice l'avviso sopra.
+ */
+function progressPhrase(increases: number, stalls: number, braked: number): string {
   const count = (n: number) => (n === 1 ? 'un esercizio' : `${n} esercizi`);
+  if (braked > 0) return increases > 0 ? `Dove il dolore non frena, sali di carico in ${count(increases)}.` : '';
   if (increases > 0 && stalls > 0) return `Oggi sali di carico in ${count(increases)} e scendi in ${count(stalls)} per ripartire.`;
   if (increases > 0) return `Oggi sali di carico in ${count(increases)}.`;
   if (stalls > 0) return `Oggi scendi di carico in ${count(stalls)} per ripartire, negli altri cerchi una ripetizione in più.`;

@@ -30,7 +30,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'panino-tacchino',
     name: 'Panino con fesa di tacchino e verdure grigliate',
     verdict: 'si',
-    why: 'Proteine magre e un po\' di verdura. Se lo trovi integrale, ancora meglio.',
+    why: 'Proteine magre e un po’ di verdura. Se lo trovi integrale, ancora meglio.',
     approx: { kcal: 355, proteinG: 22, carbG: 58, fatG: 3, fiberG: 4 },
   },
   {

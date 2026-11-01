@@ -5,7 +5,8 @@
 import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
-import { IMPACT_PAIN_THRESHOLD, isElbowSite, isLowerLegSite } from '../../engine/training';
+import { MATCH_CARB_G_PER_KG } from '../../engine/targets';
+import { IMPACT_PAIN_THRESHOLD, impactThresholdFor, isElbowSite, isLowerLegSite } from '../../engine/training';
 import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, listIt, plural } from '../../lib/format';
 
 // ───────────────────────── Obiettivo ─────────────────────────
@@ -133,6 +134,22 @@ export function matchEveNote(week: ScheduleDay[]): string | null {
   if (!eves.length) return null;
   if (eves.length === 1) return `${eves[0] === 'domenica' ? 'La' : 'Il'} ${eves[0]}, vigilia della partita, mangia come un giorno di calcio`;
   return `Le vigilie della partita (${listIt(eves)}) mangiano come un giorno di calcio`;
+}
+
+/**
+ * Nota sui carboidrati di partita e vigilia sotto le calorie per tipo di giorno, o null senza partite in settimana.
+ * Il giorno della partita e la vigilia hanno un minimo di 6 g/kg (`matchCarbs` in `engine/nutrition.ts`, UEFA 2021):
+ * se l'obiettivo del calcio resta sotto, la nota dice a quanti grammi si sale, così il numero della card (l'obiettivo
+ * del tipo di giorno) non sembra il carico della vigilia. `weightKg` è il peso di riferimento.
+ * "Partita e vigilia salgono a 420 g di carboidrati, 6 g per kg, per arrivare in campo con buone scorte di glicogeno."
+ */
+export function matchCarbNote(week: ScheduleDay[], calcioCarbG: number, weightKg: number | null | undefined): string | null {
+  if (!week.some((d) => d.football?.kind === 'partita')) return null;
+  const floorG = weightKg && weightKg > 0 ? Math.round((MATCH_CARB_G_PER_KG * weightKg) / 5) * 5 : 0;
+  if (floorG > calcioCarbG) {
+    return `Partita e vigilia salgono a ${floorG}\u00a0g di carboidrati, ${MATCH_CARB_G_PER_KG}\u00a0g per kg, per arrivare in campo con buone scorte di glicogeno.`;
+  }
+  return matchEveCount(week) ? 'La vigilia della partita mangia come il calcio, per arrivare in campo con buone scorte di glicogeno.' : null;
 }
 
 const daysOf = (week: ScheduleDay[], pred: (d: ScheduleDay) => boolean) =>
@@ -295,15 +312,46 @@ export const elbowSites = (sites: readonly string[]): string[] => sites.filter(i
 export const sitesInText = (sites: string[]) => listIt(sites.map((s) => s.charAt(0).toLowerCase() + s.slice(1)));
 
 /**
+ * Soglia per gli impatti come la vive l'utente: `value` è quella che vale davvero (scelta con il fisioterapista,
+ * altrimenti min(soglia, 2); mai sopra la soglia generale, che oltre quel punto frena già tutto), `fallback` quella
+ * predefinita, `own` dice se l'ha scelta lui. `max` è il limite dello stepper: la soglia generale.
+ */
+export function impactThresholdView(plan: Pick<Plan, 'painThreshold' | 'impactThreshold'>): { value: number; fallback: number; own: boolean; max: number } {
+  const max = Math.max(0, plan.painThreshold ?? 3);
+  const fallback = Math.min(max, IMPACT_PAIN_THRESHOLD);
+  const own = typeof plan.impactThreshold === 'number' && Number.isFinite(plan.impactThreshold);
+  return { value: Math.min(max, impactThresholdFor(plan)), fallback, own, max };
+}
+
+/**
+ * Il valore da salvare per la soglia degli impatti scelta con lo stepper: 2 coincide sempre con il predefinito
+ * (min(soglia, 2) = min(2, soglia) con qualunque soglia), quindi toglie il campo e la soglia torna a seguire il piano.
+ */
+export function impactThresholdPatch(v: number): number | undefined {
+  return v === IMPACT_PAIN_THRESHOLD ? undefined : v;
+}
+
+/**
  * La regola degli impatti per le zone scelte sotto il ginocchio, in una frase, o null se non serve (nessuna zona
- * sotto il ginocchio, oppure soglia già uguale o più bassa di quella degli impatti).
+ * sotto il ginocchio, oppure soglia già uguale o più bassa di quella degli impatti). `impactThreshold` è quella
+ * scelta con il fisioterapista, se c'è.
  * "Per tibia balzi, salti e partita si fermano già sopra 2."
  */
-export function impactRuleNote(sites: readonly string[], threshold: number): string | null {
+export function impactRuleNote(sites: readonly string[], threshold: number, impactThreshold?: number): string | null {
   const lower = lowerLegSites(sites);
-  const impact = Math.min(threshold, IMPACT_PAIN_THRESHOLD);
+  const impact = impactThresholdView({ painThreshold: threshold, impactThreshold }).value;
   if (!lower.length || impact >= threshold) return null;
   return `Per ${sitesInText(lower)} balzi, salti e partita si fermano già sopra ${impact}.`;
+}
+
+/**
+ * Riassunto della riga "Zone di dolore e soglia": zone, soglia e, solo se scelta con il fisioterapista e con una zona
+ * sotto il ginocchio, la soglia per gli impatti. "Tibia, Gomito · soglia 3, impatti 3"
+ */
+export function painSummary(sites: readonly string[], plan: Pick<Plan, 'painThreshold' | 'impactThreshold'>): string {
+  const impact = impactThresholdView(plan);
+  const extra = impact.own && lowerLegSites(sites).length ? `, impatti ${impact.value}` : '';
+  return `${sites.length ? sites.join(', ') : 'Nessuna zona'} · soglia ${plan.painThreshold}${extra}`;
 }
 
 export function painLabel(v: number): string {

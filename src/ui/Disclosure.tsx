@@ -17,6 +17,11 @@ export interface DisclosureProps {
    * 'inline': collegamento piccolo color luce con la freccia ("Perché", "Come si calcola"), il testo sotto.
    */
   variant?: 'row' | 'inline';
+  /**
+   * Colore del collegamento 'inline': 'accent' (default, color luce) o 'quiet' (testo secondario), per le
+   * spiegazioni ripetute in una schermata che ha già un'azione dominante (es. "Come si legge" dei grafici).
+   */
+  tone?: 'accent' | 'quiet';
   /** Aperto all'inizio (non controllato). Di base chiuso: le spiegazioni stanno dietro un tocco. */
   defaultOpen?: boolean;
   /** Controllato: stato aperto. */
@@ -38,6 +43,7 @@ export function Disclosure({
   summary,
   icon,
   variant = 'row',
+  tone = 'accent',
   defaultOpen = false,
   open: openProp,
   onOpenChange,
@@ -74,7 +80,10 @@ export function Disclosure({
           aria-expanded={open}
           aria-controls={id}
           onClick={toggle}
-          className="hit-44 -mx-1 inline-flex items-center gap-1 self-start rounded-[8px] px-1 text-[0.9375rem] font-semibold text-accent-ink"
+          className={cn(
+            'hit-44 -mx-1 inline-flex items-center gap-1 self-start rounded-[8px] px-1 text-[0.9375rem]',
+            tone === 'quiet' ? 'font-medium text-ink-2' : 'font-semibold text-accent-ink',
+          )}
         >
           {title}
           {chevron(16)}

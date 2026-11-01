@@ -45,7 +45,7 @@ export function ReviewPrompt({ weekStart, sunday, available, saved, changes, cou
       <Card variant="outline" padding="lg" as="section" aria-label="Prima revisione">
         <div className="flex items-baseline justify-between gap-3">
           <span className="t-label text-ink-3">Revisione della settimana</span>
-          <span className="t-mono text-ink-3">10 min</span>
+          <span className="t-caption tabular-nums text-ink-3">10 min</span>
         </div>
         <div className="mt-3 flex items-end justify-between gap-4">
           <h2 className="t-title min-w-0 text-pretty text-ink">
@@ -64,7 +64,7 @@ export function ReviewPrompt({ weekStart, sunday, available, saved, changes, cou
           )}
         </div>
         <p className="t-callout mt-3 text-pretty text-ink-2">
-          Dieci minuti per rivedere la tua prima settimana: numeri, voti e misure, poi le correzioni del piano. Fino ad allora segna le voci di Oggi, il resto lo fa Ritmo.
+          Dieci minuti per rivedere la prima settimana e correggere il piano. Fino ad allora basta segnare le voci di Oggi.
         </p>
         {upcoming && upcoming.length === 7 && <DayBulbs days={upcoming} size="sm" className="mt-4 max-w-[260px]" />}
       </Card>
@@ -105,12 +105,12 @@ export function ReviewPrompt({ weekStart, sunday, available, saved, changes, cou
           <span className="t-label" style={{ color: sunday ? 'var(--accent-ink)' : 'var(--ink-3)' }}>
             {sunday ? 'Revisione della settimana' : 'Revisione da fare'}
           </span>
-          <span className="t-mono text-ink-3">10 min</span>
+          <span className="t-caption tabular-nums text-ink-3">10 min</span>
         </div>
         <div>
           <h2 className="t-large-title text-[2.125rem] text-ink">{sunday ? 'Chiudi la settimana' : 'Settimana da chiudere'}</h2>
           <p className="t-callout mt-2 text-pretty text-ink-2">
-            {capitalize(formatWeekSpan(weekStart))}: numeri, voti e misure, poi accetti le correzioni del piano. {preview}
+            {capitalize(formatWeekSpan(weekStart))}. {preview}
           </p>
         </div>
         {days && days.length === 7 && <DayBulbs days={days} size="sm" className="max-w-[260px]" />}

@@ -8,13 +8,19 @@
  *
  * Con i valori di `recipeNutrition` ogni giornata resta entro ±8% delle kcal obiettivo, con proteine ≥ 125 g,
  * carboidrati e grassi entro il 15% dell'obiettivo, grassi ≥ 20% dell'energia, fibre tra 28 e 45 g (40 g quando
- * la sera c'è il calcio), almeno 5 porzioni di frutta e verdura e al massimo una porzione di legumi
+ * la sera c'è il calcio e alla vigilia), almeno 5 porzioni di frutta e verdura e al massimo una porzione di legumi
  * (verificato da `menu.test.ts`): chi mangiava poche fibre non passa a 50 g da un giorno all'altro.
  *
  * Nei giorni di calcio la merenda è un pre-calcio digeribile (verso le 18:30) e la cena è una cena di recupero
  * veloce, quasi sempre pronta dalla domenica. Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto
- * principale (nei giorni di calcio solo le lenticchie rosse decorticate, a pranzo), uova 3 volte,
- * carne rossa una volta. Gli spuntini si ripetono di proposito: meno prodotti da comprare.
+ * principale (nei giorni di calcio solo le lenticchie rosse decorticate, a pranzo; alla vigilia mai a cena),
+ * uova 3 volte, carne rossa una volta.
+ *
+ * Spesa corta: le due settimane girano sugli stessi 36 prodotti (al massimo 40, spezie e olio a parte), con un
+ * solo yogurt, un solo cereale da colazione, un solo pollo e un solo pesce fresco o surgelato per settimana.
+ * Ogni confezione che si apre torna in almeno due pasti, oppure se ne usa almeno metà: lo yogurt fa da spuntino,
+ * merenda e condimento, gli spinaci surgelati vanno a colazione, nella pasta e nel cous cous, il barattolo di
+ * ceci si divide tra la pasta del martedì e l'insalata del venerdì. Gli spuntini si ripetono di proposito.
  *
  * `prep` sono le attività della domenica che precede la settimana (60-90 minuti in tutto): servono i pasti
  * da lunedì a sabato. La domenica si cucina sul momento, oppure si usa una porzione dal freezer.
@@ -45,7 +51,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-arachidi-banana',
-          spuntino: 'panino-tacchino-mela',
+          spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-tonno-pomodoro',
           merenda: 'pre-gallette-banana',
           cena: 'box-riso-pollo-zucchine',
@@ -55,9 +61,9 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'porridge-cacao-banana',
-          spuntino: 'yogurt-greco-noci-clementine',
+          spuntino: 'gallette-grana-clementine',
           pranzo: 'pasta-ceci-rosmarino',
-          merenda: 'fiocchi-latte-pomodorini',
+          merenda: 'yogurt-greco-noci-clementine',
           cena: 'salmone-patate-broccoli',
         },
       },
@@ -65,30 +71,30 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'uova-strapazzate-spinaci',
-          spuntino: 'yogurt-greco-noci-clementine',
+          spuntino: 'skyr-mela-mandorle',
           pranzo: 'riso-pollo-verdure-grigliate',
-          merenda: 'pre-fiocchi-mais-latte',
-          cena: 'couscous-gamberi-piselli',
+          merenda: 'pre-frullato-banana',
+          cena: 'couscous-pollo-spinaci',
         },
       },
       // Giovedì · calcio, allenamento alle 20:30
       {
         meals: {
           colazione: 'cappuccino-fette-skyr',
-          spuntino: 'skyr-mela-mandorle',
+          spuntino: 'yogurt-greco-noci-clementine',
           pranzo: 'pasta-ragu-lenticchie',
-          merenda: 'pre-frullato-banana',
+          merenda: 'pre-gallette-banana',
           cena: 'riso-saltato-uova-piselli',
         },
       },
       // Venerdì · palestra B alle 17:00
       {
         meals: {
-          colazione: 'yogurt-greco-muesli-kiwi',
-          spuntino: 'crackers-grana-pera',
-          pranzo: 'pasta-lenticchie-zucchine-feta',
+          colazione: 'pane-ricotta-miele',
+          spuntino: 'gallette-grana-clementine',
+          pranzo: 'pasta-pollo-spinaci',
           merenda: 'yogurt-cacao-pera',
-          cena: 'pollo-paprika-peperoni',
+          cena: 'insalata-ceci-tonno',
         },
       },
       // Sabato · leggero
@@ -97,26 +103,26 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pancake-avena-albumi',
           spuntino: 'skyr-mela-mandorle',
           pranzo: 'straccetti-manzo-rucola',
-          merenda: 'fiocchi-latte-pomodorini',
-          cena: 'minestrone-ditalini-borlotti',
+          merenda: 'yogurt-clementine-gallette',
+          cena: 'pasta-ragu-lenticchie',
         },
       },
-      // Domenica · riposo
+      // Domenica · riposo, vigilia della partita
       {
         meals: {
-          colazione: 'pane-ricotta-miele',
-          spuntino: 'yogurt-greco-noci-clementine',
+          colazione: 'pane-arachidi-banana',
+          spuntino: 'gallette-grana-clementine',
           pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'yogurt-cacao-pera',
-          cena: 'tacchino-riso-carote',
+          merenda: 'yogurt-clementine-gallette',
+          cena: 'riso-pollo-curcuma',
         },
       },
     ],
     prep: [
       {
         id: 's1-riso',
-        title: 'Cuoci il riso basmati e quello integrale',
-        minutes: 30,
+        title: 'Cuoci il riso basmati',
+        minutes: 15,
         yields: "Riso per la vaschetta di lunedì; quello per l’insalata di mercoledì e per il riso saltato di giovedì va in freezer a porzioni",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
       },
@@ -131,7 +137,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-ragu',
         title: 'Prepara il ragù di lenticchie',
         minutes: 25,
-        yields: 'Quattro porzioni in freezer: giovedì a pranzo, la domenica dopo a cena e due di scorta',
+        yields: 'Due porzioni: giovedì a pranzo in frigo, sabato a cena in freezer',
         recipeIds: ['pasta-ragu-lenticchie'],
       },
       {
@@ -143,10 +149,10 @@ export const MENU_ROTATION: MenuWeek[] = [
       },
       {
         id: 's1-sacchetti',
-        title: 'Porziona la frutta secca degli spuntini',
+        title: 'Porziona le noci degli spuntini',
         minutes: 5,
-        yields: 'Sacchetti di mandorle e noci per gli spuntini da portare di tutta la settimana',
-        recipeIds: ['skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
+        yields: 'Un sacchetto per ogni yogurt da portare della settimana',
+        recipeIds: ['yogurt-greco-noci-clementine', 'skyr-mela-mandorle'],
       },
     ],
   },
@@ -157,31 +163,31 @@ export const MENU_ROTATION: MenuWeek[] = [
       // Lunedì · calcio, partita alle 21:00
       {
         meals: {
-          colazione: 'porridge-cacao-banana',
+          colazione: 'pane-ricotta-miele',
           spuntino: 'frittatine-spinaci',
-          pranzo: 'riso-pollo-curcuma',
-          merenda: 'pre-pane-ricotta-miele',
-          cena: 'patate-salmone-affumicato',
+          pranzo: 'pasta-ricotta-spinaci',
+          merenda: 'pre-frullato-banana',
+          cena: 'box-riso-pollo-zucchine',
         },
       },
       // Martedì · palestra A alle 17:00
       {
         meals: {
-          colazione: 'pane-ricotta-miele',
+          colazione: 'cappuccino-fette-skyr',
           spuntino: 'frittatine-spinaci',
           pranzo: 'pasta-ceci-rosmarino',
-          merenda: 'skyr-frutti-bosco-avena',
+          merenda: 'yogurt-clementine-gallette',
           cena: 'merluzzo-pizzaiola-couscous',
         },
       },
       // Mercoledì · calcio, calcetto alle 21:00
       {
         meals: {
-          colazione: 'cappuccino-fette-skyr',
-          spuntino: 'panino-tacchino-mela',
-          pranzo: 'bowl-riso-salmone-edamame',
-          merenda: 'pre-gallette-banana',
-          cena: 'box-riso-pollo-zucchine',
+          colazione: 'porridge-cacao-banana',
+          spuntino: 'skyr-mela-mandorle',
+          pranzo: 'riso-pollo-verdure-grigliate',
+          merenda: 'pre-frullato-banana',
+          cena: 'couscous-pollo-spinaci',
         },
       },
       // Giovedì · calcio, allenamento alle 20:30
@@ -189,8 +195,8 @@ export const MENU_ROTATION: MenuWeek[] = [
         meals: {
           colazione: 'pane-arachidi-banana',
           spuntino: 'yogurt-greco-noci-clementine',
-          pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'pre-fiocchi-mais-latte',
+          pranzo: 'pasta-ragu-lenticchie',
+          merenda: 'pre-gallette-banana',
           cena: 'riso-saltato-uova-piselli',
         },
       },
@@ -198,30 +204,30 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'porridge-cacao-banana',
-          spuntino: 'yogurt-greco-noci-clementine',
-          pranzo: 'pasta-lenticchie-zucchine-feta',
-          merenda: 'pane-cioccolato-kefir',
-          cena: 'pollo-paprika-peperoni',
+          spuntino: 'gallette-grana-clementine',
+          pranzo: 'pasta-pollo-spinaci',
+          merenda: 'yogurt-cacao-pera',
+          cena: 'insalata-ceci-tonno',
         },
       },
       // Sabato · leggero
       {
         meals: {
           colazione: 'yogurt-greco-muesli-kiwi',
-          spuntino: 'skyr-mela-mandorle',
-          pranzo: 'tacchino-riso-carote',
-          merenda: 'pane-cioccolato-kefir',
-          cena: 'minestrone-ditalini-borlotti',
+          spuntino: 'gallette-grana-clementine',
+          pranzo: 'straccetti-manzo-rucola',
+          merenda: 'skyr-frutti-bosco-avena',
+          cena: 'pasta-ragu-lenticchie',
         },
       },
-      // Domenica · riposo
+      // Domenica · riposo, vigilia della partita
       {
         meals: {
-          colazione: 'pane-ricotta-miele',
-          spuntino: 'yogurt-greco-noci-clementine',
-          pranzo: 'straccetti-manzo-rucola',
-          merenda: 'fiocchi-latte-pomodorini',
-          cena: 'pasta-ragu-lenticchie',
+          colazione: 'pane-arachidi-banana',
+          spuntino: 'gallette-grana-clementine',
+          pranzo: 'riso-pollo-curcuma',
+          merenda: 'yogurt-clementine-gallette',
+          cena: 'merluzzo-pizzaiola-couscous',
         },
       },
     ],
@@ -234,32 +240,32 @@ export const MENU_ROTATION: MenuWeek[] = [
         recipeIds: ['frittatine-spinaci'],
       },
       {
-        id: 's2-patate',
-        title: 'Lessa le patate',
-        minutes: 20,
-        yields: 'Patate per la cena di recupero di lunedì: in frigo, dopo la partita si scaldano in 2 minuti',
-        recipeIds: ['patate-salmone-affumicato'],
-      },
-      {
         id: 's2-pollo-riso',
         title: 'Cuoci pollo e riso basmati',
         minutes: 25,
-        yields: 'Pollo e riso per il pranzo di lunedì, la vaschetta di mercoledì e il riso saltato di giovedì (in freezer)',
-        recipeIds: ['riso-pollo-curcuma', 'box-riso-pollo-zucchine', 'riso-saltato-uova-piselli'],
+        yields: 'Pollo e riso per la vaschetta di lunedì, l’insalata di riso di mercoledì e il riso saltato di giovedì (in freezer)',
+        recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
+      },
+      {
+        id: 's2-ragu',
+        title: 'Prepara il ragù di lenticchie',
+        minutes: 25,
+        yields: 'Due porzioni: giovedì a pranzo in frigo, sabato a cena in freezer',
+        recipeIds: ['pasta-ragu-lenticchie'],
       },
       {
         id: 's2-box',
-        title: 'Prepara la vaschetta di recupero per mercoledì sera',
+        title: 'Prepara la vaschetta di recupero per lunedì sera',
         minutes: 5,
-        yields: 'Riso, pollo e zucchine in freezer: mercoledì mattina la vaschetta passa in frigo',
+        yields: 'Riso, pollo e zucchine in frigo: dopo la partita bastano 3 minuti di microonde',
         recipeIds: ['box-riso-pollo-zucchine'],
       },
       {
         id: 's2-sacchetti',
-        title: 'Porziona la frutta secca degli spuntini',
+        title: 'Porziona le noci degli spuntini',
         minutes: 5,
-        yields: 'Sacchetti di mandorle e noci per gli spuntini da portare di tutta la settimana',
-        recipeIds: ['skyr-mela-mandorle', 'yogurt-greco-noci-clementine', 'panino-tacchino-mela'],
+        yields: 'Un sacchetto per ogni yogurt da portare della settimana',
+        recipeIds: ['yogurt-greco-noci-clementine', 'skyr-mela-mandorle'],
       },
     ],
   },
@@ -393,14 +399,11 @@ export const STARTER_PRODUCTS: readonly string[] = [
 export const PREP_GUIDE: Record<string, PrepGuide> = {
   's1-riso': {
     steps: [
-      "Metti sul fuoco due pentole d’acqua salata: il riso integrale cuoce circa 30 minuti, il basmati 11.",
+      "Metti sul fuoco una pentola d’acqua salata e cuoci il riso basmati.",
       'Scola e allarga il riso su un vassoio: deve raffreddarsi in fretta.',
       "Entro un’ora la porzione di lunedì va in frigo, le altre in freezer in sacchetti piatti.",
     ],
-    timers: [
-      { label: 'Riso integrale', minutes: 30 },
-      { label: 'Riso basmati', minutes: 11 },
-    ],
+    timers: [{ label: 'Riso basmati', minutes: 11 }],
   },
   's1-pollo': {
     steps: [
@@ -412,9 +415,9 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
   },
   's1-ragu': {
     steps: [
-      "Rosola il soffritto con l’olio per 2 minuti.",
+      "Rosola la carota grattugiata con l’olio per 2 minuti.",
       "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.",
-      'Dividi in 4 porzioni e congelale tutte.',
+      'Dividi in due porzioni: quella di giovedì in frigo, quella di sabato in freezer.',
     ],
     timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
   },
@@ -427,7 +430,7 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
   },
   's1-sacchetti': {
     steps: [
-      'Prepara un sacchetto per ogni spuntino da portare: mezza manciata di mandorle o di noci.',
+      'Prepara un sacchetto per ogni yogurt da portare: mezza manciata di noci.',
       'Tienili in un contenitore vicino allo zaino.',
     ],
   },
@@ -440,13 +443,6 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
     ],
     timers: [{ label: 'Frittatine in forno', minutes: 19 }],
   },
-  's2-patate': {
-    steps: [
-      "Patate a pezzi in acqua fredda salata, poi sul fuoco: dal bollore finché la forchetta entra senza sforzo.",
-      'Scola, fai raffreddare e metti in frigo in un contenitore.',
-    ],
-    timers: [{ label: 'Patate', minutes: 18 }],
-  },
   's2-pollo-riso': {
     steps: [
       "Riso basmati in acqua salata.",
@@ -458,16 +454,24 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
       { label: 'Pollo in padella', minutes: 8 },
     ],
   },
+  's2-ragu': {
+    steps: [
+      "Rosola la carota grattugiata con l’olio per 2 minuti.",
+      "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.",
+      'Dividi in due porzioni: quella di giovedì in frigo, quella di sabato in freezer.',
+    ],
+    timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
+  },
   's2-box': {
     steps: [
       'Salta le zucchine a rondelle nella padella del pollo.',
-      'Componi la vaschetta con riso, pollo e zucchine e mettila in freezer: mercoledì mattina passa in frigo.',
+      'Componi la vaschetta da microonde con riso, pollo e zucchine, chiudila e mettila in frigo.',
     ],
     timers: [{ label: 'Zucchine', minutes: 4 }],
   },
   's2-sacchetti': {
     steps: [
-      'Prepara un sacchetto per ogni spuntino da portare: mezza manciata di mandorle o di noci.',
+      'Prepara un sacchetto per ogni yogurt da portare: mezza manciata di noci.',
       'Tienili in un contenitore vicino allo zaino.',
     ],
   },

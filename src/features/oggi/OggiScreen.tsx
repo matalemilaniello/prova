@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, Clock, Feather, Pill as PillIcon, Settings, Timer } from 'lucide-react';
+import { Check, Clock, Feather, Settings, Timer } from 'lucide-react';
 import type { FootballKind, HHMM, ISODate, ItemStatus, MealSlot } from '../../domain/types';
 import { navigate } from '../../app/router';
 import { addDays, daysBetween, formatWeekday, weekIndexSince, weekdayOf } from '../../engine/dates';
@@ -24,12 +24,11 @@ import {
   physioMinutes,
   STARTER_SHOPPING_ID,
   statusSource,
-  supplementDoseDue,
   type AdherenceSummary,
   type DayItem,
 } from '../../engine/timeline';
-import { IMPACT_PAIN_THRESHOLD, painGate } from '../../engine/training';
-import { fmtDayTitle, fmtKcal, listIt, plural } from '../../lib/format';
+import { impactThresholdFor, painGate } from '../../engine/training';
+import { fmtDayTitle, fmtKcal, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useDayLog, useNowHHMM, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
@@ -46,8 +45,8 @@ import { ItemActionsSheet } from './components/ItemActionsSheet';
 import { NowCard } from './components/NowCard';
 import { PhysioSheet } from './components/PhysioSheet';
 import { QuickWorkoutSheet } from './components/QuickWorkoutSheet';
-import { CheckInPrompt, CurfewCard, TipCard } from './components/SmallCards';
-import { Timeline, type SetupRowData } from './components/Timeline';
+import { CheckInPrompt, CurfewCard, SetupRow, TipCard } from './components/SmallCards';
+import { Timeline } from './components/Timeline';
 import { TrackersCard } from './components/Trackers';
 import { opensDetail } from './kinds';
 import { FOOTBALL_NOUN, footballPainAdvice } from './painAdvice';
@@ -383,7 +382,8 @@ export default function OggiScreen() {
   const football = data.kickoff ? FOOTBALL_NOUN[data.kickoff.kind] : null;
   // Il calcio è il carico d'impatto più alto della settimana: con una zona sotto il ginocchio oltre la soglia
   // degli impatti l'avviso parla della partita con la stessa regola dei balzi in palestra (`painAdvice.ts`).
-  const impactT = Math.min(plan.painThreshold, IMPACT_PAIN_THRESHOLD);
+  // Soglia degli impatti scelta con il fisioterapista (`Plan.impactThreshold`), altrimenti min(soglia, 2).
+  const impactT = impactThresholdFor(plan);
   const advice = footballPainAdvice(gate, data.kickoff?.kind ?? null, checkIn?.pain, impactT, customPainTests(profile));
   const impactFootball = advice.footballText && football ? football : null;
   const painText = advice.painText;
@@ -419,30 +419,11 @@ export default function OggiScreen() {
     if (!was && step.done + 1 === step.target) toast(`Scalino riuscito: ${step.target} giorni su 7`, 'good');
   };
 
-  // Righe che non contano: esercizi del fisioterapista da inserire, dose di un integratore da definire.
-  const doseDue = useMemo(() => supplementDoseDue(today, state), [today, state]);
-  const setupRows: SetupRowData[] = [];
-  if (data.physioSetup && !data.minimal) {
-    setupRows.push({
-      id: 'fisio',
-      time: data.physioSetup,
-      title: 'Aggiungi gli esercizi del fisioterapista',
-      detail: 'Inseriscili una volta, poi li ritrovi qui',
-      onPress: () => setPhysioEditorOpen(true),
-    });
-  }
-  if (doseDue) {
-    setupRows.push({
-      id: 'dose',
-      time: doseDue.time,
-      title: `${listIt(doseDue.names)}: manca la dose`,
-      detail: 'Inserisci la dose dopo l’esame del sangue',
-      icon: PillIcon,
-      onPress: () => {
-        window.location.hash = 'impostazioni?sezione=integratori';
-      },
-    });
-  }
+  // Configurazione da completare (esercizi del fisioterapista, dose di un integratore): sotto la timeline, non conta.
+  const openSetup = () => {
+    if (data.setup?.kind === 'fisio') setPhysioEditorOpen(true);
+    else window.location.hash = 'impostazioni?sezione=integratori';
+  };
 
   const controllo = items.find((i) => i.kind === 'controllo');
   const showCheckIn = !data.checkInDone && !status.controllo && !(controllo && data.beforeStart(controllo));
@@ -487,7 +468,6 @@ export default function OggiScreen() {
         </span>
       }
       actions={<IconButton icon={Settings} label="Impostazioni" onClick={() => navigate('impostazioni')} />}
-      contentClassName="gap-5"
     >
       <DayHero
         summary={summary}
@@ -629,7 +609,6 @@ export default function OggiScreen() {
                 plan={plan}
                 currentId={data.now?.item.id}
                 overdueIds={overdueIds}
-                setupRows={setupRows}
                 onToggle={toggle}
                 onBody={onBody}
                 onOptions={onOptions}
@@ -638,6 +617,7 @@ export default function OggiScreen() {
             </motion.div>
           </AnimatePresence>
         </Card>
+        {data.setup && <SetupRow task={data.setup} onPress={openSetup} />}
       </section>
 
       {installShown && (
@@ -690,6 +670,11 @@ export default function OggiScreen() {
             return;
           }
           if (st === 'sostituito' && refuseLocked(item)) return;
+          // Una nota scritta a mano al posto dell'ordine del piano B: l'ordine al bar non vale più.
+          const slot = item.kind === 'pasto' ? item.slot : undefined;
+          if (st === 'sostituito' && slot && dayLog.barMeals?.[slot] && (note ?? '') !== (dayLog.notes[item.id] ?? '')) {
+            useApp.getState().setBarMeal(today, slot, null);
+          }
           setStatus(item, st, note);
           if (st === 'sostituito' && !celebrateIfNeeded(item, 'sostituito')) toast('Segnato come sostituito', 'neutral');
           if (st === 'saltato') toast(`Saltato: ${item.title}`, 'neutral', { actionLabel: 'Annulla', onAction: () => setStatus(item, null) });

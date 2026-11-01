@@ -476,6 +476,21 @@ export function physioSetupDue(iso: ISODate, state: TimelineState): HHMM | null 
   return physioTime(day, plan);
 }
 
+/** Configurazione rimasta da completare: fuori dalla timeline, senza orario, non conta nella giornata. */
+export type SetupTask = { kind: 'fisio' } | { kind: 'dose'; names: string[] };
+
+/**
+ * Cosa resta da completare oggi, una cosa alla volta: prima gli esercizi del fisioterapista (nei giorni con il
+ * fisioterapista, finché non sono inseriti), poi la dose di un integratore (il lunedì e il giorno del primo
+ * avvio). Nella giornata minima niente: bastano le quattro cose.
+ */
+export function setupTask(iso: ISODate, state: TimelineState): SetupTask | null {
+  if (state.dayLogs[iso]?.minimal) return null;
+  if (physioSetupDue(iso, state)) return { kind: 'fisio' };
+  const dose = supplementDoseDue(iso, state);
+  return dose ? { kind: 'dose', names: dose.names } : null;
+}
+
 /** Ordina per orario della giornata, poi per tipo di voce (stabile). */
 export function sortTimeline<T extends DayItem>(items: T[], plan: Pick<Plan, 'sleep'>): T[] {
   return items

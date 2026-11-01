@@ -1,15 +1,16 @@
 /**
- * Attivazione del coach: come si fa (passi), quanto costa, cosa esce dal telefono e il campo per la chiave.
- * Usato a pagina intera (coach mai attivato) e nel foglio della chiave.
+ * Attivazione del coach: come si fa (passi, con il campo per la chiave sotto l'ultimo) e "Da sapere" (dove resta la
+ * chiave, quanto costa, cosa esce dal telefono) dietro un tocco. Usato a pagina intera (coach mai attivato) e nel
+ * foglio della chiave.
  */
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { ArrowUpRight, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck, Smartphone, Trash2, WifiOff } from 'lucide-react';
+import { ArrowUpRight, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck, Smartphone, Trash2, Wallet, WifiOff } from 'lucide-react';
 import { IS_PREVIEW } from '../../../app/env';
 import { CONSOLE_KEYS_URL, CONSOLE_LIMITS_URL, CONSOLE_URL, isLikelyApiKey, maskKey, modelLabel, normalizeKey, verifyKey } from '../../../lib/claude';
 import { haptic } from '../../../lib/haptics';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, cn, Field, TextInput, toneRing } from '../../../ui';
+import { Button, Callout, Card, cn, Disclosure, Field, SectionTitle, TextInput, toneInk, toneRing, toneSoft } from '../../../ui';
 
 // ───────────────────────── Passi ─────────────────────────
 
@@ -35,7 +36,8 @@ const STEPS: { title: string; text: string; link?: { label: string; href: string
   },
 ];
 
-export function SetupSteps() {
+/** I passi per attivare il coach; `children` (il campo della chiave) va sotto l'ultimo, "Incollala qui sotto". */
+export function SetupSteps({ children }: { children?: ReactNode } = {}) {
   return (
     <ol className="flex flex-col">
       {STEPS.map((s, i) => (
@@ -58,6 +60,7 @@ export function SetupSteps() {
                 <ArrowUpRight size={14} strokeWidth={2.4} aria-hidden />
               </a>
             )}
+            {i === STEPS.length - 1 && children ? <div className="mt-3">{children}</div> : null}
           </div>
         </li>
       ))}
@@ -67,20 +70,20 @@ export function SetupSteps() {
 
 // ───────────────────────── Costo ─────────────────────────
 
-export function CostCard() {
+/** Quanto costa, senza card: la cifra, la stima e tre numeri. */
+function CostDetails() {
   const model = useApp((s) => s.settings.coachModel);
   return (
-    <Card padding="lg">
-      <p className="t-label text-ink-3">Quanto costa</p>
-      <div className="mt-3 flex items-end gap-2">
-        <span className="t-num text-[3rem] leading-[0.9] text-ink">7-12 $</span>
-        <span className="t-callout pb-1 text-ink-2">al mese</span>
+    <>
+      <div className="flex items-end gap-2">
+        <span className="t-num text-[2.5rem] leading-[0.9] text-ink">7-12 $</span>
+        <span className="t-callout pb-0.5 text-ink-2">al mese</span>
       </div>
       <p className="t-footnote mt-2 text-ink-2">
         Stima per un uso tipico con {modelLabel(model)}: 5-8 domande al giorno, qualche foto. Si paga a consumo sulla console,
         non ci sono abbonamenti.
       </p>
-      <dl className="mt-4 grid grid-cols-3 gap-2">
+      <dl className="mt-3 grid grid-cols-3 gap-2">
         {[
           { v: '≈ 0,04 $', l: 'a domanda' },
           { v: '≈ 0,01 $', l: 'in più con una foto' },
@@ -93,46 +96,111 @@ export function CostCard() {
           </div>
         ))}
       </dl>
+    </>
+  );
+}
+
+export function CostCard() {
+  return (
+    <Card padding="lg">
+      <p className="t-label mb-3 text-ink-3">Quanto costa</p>
+      <CostDetails />
     </Card>
   );
 }
 
 // ───────────────────────── Privacy ─────────────────────────
 
+/** Cosa esce dal telefono e cosa resta, senza card. */
+function PrivacyDetails() {
+  return (
+    <ul className="flex flex-col gap-3">
+      <li className="flex gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-palestra/15 text-palestra-ink">
+          <ArrowUpRight size={17} strokeWidth={2.2} aria-hidden />
+        </span>
+        <p className="t-footnote text-ink-2">
+          <span className="font-semibold text-ink">Va ad Anthropic, solo quando scrivi: </span>
+          la domanda, le foto che alleghi e un riassunto del piano e della giornata (pasti, sedute, sonno, dolori) per
+          rispondere su di te.
+        </p>
+      </li>
+      <li className="flex gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-good-soft text-good-ink">
+          <Smartphone size={17} strokeWidth={2.2} aria-hidden />
+        </span>
+        <p className="t-footnote text-ink-2">
+          <span className="font-semibold text-ink">Resta qui: </span>
+          il nome, lo storico completo, la chiave e tutto il resto dei dati.
+        </p>
+      </li>
+      <li className="flex gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-ink-soft text-ink-2">
+          <ShieldCheck size={17} strokeWidth={2.2} aria-hidden />
+        </span>
+        <p className="t-footnote text-ink-2">
+          Secondo i termini commerciali di Anthropic, le richieste fatte con una chiave API non servono ad addestrare i modelli.
+        </p>
+      </li>
+    </ul>
+  );
+}
+
 export function PrivacyCard() {
   return (
     <Card padding="lg">
-      <p className="t-label text-ink-3">Cosa esce dal telefono</p>
-      <ul className="mt-3 flex flex-col gap-3">
-        <li className="flex gap-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-palestra/15 text-palestra-ink">
-            <ArrowUpRight size={17} strokeWidth={2.2} aria-hidden />
-          </span>
-          <p className="t-footnote text-ink-2">
-            <span className="font-semibold text-ink">Va ad Anthropic, solo quando scrivi: </span>
-            la domanda, le foto che alleghi e un riassunto del piano e della giornata (pasti, sedute, sonno, dolori) per
-            rispondere su di te.
-          </p>
-        </li>
-        <li className="flex gap-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-good-soft text-good-ink">
-            <Smartphone size={17} strokeWidth={2.2} aria-hidden />
-          </span>
-          <p className="t-footnote text-ink-2">
-            <span className="font-semibold text-ink">Resta qui: </span>
-            il nome, lo storico completo, la chiave e tutto il resto dei dati.
-          </p>
-        </li>
-        <li className="flex gap-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-ink-soft text-ink-2">
-            <ShieldCheck size={17} strokeWidth={2.2} aria-hidden />
-          </span>
-          <p className="t-footnote text-ink-2">
-            Secondo i termini commerciali di Anthropic, le richieste fatte con una chiave API non servono ad addestrare i modelli.
-          </p>
-        </li>
-      </ul>
+      <p className="t-label mb-3 text-ink-3">Cosa esce dal telefono</p>
+      <PrivacyDetails />
     </Card>
+  );
+}
+
+const TEMPORARY_KEY_TEXT =
+  'In questa prima versione la chiave resta nel browser di questo telefono e le domande partono da qui. Chi usa il telefono potrebbe leggerla: imposta un limite di spesa sulla console e revocala se lo perdi. Nella prossima versione passerà su un server.';
+
+/**
+ * Quello che serve sapere prima di attivare, in una card sola con tre righe dietro un tocco: dove resta la chiave
+ * (scelta temporanea), quanto costa, cosa esce dal telefono. Prende il posto di un avviso e di due card sempre aperte.
+ */
+export function SetupFacts() {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="coach-da-sapere">
+      <SectionTitle id="coach-da-sapere">Da sapere</SectionTitle>
+      <Card padding="none" className="divide-y divide-line px-4 py-1">
+        <Disclosure
+          title="La chiave"
+          summary="scelta temporanea"
+          icon={
+            <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px]" style={{ background: toneSoft('warn', 16), boxShadow: toneRing('warn'), color: toneInk('warn') }} aria-hidden>
+              <LockKeyhole size={16} strokeWidth={2.2} />
+            </span>
+          }
+        >
+          <p className="t-footnote">{TEMPORARY_KEY_TEXT}</p>
+        </Disclosure>
+        <Disclosure
+          title="Quanto costa"
+          summary="7-12 $"
+          icon={
+            <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-ink-soft text-ink-2" aria-hidden>
+              <Wallet size={16} strokeWidth={2.2} />
+            </span>
+          }
+        >
+          <CostDetails />
+        </Disclosure>
+        <Disclosure
+          title="Cosa esce dal telefono"
+          icon={
+            <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-ink-soft text-ink-2" aria-hidden>
+              <Smartphone size={16} strokeWidth={2.2} />
+            </span>
+          }
+        >
+          <PrivacyDetails />
+        </Disclosure>
+      </Card>
+    </section>
   );
 }
 
@@ -248,9 +316,7 @@ export function KeyForm({ onSaved, autoFocus }: KeyFormProps) {
 export function TemporaryKeyNotice() {
   return (
     <Callout tone="warn" title="Scelta temporanea" icon={LockKeyhole}>
-      In questa prima versione la chiave resta nel browser di questo telefono e le domande partono da qui. Chi usa il telefono
-      potrebbe leggerla: imposta un limite di spesa sulla console e revocala se lo perdi. Nella prossima versione passerà su un
-      server.
+      {TEMPORARY_KEY_TEXT}
     </Callout>
   );
 }
@@ -281,8 +347,8 @@ export function SavedKeyCard({ onRemoved }: { onRemoved?: () => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="t-callout font-semibold text-ink">Coach attivo</p>
-          <p className="t-mono mt-0.5 truncate text-ink-3">
-            {maskKey(key)} · {modelLabel(model)}
+          <p className="t-footnote mt-0.5 truncate text-ink-3">
+            <span className="t-mono">{maskKey(key)}</span> · {modelLabel(model)}
           </p>
         </div>
       </div>

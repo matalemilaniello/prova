@@ -93,7 +93,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
             <p className="t-caption text-ink-3">Adesso nel menù</p>
             <p className="t-callout truncate font-medium text-ink">{entry.recipe.name}</p>
           </div>
-          <span className="t-mono shrink-0 text-[0.75rem] text-ink-2">{fmtNumber(Math.round(cur.kcal))} kcal</span>
+          <span className="t-caption shrink-0 font-medium tabular text-ink-2">{fmtNumber(Math.round(cur.kcal))} kcal</span>
         </div>
       )}
       <ul className="overflow-hidden rounded-card bg-card shadow-card">

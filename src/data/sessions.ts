@@ -87,7 +87,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
       {
         title: 'Blocco principale',
         items: [
-          { exerciseId: 'panca-manubri-presa-neutra', sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 120, progression: 'doppia', incrementKg: 2, note: 'Prima 1 serie di avvicinamento leggera. Se il gomito supera 3 su 10, passa alla chest press' },
+          { exerciseId: 'panca-manubri-presa-neutra', sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 120, progression: 'doppia', incrementKg: 2, note: 'Prima 1 serie di avvicinamento leggera' },
           { exerciseId: 'lat-machine-presa-neutra', sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2.5, note: 'Se stringere la maniglia irrita il gomito, usa le fasce' },
           { exerciseId: 'panca-inclinata-manubri-presa-neutra', sets: 2, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2 },
           { exerciseId: 'rematore-manubrio-una-mano', sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 45, progression: 'doppia', incrementKg: 2, perSide: true, note: "Un lato dopo l’altro, poi recupera" },
@@ -121,7 +121,7 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
           { exerciseId: 'apertura-chiusura-anca-in-marcia', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 15, progression: 'nessuna', perSide: true },
           { exerciseId: 'affondi-in-camminata-con-rotazione', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 15, progression: 'nessuna', perSide: true },
           { exerciseId: 'equilibrio-su-una-gamba-a-stella', sets: 1, repMin: 20, repMax: 30, unit: 'secondi', restSec: 15, progression: 'nessuna', perSide: true },
-          { exerciseId: 'balzi-del-pattinatore', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true, note: "Atterraggi morbidi e silenziosi. Con dolore sotto il ginocchio oltre 2 su 10 diventano passi laterali con l’elastico" },
+          { exerciseId: 'balzi-del-pattinatore', sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true, note: 'Atterraggi morbidi e silenziosi' },
         ],
       },
       {

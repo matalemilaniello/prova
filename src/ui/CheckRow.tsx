@@ -54,7 +54,9 @@ export function CheckRow({ checked, onChange, title, subtitle, meta, tone = 'goo
         </span>
         {subtitle && <span className={cn('t-footnote mt-0.5', checked ? 'text-ink-3' : 'text-ink-2')}>{subtitle}</span>}
       </span>
-      {meta !== undefined && <span className={cn('t-mono shrink-0 text-right', checked ? 'text-ink-3' : 'text-ink-2')}>{meta}</span>}
+      {meta !== undefined && (
+        <span className={cn('t-footnote tabular shrink-0 text-right', checked ? 'text-ink-3' : 'text-ink-2')}>{meta}</span>
+      )}
     </button>
   );
 }

@@ -52,6 +52,16 @@ export function stateLabel(pick: NowPick): { label: string; time?: string } {
   return { label: 'Da segnare' };
 }
 
+/**
+ * Categoria nell'occhiello della card Adesso ("Prossima · tra 55 min · Merenda pre-partita"): breve, fino alla
+ * prima virgola, e taciuta quando il titolo la dice già ("Controllo del mattino" non ripete "Mattino").
+ */
+export function eyebrowKicker(kicker: string, headline: string): string | null {
+  const k = kicker.split(',')[0].trim();
+  if (!k || headline.toLowerCase().includes(k.toLowerCase())) return null;
+  return k;
+}
+
 /** Valori del pasto della voce, presi dal dettaglio del giorno (null se la voce non ha ricetta). */
 export function mealNutrientsFor(item: DayItem, mealValues: Partial<Record<MealSlot, Nutrients>>): Nutrients | null {
   if (item.kind !== 'pasto' || !item.slot || !item.ref) return null;
@@ -76,9 +86,10 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       return {
         kicker: item.title,
         headline: s?.subtitle ?? item.title,
+        // La seduta e, a parte, il blocco del fisioterapista: nella card protagonista "45 + 24 min" non si capirebbe.
         meta: [
           ctx.gym ? fmtMinutes(ctx.gym.own) : s ? fmtMinutes(s.estMin) : '',
-          ctx.gym?.physio ? `+ ${ctx.gym.physio} dal fisioterapista` : '',
+          ctx.gym?.physio ? `+\u00a0${fmtMinutes(ctx.gym.physio)} dal fisioterapista` : '',
           item.detail?.startsWith('Facoltativa') ? 'Facoltativa' : '',
         ].filter(Boolean),
       };
@@ -103,7 +114,8 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: [] };
     case 'spesa':
       if (item.id === STARTER_SHOPPING_ID) {
-        return { kicker: 'Primi giorni', headline: item.title, meta: [item.detail?.split(',')[0] ?? '', 'Solo ricette veloci'].filter(Boolean) };
+        // Solo il numero dei prodotti: che le ricette siano veloci lo dice il menù, la pillola restava su due righe.
+        return { kicker: 'Primi giorni', headline: item.title, meta: [item.detail?.split(',')[0] ?? ''].filter(Boolean) };
       }
       return { kicker: 'Rito del sabato', headline: item.title, meta: ['Lista pronta, per reparto'] };
     case 'preparazione':

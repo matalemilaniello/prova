@@ -5,14 +5,16 @@ import { ArrowRight, Calculator, ChevronRight, Wand2 } from 'lucide-react';
 import type { DayType, MacroTarget } from '../../../domain/types';
 import { isProfileComplete } from '../../../data/defaults';
 import { currentDate } from '../../../engine/dates';
+import { referenceWeightKg } from '../../../engine/nutrition';
 import { ageFrom, computeTargets } from '../../../engine/targets';
 import { DAY_TYPES, DAY_TYPE_LABEL, fmtDelta, fmtKg, fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
+import { usePlanDay, useNutritionState } from '../../../state/hooks';
 import { latestWeight, useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, DayTypeBadge, ListGroup, NumberTicker, Sheet, cn, springSnappy, staggerItem, toneColor, toneInk } from '../../../ui';
 import { FormRow, MiniStepper, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
-import { carbsToMatch, kcalFromMacros, matchEveCount, targetDayCounts, targetDaysLabel } from '../lib';
+import { carbsToMatch, kcalFromMacros, matchCarbNote, targetDayCounts, targetDaysLabel } from '../lib';
 import { Page, type PageProps } from './Page';
 
 /** Barra delle macro in proporzione alle kcal (proteine, carboidrati, grassi), nel colore del tipo di giorno. */
@@ -46,7 +48,10 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
   const [recalc, setRecalc] = useState(0);
   // Giorni che usano ogni obiettivo: la vigilia della partita mangia come il calcio e conta lì.
   const counts = targetDayCounts(week);
-  const eves = matchEveCount(week);
+  // Minimo di carboidrati di partita e vigilia, con lo stesso peso di riferimento dei valori del giorno.
+  const nutrition = useNutritionState();
+  const day = usePlanDay();
+  const carbNote = matchCarbNote(week, targets.calcio.carbG, referenceWeightKg(day, nutrition));
   const used = DAY_TYPES.filter((t) => counts[t] > 0);
   const unused = DAY_TYPES.filter((t) => !counts[t]);
   const complete = isProfileComplete(profile);
@@ -92,7 +97,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
                 </div>
                 <div className="flex items-baseline gap-1.5">
                   <NumberTicker value={v.kcal} className="t-num text-[2.25rem] text-ink" />
-                  <span className="t-mono text-[0.8125rem] text-ink-3">kcal</span>
+                  <span className="t-unit text-[0.8125rem] text-ink-3">kcal</span>
                 </div>
                 <MacroBar t={v} tone={t} />
                 <dl className="grid grid-cols-4 gap-2">
@@ -104,7 +109,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
                   ].map(([label, g], j) => (
                     <div key={label} className="flex flex-col gap-0.5">
                       <dt className="text-[0.6875rem] font-medium text-ink-3">{label}</dt>
-                      <dd className="t-mono text-[0.875rem] text-ink" style={j === 0 ? { color: toneInk(t) } : undefined}>
+                      <dd className="t-callout tabular font-semibold text-ink" style={j === 0 ? { color: toneInk(t) } : undefined}>
                         {fmtNumber(g as number)} g
                       </dd>
                     </div>
@@ -127,14 +132,14 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
               >
                 <DayTypeBadge dayType={t} variant="dot" />
                 <span className="t-footnote min-w-0 flex-1 text-ink-3">nessun giorno</span>
-                <span className="t-mono shrink-0 text-[0.8125rem] text-ink-2">{fmtNumber(targets[t].kcal)} kcal</span>
+                <span className="t-footnote shrink-0 font-medium tabular text-ink-2">{fmtNumber(targets[t].kcal)} kcal</span>
                 <ChevronRight size={16} strokeWidth={2.2} className="shrink-0 text-ink-4" aria-hidden />
               </button>
             ))}
           </Card>
         )}
         <p className="t-footnote px-1 text-pretty text-ink-3">
-          {eves ? `${eves > 1 ? 'Le vigilie della partita mangiano' : 'La vigilia della partita mangia'} come il calcio, per arrivare in campo con il glicogeno pieno. ` : ''}
+          {carbNote ? `${carbNote} ` : ''}
           Le correzioni della revisione passano dai carboidrati: proteine e grassi restano fermi.
         </p>
       </section>
@@ -261,7 +266,7 @@ function RecalcSheet({ onClosed }: { onClosed: () => void }) {
               <div className="flex items-center justify-between gap-2">
                 <DayTypeBadge dayType={t} variant="dot" />
                 {d !== 0 && (
-                  <span className="t-mono text-[0.8125rem]" style={{ color: d > 0 ? 'var(--good-ink)' : 'var(--warn-ink)' }}>
+                  <span className="t-footnote font-semibold tabular" style={{ color: d > 0 ? 'var(--good-ink)' : 'var(--warn-ink)' }}>
                     {fmtDelta(d, 'kcal', 0)}
                   </span>
                 )}
@@ -274,9 +279,10 @@ function RecalcSheet({ onClosed }: { onClosed: () => void }) {
                   </>
                 )}
                 <span className="t-num text-[1.75rem] text-ink">{fmtNumber(b.kcal)}</span>
-                <span className="t-mono text-[0.75rem] text-ink-3">kcal{d === 0 ? ', invariate' : ''}</span>
+                <span className="t-unit text-ink-3">kcal</span>
+                {d === 0 && <span className="t-caption text-ink-3">invariate</span>}
               </div>
-              <span className="t-mono text-[0.75rem] text-ink-2">
+              <span className="t-caption tabular text-ink-2">
                 {(
                   [
                     ['P', 'proteinG'],

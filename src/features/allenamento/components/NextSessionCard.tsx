@@ -2,14 +2,14 @@ import { motion } from 'motion/react';
 import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
 import { SESSIONS } from '../../../data/sessions';
-import { gateForExercise, painNoteForExercise, recentLogsFor, suggestNext, type PainGate, type PlannedSession } from '../../../engine/training';
+import type { PainGate, PlannedSession } from '../../../engine/training';
 import { capitalize, fmtMinutes } from '../../../lib/format';
 import { useApp } from '../../../state/store';
 import { useNowHHMM } from '../../../state/hooks';
 import { compareHHMM, formatDayLong } from '../../../engine/dates';
 import { Button, Callout, Card, Pill, ProgressRing, cn, staggerItem } from '../../../ui';
 import type { SessionDraft } from '../draft';
-import { buildPlayerPlan, durationLabel, plannedSets, sessionTone } from '../lib';
+import { buildPlayerPlan, durationLabel, plannedSets, sessionTone, suggestionForItem } from '../lib';
 import { SessionGlyph } from './SessionGlyph';
 import { relativeDayShort } from '../useTraining';
 
@@ -35,18 +35,9 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
   const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
   const own = pplan.items.filter((i) => !i.physio);
   const sets = plannedSets(own);
-  const increases = own.filter((it) => {
-    const [last = null, previous = null] = recentLogsFor(it.base.exerciseId, history, 2);
-    return (
-      suggestNext(it.base, last, {
-        gate: gateForExercise(it.exercise, gate),
-        painNote: painNoteForExercise(it.exercise, gate),
-        intro: Boolean(intro),
-        previous,
-      }).kind === 'aumenta'
-    );
-  }).length;
-  const swapped = own.find((i) => i.replacedFrom);
+  const increases = own.filter((it) => suggestionForItem(it, { history, gate, intro: Boolean(intro) }).kind === 'aumenta').length;
+  // Balzi del riscaldamento senza volo: l'unica sostituzione possibile con la regola del dolore a posto.
+  const swapped = own.find((i) => i.replacedKind === 'impatto');
   const showGate = gate.level !== 'ok' || Boolean(swapped);
   const when = capitalize(relativeDayShort(next.date, today));
   const late = next.daysAway === 0 && Boolean(next.time) && compareHHMM(nowHHMM, next.time!) >= 0;
@@ -148,7 +139,7 @@ export function ResumeCard({ draft, today, now, doneSets, totalSets, onResume, o
             </span>
             Seduta in corso
           </p>
-          <span className="t-mono text-[0.75rem] text-ink-2">
+          <span className="t-footnote text-ink-2 tabular">
             {sameDay ? (elapsed < 6 * 3600 ? `da ${fmtMinutes(Math.max(1, Math.round(elapsed / 60)))}` : `dalle ${startedAt}`) : formatDayLong(draft.date)}
           </span>
         </div>

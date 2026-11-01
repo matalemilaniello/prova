@@ -67,8 +67,8 @@ export default function ProfiloPage({ onBack, open, backLabel }: PageProps) {
         title="Corpo"
         footer={
           lastDate
-            ? `Il peso attuale arriva dai controlli del mattino: ${fmtKg(current)} il ${fmtDateShort(lastDate)}. Quello di partenza resta come riferimento.`
-            : 'Il peso attuale arriverà dai controlli del mattino; quello di partenza resta come riferimento.'
+            ? `Il peso attuale viene dai controlli del mattino: ${fmtKg(current)} il ${fmtDateShort(lastDate)}.`
+            : 'Il peso attuale verrà dai controlli del mattino.'
         }
       >
         <FormRow label="Anno di nascita" htmlFor="pr-anno" error={err('birthYear')} hint={!err('birthYear') && value('birthYear') ? `${year - (value('birthYear') ?? year)} anni` : undefined}>
@@ -99,7 +99,7 @@ export default function ProfiloPage({ onBack, open, backLabel }: PageProps) {
         <ChoiceCards aria-label="Obiettivo" value={profile.goal} onChange={(goal) => update({ goal })} options={GOAL_OPTIONS} />
       </section>
 
-      <ListGroup footer="Altezza, peso e obiettivo non cambiano da soli calorie e macro: ricalcolali quando vuoi.">
+      <ListGroup footer="Calorie e macro non cambiano da sole: ricalcolale quando vuoi.">
         <ListRow icon={Target} iconTone="accent" title="Ricalcola gli obiettivi" onPress={() => open('obiettivi')} />
       </ListGroup>
 

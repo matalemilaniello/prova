@@ -19,14 +19,14 @@ import {
 } from 'lucide-react';
 import type { Exercise, ExerciseLog, SetLog } from '../../../domain/types';
 import { IS_PREVIEW } from '../../../app/env';
-import { startLoads } from '../../../data/exercises';
+import { EXERCISES, startLoads } from '../../../data/exercises';
 import { formatShort, formatWeekdayShort } from '../../../engine/dates';
-import { bestSet, workingWeight, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
+import { SWITCH_REDUCE_FACTOR, bestSet, workingWeight, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Button, Callout, Card, Disclosure, IconButton, Pill, cn, spring, springSnappy, toneInk, toneRing, toneSoft } from '../../../ui';
 import { BigStepper } from './BigStepper';
-import { doseLabel, kgLabel, repsUnit, restLabel, weightStep, type PlayerItem } from '../lib';
+import { doseLabel, kgLabel, repsUnit, restLabel, shortName, weightStep, type PlayerItem } from '../lib';
 
 export interface ExerciseStepProps {
   pitem: PlayerItem;
@@ -62,6 +62,7 @@ const KIND: Record<SuggestionKind, { icon: LucideIcon; tone: 'good' | 'accent' |
   nuovo: { icon: Sparkles, tone: 'accent' },
   mantieni: { icon: Pause, tone: 'warn' },
   riduci: { icon: TrendingDown, tone: 'bad' },
+  sostituisci: { icon: ArrowLeftRight, tone: 'warn' },
 };
 const STALL_KIND: (typeof KIND)[SuggestionKind] = { icon: TrendingDown, tone: 'palestra' };
 
@@ -83,7 +84,8 @@ function ExerciseStepBase(props: ExerciseStepProps) {
   const { pitem, exercise, log, openIndex, editing, suggestion, last, painFlag, showWeight, holdSide, needsLoad = false } = props;
   const reduce = useReducedMotion();
   const item = pitem.item;
-  const swapped = Boolean(log.swappedFrom);
+  // Esercizio previsto dalla seduta, se oggi se ne fa un altro (scelto o sostituito per il dolore).
+  const plannedName = log.swappedFrom && EXERCISES[log.swappedFrom] ? shortName(EXERCISES[log.swappedFrom].name, log.swappedFrom) : null;
   const doneCount = log.sets.filter((s) => s.done).length;
   // Il carico ridotto per uno stallo non è un allarme come quello per il dolore.
   const k = suggestion.stalled ? STALL_KIND : KIND[suggestion.kind];
@@ -92,7 +94,12 @@ function ExerciseStepBase(props: ExerciseStepProps) {
   const videoUrl = exercise?.videoQuery && !IS_PREVIEW ? `https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.videoQuery)}` : null;
   // Prima volta con un esercizio con carico (o l'ultima volta senza carico segnato): tre carichi di partenza
   // tipici al posto di decine di tocchi.
-  const starts = (!last || workingWeight(last.log) <= 0) && doneCount === 0 && showWeight ? startLoads(exercise) : [];
+  // Con la variante presa per il dolore i carichi di partenza scendono del 15% circa (arrotondati a 2,5 kg, 1 kg sotto i 10).
+  const typical = (!last || workingWeight(last.log) <= 0) && doneCount === 0 && showWeight ? startLoads(exercise) : [];
+  const starts =
+    suggestion.kind === 'sostituisci'
+      ? [...new Set(typical.map((kg) => (kg >= 10 ? Math.round((kg * SWITCH_REDUCE_FACTOR) / 2.5) * 2.5 : Math.max(1, Math.round(kg * SWITCH_REDUCE_FACTOR)))))]
+      : typical;
   // Con due manubri il carico si registra per manubrio.
   const perDumbbell = /\bmanubri\b/i.test(exercise?.equipment ?? '');
   const rir = suggestion.rir ?? item.rir;
@@ -121,7 +128,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
         <div className="flex items-center justify-between gap-3">
           <p className={cn('flex min-w-0 items-baseline gap-1.5', pitem.physio ? 'text-leggero-ink' : 'text-palestra-ink')}>
             <span className="t-label truncate">{pitem.blockTitle}</span>
-            <span className="t-mono shrink-0 text-[0.75rem]">
+            <span className="t-footnote shrink-0 tabular">
               · {pitem.indexInBlock + 1} di {pitem.blockSize}
             </span>
           </p>
@@ -138,18 +145,21 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             {canSwap && <IconButton icon={ArrowLeftRight} label="Sostituisci con un’alternativa" size="sm" variant="tinted" onClick={props.onSwap} />}
           </div>
         </div>
-        <h2 className="t-title text-ink">{exercise?.name ?? 'Esercizio'}</h2>
+        <div>
+          <h2 className="t-title text-ink">{exercise?.name ?? 'Esercizio'}</h2>
+          {plannedName && (
+            <p className="t-footnote mt-1 flex items-center gap-1.5 text-ink-2">
+              <ArrowLeftRight size={13} strokeWidth={2.4} className="shrink-0 text-ink-3" aria-hidden />
+              <span className="min-w-0">Al posto di: {plannedName}</span>
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Pill tone={pitem.physio ? 'leggero' : 'palestra'} size="md">
             {doseLabel(item)}
           </Pill>
           {rir !== undefined && <Pill size="md">RIR {rir}</Pill>}
           <Pill size="md">Recupero {restLabel(item.restSec)}</Pill>
-          {swapped && (
-            <Pill tone="accent" size="md" icon={ArrowLeftRight}>
-              Sostituito
-            </Pill>
-          )}
         </div>
       </header>
 
@@ -168,7 +178,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
           {painFlag.alternatives.length
             ? painFlag.kind === 'impatto'
               ? 'Le varianti senza salti sono in cima alla lista.'
-              : 'Le alternative adatte sono in cima alla lista.'
+              : 'Le varianti adatte al gomito sono in cima alla lista.'
             : painFlag.kind === 'impatto'
               ? 'Saltalo oggi: passa al prossimo esercizio.'
               : 'Riduci il carico e fermati se il dolore sale.'}
@@ -248,7 +258,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
       <section aria-label="Serie" className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between px-1">
           <h3 className="t-label text-ink-3">Serie</h3>
-          <span className="t-mono text-[0.75rem] text-ink-3">
+          <span className="t-footnote text-ink-3 tabular">
             {doneCount} di {log.sets.length}
           </span>
         </div>
@@ -356,12 +366,12 @@ function SetRowCompact({
       {showWeight && set.weightKg > 0 && (
         <>
           {fmtNumber(set.weightKg, 1)}
-          <span className="t-mono ml-0.5 text-[0.75rem] text-ink-3">kg</span>
+          <span className="t-unit ml-0.5 text-ink-3">kg</span>
           <span className="mx-1.5 text-ink-3">×</span>
         </>
       )}
       {set.reps}
-      <span className="t-mono ml-0.5 text-[0.75rem] text-ink-3">{unit === 'secondi' ? 's' : 'rip.'}</span>
+      <span className="t-unit ml-0.5 text-ink-3">{unit === 'secondi' ? 's' : 'rip.'}</span>
     </span>
   );
   const body = (
@@ -462,7 +472,7 @@ function OpenSet({
             </button>
           </span>
         ) : (
-          <span className="t-mono text-[0.75rem] text-ink-3">
+          <span className="t-footnote text-ink-3 tabular">
             obiettivo {target}
             {timed ? ' s' : ''}
             {timed && item.perSide && holdSide === 1 ? ' · secondo lato' : ''}
@@ -471,9 +481,10 @@ function OpenSet({
       </div>
       {starts.length > 0 && !editing && (
         <div className="relative mt-3 flex flex-col gap-2">
+          {/* Quante ripetizioni lasciare lo dicono già il suggerimento e la pillola RIR. */}
           <p className="t-footnote text-ink-2">
             <span className="font-semibold text-ink">{needsLoad ? 'Scegli il carico di partenza' : 'Carico di partenza'}</span>
-            {perDumbbell ? ', per manubrio' : ''}: quello che ti lascia {item.rir ?? 2} ripetizioni di riserva.
+            {perDumbbell ? ', per manubrio' : ''}
           </p>
           <div className="grid grid-cols-3 gap-2" role="group" aria-label="Carico di partenza">
             {starts.map((kg) => {
@@ -499,7 +510,7 @@ function OpenSet({
                   )}
                 >
                   {fmtNumber(kg, 1)}
-                  <span className={cn('t-mono ml-0.5 text-[0.6875rem]', on ? 'text-accent-ink' : 'text-ink-3')}>kg</span>
+                  <span className={cn('t-unit ml-0.5 text-[0.6875rem]', on ? 'text-accent-ink' : 'text-ink-3')}>kg</span>
                 </motion.button>
               );
             })}

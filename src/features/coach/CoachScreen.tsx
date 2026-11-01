@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowDown, CalendarCheck, Camera, Coffee, Dumbbell, LockKeyhole, Store, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowDown, CalendarCheck, Camera, Coffee, Dumbbell, Store, type LucideIcon } from 'lucide-react';
 import type { AppData, ChatMessage } from '../../domain/types';
 import { IS_PREVIEW } from '../../app/env';
 import { useUrlParam } from '../../app/urlParams';
@@ -21,7 +21,7 @@ import { chatRows } from './chat';
 import { ActivateStrip, ChatHeader, ConversationIntro, HEADER_CORE, PreviewStrip, SuggestionGrid } from './components/ChatChrome';
 import { CoachAvatar } from './components/CoachAvatar';
 import { Composer, type ComposerHandle } from './components/Composer';
-import { CostCard, KeyForm, PreviewCallout, PrivacyCard, SetupSteps, TemporaryKeyNotice } from './components/KeySetup';
+import { KeyForm, PreviewCallout, SetupFacts, SetupSteps } from './components/KeySetup';
 import { MessageRow, Separator, StreamingRow, TypingRow } from './components/Messages';
 import { ContextSheet, ImageViewer, KeySheet, OptionsSheet } from './components/Sheets';
 import { orderedSuggestions, type Suggestion } from './suggestions';
@@ -110,16 +110,6 @@ function CoachSetupScreen() {
             </li>
           ))}
         </ul>
-        <div className="mt-5 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line pt-4">
-          <span className="t-footnote inline-flex items-center gap-1.5 text-ink-2">
-            <Wallet size={15} strokeWidth={2.2} aria-hidden className="text-ink-3" />
-            Circa 7-12 $ al mese, a consumo
-          </span>
-          <span className="t-footnote inline-flex items-center gap-1.5 text-ink-2">
-            <LockKeyhole size={15} strokeWidth={2.2} aria-hidden className="text-ink-3" />
-            I dati partono solo quando scrivi
-          </span>
-        </div>
       </Card>
 
       <section className="flex flex-col gap-3" aria-labelledby="coach-passi">
@@ -127,22 +117,13 @@ function CoachSetupScreen() {
           Come attivarlo
         </h2>
         <Card padding="lg">
-          <SetupSteps />
+          <SetupSteps>
+            <KeyForm />
+          </SetupSteps>
         </Card>
       </section>
 
-      <section className="flex flex-col gap-3" aria-labelledby="coach-chiave">
-        <h2 id="coach-chiave" className="t-label px-1 text-ink-3">
-          La tua chiave
-        </h2>
-        <Card padding="lg">
-          <KeyForm />
-        </Card>
-        <TemporaryKeyNotice />
-      </section>
-
-      <CostCard />
-      <PrivacyCard />
+      <SetupFacts />
 
       <Card padding="md" onPress={() => open({ type: 'barPlanB' })}>
         <div className="flex items-center gap-3.5">

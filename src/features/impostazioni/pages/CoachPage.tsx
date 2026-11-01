@@ -1,7 +1,7 @@
 /** Coach: chiave API (nascosta, con mostra/nascondi) e modello. */
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Cpu, ExternalLink, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
+import { Cpu, ExternalLink, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, Trash2, WifiOff } from 'lucide-react';
 import { IS_PREVIEW } from '../../../app/env';
 import { DEFAULT_COACH_MODEL } from '../../../data/defaults';
 import { CONSOLE_KEYS_URL, CONSOLE_LIMITS_URL, isLikelyApiKey, maskKey, modelLabel, normalizeKey } from '../../../lib/claude';
@@ -54,8 +54,8 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
   return (
     <Page title="Coach" subtitle="Un allenatore e nutrizionista che conosce il tuo piano e la tua giornata." onBack={onBack} backLabel={backLabel}>
       {IS_PREVIEW && (
-        <Callout tone="warn" title="Anteprima senza rete">
-          Qui la rete esterna è bloccata: il coach risponde nell’app installata. Puoi comunque salvare chiave e modello.
+        <Callout tone="neutral" icon={WifiOff}>
+          Nell’anteprima la rete è bloccata: il coach risponde nell’app installata.
         </Callout>
       )}
 
@@ -90,7 +90,7 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
             </Button>
           </div>
         ) : (
-          <p className="t-callout text-ink-2">Incolla la tua chiave API di Anthropic. Resta su questo telefono e serve solo per parlare con il coach.</p>
+          <p className="t-callout text-ink-2">Incolla la tua chiave API di Anthropic: resta su questo telefono e serve solo al coach.</p>
         )}
       </Card>
 
@@ -98,7 +98,7 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
         <div className="flex flex-col gap-3">
           <Field
             label="Chiave API"
-            hint={plausible ? 'Inizia con sk-ant-. La trovi nella console di Anthropic.' : undefined}
+            hint={plausible ? 'Inizia con sk-ant-.' : undefined}
             error={plausible ? undefined : 'Non sembra una chiave di Anthropic: di solito inizia con sk-ant- ed è lunga. Controlla di averla copiata tutta.'}
           >
             <TextInput
@@ -159,7 +159,8 @@ export default function CoachPage({ onBack, backLabel }: PageProps) {
       </Card>
 
       <div className="flex flex-col gap-2.5">
-        <LinkButton href={CONSOLE_KEYS_URL}>Crea una chiave nella console</LinkButton>
+        {/* Con la chiave già salvata resta solo il limite di spesa. */}
+        {!saved && <LinkButton href={CONSOLE_KEYS_URL}>Crea una chiave nella console</LinkButton>}
         <LinkButton href={CONSOLE_LIMITS_URL}>Imposta un limite di spesa</LinkButton>
       </div>
 

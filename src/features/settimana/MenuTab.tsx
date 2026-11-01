@@ -2,22 +2,25 @@
  * Scheda Menù: il giorno scelto con i valori stimati rispetto all'obiettivo (l'elemento protagonista) e i 5
  * pasti in card compatte: miniatura, nome, kcal, proteine e minuti. Delle porzioni restano in vista solo
  * quelle cambiate per il tipo di giorno; gli altri ingredienti si aprono con un tocco o nella ricetta.
- * Il giudizio "In linea" guarda kcal e macronutrienti, non solo le kcal.
+ * Il giudizio "In linea" guarda kcal e macronutrienti, non solo le kcal, rispetto all'obiettivo della data
+ * (`dayTargetFor`: con il minimo di carboidrati di partita e vigilia, come in Oggi).
+ * Nei giorni di avvio, finché la spesa di avvio non è fatta, una riga sola con l'orario della spesa, la lista e il
+ * piano B; la pillola "Dopo la spesa" resta solo nel giorno della spesa, dove separa i pasti di prima da quelli dopo.
  */
 import { useId, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Activity, ArrowLeftRight, ChefHat, ChevronDown, ChevronRight, Coffee, Dumbbell, ShoppingBasket, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { Activity, ArrowLeftRight, ChefHat, ChevronDown, Dumbbell, ShoppingBasket, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, IngredientLine, MealSlot, Plan, AppData } from '../../domain/types';
 import { FOODS } from '../../data/foods';
-import { addDays, formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
-import { mealsForDate, starterEnd, type MealEntry } from '../../engine/menu';
+import { formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
+import { mealsForDate, type MealEntry } from '../../engine/menu';
 import { dayNutritionDetail, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { usePlanDay } from '../../state/hooks';
-import { BallIcon, Button, Callout, Card, DayTypeBadge, Disclosure, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
+import { BallIcon, Button, Card, DayTypeBadge, Disclosure, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { toneColor, toneInk } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import type { IconLike } from '../../ui/icon';
@@ -48,7 +51,10 @@ export interface MenuTabProps {
 }
 
 export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
-  const state = useMemo(() => ({ plan, dayLogs }), [plan, dayLogs]);
+  // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente, come in Oggi.
+  const checkIns = useApp((s) => s.checkIns);
+  const profile = useApp((s) => s.profile);
+  const state = useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
   const meals = useMemo(() => mealsForDate(date, state), [date, state]);
   const detail = useMemo(() => dayNutritionDetail(date, state), [date, state]);
   const schedule = useMemo(() => mealScheduleFor(date, plan), [date, plan]);
@@ -75,6 +81,9 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   );
   const shop = useMemo(() => (meals.starter ? firstShoppingSafe(dayState) : null), [meals.starter, dayState]);
   const beforeShop = useMemo(() => (meals.starter ? preShoppingSlots(date, dayState) : NO_SLOTS), [meals.starter, date, dayState]);
+  // La pillola serve solo quando nel giorno ci sono pasti prima e dopo la spesa; altrimenti lo dice la riga in alto.
+  const mixedShop = beforeShop.size > 0 && beforeShop.size < meals.meals.length;
+  const sunday = weekdayOf(date) === 6;
 
   return (
     <div className="flex flex-col gap-6">
@@ -90,7 +99,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
         </div>
       </header>
 
-      {meals.starter && <StarterNote date={date} plan={plan} shop={shop} onOpenShopping={onOpenShopping} />}
+      {meals.starter && <StarterNote date={date} shop={shop} onOpenShopping={onOpenShopping} />}
 
       {meals.meals.length === 0 ? (
         <Card>
@@ -98,10 +107,13 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
         </Card>
       ) : (
         <>
-          <DayNutritionCard dayType={dayType} colorType={colorType} plan={plan} detail={detail} matchEve={meals.matchEve} />
+          <DayNutritionCard colorType={colorType} detail={detail} />
 
           <section className="flex flex-col gap-3" aria-labelledby="settimana-pasti">
-            <SectionTitle id="settimana-pasti" subtitle={<PortionNote dayType={dayType} colorType={colorType} factor={factor} matchEve={meals.matchEve} />}>
+            <SectionTitle
+              id="settimana-pasti"
+              subtitle={<PortionNote dayType={dayType} colorType={colorType} factor={factor} matchEve={meals.matchEve} floor={detail.matchCarbs?.gPerKg} />}
+            >
               Pasti del giorno
             </SectionTitle>
             <ul className="flex flex-col gap-3">
@@ -115,7 +127,8 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
                     scale={scale}
                     title={(schedule[m.slot]?.title ?? capitalize(m.slot)).split(',')[0]}
                     time={schedule[m.slot]?.time}
-                    beforeShop={beforeShop.has(m.slot)}
+                    beforeShop={mixedShop && beforeShop.has(m.slot)}
+                    sunday={sunday}
                     onSwap={() => setSwapSlot(m.slot)}
                   />
                 </motion.li>
@@ -146,16 +159,21 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   );
 }
 
-function PortionNote({ dayType, colorType, factor, matchEve }: { dayType: DayType; colorType: DayType; factor: number; matchEve: boolean }) {
+/**
+ * Perché le porzioni colorate cambiano: la percentuale dei carboidrati rispetto alla ricetta e, il giorno della partita
+ * e la vigilia, il minimo per kg. È l'unico punto del Menù che lo spiega.
+ */
+function PortionNote({ dayType, colorType, factor, matchEve, floor }: { dayType: DayType; colorType: DayType; factor: number; matchEve: boolean; floor?: number }) {
   const p = portionShort(dayType, factor, matchEve);
   if (!p) return null;
+  const tail = floor ? `${p.tail.replace(/\.$/, '')}, almeno ${fmtNumber(floor)} g per kg.` : p.tail;
   return (
     <>
       {p.lead}
       <span style={{ color: toneInk(colorType) }} className="font-semibold">
         {p.pct}
       </span>
-      {p.tail}
+      {tail}
     </>
   );
 }
@@ -163,65 +181,42 @@ function PortionNote({ dayType, colorType, factor, matchEve }: { dayType: DayTyp
 // ───────────────────────── Giorni di avvio ─────────────────────────
 
 /**
- * Giorni di avvio: niente preparazione della domenica e ricette da 15 minuti. Fino alla prima spesa (compreso il
- * suo giorno, finché non è fatta) si mangia con quello che c'è in casa o con il piano B al bar.
+ * Giorni di avvio, finché la spesa di avvio non è fatta: una riga con l'orario della spesa e i due collegamenti,
+ * la lista e il piano B al bar. Fatta la spesa, la riga sparisce: il menù parla da solo.
  */
-function StarterNote({ date, plan, shop, onOpenShopping }: { date: ISODate; plan: Plan; shop: FirstShoppingInfo | null; onOpenShopping?: () => void }) {
+function StarterNote({ date, shop, onOpenShopping }: { date: ISODate; shop: FirstShoppingInfo | null; onOpenShopping?: () => void }) {
   const today = usePlanDay();
-  const end = starterEnd(plan);
-  const lastDay = end ? addDays(end, -1) : null;
   // La prima spesa ancora da fare, per i giorni che arrivano fino a lei.
   const ahead = shop && !shop.done && shop.date >= today && shop.date >= date ? shop : null;
+  if (!ahead) return null;
   return (
-    <Callout
-      tone="accent"
-      icon={Sparkles}
-      title="Settimana di avvio"
-      action={
-        ahead ? (
-          <span className="flex flex-wrap gap-x-1 gap-y-1">
-            {onOpenShopping && (
-              <Button variant="ghost" size="sm" icon={ShoppingBasket} onClick={onOpenShopping}>
-                Lista della spesa
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" icon={Coffee} onClick={() => useUi.getState().open({ type: 'barPlanB' })} aria-label="Apri il piano B al bar">
-              Piano B
-            </Button>
+    <Card padding="none" as="section" aria-label="Spesa di avvio">
+      <div className="flex items-center gap-1 py-1 pl-4 pr-1">
+        <ShoppingBasket aria-hidden size={16} strokeWidth={2.3} className="mr-1.5 shrink-0 text-accent-ink" />
+        <p className="t-footnote min-w-0 flex-1 text-ink-2">
+          <span className="font-semibold text-ink">Spesa {formatRelativeDay(ahead.date, today)}</span>{' '}
+          <span className="whitespace-nowrap">
+            alle <span className="t-mono text-[0.75rem] text-ink">{ahead.time}</span>
           </span>
-        ) : undefined
-      }
-    >
-      {ahead ? (
-        <>
-          Fino alla spesa di {formatRelativeDay(ahead.date, today)} alle {ahead.time}: quello che hai in casa o il piano B al bar.
-        </>
-      ) : (
-        <>
-          Ricette da 15 minuti e niente preparazione {lastDay ? `fino a ${formatDayLong(lastDay)}` : 'in questi giorni'}. Le fibre salgono per gradi:
-          pane comune e ceci a piccole dosi.
-        </>
-      )}
-    </Callout>
+        </p>
+        {onOpenShopping && (
+          <Button variant="ghost" size="sm" onClick={onOpenShopping} aria-label="Apri la lista della spesa di avvio" className="px-2.5">
+            Lista
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={() => useUi.getState().open({ type: 'barPlanB' })} aria-label="Apri il piano B al bar" className="px-2.5">
+          Piano B
+        </Button>
+      </div>
+    </Card>
   );
 }
 
 // ───────────────────────── Valori del giorno ─────────────────────────
 
-function DayNutritionCard({
-  dayType,
-  colorType,
-  plan,
-  detail,
-  matchEve,
-}: {
-  dayType: DayType;
-  colorType: DayType;
-  plan: Plan;
-  detail: ReturnType<typeof dayNutritionDetail>;
-  matchEve: boolean;
-}) {
-  const target = plan.targets[dayType];
+function DayNutritionCard({ colorType, detail }: { colorType: DayType; detail: ReturnType<typeof dayNutritionDetail> }) {
+  // Obiettivo della data: tipo di giorno effettivo più il minimo di carboidrati di partita e vigilia.
+  const target = detail.target;
   const t = detail.total;
   const ratio = target.kcal ? t.kcal / target.kcal : 0;
   const verdict = dayVerdict(t, target);
@@ -260,8 +255,8 @@ function DayNutritionCard({
             <div key={r.label} className="flex flex-col gap-1">
               <div className="flex items-baseline justify-between gap-x-1.5">
                 <dt className="t-footnote min-w-0 truncate text-ink-2">{r.label}</dt>
-                <dd className="t-mono shrink-0 whitespace-nowrap text-[0.75rem] max-[380px]:text-[0.6875rem]">
-                  <span className="font-medium text-ink">{fmtNumber(Math.round(r.v))}</span>
+                <dd className="t-footnote shrink-0 whitespace-nowrap tabular">
+                  <span className="font-semibold text-ink">{fmtNumber(Math.round(r.v))}</span>
                   <span className="text-ink-3"> / {fmtNumber(r.target)}&nbsp;g</span>
                 </dd>
               </div>
@@ -291,11 +286,6 @@ function DayNutritionCard({
           <span className="text-ink-3">, obiettivo 5</span>
         </p>
       </div>
-      {matchEve && (
-        <Disclosure variant="inline" title="Perché più carboidrati" className="mt-3">
-          Domani c’è la partita: oggi porzioni da giorno di calcio, per arrivare in campo con le scorte di glicogeno piene.
-        </Disclosure>
-      )}
     </Card>
   );
 }
@@ -314,6 +304,8 @@ interface MealCardProps {
   time?: string;
   /** Pasto prima della prima spesa: gli ingredienti non ci sono ancora. */
   beforeShop?: boolean;
+  /** Il giorno mostrato è domenica: la parte da preparazione viene da quella di oggi. */
+  sunday?: boolean;
   onSwap: () => void;
 }
 
@@ -325,7 +317,7 @@ function portionChanged(line: IngredientLine, dayType: DayType, scale: number): 
   return portionParts(line, dayType, FOODS, scale).portion !== portionParts(line, 'palestra', FOODS, 1).portion;
 }
 
-function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeShop, onSwap }: MealCardProps) {
+function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeShop, sunday, onSwap }: MealCardProps) {
   const recipe = entry.recipe;
   const n = useMemo(() => recipeNutrition(recipe, dayType, FOODS, scale), [recipe, dayType, scale]);
   const [open, setOpen] = useState(false);
@@ -348,8 +340,6 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
   const main = lines.filter((x) => !x.spice);
   const changed = main.filter((x) => x.changed);
   const spices = lines.filter((x) => x.spice).map((x) => (x.food ? lowerFirst(shopName(x.food)) : x.l.foodId));
-  // Chiuso restano in vista solo le quantità cambiate per il tipo di giorno; aperto, tutti gli ingredienti.
-  const shown = open ? main : changed;
 
   const openRecipe = () => useUi.getState().open({ type: 'recipe', recipeId: entry.recipeId, date, slot: entry.slot });
   const toggle = () => {
@@ -359,8 +349,8 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
 
   return (
     <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: ${recipe.name}`}>
-      <Pressable onPress={openRecipe} pressScale={0.985} className="flex w-full items-center gap-3.5 p-4" aria-label={`${title}, ${recipe.name}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}. Apri la ricetta`}>
-        <span className="relative size-16 shrink-0">
+      <Pressable onPress={openRecipe} pressScale={0.985} className="flex w-full items-center gap-3.5 p-4 pb-3.5" aria-label={`${title}, ${recipe.name}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}. Apri la ricetta`}>
+        <span className="relative size-14 shrink-0 self-start">
           <DishArt recipe={recipe} dayType={colorType} variant="thumb" className="size-full" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
@@ -378,6 +368,19 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
             <span aria-hidden className="text-ink-3"> · </span>
             <span className="whitespace-nowrap">{recipe.prepMin} min</span>
           </span>
+          {/* Le porzioni cambiate per il tipo di giorno, a parole: i grammi sono negli ingredienti e nella ricetta. */}
+          {!open && changed.length > 0 && (
+            <span className="mt-1.5 flex flex-col gap-0.5">
+              {changed.map(({ l, idx, food, p }) => (
+                <span key={`${l.foodId}-${idx}`} className="t-footnote text-pretty text-ink-2">
+                  <span className="font-semibold" style={{ color: toneInk(colorType) }}>
+                    {p.portion}
+                  </span>{' '}
+                  di {food ? lowerFirst(shopName(food)) : l.foodId}
+                </span>
+              ))}
+            </span>
+          )}
           {(entry.swapped || beforeShop || recipe.batch) && (
             <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
               {entry.swapped ? (
@@ -392,17 +395,16 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
               {recipe.batch && (
                 <span className="t-caption inline-flex items-center gap-1 text-ink-3">
                   <ChefHat aria-hidden size={13} strokeWidth={2.2} />
-                  Pronta dalla domenica
+                  {sunday ? 'Dalla preparazione di oggi' : 'Pronta dalla domenica'}
                 </span>
               )}
             </span>
           )}
         </span>
-        <ChevronRight aria-hidden size={18} strokeWidth={2.2} className="shrink-0 text-ink-4" />
       </Pressable>
 
       <AnimatePresence initial={false}>
-        {shown.length > 0 && (
+        {open && (
           <motion.ul
             key="righe"
             id={listId}
@@ -411,11 +413,11 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
             exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden border-t border-line"
-            aria-label={open ? 'Ingredienti' : 'Quantità cambiate oggi'}
+            aria-label="Ingredienti"
           >
             <li className="h-2" aria-hidden />
             <AnimatePresence initial={false}>
-              {shown.map(({ l, idx, food, p, changed: isChanged }) => {
+              {main.map(({ l, idx, food, p, changed: isChanged }) => {
                 const name = food ? shopName(food) : l.foodId;
                 const state = food ? foodState(food) : undefined;
                 const hand = l.unit !== 'g' && l.unit !== 'ml';
@@ -448,7 +450,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
                 );
               })}
             </AnimatePresence>
-            {open && spices.length > 0 && <li className="t-caption mx-4 pt-1 text-ink-3">Per insaporire: {spices.join(', ')}</li>}
+            {spices.length > 0 && <li className="t-caption mx-4 pt-1 text-ink-3">Per insaporire: {spices.join(', ')}</li>}
             <li className="h-2" aria-hidden />
           </motion.ul>
         )}
@@ -463,7 +465,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          aria-controls={shown.length ? listId : undefined}
+          aria-controls={open ? listId : undefined}
           className="hit-44 inline-flex h-9 items-center gap-1.5 rounded-control px-3 text-[0.875rem] font-medium text-ink-2"
         >
           {recipe.ingredients.length} ingredienti

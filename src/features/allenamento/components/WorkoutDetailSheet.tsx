@@ -76,7 +76,7 @@ export function WorkoutDetailSheet({ log, open, onClose, physio }: WorkoutDetail
             <div key={s.label} className={cn('flex min-w-0 flex-col gap-0.5 px-3 py-3', i > 0 && 'border-l border-line')}>
               <dt className="t-label text-[0.625rem] text-ink-3">{s.label}</dt>
               <dd className="t-num truncate text-[1.375rem] text-ink">{s.value}</dd>
-              <dd className="t-mono text-[0.625rem] text-ink-3">{s.unit}</dd>
+              <dd className={cn(/\s/.test(s.unit) ? 't-caption' : 't-mono text-[0.625rem]', 'text-ink-3')}>{s.unit}</dd>
             </div>
           ))}
         </dl>

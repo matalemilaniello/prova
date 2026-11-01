@@ -4,8 +4,8 @@
 import { useMemo } from 'react';
 import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
-import { dayTypeFor, effectiveDayType, isMatchEve } from '../../engine/menu';
-import { dayNutritionDetail, type DayNutritionDetail } from '../../engine/nutrition';
+import { dayTypeFor, isMatchEve } from '../../engine/menu';
+import { dayNutritionDetail, dayTargetFor, type DayNutritionDetail } from '../../engine/nutrition';
 import { periodStats } from '../../engine/review';
 import {
   adherenceSummary,
@@ -21,12 +21,13 @@ import {
   nightStreak,
   openItems,
   overdueItems,
-  physioSetupDue,
   pickNow,
+  setupTask,
   streakInfo,
   type AdherenceSummary,
   type DayItem,
   type NowPick,
+  type SetupTask,
   type StreakInfo,
   type TimelineState,
 } from '../../engine/timeline';
@@ -50,7 +51,7 @@ export interface OggiData {
   dayType: DayType;
   /** Vigilia della partita: porzioni e obiettivo da giorno di calcio. */
   matchEve: boolean;
-  /** Obiettivo del giorno (con la vigilia, quello del calcio). */
+  /** Obiettivo del giorno (`dayTargetFor`: con la vigilia quello del calcio, più il minimo di carboidrati di partita e vigilia). */
   target: MacroTarget;
   items: DayItem[];
   status: Record<string, ItemStatus>;
@@ -73,8 +74,8 @@ export interface OggiData {
   bedItem: DayItem | undefined;
   /** Primo giorno d'uso: le voci prima dell'inizio non contano. */
   firstDay: boolean;
-  /** Orario della riga "aggiungi gli esercizi del fisioterapista", o null. */
-  physioSetup: HHMM | null;
+  /** Configurazione da completare (esercizi del fisioterapista, dose di un integratore): fuori dalla timeline. */
+  setup: SetupTask | null;
   /** Calcio di oggi ancora da giocare (o in corso). */
   kickoff: Kickoff | null;
   counts: (item: DayItem) => boolean;
@@ -145,7 +146,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
 
   const first = firstUseOf(plan);
   const firstDay = Boolean(first && first.date === today);
-  const physioSetup = useMemo(() => physioSetupDue(today, state), [today, state]);
+  const setup = useMemo(() => setupTask(today, state), [today, state]);
 
   const kickoff = useMemo<Kickoff | null>(() => {
     const day = plan.week.find((d) => d.weekday === weekdayOf(today));
@@ -160,8 +161,12 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
 
   const dayType = dayTypeFor(today, plan);
   const matchEve = isMatchEve(today, plan);
-  const planned = useMemo(() => dayNutritionDetail(today, { plan, dayLogs }), [today, plan, dayLogs]);
-  const eaten = useMemo(() => dayNutritionDetail(today, { plan, dayLogs }, { onlyDone: true }), [today, plan, dayLogs]);
+  // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente: gli stessi numeri
+  // di Settimana e della ricetta, obiettivo dell'intestazione compreso.
+  const nutrition = useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
+  const planned = useMemo(() => dayNutritionDetail(today, nutrition), [today, nutrition]);
+  const eaten = useMemo(() => dayNutritionDetail(today, nutrition, { onlyDone: true }), [today, nutrition]);
+  const target = useMemo(() => dayTargetFor(today, nutrition), [today, nutrition]);
 
   const weekSweets = useMemo(() => {
     let n = 0;
@@ -191,7 +196,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     state,
     dayType,
     matchEve,
-    target: plan.targets[effectiveDayType(today, plan)],
+    target,
     items,
     status,
     summary,
@@ -207,7 +212,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     phoneDone,
     bedItem,
     firstDay,
-    physioSetup,
+    setup,
     kickoff,
     counts,
     beforeStart,

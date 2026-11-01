@@ -4,10 +4,10 @@ import { ChevronRight, Dumbbell, HeartPulse, Plus, Trophy } from 'lucide-react';
 import type { AppData, ISODate, Plan, WorkoutLog } from '../../../domain/types';
 import { SESSION_LIST } from '../../../data/sessions';
 import { formatWeekdayShort, fromISO } from '../../../engine/dates';
-import { introLevel, physioCoverage, sessionDuration, sessionLoad, workoutVolume, type PersonalRecord } from '../../../engine/training';
+import { introLevel, physioCoverage, sessionDuration, sessionLoad, type PersonalRecord } from '../../../engine/training';
 import { capitalize, fmtDelta, fmtNumber, listIt, WEEKDAY_LONG } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Button, Card, Disclosure, EmptyState, Pill, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
+import { Button, Card, Disclosure, EmptyState, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
 import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone, shortName } from '../lib';
 import { agoLabel, type StrengthRow } from '../useTraining';
 import { SessionGlyph } from './SessionGlyph';
@@ -27,14 +27,12 @@ export function SessionsSection({
   physio?: AppData['physio'];
   onOpen: (id: string) => void;
 }) {
-  // Minuti come nel lettore: fase di ingresso compresa, senza i doppioni del fisioterapista.
+  // Minuti come nel lettore: fase di ingresso compresa, senza i doppioni del fisioterapista (il loro blocco ha i
+  // suoi minuti, scritti nella card della prossima seduta e nell'anteprima).
   const durations = SESSION_LIST.map((s) => sessionDuration(s, physio, { intro: introLevel(s.id, history) !== null }));
-  const physioMin = durations[0]?.physio ?? 0;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="sedute-titolo">
-      <SectionTitle id="sedute-titolo" subtitle={physioMin > 0 ? `Con gli esercizi del fisioterapista circa ${physioMin} min in più` : undefined}>
-        Le sedute
-      </SectionTitle>
+      <SectionTitle id="sedute-titolo">Le sedute</SectionTitle>
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
         {SESSION_LIST.map((s, i) => {
           const days = plan.week.filter((d) => d.gymSessionId === s.id);
@@ -56,7 +54,7 @@ export function SessionsSection({
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">
                     <span className="t-headline text-ink">{s.name}</span>
-                    <span className="t-mono text-[0.75rem] text-ink-3">{durations[i].own} min</span>
+                    <span className="t-footnote text-ink-3 tabular">{durations[i].own}&nbsp;min</span>
                   </span>
                   <span className="t-footnote mt-0.5 block text-ink-2">{s.subtitle}</span>
                   <span className="t-caption mt-1 block text-ink-3">
@@ -114,7 +112,7 @@ export function PhysioSection({ physio, plan, onEdit }: { physio: AppData['physi
                 <li key={`${p.exerciseId}-${i}`} className="flex items-center gap-3 border-t border-line py-2.5">
                   <span className="t-mono w-4 shrink-0 text-[0.75rem] text-ink-3">{i + 1}</span>
                   <span className="t-callout min-w-0 flex-1 text-ink">{ex?.name ?? p.exerciseId}</span>
-                  <span className="t-mono shrink-0 text-[0.75rem] text-leggero-ink">{doseLabel(p, { perSide: false })}</span>
+                  <span className="t-footnote shrink-0 text-leggero-ink tabular">{doseLabel(p, { perSide: false })}</span>
                 </li>
               ))}
             </ul>
@@ -171,11 +169,7 @@ export function StrengthSection({ rows, physio }: { rows: StrengthRow[]; physio:
   const shown = all ? rows : rows.slice(0, 3);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="forza-titolo">
-      <SectionTitle
-        id="forza-titolo"
-        subtitle="1RM stimato (Epley) e variazione in 4 settimane"
-        action={rows.length > 3 ? { label: all ? 'Meno' : `Tutti (${rows.length})`, onPress: () => setAll((v) => !v) } : undefined}
-      >
+      <SectionTitle id="forza-titolo" action={rows.length > 3 ? { label: all ? 'Meno' : `Tutti (${rows.length})`, onPress: () => setAll((v) => !v) } : undefined}>
         Forza stimata
       </SectionTitle>
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
@@ -186,13 +180,17 @@ export function StrengthSection({ rows, physio }: { rows: StrengthRow[]; physio:
             <span className="flex w-[72px] shrink-0 flex-col items-end">
               <span className="t-num text-[1.25rem] text-ink">
                 {fmtNumber(Math.round(r.latest * 2) / 2, 1)}
-                <span className="t-mono ml-0.5 text-[0.6875rem] text-ink-3">kg</span>
+                <span className="t-unit ml-0.5 text-[0.6875rem] text-ink-3">kg</span>
               </span>
               <span className={cn('t-caption font-semibold tabular', r.delta > 0.05 ? 'text-good-ink' : 'text-ink-3')}>{fmtDelta(r.delta, 'kg', 1)}</span>
             </span>
           </motion.li>
         ))}
       </ul>
+      <Disclosure variant="inline" tone="quiet" title="Come si legge" className="-mt-1 px-1">
+        Il numero grande è il massimo che sollevi una volta (1RM), stimato dalla serie migliore con la formula di Epley; sotto,
+        quanto è cambiato nelle ultime 4 settimane.
+      </Disclosure>
     </section>
   );
 }
@@ -224,7 +222,6 @@ export function HistorySection({
         <ul className="overflow-hidden rounded-card bg-card shadow-card">
           {shown.map((w, i) => {
             const rec = recordById[w.id];
-            const vol = workoutVolume(w);
             return (
               <motion.li key={w.id} {...staggerItem(i)} className={cn(i > 0 && 'border-t border-line')}>
                 <motion.button
@@ -245,12 +242,13 @@ export function HistorySection({
                     <span className="t-callout block font-semibold text-ink">Seduta {w.sessionId}</span>
                     <span className="t-footnote mt-0.5 block text-ink-2 tabular">
                       {w.durationMin} min · RPE {w.rpe} · {fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA
-                      {vol > 0 ? ` · ${fmtNumber(Math.round(vol))}\u00a0kg` : ''}
                     </span>
+                    {/* Il record è una riga quieta con il trofeo: tre pillole ambra in fila facevano rumore. */}
                     {rec && (
-                      <Pill tone="accent" icon={Trophy} className="mt-1.5 min-w-0 shrink!">
-                        Record: {shortName(exerciseFor(rec.exerciseId, physio)?.name ?? rec.exerciseId, rec.exerciseId)}
-                      </Pill>
+                      <span className="t-footnote mt-1 flex min-w-0 items-center gap-1.5 text-ink-2">
+                        <Trophy size={13} strokeWidth={2.4} aria-hidden className="shrink-0 text-accent-ink" />
+                        <span className="truncate">Record: {shortName(exerciseFor(rec.exerciseId, physio)?.name ?? rec.exerciseId, rec.exerciseId)}</span>
+                      </span>
                     )}
                   </span>
                   <ChevronRight size={18} strokeWidth={2.2} className="-mr-1 shrink-0 text-ink-3" aria-hidden />

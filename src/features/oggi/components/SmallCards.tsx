@@ -1,11 +1,12 @@
 import { useId, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, ChevronRight, ClipboardCheck, Lightbulb, MoonStar, RefreshCw, SmartphoneCharging } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCheck, HeartPulse, Lightbulb, MoonStar, Pill, RefreshCw, SmartphoneCharging } from 'lucide-react';
 import type { DayType, HHMM, ISODate } from '../../../domain/types';
 import { TIP_TOPIC_LABEL, tipOfDay, type TipContext } from '../../../data/tips';
-import { fmtMinutes } from '../../../lib/format';
+import type { SetupTask } from '../../../engine/timeline';
+import { fmtMinutes, listIt } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
-import { Card, ProgressBar, cn, spring, toneInk } from '../../../ui';
+import { Card, ListGroup, ListRow, ProgressBar, cn, spring, toneInk } from '../../../ui';
 import { BOARD_LABEL } from '../kinds';
 
 /** Card in cima quando il controllo del mattino non è ancora fatto. */
@@ -77,6 +78,29 @@ export function CurfewCard({ minutes, curfew, bed, ritual, onRitual }: CurfewCar
   );
 }
 
+/** Cosa dice la riga "Da completare" (nei test e nell'interfaccia). */
+export function setupText(task: SetupTask): string {
+  return task.kind === 'fisio' ? 'Inserisci gli esercizi del fisioterapista' : `${listIt(task.names)}: inserisci la dose`;
+}
+
+/**
+ * Configurazione rimasta da completare, sotto la timeline: una riga neutra, una cosa alla volta, senza orario.
+ * Non conta nella giornata.
+ */
+export function SetupRow({ task, onPress }: { task: SetupTask; onPress: () => void }) {
+  return (
+    <ListGroup>
+      <ListRow
+        icon={task.kind === 'fisio' ? HeartPulse : Pill}
+        iconTone="neutral"
+        title={<span className="text-ink-2">Da completare</span>}
+        subtitle={setupText(task)}
+        onPress={onPress}
+      />
+    </ListGroup>
+  );
+}
+
 /** Prima frase di un consiglio (cosa fare) e il resto (perché), per mostrarlo chiuso con "Leggi". */
 export function splitTip(text: string): { lead: string; rest: string } {
   const m = text.match(/^(.+?[.!?])\s+(.+)$/s);
@@ -84,8 +108,8 @@ export function splitTip(text: string): { lead: string; rest: string } {
 }
 
 /**
- * Consiglio del giorno, chiuso di base: titolo e prima frase. "Leggi" apre il perché e il pulsante per
- * passare al consiglio successivo.
+ * Consiglio del giorno, chiuso di base: solo il titolo. "Leggi" apre il testo (cosa fare e perché) e il pulsante
+ * per passare al consiglio successivo.
  */
 export function TipCard({ date, dayType, firstId, context }: { date: ISODate; dayType: DayType; firstId?: string; context?: TipContext }) {
   const [offset, setOffset] = useState(0);
@@ -138,10 +162,11 @@ export function TipCard({ date, dayType, firstId, context }: { date: ISODate; da
         </div>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div key={tip.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={spring} aria-live="polite">
-            <h4 id="oggi-consiglio" className="t-headline mt-2.5 text-ink">
+            <h4 id="oggi-consiglio" className="t-headline mt-2 text-ink">
               {tip.title}
             </h4>
-            <p className={cn('t-callout selectable mt-1 text-ink-2', !open && rest && 'line-clamp-1')}>{lead}</p>
+            {/* Chiuso resta il titolo: il testo, cosa fare e perché, è dietro "Leggi". */}
+            {!rest && <p className="t-callout selectable mt-1 text-ink-2">{lead}</p>}
             <AnimatePresence initial={false}>
               {open && rest && (
                 <motion.div
@@ -153,7 +178,9 @@ export function TipCard({ date, dayType, firstId, context }: { date: ISODate; da
                   exit={{ opacity: 0, height: 0 }}
                   transition={spring}
                 >
-                  <p className="t-callout selectable pt-1.5 text-ink-2">{rest}</p>
+                  <p className="t-callout selectable pt-1 text-ink-2">
+                    {lead} {rest}
+                  </p>
                   <div className="-mb-2 mt-1 flex justify-end">{next}</div>
                 </motion.div>
               )}

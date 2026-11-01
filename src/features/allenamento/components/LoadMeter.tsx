@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { LOAD_ALERT_RATIO, LOAD_MIN_HISTORY_WEEKS, type LoadStatus } from '../../../engine/training';
+import { LOAD_MIN_HISTORY_WEEKS, type LoadStatus } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
 import { NumberTicker, cn } from '../../../ui';
 
@@ -32,7 +32,7 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
         <div className="min-w-0">
           <div className="flex items-baseline gap-1.5">
             <NumberTicker value={load} className={cn('t-num text-[2.5rem]', over ? 'text-warn-ink' : 'text-ink')} />
-            <span className="t-mono text-[0.8125rem] text-ink-2">UA</span>
+            <span className="t-unit text-[0.8125rem] text-ink-2">UA</span>
           </div>
           <p className="t-footnote mt-0.5 text-ink-2">
             {ratio !== null ? `${fmtNumber(ratio)}% della media` : load > 0 ? 'minuti × RPE' : 'Ancora nessuna attività'}
@@ -86,8 +86,8 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
         )}
       </div>
 
+      {/* Il fatto è già il numero grande: la legenda dice solo il tratteggio e la tacca. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {load > 0 && <Legend swatch={<span className="block size-2.5 rounded-full" style={{ background: color }} />}>Fatto {fmtNumber(load)}</Legend>}
         {planned > 0 && (
           <Legend
             swatch={
@@ -105,7 +105,7 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
         )}
         {threshold !== null ? (
           <Legend swatch={<span className="block h-3 w-[2px] rounded-full bg-ink" />}>
-            Soglia {fmtNumber(Math.round(threshold))} ({fmtNumber(Math.round(LOAD_ALERT_RATIO * 100))}%)
+            Soglia {fmtNumber(Math.round(threshold))}
           </Legend>
         ) : (
           <span className="t-footnote text-ink-3">

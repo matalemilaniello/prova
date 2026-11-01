@@ -31,7 +31,9 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
   (`--warm-tint`): il colore va su testo, icona e anello. Per le tessere icona usa insieme fondo e anello:
   `style={{ background: toneSoft(t, 16), boxShadow: toneRing(t), color: toneInk(t) }}`. Mai `color-mix` di
   ambra con `transparent` scritto a mano, mai opacità su un elemento ambra (un interruttore disattivato diventa
-  oliva: il Toggle disattivato ora usa una pista neutra).
+  oliva: il Toggle disattivato ora usa una pista neutra). Nel tema chiaro vale lo stesso per i riquadri grandi: un
+  avviso caldo è una superficie bianca con anello ambra (`--callout-warm-bg`, `--callout-warm-ring`), non una
+  velatura beige sul grigio-blu; `warn-soft` nel chiaro è appena un 5% di ambra sul bianco.
 - **Neutri**: `ink-soft`, `control`, `field` sono tinti di blu (sopra il blu notte restano blu). `card-3` è il
   riquadro annidato posato direttamente sullo sfondo (es. "L'ultima volta" nel lettore della seduta). `ink-3` passa
   AA in entrambi i temi; `ink-4` è solo decorativo (chevron, linee, segnaposto), mai per testo da leggere.
@@ -40,7 +42,9 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
 - **Tipografia** (utility): `t-large-title` (36 px, titoli di schermata), `t-title` (28), `t-title-2` (22, titoli
   di foglio), `t-headline` (17 semibold), `t-body` (16), `t-callout` (15), `t-footnote` (13), `t-caption` (12),
   `t-label` (etichetta da tabellone: Barlow Condensed 600 maiuscolo 14 px, etichette di sezione),
-  `t-mono` (solo orari, unità e dati tabellari: non per etichette né per kcal accanto a una pillola),
+  `t-mono` (solo orari e numeri tecnici: mai parole, etichette o unità), `t-unit` (unità accanto a un numero, "kcal",
+  "g", "kg", "UA", "min", "rip.": Figtree 500 a 12 px; le quantità con parole, "6 uova", "25 min", vanno in Figtree con
+  `tabular`),
   `t-num` (numeri protagonisti in Barlow Condensed, tabellari; scegli tu la dimensione: `t-num text-[2.5rem]`).
   Font: `font-display`, `font-sans`, `font-mono`.
 - **Forma**: `rounded-card` (20 px), `rounded-control` (14 px), `rounded-full` per le pillole. `shadow-card`
@@ -57,10 +61,12 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
   Stepper vibrano già da soli.
 - **Testi**: italiano, maiuscola solo sulla prima parola, niente emoji, niente trattino lungo, apostrofo
   tipografico (’: "l’orario", "Com’è andata"). Formattatori in `src/lib/format.ts` (vedi sotto).
-  `npm run check:typography` elenca per area gli apostrofi dritti e i trattini lunghi nei testi (stringhe e JSX,
-  non i commenti); `node scripts/check-typography.mjs --fix --area <area>` sostituisce gli apostrofi nei file
-  dell'area, test compresi; `--strict` esce con errore (per la CI). Una riga con il commento `tipografia-ok` è
-  esclusa (testi che sono codice).
+  `npm run check:typography` elenca per area gli apostrofi dritti e i trattini lunghi nei testi (stringhe tra apici
+  o tra virgolette doppie, template e JSX, non i commenti): tra due lettere ("l'orario") e dopo una parola tronca
+  ("un po' di", anche scritto `'un po\' di'`), mentre un apice che apre e chiude una citazione non conta.
+  `node scripts/check-typography.mjs --fix --area <area>` sostituisce gli apostrofi nei file dell'area, test
+  compresi (`\'` diventa `’` senza escape); `--strict` esce con errore (per la CI). Una riga con il commento
+  `tipografia-ok` è esclusa (testi che sono codice).
 
 ## Struttura di una schermata
 
@@ -87,6 +93,9 @@ export default function OggiScreen() {
 quando servono, lo spazio per la barra delle schede e il ritorno in cima quando si ritocca la scheda attiva.
 Dietro l'intestazione accende i **Riflettori** (vedi sotto): sopra la riga dell'occhiello ci sono 24 px (+ safe area)
 per le batterie di lampade negli angoli. I figli sono impilati con 24 px di spazio (`contentClassName` per cambiarlo).
+**Ritmo verticale, uguale in tutta l'app** (Oggi e Impostazioni comprese): 24 px tra le sezioni, 12 px tra il titolo di
+sezione e la card e tra le card della stessa sezione, 16 px dentro le card (20 nelle card protagoniste, come Adesso o la
+stima del menù). Una card ha al massimo tre livelli di testo: occhiello, titolo o numero, una riga di dettagli.
 
 ## Componenti
 
@@ -167,9 +176,11 @@ esportato da `src/ui`). Il trofeo (`Trophy`) è riservato ai record personali.
 `value` 0-1, `size?` (120), `stroke?` (10), `tone?`, `label?` (lettori di schermo), `celebrate?` (bagliore
 sobrio quando si chiude, default true), `gradient?`, `tipLight?` (lampada sulla punta dell'arco: nucleo chiaro con
 l'alone del tono, segue l'avanzamento con la stessa molla; per l'anello protagonista di una schermata, da 140 px,
-legato ai riflettori), `children` al centro.
+legato ai riflettori), `marker?` (tacca di una soglia 0-1, es. `0.7` per la giornata riuscita: taglio sottile
+nell'anello e trattino appena fuori; scrivila anche nella `label`), `markerSurface?` (colore del taglio, la superficie
+sotto l'anello: default `var(--bg)`, su una card `var(--card)`), `children` al centro.
 ```tsx
-<ProgressRing value={done / total} size={148} label={`${done} voci su ${total}`}>
+<ProgressRing value={done / total} size={148} marker={0.7} label={`${done} voci su ${total}, riuscita dal 70%`}>
   <span className="t-num text-[2.5rem]">{done}</span><span className="t-caption text-ink-2">su {total}</span>
 </ProgressRing>
 ```
@@ -281,12 +292,15 @@ Tutti a 16 px (niente zoom su iOS).
 ```
 
 ### CheckRow
-`checked`, `onChange`, `title`, `subtitle?`, `meta?` (a destra, mono), `tone?`, `disabled?`. Mettila dentro una
+`checked`, `onChange`, `title`, `subtitle?`, `meta?` (a destra, in Figtree con cifre tabellari: le quantità
+contengono parole, "6 uova", e il monospazio resta agli orari), `tone?`, `disabled?`. Mettila dentro una
 `Card padding="none"` o una `ListGroup`.
 
 ### Callout
 Riquadro di avviso o consiglio: `tone?` (`neutral | accent | good | warn | bad`), `title?`, `icon?`, `action?`,
 `children`. Ruolo `alert` per warn e bad. Per l'avviso del dolore (`painGate`), l'anteprima senza rete, la privacy.
+I toni caldi (`accent`, `warn`) non colorano il fondo: superficie blu al buio, bianca al chiaro, con anello e luce di
+bordo nel colore del tono (token `--callout-warm-bg` e `--callout-warm-ring`).
 ```tsx
 <Callout tone="warn" title="Tibia sopra soglia">Mantieni i carichi e salta i balzi.</Callout>
 ```
@@ -299,7 +313,9 @@ Pillola attivabile per scelte multiple (zone di dolore, filtri): `selected`, `on
 Per togliere testo dalla pagina senza perderlo: spiegazioni, elenchi lunghi, dettagli dei valori. Di base è chiuso.
 `title`, `summary?` (riassunto a destra quando è chiuso, es. "7 voci" o "2.450 kcal"), `icon?`,
 `variant?`: `'row'` (riga a tutta larghezza alta almeno 44 px, in una Card o da sola) | `'inline'` (collegamento
-color luce con la freccia, es. "Perché", con il testo in `t-footnote` sotto), `defaultOpen?`, `open?` e
+color luce con la freccia, es. "Perché", con il testo in `t-footnote` sotto), `tone?` (solo `'inline'`: `'accent'`,
+default, oppure `'quiet'` in testo secondario, per le spiegazioni ripetute che non devono competere con l'azione
+dominante, come i "Come si legge" dei grafici), `defaultOpen?`, `open?` e
 `onOpenChange?` (controllato), `contentClassName?`. Pulsante con `aria-expanded` e `aria-controls`; il contenuto
 chiuso non è nel DOM; l'altezza si anima con una molla (istantanea con la riduzione del movimento).
 ```tsx
@@ -344,6 +360,15 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
 - `normalizeData` ripara ogni sezione (diari senza `status`, sedute senza `exercises`, zone di dolore non in
   array, numeri scritti come testo…) e conserva i campi sconosciuti: un backup danneggiato non blocca mai l'app.
   `DATA_VERSION` è 3 (2: fibre da 30 a 35 g; 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia delle 07:15).
+  Campi facoltativi del giro 4: `Plan.impactThreshold` resta un numero da 0 a 10 (anche da testo, "2,5"),
+  altrimenti sparisce (`normalizeImpactThreshold`); `DayLog.barMeals` tiene solo pasti noti con etichetta e kcal,
+  valori numerici tra 0 e un tetto da pasto (`normalizeBarMeal`, `normalizeBarMeals`), e sparisce se vuoto.
+- Pasti al bar: `setBarMeal(date, slot, { label, nutrients, vegPortions? } | null)` salva l'ordine già ripulito
+  (un ordine senza etichetta o kcal vale come `null`). `setItemStatus` toglie il pasto al bar dello slot quando la
+  voce `pasto:<slot>` diventa fatta, saltata o annullata; resta finché il pasto è sostituito. Chi segna un'altra
+  sostituzione scritta a mano per quel pasto chiama `setBarMeal(date, slot, null)`.
+- `updatePlan({ impactThreshold })`: un valore vuoto o illeggibile toglie il campo (vale il predefinito
+  min(soglia, 2)), uno fuori scala si riporta tra 0 e 10.
 - `useUi`: `overlay`, `open(overlay)`, `close()`, `toast(message, tone?, opts?)`, `dismissToast(id)`.
 - Hook (`src/state/hooks.ts`): **usa questi al posto di `new Date()` nelle schermate**:
   `usePlanDay()` (alias `useLogicalToday()`): **la giornata del piano**, quella da usare in Oggi, Settimana,
@@ -351,6 +376,9 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   giovedì è mercoledì, in tutte le schermate. `useToday()` è la data del calendario: solo dove serve davvero.
   `useNow(intervalMs?)` (Date aggiornata), `useNowHHMM()` (ridisegna solo quando cambia il minuto),
   `useDayLog(date)` (diario stabile, vuoto se manca), `useDemoData()`. Con la pagina nascosta non ridisegnano.
+  `useNutritionState()`: `{ plan, dayLogs, checkIns, profile }` stabile, da passare a `dayNutritionDetail`,
+  `dayCarbScale` e `dayTargetFor` (con controlli e profilo il minimo di partita e vigilia usa il peso recente, e i
+  numeri coincidono in tutte le schermate).
   Rispettano l'orologio sostituito delle anteprime (`?today=2026-11-10&now=18:30`).
 
 ## Navigazione e app (`src/app`)
@@ -392,15 +420,29 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   piano → +150 kcal nel piatto, dai carboidrati) oppure il piano (`planCarbScale`, media del tipo di giorno).
   Esempio: `const k = dayCarbScale(date, { plan, dayLogs }); recipeNutrition(r, dayType, FOODS, k); portionParts(l, dayType, FOODS, k)`.
   `totalCarbFactor(dayType, scale)` è il fattore complessivo da mostrare ("carboidrati −10%").
-  `dayNutritionDetail` lo applica già. Avvio delle fibre: `fiberRampWeek(date, plan)` (1, 2 o null) e
+  `dayNutritionDetail` lo applica già.
+  **Partita e vigilia**: il giorno della partita (`isMatchDay`, solo `kind: 'partita'`) e la vigilia (`isMatchEve`) i
+  carboidrati non scendono sotto 6 g/kg (`MATCH_CARB_G_PER_KG` in `targets.ts`, UEFA 2021: 6-8 g/kg). Calcetto e
+  allenamento no. `referenceWeightKg(date, state)`: media delle pesate dei 7 giorni fino all'ultima pesata entro la
+  data, poi il peso del profilo, poi quello delle proteine del piano (1,9 g/kg). `matchCarbs(date, state)` →
+  `{ when: 'partita' | 'vigilia', weightKg, gPerKg, floorG, baseG, extraG, extraKcal }` o null.
+  `dayTargetFor(date, state)` è **l'obiettivo da mostrare per una data** (tipo effettivo più il minimo: es. 360 → 430
+  g e +280 kcal per 72 kg); `dayNutritionDetail` lo restituisce in `target` (e `matchCarbs`). `dayCarbScale` sale
+  quanto serve perché il menù previsto arrivi al minimo: nel piatto ci sono davvero 6 g/kg. Lo stato è
+  `NutritionState` (`MenuState` più `checkIns` e `profile` facoltativi): passa `useNutritionState()`.
+  **Porzioni a parole**: `portionPhrase(qty, unit)` (usata da `portionParts`) tiene le mezze unità quando stanno entro
+  il 10% (`PORTION_TOLERANCE`) dei grammi; altrimenti lo dice, con al massimo un quarto di unità di scarto e le unità
+  intere preferite: "1 fetta abbondante · ≈ 50 g" (fetta da 40 g), "quasi 1 fetta e mezza", "quasi 2 fette", "mezza
+  fetta abbondante". `portionWords` resta l'arrotondamento a mezze unità senza qualificatori. Avvio delle fibre: `fiberRampWeek(date, plan)` (1, 2 o null) e
   `fiberRampFactor` (0,6 / 0,8 / 1).
 - `src/engine/menu.ts`: `MEAL_SLOTS`, `menuWeekFor`, `menuDayFor`, `rotationIndexFor`, `dayTypeFor(iso, plan)`
   (tipo previsto dalla settimana: etichette e colori), `effectiveDayType(iso, plan)` (tipo per porzioni e obiettivi:
-  la **vigilia della partita** mangia come un giorno di calcio), `isMatchEve(iso, plan)`,
+  la **vigilia della partita** mangia come un giorno di calcio), `isMatchEve(iso, plan)`, `isMatchDay(iso, plan)`,
   `mealsForDate(iso, state)` → `{ dayType (effettivo), scheduledDayType, matchEve, meals: MealEntry[], bySlot }`
   con `recipe`, `plannedId`, `swapped`; `swapOptions(recipeId, slot?)`. L'obiettivo da mostrare è
-  `plan.targets[effectiveDayType(iso, plan)]`; il badge resta quello di `dayTypeFor`, con la dicitura "Vigilia
-  della partita" quando `matchEve`.
+  `dayTargetFor(iso, state)` (`engine/nutrition.ts`: `plan.targets[effectiveDayType(iso, plan)]` più il minimo di
+  carboidrati di partita e vigilia); il badge resta quello di `dayTypeFor`, con la dicitura "Vigilia della partita"
+  quando `matchEve`.
   **Giorni di avvio**: `isStarterDay(iso, plan)` è vero dal primo avvio (`Plan.firstUse`) a `starterEnd(plan)`, il
   lunedì che trova fatte spesa e preparazione (il lunedì dopo; chi parte di domenica, quello ancora dopo). In quei
   giorni `mealsForDate` prende i pasti dal menù di avvio `STARTER_WEEK` (`src/data/menu.ts`: ricette da 15 minuti,
@@ -419,7 +461,8 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   mattino si confronta con la sera prima: **usalo per contare le notti in orario**), `nightsOnTarget`,
   `nextBedtime`, `weeksToTarget`, `atSleepTarget`, `plannedSleepHours`, `minutesUntilNight`, `dayCutoffMin(plan)`
   (inizio della giornata: sveglia − 90 min, tra le 03:00 e le 10:00), `planDayISO(now, plan)`.
-- `src/engine/targets.ts`: `bmrMifflin`, `tdee`, `ageFrom`, `computeTargets(profile, weightKg?)`.
+- `src/engine/targets.ts`: `bmrMifflin`, `tdee`, `ageFrom`, `computeTargets(profile, weightKg?)`, costanti
+  `PROTEIN_G_PER_KG` (1,9), `FAT_SHARE`, `FIBER_G`, `MATCH_CARB_G_PER_KG` (6, applicato per data da `matchCarbs`).
 - `src/lib/format.ts`: `fmtNumber`, `fmtKcal` ("2.600 kcal"), `fmtKg` ("70,2 kg"), `fmtLoad`, `fmtGrams`,
   `fmtLiters`, `fmtCm`, `fmtPercent`, `fmtHours` ("6 h 40"), `fmtMinutes` ("1 h 20", "45 min": spazi indivisibili
   anche tra ore e minuti, la durata non va mai a capo a metà), `fmtClock`
@@ -440,6 +483,9 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   `isReviewableWeek(monday, plan)`: la prima settimana da rivedere (riesportate da `engine/review.ts`).
 
 ## Parametri URL (anteprime e screenshot)
+
+I dati di esempio sono deterministici per giornata: lo storico dei giorni passati non cambia con `?now=`, che decide
+solo quali voci di oggi risultano già segnate.
 
 `?demo=1` dati di esempio senza onboarding · `?theme=scuro|chiaro` (anche `dark|light`) · `?overlay=recipe|checkin|session|football|barPlanB`
 · `?onboarding=1` · `?tab=…` (scheda iniziale di una schermata) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).

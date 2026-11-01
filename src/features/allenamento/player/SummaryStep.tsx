@@ -84,7 +84,8 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
             <dt className="t-label text-ink-3">{s.label}</dt>
             <dd className="flex items-baseline gap-1">
               <span className="t-num text-[2rem] text-ink">{s.value}</span>
-              <span className="t-mono text-[0.75rem] text-ink-2">{s.unit}</span>
+              {/* Unità accanto al numero ("min", "UA", "kg") in t-unit; "su 10" è testo. */}
+              <span className={cn(/\s/.test(s.unit) ? 't-footnote' : 't-unit', 'text-ink-2')}>{s.unit}</span>
             </dd>
           </motion.div>
         ))}
@@ -116,7 +117,7 @@ export function SummaryStep({ log, sessionName, setsPlanned, records, status, ph
                   <span className="shrink-0 text-right">
                     <span className="t-label block text-[0.625rem] text-ink-3">1RM stimato</span>
                     <span className="t-num text-[1.25rem] text-ink">{fmtNumber(Math.round(best.e1rm * 2) / 2, 1)}</span>
-                    <span className="t-mono ml-0.5 text-[0.6875rem] text-ink-3">kg</span>
+                    <span className="t-unit ml-0.5 text-[0.6875rem] text-ink-3">kg</span>
                   </span>
                 </motion.li>
               ))}

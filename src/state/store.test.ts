@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DATA_VERSION, defaultAppData } from '../data/defaults';
-import { emptyDayLog, latestWeight, migrateData, normalizeData, persistedData, pickData, useApp, useUi } from './store';
+import {
+  emptyDayLog,
+  latestWeight,
+  migrateData,
+  normalizeBarMeal,
+  normalizeData,
+  normalizeImpactThreshold,
+  persistedData,
+  pickData,
+  useApp,
+  useUi,
+} from './store';
 
 describe('store', () => {
   beforeEach(() => {
@@ -23,6 +34,84 @@ describe('store', () => {
     a.setItemStatus('2026-11-10', 'pasto:pranzo', null);
     expect(useApp.getState().dayLogs['2026-11-10'].status['pasto:pranzo']).toBeUndefined();
     expect(useApp.getState().dayLogs['2026-11-10'].notes['pasto:pranzo']).toBeUndefined();
+  });
+
+  it('pasto al bar: si salva pulito e se ne va quando il pasto non è più sostituito', () => {
+    const a = useApp.getState();
+    const d = '2026-11-10';
+    const order = { label: ' Toast e spremuta ', nutrients: { kcal: 420, proteinG: 22, carbG: 55, fatG: 12, fiberG: 4 }, vegPortions: 1 };
+    a.setItemStatus(d, 'pasto:spuntino', 'sostituito', 'Toast e spremuta');
+    a.setBarMeal(d, 'spuntino', order);
+    expect(useApp.getState().dayLogs[d].barMeals?.spuntino).toEqual({ ...order, label: 'Toast e spremuta' });
+    // Rimettere la stessa sostituzione non lo toglie; fatto, saltato o annulla sì.
+    a.setItemStatus(d, 'pasto:spuntino', 'sostituito');
+    expect(useApp.getState().dayLogs[d].barMeals?.spuntino).toBeDefined();
+    a.setItemStatus(d, 'pasto:spuntino', 'fatto');
+    expect(useApp.getState().dayLogs[d].barMeals).toBeUndefined();
+    a.setBarMeal(d, 'pranzo', order);
+    a.setItemStatus(d, 'pasto:pranzo', null);
+    expect(useApp.getState().dayLogs[d].barMeals).toBeUndefined();
+    // Un ordine illeggibile non si salva e toglie quello di prima.
+    a.setBarMeal(d, 'merenda', order);
+    a.setBarMeal(d, 'merenda', { label: '', nutrients: order.nutrients });
+    expect(useApp.getState().dayLogs[d].barMeals).toBeUndefined();
+    a.setBarMeal(d, 'cena', order);
+    a.setBarMeal(d, 'cena', null);
+    expect(useApp.getState().dayLogs[d].barMeals).toBeUndefined();
+    // Le altre voci non toccano i pasti al bar.
+    a.setBarMeal(d, 'cena', order);
+    a.setItemStatus(d, 'integratori', 'fatto');
+    expect(useApp.getState().dayLogs[d].barMeals?.cena).toBeDefined();
+  });
+
+  it('pasti al bar e soglia per gli impatti si riparano da un backup rovinato', () => {
+    const base = pickData(useApp.getState());
+    const fixed = normalizeData({
+      ...base,
+      plan: { ...base.plan, impactThreshold: '2,5' },
+      dayLogs: {
+        '2026-11-10': {
+          date: '2026-11-10',
+          status: {},
+          barMeals: {
+            spuntino: { label: 'Toast', nutrients: { kcal: '380', proteinG: '20', carbG: 40, fatG: 'x', fiberG: -3 }, vegPortions: '1,5' },
+            pranzo: { label: '', nutrients: { kcal: 500 } },
+            cena: { label: 'Piadina', nutrients: { proteinG: 20 } },
+            brunch: { label: 'Uova', nutrients: { kcal: 400 } },
+            merenda: 'yogurt',
+          },
+        },
+        '2026-11-11': { date: '2026-11-11', status: {}, barMeals: [] },
+      },
+    });
+    expect(fixed.plan.impactThreshold).toBe(2.5);
+    expect(fixed.dayLogs['2026-11-10'].barMeals).toEqual({
+      spuntino: { label: 'Toast', nutrients: { kcal: 380, proteinG: 20, carbG: 40, fatG: 0, fiberG: 0 }, vegPortions: 1.5 },
+    });
+    expect('barMeals' in fixed.dayLogs['2026-11-11']).toBe(false);
+    for (const bad of [{ ...base.plan, impactThreshold: 'tanto' }, { ...base.plan, impactThreshold: null }, { ...base.plan, impactThreshold: true }]) {
+      expect('impactThreshold' in normalizeData({ ...base, plan: bad }).plan).toBe(false);
+    }
+    expect(normalizeData({ ...base, plan: { ...base.plan, impactThreshold: 14 } }).plan.impactThreshold).toBe(10);
+    expect(normalizeImpactThreshold(-1)).toBe(0);
+    expect(normalizeImpactThreshold(undefined)).toBeUndefined();
+    expect(normalizeBarMeal({ label: 'Pizza', nutrients: { kcal: 9000, proteinG: 900 } })?.nutrients).toMatchObject({ kcal: 3000, proteinG: 300 });
+    expect('impactThreshold' in normalizeData(base).plan).toBe(false);
+  });
+
+  it('updatePlan: la soglia per gli impatti resta un numero da 0 a 10', () => {
+    const a = useApp.getState();
+    a.updatePlan({ impactThreshold: 3 });
+    expect(useApp.getState().plan.impactThreshold).toBe(3);
+    a.updatePlan({ impactThreshold: 12 });
+    expect(useApp.getState().plan.impactThreshold).toBe(10);
+    a.updatePlan({ impactThreshold: Number.NaN });
+    expect('impactThreshold' in useApp.getState().plan).toBe(false);
+    a.updatePlan({ impactThreshold: 2 });
+    a.updatePlan({ impactThreshold: undefined });
+    expect('impactThreshold' in useApp.getState().plan).toBe(false);
+    a.updatePlan({ painThreshold: 4 });
+    expect(useApp.getState().plan.painThreshold).toBe(4);
   });
 
   it('acqua e dolci non scendono sotto zero', () => {

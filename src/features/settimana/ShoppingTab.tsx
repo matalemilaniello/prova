@@ -5,7 +5,8 @@
  * "Nel carrello", chiuso di base. Carne e pesce freschi che servono a metà settimana hanno un fiocco sulla riga
  * e una sola nota in fondo al reparto con cosa congelare appena a casa.
  * Nella prima settimana di chi inizia a metà settimana la lista parte dal giorno di inizio.
- * Nei giorni di avvio (niente preparazione della domenica) è la spesa di avvio: lo dice il titolo e una nota.
+ * Nei giorni di avvio (niente preparazione della domenica) è la spesa di avvio: lo dicono l'etichetta e la riga sotto
+ * il titolo, senza un riquadro in più. I giorni compresi stanno nella stessa riga.
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -25,12 +26,12 @@ import {
   ShoppingBasket,
   ShoppingCart,
   Snowflake,
-  Sparkles,
   Wheat,
   type LucideIcon,
 } from 'lucide-react';
-import type { AppData, ISODate, Plan, ShopCategory } from '../../domain/types';
-import { formatDayLong, formatDayTitle, formatWeekRange, weekdayOf } from '../../engine/dates';
+import type { ISODate, ShopCategory } from '../../domain/types';
+import { addDays, formatDayTitle, formatWeekRange, weekdayOf } from '../../engine/dates';
+import type { NutritionState } from '../../engine/nutrition';
 import { shoppingList, shoppingProgress, shoppingText, type ShoppingItem, type ShoppingLead } from '../../engine/shopping';
 import { WEEKDAY_LONG, listIt, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
@@ -55,8 +56,8 @@ const EMPTY: string[] = [];
 
 export interface ShoppingTabProps {
   weekStart: ISODate;
-  plan: Plan;
-  dayLogs: AppData['dayLogs'];
+  /** Piano, diario, controlli e profilo: le porzioni sono quelle del menù (minimo di carboidrati di partita compreso). */
+  state: NutritionState;
   /** Settimana mostrata rispetto a quella attuale (0 = questa). */
   offset: number;
   today: ISODate;
@@ -68,15 +69,17 @@ export interface ShoppingTabProps {
   onGoPrep: () => void;
 }
 
-/** "di sabato, dopo la spesa, e di domenica" */
-function leadText(dates: ISODate[], lead: ShoppingLead | undefined): string {
-  const days = dates.map((d) => WEEKDAY_LONG[weekdayOf(d)]);
-  if (lead?.skipSlots?.length && days.length > 1) return `di ${days[0]}, dopo la spesa, e di ${listIt(days.slice(1))}`;
-  return `di ${listIt(days)}`;
+/** Riga sotto il titolo: pasti e giorni, e per la spesa di avvio cosa viene dopo. */
+function spanText(dates: ISODate[], mealCount: number, opts: { lead: boolean; starter: boolean }): string {
+  const span = opts.lead
+    ? `da ${lowerFirst(formatDayTitle(dates[0]))} a ${lowerFirst(formatDayTitle(dates[dates.length - 1]))}`
+    : dateSpanText(dates);
+  const base = `Per ${mealCount} pasti, ${span}`;
+  return opts.starter || opts.lead ? `${base}. Poi spesa il sabato e preparazione la domenica.` : base;
 }
 
-export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate, lead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
-  const list = useMemo(() => shoppingList(weekStart, { plan, dayLogs }, { fromDate, lead }), [weekStart, plan, dayLogs, fromDate, lead]);
+export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
+  const list = useMemo(() => shoppingList(weekStart, state, { fromDate, lead }), [weekStart, state, fromDate, lead]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);
   const toast = useUi((s) => s.toast);
@@ -88,6 +91,8 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate,
   const range = formatWeekRange(weekStart);
   const wd = weekdayOf(today);
   const inCart = list.items.filter((i) => checkedSet.has(i.key));
+  // La preparazione della domenica prima di questa settimana deve ancora venire (o è oggi).
+  const prepAhead = addDays(weekStart, -1) >= today;
 
   const copy = async () => {
     const text = shoppingText(list, { checked, title: `Spesa · ${range}` });
@@ -145,69 +150,39 @@ export function ShoppingTab({ weekStart, plan, dayLogs, offset, today, fromDate,
             <p className="t-label text-ink-3">{label}</p>
             <p className="t-title-2 mt-1 text-ink">{allDone ? 'Tutto preso' : `${plural(remaining, 'prodotto', 'prodotti')} da prendere`}</p>
             <p className="t-footnote mt-0.5 text-ink-2">
-              Per {list.mealCount} pasti,{' '}
-              {list.leadDates.length
-                ? `da ${lowerFirst(formatDayTitle(list.dates[0]))} a ${lowerFirst(formatDayTitle(list.dates[list.dates.length - 1]))}`
-                : dateSpanText(list.dates)}
+              {allDone && list.starter
+                ? 'La prossima è sabato, con la lista già pronta qui.'
+                : spanText(list.dates, list.mealCount, { lead: list.leadDates.length > 0, starter: list.starter && !allDone })}
             </p>
           </div>
         </div>
-        <Button icon={Copy} onClick={copy} fullWidth className="mt-4">
-          Copia lista
-        </Button>
+        {/* Una sola azione: copiare la lista finché c'è da comprare, poi la preparazione della domenica se deve ancora venire. */}
+        {!allDone ? (
+          <Button icon={Copy} onClick={copy} fullWidth className="mt-4">
+            Copia lista
+          </Button>
+        ) : (
+          !list.starter &&
+          prepAhead && (
+            <Button iconRight={ChevronRight} onClick={onGoPrep} fullWidth className="mt-4">
+              Vai alla preparazione
+            </Button>
+          )
+        )}
       </Card>
 
       {offset === 0 && wd >= 5 && (
         <Callout
           tone="accent"
-          title={wd === 6 ? 'Domani inizia una nuova settimana' : 'Lunedì inizia una nuova settimana'}
+          title="La spesa per lunedì è già pronta"
           action={
             <Button variant="ghost" size="sm" iconRight={ChevronRight} onClick={() => onOpenWeek(1)}>
               Apri la prossima settimana
             </Button>
           }
-        >
-          Questa è la spesa della settimana in corso: quella per lunedì è già pronta.
-        </Callout>
+        />
       )}
 
-      {list.starter && !allDone && (
-        <Callout tone="accent" icon={Sparkles} title={progress.total <= 20 ? 'Una spesa piccola per cominciare' : 'La prima spesa'}>
-          Una spesa sola per i pasti {dateSpanText(list.dates)}, ricette da 15 minuti. Poi spesa il sabato e preparazione la domenica.
-        </Callout>
-      )}
-
-      {list.leadDates.length > 0 && !allDone && (
-        <Callout tone="accent" icon={Sparkles} title="La prima spesa">
-          Comprende anche i pasti {leadText(list.leadDates, lead)}, ricette da 15 minuti. Da lunedì il menù della settimana.
-        </Callout>
-      )}
-
-      {fromDate && !list.starter && (
-        <Callout tone="neutral" title="Prima settimana">
-          Hai iniziato {formatDayLong(fromDate)}: la lista comprende solo i pasti da quel giorno in poi.
-        </Callout>
-      )}
-
-      {allDone && list.starter && (
-        <Callout tone="good" title="Spesa di avvio fatta">
-          Il menù di questi giorni è tutto in casa. La prossima spesa è sabato, con la lista già pronta qui.
-        </Callout>
-      )}
-
-      {allDone && !list.starter && (
-        <Callout
-          tone="good"
-          title="Spesa fatta"
-          action={
-            <Button variant="ghost" size="sm" iconRight={ChevronRight} onClick={onGoPrep}>
-              Vai alla preparazione
-            </Button>
-          }
-        >
-          Adesso la preparazione della domenica: un’ora e la settimana è in discesa.
-        </Callout>
-      )}
 
       {list.groups.map((g) => (
         <CategorySection key={g.category} category={g.category} items={g.items} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />
@@ -478,7 +453,7 @@ function CopyFallbackSheet({ text, onClose }: { text: string | null; onClose: ()
         value={text ?? ''}
         onFocus={(e) => e.currentTarget.select()}
         aria-label="Lista della spesa"
-        className="selectable t-mono h-full min-h-[50vh] w-full resize-none rounded-control border border-line bg-field p-3 text-[0.8125rem] leading-relaxed text-ink"
+        className="selectable t-callout h-full min-h-[50vh] w-full resize-none rounded-control border border-line bg-field p-3 text-[0.8125rem] leading-relaxed text-ink"
       />
     </Sheet>
   );

@@ -13,10 +13,10 @@ import { BAR_OPTIONS, BAR_VERDICTS } from '../../data/barPlanB';
 import { MEAL_SLOTS } from '../../engine/menu';
 import { DAY_TYPE_LABEL, fmtNumber, listIt, MEAL_SLOT_LABEL } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
-import { useNowHHMM, useToday } from '../../state/hooks';
+import { useNowHHMM, useNutritionState, useToday } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, cn, DayTypeBadge, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneSoft, type AnyTone } from '../../ui';
-import { barCombo, barContext, fitCombo, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
+import { barCombo, barContext, barOrder, fitCombo, lowerFirst, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
 
 const VERDICT_STYLE: Record<BarOption['verdict'], { tone: AnyTone; icon: LucideIcon }> = {
   si: { tone: 'good', icon: CircleCheck },
@@ -42,10 +42,6 @@ const SLOT_MARKED: Record<MealSlot, string> = {
 };
 
 const n0 = (x: number) => fmtNumber(Math.round(x));
-
-function lowerFirst(s: string): string {
-  return s.length > 1 && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-}
 
 export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: MealSlot; onClose: () => void }) {
   const plan = useApp((s) => s.plan);
@@ -73,7 +69,8 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
   }, [slot, reduce]);
 
   // Nei giorni di calcio e alla vigilia la scelta si avvicina al pasto previsto dal menù (carboidrati compresi).
-  const planned = useMemo(() => plannedMeal({ plan, dayLogs }, ctx.today, slot), [plan, dayLogs, ctx.today, slot]);
+  const nutrition = useNutritionState();
+  const planned = useMemo(() => plannedMeal(nutrition, ctx.today, slot), [nutrition, ctx.today, slot]);
   const combo = useMemo(() => {
     const c = fitCombo(barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve), ctx.dayType, planned, slot);
     return { ...c, options: optionsById(c.ids) };
@@ -97,17 +94,24 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   };
 
-  /** Segna il pasto come sostituito con la nota dell'ordine; i dolci programmati contano tra i dolci. */
+  /**
+   * Segna il pasto come sostituito con la nota dell'ordine e salva i valori dell'ordine (`DayLog.barMeals`):
+   * la revisione conta proteine, fibre e vegetali veri invece di mezzo pasto previsto. I dolci programmati
+   * contano tra i dolci. "Annulla" rimette il pasto, la nota e l'ordine di prima.
+   */
   const mark = () => {
-    if (!chosen.length) return;
+    const order = barOrder(chosen);
+    if (!order) return;
     const st = useApp.getState();
     const itemId = `pasto:${slot}`;
     const prevLog = st.getDayLog(ctx.today);
     const prevStatus: ItemStatus | undefined = prevLog.status[itemId];
     const prevNote = prevLog.notes[itemId];
+    const prevBar = prevLog.barMeals?.[slot] ?? null;
     const sweets = chosen.filter((o) => o.verdict === 'programmato').length;
     const note = `Al bar: ${listIt(chosen.map((o) => lowerFirst(o.name)))}`;
     st.setItemStatus(ctx.today, itemId, 'sostituito', note);
+    st.setBarMeal(ctx.today, slot, order);
     if (sweets) st.addSweet(ctx.today, sweets);
     haptic('success');
     toast(`${SLOT_MARKED[slot]}: preso al bar`, 'good', {
@@ -115,6 +119,8 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
       onAction: () => {
         const s2 = useApp.getState();
         s2.setItemStatus(ctx.today, itemId, prevStatus ?? null, prevNote ?? '');
+        // Lo stato di prima toglie già l'ordine se non era sostituito; se lo era, torna l'ordine di prima.
+        s2.setBarMeal(ctx.today, slot, prevStatus === 'sostituito' ? prevBar : null);
         if (sweets) s2.addSweet(ctx.today, -sweets);
       },
     });
@@ -153,7 +159,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
       onClose={onClose}
       size="large"
       title="Piano B al bar"
-      subtitle="Funziona anche senza rete. Valori indicativi della porzione tipica."
+      subtitle="Valori indicativi della porzione tipica, anche senza rete."
       footer={footer}
     >
       {BAR_OPTIONS.length === 0 ? (
@@ -224,7 +230,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                       <li key={o.id} className="flex items-baseline gap-2.5">
                         <span aria-hidden className="size-1.5 shrink-0 translate-y-[-0.2em] rounded-full bg-accent" />
                         <span className="t-headline min-w-0 flex-1 text-ink">{o.name}</span>
-                        {combo.options.length > 1 && <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{n0(o.approx.kcal)}</span>}
+                        {combo.options.length > 1 && <span className="t-footnote shrink-0 tabular-nums text-ink-3">{n0(o.approx.kcal)}</span>}
                       </li>
                     ))}
                   </ul>
@@ -285,7 +291,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                   <div className="min-w-0 flex-1">
                     <h3 id={`bar-${g.verdict}`} className="t-headline flex items-baseline gap-2 text-ink">
                       {BAR_VERDICTS[g.verdict].label}
-                      <span className="t-mono text-[0.75rem] font-normal text-ink-3">{g.options.length}</span>
+                      <span className="t-footnote font-normal tabular-nums text-ink-3">{g.options.length}</span>
                     </h3>
                     <p
                       className="t-footnote mt-0.5"
@@ -304,9 +310,6 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
             );
           })}
 
-          <p className="t-footnote px-1 text-ink-3">
-            Tocca le voci che prendi: vedi i totali e segni il pasto nel diario di oggi con un tocco.
-          </p>
         </div>
       )}
     </Sheet>

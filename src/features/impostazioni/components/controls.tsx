@@ -132,7 +132,7 @@ export function MiniStepper({ value, onChange, label, min = 0, max = 9999, step 
       {btn(-1)}
       <span className="flex min-w-[4.5rem] items-baseline justify-center gap-1">
         <span className="t-num text-[1.375rem] text-ink">{fmt(value)}</span>
-        {unit && <span className="t-mono text-[0.75rem] text-ink-3">{unit}</span>}
+        {unit && <span className="t-unit text-ink-3">{unit}</span>}
       </span>
       {btn(1)}
     </div>
@@ -260,7 +260,7 @@ export const InlineNumber = forwardRef<HTMLInputElement, InlineNumberProps>(func
         )}
         {...rest}
       />
-      {unit && <span className="t-mono text-[0.8125rem] text-ink-3">{unit}</span>}
+      {unit && <span className="t-unit text-[0.8125rem] text-ink-3">{unit}</span>}
     </span>
   );
 });
@@ -465,7 +465,7 @@ export function SelectRow({ checked, onChange, title, subtitle, meta, icon, tone
         <span className="t-callout font-medium text-ink">{title}</span>
         {subtitle && <span className="t-footnote mt-0.5 text-ink-2">{subtitle}</span>}
       </span>
-      {meta !== undefined && <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{meta}</span>}
+      {meta !== undefined && <span className="t-caption shrink-0 tabular text-ink-3">{meta}</span>}
       <motion.span
         aria-hidden
         className="grid size-[24px] shrink-0 place-items-center rounded-full"

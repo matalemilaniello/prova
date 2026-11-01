@@ -5,9 +5,9 @@ import type { DayType, HHMM, MealSlot, Nutrients } from '../../../domain/types';
 import { gymDuration, type AdherenceSummary, type DayItem, type NowPick, type StreakInfo } from '../../../engine/timeline';
 import { useApp } from '../../../state/store';
 import { fmtPercent, plural } from '../../../lib/format';
-import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk, toneRing, toneSoft } from '../../../ui';
+import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk } from '../../../ui';
 import { BOARD_LABEL, itemIcon, itemTone } from '../kinds';
-import { nowContent, stateLabel } from '../nowContent';
+import { eyebrowKicker, nowContent, stateLabel } from '../nowContent';
 
 export interface NowCardProps {
   pick: NowPick | null;
@@ -55,6 +55,9 @@ export function NowCard(props: NowCardProps) {
   const late = pick.state === 'in-ritardo';
   const allDay = item.kind === 'minima' && item.id !== 'minima:telefono' && pick.state === 'adesso';
   const ink = tone === 'neutral' ? 'var(--ink-2)' : toneInk(tone);
+  const kicker = eyebrowKicker(c.kicker, c.headline);
+  // L'orario apre la riga dei dettagli (le voci della giornata minima non ne hanno: si fanno in giornata).
+  const showTime = !allDay;
 
   let primary: ReactNode;
   let secondary: ReactNode = null;
@@ -150,15 +153,18 @@ export function NowCard(props: NowCardProps) {
           exit={{ opacity: 0, y: -14, filter: 'blur(3px)' }}
           transition={spring}
         >
+          {/* Tre livelli: occhiello (stato, quando, categoria), titolo, una riga di dettagli. Il monospazio solo per l'orario. */}
           <div className="flex items-center justify-between gap-3">
-            <h2 id="oggi-adesso" className={cn(BOARD_LABEL, 'flex items-center gap-2')} style={{ color: late ? 'var(--warn-ink)' : ink }}>
-              {pick.state === 'adesso' && (
-                <span aria-hidden className="relative flex size-2">
+            <h2 id="oggi-adesso" className={cn(BOARD_LABEL, 'flex min-w-0 flex-1 items-center')} style={{ color: late ? 'var(--warn-ink)' : ink }}>
+              {pick.state === 'adesso' ? (
+                <span aria-hidden className="relative mr-2 flex size-2 shrink-0">
                   <span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: toneColor(tone) }} />
                   <span className="relative size-2 rounded-full" style={{ background: toneColor(tone) }} />
                 </span>
+              ) : (
+                <Icon size={14} strokeWidth={2.4} aria-hidden className="mr-1.5 shrink-0" />
               )}
-              <span>
+              <span className="shrink-0 whitespace-nowrap">
                 {label.label}
                 {label.time && (
                   <>
@@ -167,31 +173,33 @@ export function NowCard(props: NowCardProps) {
                   </>
                 )}
               </span>
+              {kicker && (
+                <span className="min-w-0 truncate normal-case tracking-[0.03em] text-ink-2">
+                  {'\u00a0· '}
+                  {kicker}
+                </span>
+              )}
             </h2>
-            <div className="-mr-1 flex shrink-0 items-center gap-2">
-              <span className="t-mono rounded-full bg-card-2 px-2.5 py-1 text-[0.8125rem] font-medium text-ink shadow-[inset_0_0_0_1px_var(--line)]">
-                {late ? `era alle ${item.time}` : allDay ? 'in giornata' : item.time}
-              </span>
-              <IconButton icon={Ellipsis} label={`Altre opzioni: ${item.title}`} size="sm" variant="tinted" onClick={() => onOptions(item)} />
-            </div>
+            <IconButton icon={Ellipsis} label={`Altre opzioni: ${item.title}`} size="sm" variant="tinted" className="-mr-1 shrink-0" onClick={() => onOptions(item)} />
           </div>
 
-          <div className="mt-3 flex items-center gap-2.5">
-            <span
-              aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-[10px]"
-              style={{ background: toneSoft(tone, 16), color: ink, boxShadow: tone === 'neutral' ? 'inset 0 0 0 1px var(--line-strong)' : toneRing(tone, 55) }}
-            >
-              <Icon size={17} strokeWidth={2.3} />
-            </span>
-            <p className="t-callout min-w-0 truncate font-semibold text-ink-2">{c.kicker}</p>
-          </div>
-          <p className="t-title mt-2 text-[1.875rem] leading-[1.04] text-ink [text-wrap:balance]">{c.headline}</p>
+          <p className="t-title mt-2.5 text-[1.875rem] leading-[1.04] text-ink [text-wrap:balance]">{c.headline}</p>
           {c.sub && <p className="t-footnote mt-2 line-clamp-2 text-ink-2">{c.sub}</p>}
-          {c.meta.length > 0 && (
-            <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Dettagli">
-              {c.meta.map((m) => (
-                <li key={m} className="t-mono inline-flex h-7 items-center rounded-full px-2.5 text-[0.75rem] font-medium text-ink-2 shadow-[inset_0_0_0_1px_var(--line)]">
+          {(showTime || c.meta.length > 0) && (
+            <ul className="t-footnote mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 tabular text-ink-2" aria-label="Dettagli">
+              {showTime && (
+                <li className={cn('whitespace-nowrap font-semibold', late ? 'text-warn-ink' : 'text-ink')}>
+                  {late && <span className="font-sans font-medium">era alle </span>}
+                  <span className="t-mono text-[0.875rem]">{item.time}</span>
+                </li>
+              )}
+              {c.meta.map((m, i) => (
+                <li key={m} className="whitespace-nowrap font-medium">
+                  {(showTime || i > 0) && (
+                    <span aria-hidden className="mr-1.5 text-ink-4">
+                      ·
+                    </span>
+                  )}
                   {m}
                 </li>
               ))}

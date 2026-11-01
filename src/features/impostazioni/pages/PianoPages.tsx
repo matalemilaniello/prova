@@ -6,7 +6,7 @@ import { DEFAULT_WEEK } from '../../../data/defaults';
 import { curfewFor } from '../../../engine/sleep';
 import { MEAL_SLOT_LABEL, listIt, plural } from '../../../lib/format';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, ListGroup, Segmented, type AnyTone } from '../../../ui';
+import { Button, Callout, Card, Disclosure, ListGroup, Segmented, type AnyTone } from '../../../ui';
 import { FormRow, MiniStepper, TimePill } from '../components/controls';
 import { SleepStairs, SleepTargetHint } from '../components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../components/SupplementEditor';
@@ -31,7 +31,7 @@ export function SettimanaPage({ onBack, backLabel }: PageProps) {
     <Page title="Settimana" subtitle="Calcio, palestra e fisioterapista, giorno per giorno. Vale per tutte le settimane." onBack={onBack} backLabel={backLabel}>
       <section className="flex flex-col gap-2">
         <WeekDayList week={week} onSelect={setEditing} />
-        <p className="t-footnote px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati del menù. Calcio e palestra spostano merenda, cena e fisioterapista nella giornata.</p>
+        <p className="t-footnote px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati del menù.</p>
       </section>
       {!isDefault && (
         <Button variant="ghost" icon={RotateCcw} className="self-center" onClick={reset}>
@@ -79,11 +79,16 @@ export function PastiPage({ onBack, backLabel }: PageProps) {
         </Callout>
       )}
 
-      <Callout tone="neutral" title="Nei giorni di calcio serale">
-        La merenda diventa pre-partita, circa 2 ore e 30 prima, e la cena diventa di recupero, dopo la doccia. Se il calcio finisce tardi la cena è leggera e veloce.
-      </Callout>
+      {/* Come cambiano gli orari intorno al calcio: dietro un tocco, il sottotitolo lo accenna già. */}
+      <Card padding="none" className="-mt-3 px-4 py-1">
+        <Disclosure title="Nei giorni di calcio serale">
+          <p className="t-callout">
+            La merenda diventa pre-partita, circa 2 ore e 30 prima, e la cena diventa di recupero, dopo la doccia. Se il calcio finisce tardi la cena è leggera e veloce.
+          </p>
+        </Disclosure>
+      </Card>
 
-      <ListGroup title="Dolci" footer="Previsti nel piano: non sono uno sgarro. Oggi mostra quanti ne restano nella settimana.">
+      <ListGroup title="Dolci" footer="Previsti nel piano: non sono uno sgarro.">
         <FormRow icon={Cake} iconTone="riposo" label="A settimana">
           <MiniStepper label="Dolci previsti a settimana" value={sweets} min={0} max={7} step={1} onChange={(sweetsPerWeek) => update({ sweetsPerWeek })} />
         </FormRow>
@@ -116,7 +121,7 @@ export function SonnoPage({ onBack, backLabel }: PageProps) {
         <FormRow icon={AlarmClock} iconTone="accent" label="Sveglia">
           <TimePill label="Sveglia" value={s.wake} onChange={(wake) => set({ wake })} />
         </FormRow>
-        <FormRow icon={BedDouble} iconTone="riposo" label="A letto questa settimana" hint="Avanza con la revisione della domenica">
+        <FormRow icon={BedDouble} iconTone="riposo" label="A letto questa settimana">
           <TimePill label="A letto questa settimana" value={s.current} onChange={(current) => set({ current })} />
         </FormRow>
         <FormRow icon={Target} iconTone="good" label="Obiettivo" hint={weeks ? `Tra ${plural(weeks, 'settimana', 'settimane')}` : 'Raggiunto'}>
@@ -137,7 +142,7 @@ export function SonnoPage({ onBack, backLabel }: PageProps) {
             <p className="t-footnote text-ink-3">Coprifuoco alle {curfewFor('', plan)}: in carica fuori dalla camera, luci basse.</p>
           </div>
         </div>
-        <p className="t-footnote px-1 text-ink-3">La revisione della domenica propone il passo successivo quando sei andato a letto in orario almeno 5 notti su 7.</p>
+        <p className="t-footnote px-1 text-ink-3">Il passo avanza con la revisione della domenica, dopo almeno 5 notti su 7 a letto in orario.</p>
       </section>
     </Page>
   );
@@ -165,7 +170,7 @@ export function IntegratoriPage({ onBack, backLabel }: PageProps) {
           onEdit={(sup) => setEditing((e) => ({ sup, n: (e?.n ?? 0) + 1 }))}
           onAdd={() => setEditing((e) => ({ sup: null, n: (e?.n ?? 0) + 1 }))}
         />
-        <p className="t-footnote px-1 text-ink-3">Scelte e dosi vanno concordate con il medico. Quelli sospesi restano qui ma spariscono dalla giornata.</p>
+        <p className="t-footnote px-1 text-ink-3">Dosi da concordare con il medico. Quelli sospesi spariscono dalla giornata.</p>
       </section>
       {editing && (
         <SupplementSheet

@@ -5,7 +5,7 @@ import type { DayType, HHMM, ItemStatus, MealSlot } from '../../../domain/types'
 import type { DayItem, StatusSource } from '../../../engine/timeline';
 import { haptic } from '../../../lib/haptics';
 import { Button, Chip, Field, ListGroup, ListRow, Sheet, TextArea, cn, spring, springSnappy, toneColor, toneInk, toneRing, toneSoft, type Tone } from '../../../ui';
-import { replaceSuggestions } from '../kinds';
+import { canReplace, replaceSuggestions } from '../kinds';
 import { StatusMark } from './StatusMark';
 
 export interface ItemActionsSheetProps {
@@ -57,6 +57,8 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
   const [text, setText] = useState(note ?? '');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const suggestions = replaceSuggestions(item);
+  // Coprifuoco, letto e telefono fuori: o fatto o saltato.
+  const choices = canReplace(item) || status === 'sostituito' ? CHOICES : CHOICES.filter((c) => c.status !== 'sostituito');
 
   useEffect(() => {
     if (replacing && status !== 'sostituito') {
@@ -167,8 +169,8 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
         </div>
       )}
 
-      <div role="radiogroup" aria-label="Stato della voce" className="grid grid-cols-3 gap-2.5">
-        {CHOICES.map((c) => {
+      <div role="radiogroup" aria-label="Stato della voce" className={cn('grid gap-2.5', choices.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+        {choices.map((c) => {
           const on = replacing ? c.status === 'sostituito' : status === c.status;
           const color = c.tone === 'neutral' ? 'var(--ink-2)' : toneColor(c.tone);
           const locked = Boolean(lockedUntil) && c.status !== 'saltato';

@@ -62,7 +62,10 @@ mkdirSync(outDir, { recursive: true });
 /**
  * `now` cambia l'orologio della vista; `weekday` (0 = lunedì) porta la data al prossimo giorno della settimana
  * indicato (a partire da --today o da oggi), per avere sempre una giornata di partita o di palestra.
- * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number }[]}
+ * `firstDay` simula il primo giorno di un utente nuovo: carica i dati di esempio, li svuota (diario, controlli,
+ * sedute, revisioni, spesa, preparazione, esercizi del fisioterapista), mette il primo avvio a quell'ora del giorno
+ * della vista e l'inizio del piano al suo lunedì, poi ricarica senza dati di esempio.
+ * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string }[]}
  */
 const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
@@ -78,6 +81,8 @@ const VIEWS = [
   { name: 'oggi-sera', hash: 'oggi', weekday: 1, now: '23:05' },
   // Domenica prima della partita del lunedì: la pillola dice "Vigilia della partita" con le kcal del calcio.
   { name: 'oggi-vigilia', hash: 'oggi', weekday: 6, now: '12:40' },
+  // Primo giorno di un utente nuovo, un mercoledì: benvenuto finito alle 15:30, niente spesa né esercizi del fisio.
+  { name: 'oggi-primo-giorno', hash: 'oggi', weekday: 2, now: '15:35', firstDay: '15:30', wait: 900 },
   { name: 'settimana', hash: 'settimana', query: { tab: 'menu' } },
   { name: 'settimana-spesa', hash: 'settimana', query: { tab: 'spesa' } },
   { name: 'settimana-preparazione', hash: 'settimana', query: { tab: 'preparazione' } },
@@ -117,14 +122,42 @@ function localToday() {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
 }
 
-function urlFor(view, theme) {
-  const q = new URLSearchParams({ ...(view.fresh ? {} : { demo: '1' }), ...(view.query ?? {}), theme, now: view.now ?? fixedNow });
-  if (typeof view.weekday === 'number') q.set('today', nextWeekday(fixedToday ?? localToday(), view.weekday));
-  else if (fixedToday) q.set('today', fixedToday);
+function viewToday(view) {
+  if (typeof view.weekday === 'number') return nextWeekday(fixedToday ?? localToday(), view.weekday);
+  return fixedToday;
+}
+
+function urlFor(view, theme, { demo = !view.fresh } = {}) {
+  const q = new URLSearchParams({ ...(demo ? { demo: '1' } : {}), ...(view.query ?? {}), theme, now: view.now ?? fixedNow });
+  const today = viewToday(view);
+  if (today) q.set('today', today);
   const u = pathToFileURL(htmlPath);
   u.search = q.toString();
   if (view.hash) u.hash = view.hash;
   return u.href;
+}
+
+/** Svuota i dati di esempio salvati e ne fa il primo giorno di un utente nuovo (vedi `firstDay`). */
+async function makeFirstDay(page, today, time) {
+  await page.evaluate(
+    ({ today, time }) => {
+      const raw = JSON.parse(localStorage.getItem('ritmo:v1') ?? 'null');
+      if (!raw?.state) throw new Error('stato salvato assente');
+      const s = raw.state;
+      const [y, m, d] = today.split('-').map(Number);
+      const dt = new Date(y, m - 1, d, 12);
+      dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+      const monday = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      Object.assign(s, { dayLogs: {}, checkIns: {}, workoutLogs: [], footballLogs: [], reviews: {}, chat: [], shoppingChecked: {}, prepDone: {} });
+      s.physio = { exercises: [], prescriptions: [] };
+      s.plan.startDate = monday;
+      s.plan.firstUse = { date: today, time };
+      s.plan.supplements = s.plan.supplements.map((x) => (/vitamina d/i.test(x.name) ? { ...x, dose: 'Dose da definire con l\u2019esame', active: true } : x));
+      s.settings.demoData = false;
+      localStorage.setItem('ritmo:v1', JSON.stringify(raw));
+    },
+    { today, time },
+  );
 }
 
 /** Elementi che sporgono oltre il bordo destro (esclusi i contenitori scorrevoli in orizzontale e le schermate nascoste). */
@@ -190,7 +223,14 @@ try {
         logs.push(`eccezione: ${e.message}`);
       });
 
-      await page.goto(urlFor(view, theme), { waitUntil: 'load' });
+      if (view.firstDay) {
+        await page.goto(urlFor(view, theme, { demo: true }), { waitUntil: 'load' });
+        await page.waitForTimeout(500);
+        await makeFirstDay(page, viewToday(view) ?? localToday(), view.firstDay);
+        await page.goto(urlFor(view, theme, { demo: false }), { waitUntil: 'load' });
+      } else {
+        await page.goto(urlFor(view, theme), { waitUntil: 'load' });
+      }
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(view.wait ?? 650);
 

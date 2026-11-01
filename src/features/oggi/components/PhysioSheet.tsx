@@ -56,7 +56,7 @@ export function PhysioSheet({ open, physio, minutes, done, onClose, onDone, onSe
                   <span className="t-num grid size-8 shrink-0 place-items-center rounded-full bg-ink-soft text-[1.0625rem] text-ink-2">{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <p className="t-headline text-ink">{ex?.name ?? p.exerciseId}</p>
-                    <p className="t-mono mt-1 text-palestra-ink">
+                    <p className="t-footnote mt-1 font-medium tabular text-palestra-ink">
                       {dose(p)} · recupero {p.restSec} s
                     </p>
                     {ex?.cues?.length ? (

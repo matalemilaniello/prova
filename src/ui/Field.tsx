@@ -154,7 +154,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
         className={cn(INPUT, 't-num text-[1.25rem] tracking-normal')}
         {...rest}
       />
-      {unit && <span className="t-mono shrink-0 text-ink-3">{unit}</span>}
+      {unit && <span className="t-unit shrink-0 text-[0.875rem] text-ink-3">{unit}</span>}
     </div>
   );
 });

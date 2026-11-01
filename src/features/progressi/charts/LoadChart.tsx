@@ -9,9 +9,25 @@ import { BigValue, ChartCard, LegendItem } from './ChartCard';
 import { ChartSvg, labelStyle, useGeometry, useScrub, YGrid } from './frame';
 import { linear, niceDomain, safeId, topRoundedRect } from './scale';
 
-const HEIGHT = 176;
+const HEIGHT = 152;
 const GYM = 'var(--palestra)';
 const BALL = 'var(--calcio)';
+
+/** Settimane della media che fa la soglia: "delle 3 settimane precedenti", "della settimana precedente". */
+function previousWeeksText(n: number): string {
+  return n === 1 ? 'della settimana precedente' : `delle ${n} settimane precedenti`;
+}
+
+/** Come si legge: la stessa regola di Allenamento, con il numero vero di settimane nella media. */
+export function loadNote(cur: Pick<LoadWeek, 'threshold' | 'previousWeeks'> | undefined): string {
+  const what = 'Il carico di una seduta o di una partita è minuti × RPE (unità arbitrarie, UA).';
+  const why = 'i picchi improvvisi si associano a più infortuni, meglio salire per gradi.';
+  if (!cur || cur.threshold === null || cur.previousWeeks === 0) {
+    return `${what} La soglia compare con 2 settimane di storico ed è il 120% della media delle settimane precedenti, fino a 4: ${why}`;
+  }
+  const n = cur.previousWeeks;
+  return `${what} La soglia è il 120% della media ${previousWeeksText(n)}${n < 4 ? ' (poi delle ultime 4)' : ''}: ${why}`;
+}
 
 export function LoadChart({ weeks }: { weeks: LoadWeek[] }) {
   const { ref, geo } = useGeometry(HEIGHT, { top: 18, right: 44, bottom: 24, left: 6 });
@@ -57,11 +73,11 @@ export function LoadChart({ weeks }: { weeks: LoadWeek[] }) {
   return (
     <ChartCard
       title="Carico settimanale"
-      subtitle="Minuti × RPE, palestra e calcio"
       badge={cur?.alert ? <Pill tone="warn">Oltre la soglia</Pill> : undefined}
       value={shown ? <BigValue value={fmtNumber(shown.total)} unit="UA" /> : undefined}
       caption={caption}
       empty={hasData ? null : { icon: Dumbbell, title: 'Nessuna seduta registrata', text: 'Le sedute di palestra e le partite registrate formano il carico della settimana.' }}
+      legendBehind
       legend={
         <>
           <LegendItem color={GYM} kind="square">
@@ -70,15 +86,17 @@ export function LoadChart({ weeks }: { weeks: LoadWeek[] }) {
           <LegendItem color={BALL} kind="square">
             Calcio
           </LegendItem>
-          <LegendItem color="var(--ink-3)" kind="ring">
-            In programma
-          </LegendItem>
+          {weeks.some((w) => w.planned > 0) && (
+            <LegendItem color="var(--ink-3)" kind="ring">
+              In programma
+            </LegendItem>
+          )}
           <LegendItem color="var(--warn)" kind="dash">
             Soglia 120%
           </LegendItem>
         </>
       }
-      footnote="La soglia è il 120% della media delle 4 settimane precedenti: i picchi improvvisi di carico si associano a più infortuni, meglio salire per gradi."
+      footnote={loadNote(cur)}
     >
       <div ref={ref}>
         {hasData && (

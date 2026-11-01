@@ -5,8 +5,8 @@
 import type { AppData, BarOption, DayType, ISODate, MealSlot, Nutrients } from '../../domain/types';
 import { BAR_OPTIONS } from '../../data/barPlanB';
 import { addDays, hhmmToMin, weekDates, weekStart, weekdayOf } from '../../engine/dates';
-import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS, type MenuState } from '../../engine/menu';
-import { dayNutritionDetail } from '../../engine/nutrition';
+import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS } from '../../engine/menu';
+import { dayNutritionDetail, type NutritionState } from '../../engine/nutrition';
 import { dayCutoffMin, dayMinutes, isEveningFootball, mealSchedule, type MealSchedule } from '../../engine/timeline';
 
 export const VERDICT_ORDER: BarOption['verdict'][] = ['si', 'meglio', 'programmato'];
@@ -118,7 +118,7 @@ const TOP_UP_WORDS: Record<TopUp, string> = {
 };
 
 /** Valori del pasto previsto dal menù in quel giorno (sostituzioni e scala del piano comprese), o null. */
-export function plannedMeal(state: MenuState, date: ISODate, slot: MealSlot): Nutrients | null {
+export function plannedMeal(state: NutritionState, date: ISODate, slot: MealSlot): Nutrients | null {
   const n = dayNutritionDetail(date, state).bySlot[slot];
   return n && n.kcal > 0 ? n : null;
 }
@@ -194,6 +194,41 @@ export function sumApprox(list: readonly BarOption[]): Nutrients {
     }),
     { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 },
   );
+}
+
+/**
+ * Porzioni di frutta e verdura (80 g l'una) di una porzione tipica del banco. Stime prudenti: la rucola di un
+ * panino non fa una porzione, il pomodoro di un sugo mezza; la spremuta non conta, perché la fibra resta nella
+ * polpa (lo stesso consiglio che dà la revisione).
+ */
+export const BAR_VEG_PORTIONS: Readonly<Record<string, number>> = {
+  insalatona: 2,
+  macedonia: 2,
+  'yogurt-frutta': 1,
+  'panino-tacchino': 0.5,
+  'panino-crudo': 0.5,
+  'pasta-pomodoro': 0.5,
+};
+
+/** Un ordine al bar come lo salva il diario (`DayLog.barMeals`): etichetta, valori e porzioni di vegetali. */
+export interface BarOrder {
+  label: string;
+  nutrients: Nutrients;
+  vegPortions: number;
+}
+
+/** L'ordine delle voci scelte, o null se non c'è niente: "Panino con bresaola, rucola e grana e macedonia o frutto fresco". */
+export function barOrder(list: readonly BarOption[]): BarOrder | null {
+  if (!list.length) return null;
+  const names = list.map((o, i) => (i === 0 ? o.name : lowerFirst(o.name)));
+  const label = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  const vegPortions = list.reduce((s, o) => s + (BAR_VEG_PORTIONS[o.id] ?? 0), 0);
+  return { label, nutrients: sumApprox(list), vegPortions };
+}
+
+/** Minuscola iniziale, tranne per le sigle ("Toast" diventa "toast", "UHT" resta). */
+export function lowerFirst(s: string): string {
+  return s.length > 1 && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
 /** Dolci mangiati da lunedì a oggi compreso. */

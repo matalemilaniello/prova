@@ -18,7 +18,7 @@ export type TipTopic = 'sonno' | 'telefono' | 'fibre' | 'proteine' | 'carico' | 
 export interface TipContext {
   /** Soglia del dolore del piano (0-10). */
   painThreshold?: number;
-  /** Soglia per gli impatti sotto il ginocchio: min(soglia, 2). */
+  /** Soglia per gli impatti sotto il ginocchio (`impactThresholdFor`): mai sopra la soglia del dolore. */
   impactThreshold?: number;
   /** Obiettivo di fibre del giorno, in grammi. */
   fiberG?: number;
@@ -108,7 +108,7 @@ export const TIPS: Tip[] = [
     id: 'telefono-feed',
     topic: 'telefono',
     title: 'Lo scorrimento non ha fine',
-    text: 'I feed sono progettati senza un punto d’arrivo: il segnale per smettere devi dartelo tu. Il coprifuoco è quel segnale.',
+    text: 'Le bacheche dei social sono progettate senza un punto d’arrivo: il segnale per smettere devi dartelo tu. Il coprifuoco è quel segnale.',
   },
   {
     id: 'telefono-grigi',
@@ -372,7 +372,7 @@ export function tipsFor(dayType: DayType, ctx: TipContext = {}): Tip[] {
 /** Sostituisce nel titolo e nel testo i valori del piano: {soglia}, {sogliaImpatti}, {fibre}. */
 export function fillTip(tip: Tip, ctx: TipContext = {}): Tip {
   const pain = ctx.painThreshold ?? DEFAULT_CONTEXT.painThreshold;
-  const impact = ctx.impactThreshold ?? Math.min(pain, DEFAULT_CONTEXT.impactThreshold);
+  const impact = Math.min(pain, ctx.impactThreshold ?? DEFAULT_CONTEXT.impactThreshold);
   const fiber = ctx.fiberG && ctx.fiberG > 0 ? Math.round(ctx.fiberG) : DEFAULT_CONTEXT.fiberG;
   const fill = (s: string) =>
     s.replace(/\{soglia\}/g, String(pain)).replace(/\{sogliaImpatti\}/g, String(impact)).replace(/\{fibre\}/g, String(fiber));

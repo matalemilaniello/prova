@@ -10,7 +10,7 @@ import { ChartCard } from './ChartCard';
 import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, YGrid } from './frame';
 import { linear, monotonePath, segments } from './scale';
 
-const HEIGHT = 168;
+const HEIGHT = 146;
 
 /** Colori delle zone: distinti in entrambi i temi, mai il rosso (riservato a "fermati"). */
 export const SITE_TONES: AnyTone[] = ['palestra', 'riposo', 'leggero', 'calcio', 'good'];
@@ -53,7 +53,6 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
   return (
     <ChartCard
       title="Dolore"
-      subtitle="Per zona, da 0 a 10"
       badge={
         hasData ? (
           over ? (
@@ -84,7 +83,7 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
           <span key={s.site} className="t-footnote inline-flex items-center gap-1.5 text-ink-2">
             <span aria-hidden className="h-[3px] w-4 rounded-full" style={{ background: toneColor(s.tone) }} />
             <span className="font-semibold text-ink">{s.site}</span>
-            <span className="t-mono tabular" style={{ color: toneInk(s.tone) }}>
+            <span className="font-semibold tabular-nums" style={{ color: toneInk(s.tone) }}>
               {v === null || v === undefined ? '–' : fmtNumber(v, 1)}
             </span>
             {sel === null && s.trend && (
@@ -98,7 +97,7 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
           </span>
         );
       })}
-      footnote={sel === null ? 'Linea: media di 3 giorni. Numero accanto alla zona: media di 7 giorni.' : undefined}
+      footnote={`Dolore da 0 a 10 nel controllo del mattino. La linea è la media di 3 giorni, il numero accanto alla zona la media degli ultimi 7. Sopra la soglia di ${threshold} il piano frena i carichi.`}
     >
       <div ref={ref}>
         {hasData && (
@@ -118,8 +117,8 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
             {/* Zona sopra soglia, appena velata */}
             <rect aria-hidden x={geo.left - 4} y={geo.top} width={geo.innerW + 8} height={Math.max(0, ty - geo.top)} style={{ fill: 'var(--warn)', opacity: 0.06 }} />
             <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={ty} y2={ty} style={{ stroke: 'var(--warn)', strokeWidth: 1.25, strokeDasharray: '5 4' }} />
-            <text aria-hidden x={geo.right} y={ty - 6} textAnchor="end" style={labelStyle({ fill: 'var(--warn-ink)' })}>
-              soglia {threshold}
+            <text aria-hidden x={geo.right} y={ty - 6} textAnchor="end" style={labelStyle({ fill: 'var(--warn-ink)', fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, letterSpacing: 0 })}>
+              Soglia {threshold}
             </text>
 
             {series.map((s, si) => {

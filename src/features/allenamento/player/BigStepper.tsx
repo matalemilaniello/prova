@@ -145,7 +145,7 @@ export function BigStepper({ label, value, onChange, step, min = 0, max = 999, u
             onBlur={() => commit(false)}
             className="t-num h-12 w-[4.5ch] min-w-0 rounded-[12px] bg-field text-center text-[2.5rem] leading-none text-ink shadow-[inset_0_0_0_1.5px_var(--accent)] outline-none"
           />
-          {unit && <span className="t-mono text-[0.875rem] text-ink-2">{unit}</span>}
+          {unit && <span className="t-unit text-[0.875rem] text-ink-2">{unit}</span>}
         </div>
       ) : (
         <div
@@ -169,7 +169,7 @@ export function BigStepper({ label, value, onChange, step, min = 0, max = 999, u
           className={cn('flex h-12 items-baseline justify-center gap-1 rounded-[12px]', typeable && 'cursor-text')}
         >
           <NumberTicker value={value} format={fmt} duration={0.22} className="t-num text-[2.875rem] leading-none text-ink" />
-          {unit && <span className="t-mono text-[0.875rem] text-ink-2">{unit}</span>}
+          {unit && <span className="t-unit text-[0.875rem] text-ink-2">{unit}</span>}
         </div>
       )}
       <div className="flex gap-2">

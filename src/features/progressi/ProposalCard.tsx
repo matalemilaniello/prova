@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, Check, Undo2 } from 'lucide-react';
 import type { Plan, Proposal } from '../../domain/types';
-import { fmtKcal } from '../../lib/format';
+import { fmtKcal, fmtNumber } from '../../lib/format';
 import { Button, Card, Pill, cn, renderIcon, springSnappy, toneInk, toneRing, toneSoft } from '../../ui';
+import { changesPlan, needsDecision } from '../../engine/review';
 import { AREA_META } from './areas';
 
 export type ProposalState = 'da-decidere' | 'accettata' | 'rimandata' | 'applicata';
@@ -19,12 +20,13 @@ export interface ProposalCardProps {
   onUndo?: () => void;
 }
 
-/** Effetto sul piano, "prima → dopo". */
-export function proposalChange(p: Proposal, plan: Plan): { from: string; to: string; note?: string } | null {
-  if (p.apply?.type === 'sleepCurrent') return { from: plan.sleep.current, to: p.apply.value, note: 'a letto' };
+/** Effetto sul piano, "prima → dopo". `time`: sono orari (in monospazio, come altrove). */
+export function proposalChange(p: Proposal, plan: Plan): { from: string; to: string; note?: string; time?: boolean } | null {
+  if (p.apply?.type === 'sleepCurrent') return { from: plan.sleep.current, to: p.apply.value, note: 'a letto', time: true };
   if (p.apply?.type === 'kcalDelta') {
     const t = plan.targets.palestra.kcal;
-    return { from: fmtKcal(t), to: fmtKcal(t + p.apply.value), note: 'palestra' };
+    // L'unità una volta sola, in fondo: la pillola sta in una riga anche a 360 px.
+    return { from: fmtNumber(t), to: fmtKcal(t + p.apply.value), note: 'palestra' };
   }
   return null;
 }
@@ -43,15 +45,25 @@ export function AreaIcon({ area, size = 40 }: { area: Proposal['area']; size?: n
   );
 }
 
+/** Riga di stato in fondo alla card: cosa succede se accetti, o cosa hai deciso. */
+function statusLine(state: ProposalState, actionable: boolean, commitment: boolean): string {
+  if (state === 'applicata') return commitment ? 'Impegno preso' : 'Già nel piano';
+  if (state === 'accettata') return commitment ? 'Vale da lunedì' : 'Cambia il piano da lunedì';
+  if (state === 'rimandata') return 'Rimandata';
+  if (!actionable) return 'Non accettata';
+  return commitment ? 'Per la prossima settimana' : 'Cambia il piano';
+}
+
 /**
  * Una proposta della revisione: area, titolo, motivo, effetto sul piano e la scelta, "Accetta" pieno e
- * "Non ora" leggero. Le proposte informative (senza `apply`) si leggono soltanto.
+ * "Non ora" leggero. Solo le proposte su cui si decide (`needsDecision`: piano, scarico, settimana più
+ * leggera) hanno la scelta; le altre sono consigli da sapere e si leggono soltanto.
  */
 export function ProposalCard({ proposal, plan, state, actionable, onAccept, onDecline, onUndo }: ProposalCardProps) {
   const meta = AREA_META[proposal.area];
-  const informative = proposal.apply === undefined;
+  const informative = !needsDecision(proposal);
   const fx = state === 'applicata' ? null : proposalChange(proposal, plan);
-  const commitment = proposal.apply?.type === 'none';
+  const commitment = !changesPlan(proposal);
 
   return (
     <Card
@@ -70,11 +82,11 @@ export function ProposalCard({ proposal, plan, state, actionable, onAccept, onDe
           <h4 className="t-headline mt-0.5 text-ink">{proposal.title}</h4>
           <p className="t-footnote mt-1 text-pretty text-ink-2">{proposal.reason}</p>
           {fx && (
-            <div className="mt-3 inline-flex h-8 items-center gap-2 rounded-full bg-ink-soft px-3">
+            <div className="mt-3 inline-flex min-h-8 max-w-full flex-wrap items-center gap-x-2 rounded-full bg-ink-soft px-3 py-1">
               {fx.note && <span className="t-caption text-ink-3">{fx.note}</span>}
-              <span className="t-mono text-[0.8125rem] text-ink-2">{fx.from}</span>
+              <span className={cn('text-[0.8125rem] text-ink-2', fx.time ? 't-mono' : 'tabular-nums')}>{fx.from}</span>
               <ArrowRight size={13} strokeWidth={2.4} aria-label="diventa" className="text-ink-3" />
-              <span className="t-mono text-[0.8125rem] font-medium text-ink">{fx.to}</span>
+              <span className={cn('text-[0.8125rem] font-semibold text-ink', fx.time ? 't-mono' : 'tabular-nums')}>{fx.to}</span>
             </div>
           )}
         </div>
@@ -91,21 +103,7 @@ export function ProposalCard({ proposal, plan, state, actionable, onAccept, onDe
               exit={{ opacity: 0, y: -4 }}
               transition={springSnappy}
             >
-              {state === 'applicata'
-                ? commitment
-                  ? 'Impegno preso'
-                  : 'Già nel piano'
-                : state === 'accettata'
-                  ? commitment
-                    ? 'Un impegno per la settimana'
-                    : 'Cambia il piano da lunedì'
-                  : state === 'rimandata'
-                    ? 'Rimandata'
-                    : actionable
-                      ? commitment
-                        ? 'Il piano non cambia'
-                        : 'Cambia il piano'
-                      : 'Non accettata'}
+              {statusLine(state, actionable, commitment)}
             </motion.span>
           </AnimatePresence>
           {state === 'applicata' || (!actionable && state === 'accettata') ? (

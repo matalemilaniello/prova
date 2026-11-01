@@ -33,14 +33,14 @@ import { setLastBackupAt } from '../../lib/backup';
 import { fmtDateLong, fmtKg, fmtNumber, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { safeStorage, useApp, useUi } from '../../state/store';
-import { Button, Card, ListGroup, ListRow, Pill, Screen, ScreenSkeleton, Toggle, cn } from '../../ui';
+import { Button, Card, ListGroup, ListRow, Pill, Screen, ScreenSkeleton, Toggle, cn, toneInk, toneRing, toneSoft } from '../../ui';
 import { useSessionDraft } from '../allenamento/draft';
 import { clearDraft } from '../benvenuto/draft';
 import { InlineReveal, tileStyle } from './components/controls';
 import { InstallCard } from './components/InstallCard';
 import { ThemePicker } from './components/Pickers';
 import { canSuggestInstall } from './install';
-import { GOAL_LABEL, MEAL_ORDER, ageOf, initials, weekSummary } from './lib';
+import { GOAL_LABEL, MEAL_ORDER, ageOf, initials, painSummary, weekSummary } from './lib';
 import { PAGE_IDS, PAGE_TITLE, type PageId, type PageProps } from './pages/Page';
 import { clearReminderPrefs, useCalendarStatus } from './reminders';
 
@@ -264,7 +264,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
   };
 
   return (
-    <Screen title="Impostazioni" onBack={goBack} bottom="safe" contentClassName="gap-7">
+    <Screen title="Impostazioni" onBack={goBack} bottom="safe">
       {settings.demoData && (
         <Card variant="highlight" tone="riposo" padding="md" className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
@@ -286,10 +286,11 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
 
       {/* Profilo, come la scheda dell'ID Apple. */}
       <Card padding="md" onPress={() => open('profilo')} aria-label="Profilo" className="flex items-center gap-4">
+        {/* L'ambra è luce: un anello sottile sul blu, non un disco pieno che in questa pagina brillerebbe più di tutto. */}
         <span
           aria-hidden
-          className="relative grid size-[60px] shrink-0 place-items-center overflow-hidden rounded-full text-on-accent"
-          style={{ background: 'linear-gradient(145deg, #FFE29A, var(--accent) 55%, #E39A1C)' }}
+          className="relative grid size-[60px] shrink-0 place-items-center overflow-hidden rounded-full"
+          style={{ background: toneSoft('accent', 16), boxShadow: toneRing('accent'), color: toneInk('accent') }}
         >
           {initials(profile.name) ? <span className="t-num text-[1.625rem] tracking-[0.02em]">{initials(profile.name)}</span> : <User size={28} strokeWidth={2.2} />}
         </span>
@@ -334,7 +335,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
           icon={Activity}
           iconTone="bad"
           title="Zone di dolore e soglia"
-          subtitle={`${profile.painSites.length ? profile.painSites.join(', ') : 'Nessuna zona'} · soglia ${plan.painThreshold}`}
+          subtitle={painSummary(profile.painSites, plan)}
           onPress={() => open('dolore')}
         />
         <ListRow icon={HeartPulse} iconTone="leggero" title="Esercizi del fisioterapista" value={physioCount ? plural(physioCount, 'esercizio', 'esercizi') : 'Nessuno'} onPress={() => open('fisio')} />

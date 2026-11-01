@@ -109,8 +109,8 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
   const none = !available.length;
 
   return (
-    <Page title="Promemoria" subtitle="Ritmo non manda notifiche: crea un calendario con la tua settimana, ogni evento con un avviso all’orario." onBack={onBack} backLabel={backLabel}>
-      <Card variant="highlight" tone={stale ? 'warn' : undefined} padding="lg" className="flex flex-col gap-4">
+    <Page title="Promemoria" subtitle="Ritmo non manda notifiche: le affida al calendario, con un avviso all’orario." onBack={onBack} backLabel={backLabel}>
+      <Card variant="highlight" tone={stale ? 'warn' : undefined} padding="lg">
         <div className="flex items-center gap-4">
           <span aria-hidden className="grid size-14 shrink-0 place-items-center rounded-[16px]" style={tileStyle(stale ? 'warn' : 'accent')}>
             {stale ? <RefreshCw size={24} strokeWidth={2.2} /> : <CalendarPlus size={26} strokeWidth={2} />}
@@ -131,9 +131,6 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
             </span>
           </div>
         </div>
-        <p className="t-footnote text-ink-2">
-          All’orario giusto, con il fuso di Roma e l’ora legale.{staged ? ' Il coprifuoco segue la scala del sonno senza rifare il file.' : ''}
-        </p>
       </Card>
 
       {stale && (
@@ -226,14 +223,12 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
             </div>
           </>
         )}
-        {none && <p className="t-footnote text-center text-ink-3">Scegli almeno un promemoria.</p>}
+        {none ? (
+          <p className="t-footnote text-center text-ink-3">Scegli almeno un promemoria.</p>
+        ) : (
+          IS_PREVIEW && <p className="t-footnote px-1 text-center text-pretty text-ink-3">Nell’anteprima i file non si scaricano: incolla il testo in un file .ics, oppure usa l’app installata.</p>
+        )}
       </div>
-
-      {IS_PREVIEW && (
-        <Callout tone="warn" title="Anteprima senza download">
-          Qui i file non si scaricano: il calendario viene copiato negli appunti. Incollalo in un file con estensione .ics, oppure usa l’app installata.
-        </Callout>
-      )}
 
       <Card padding="none" className="px-4 py-1">
         <Disclosure title="Come aggiungerlo" icon={CalendarPlus} open={howOpen} onOpenChange={setHowOpen}>

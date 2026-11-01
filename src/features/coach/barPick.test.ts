@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BAR_OPTIONS } from '../../data/barPlanB';
 import { defaultPlan } from '../../data/defaults';
 import { MEAL_SLOTS } from '../../engine/menu';
-import { emptyDayLog } from '../../state/store';
-import { barCombo, barContext, CALCIO_MEAL_CAP, CALCIO_MEAL_SHARE, fitCombo, optionsById, plannedMeal, sumApprox, sweetsThisWeek } from './barPick';
+import { emptyDayLog, useApp } from '../../state/store';
+import { BAR_VEG_PORTIONS, barCombo, barContext, barOrder, CALCIO_MEAL_CAP, CALCIO_MEAL_SHARE, fitCombo, optionsById, plannedMeal, sumApprox, sweetsThisWeek } from './barPick';
 
 const plan = defaultPlan('2026-11-09');
 
@@ -146,5 +146,40 @@ describe('piano B al bar', () => {
       '2026-11-12': { ...emptyDayLog('2026-11-12'), sweets: 3 }, // dopo oggi
     };
     expect(sweetsThisWeek(logs, '2026-11-11')).toBe(2);
+  });
+});
+
+describe('ordine al bar nel diario', () => {
+  it('somma i valori e le porzioni di vegetali delle voci scelte', () => {
+    const list = optionsById(['panino-bresaola', 'yogurt-frutta']);
+    const order = barOrder(list)!;
+    expect(order.label).toBe('Panino con bresaola, rucola e grana e yogurt bianco con frutta fresca');
+    expect(order.nutrients).toEqual(sumApprox(list));
+    expect(order.vegPortions).toBe(1);
+    expect(barOrder([])).toBeNull();
+    expect(barOrder(optionsById(['insalatona', 'macedonia', 'spremuta']))!.vegPortions).toBe(4);
+  });
+
+  it('ogni porzione di vegetali riguarda una voce del banco', () => {
+    const ids = new Set(BAR_OPTIONS.map((o) => o.id));
+    for (const [id, v] of Object.entries(BAR_VEG_PORTIONS)) {
+      expect(ids.has(id)).toBe(true);
+      expect(v).toBeGreaterThan(0);
+      expect(v).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('il pasto preso al bar resta nel diario finché è sostituito', () => {
+    useApp.setState({ dayLogs: {} });
+    const s = useApp.getState();
+    const date = '2026-11-10';
+    const order = barOrder(optionsById(['panino-bresaola', 'yogurt-frutta']))!;
+    s.setItemStatus(date, 'pasto:cena', 'sostituito', 'Al bar');
+    s.setBarMeal(date, 'cena', order);
+    expect(useApp.getState().dayLogs[date].barMeals?.cena?.nutrients.proteinG).toBe(order.nutrients.proteinG);
+    // Annulla: lo stato di prima (nessuno) toglie anche l'ordine.
+    useApp.getState().setItemStatus(date, 'pasto:cena', null, '');
+    useApp.getState().setBarMeal(date, 'cena', null);
+    expect(useApp.getState().dayLogs[date].barMeals).toBeUndefined();
   });
 });

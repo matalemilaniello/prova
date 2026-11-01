@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type KeyboardEvent } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { CalendarCheck } from 'lucide-react';
-import { WEEKDAY_INITIAL, capitalize, fmtDateLong, fmtDateShort, fmtPercent, plural } from '../../../lib/format';
+import { WEEKDAY_INITIAL, fmtDateShort, fmtPercent, plural } from '../../../lib/format';
 import type { Weekday } from '../../../domain/types';
 import type { CalendarDay, CalendarSummary } from '../series';
 import { monthShort } from './axis';
@@ -38,9 +38,17 @@ const KIND_TEXT: Record<CalendarDay['kind'], string> = {
   riuscita: 'riuscita',
   parziale: 'non riuscita',
   vuota: 'non segnata',
-  fuori: 'prima dell’inizio del piano',
-  futuro: 'deve ancora arrivare',
+  fuori: 'prima di Ritmo',
+  futuro: 'da vivere',
 };
+
+/** Il giorno letto, in breve per l'intestazione: "riuscita, 85%", "minima riuscita", "salvata dal jolly". */
+function dayCaption(d: CalendarDay): string {
+  if (d.jolly) return 'salvata dal jolly';
+  if (d.minimal && d.kind === 'riuscita') return 'minima riuscita';
+  if (d.kind === 'riuscita' || d.kind === 'parziale') return `${KIND_TEXT[d.kind]}, ${fmtPercent(d.score)}`;
+  return KIND_TEXT[d.kind];
+}
 
 export function SuccessHeatmap({ days, summary, weeks = 12 }: { days: CalendarDay[]; summary: CalendarSummary; weeks?: number }) {
   const reduce = useReducedMotion();
@@ -113,15 +121,22 @@ export function SuccessHeatmap({ days, summary, weeks = 12 }: { days: CalendarDa
       subtitle={span}
       value={<BigValue value={String(summary.successful)} unit={`su ${summary.counted}`} />}
       caption={
-        <span className="tabular">
-          Serie {summary.streak} <span className="text-ink-3">· record {summary.best}</span>
-        </span>
+        sel ? (
+          <span>
+            {fmtDateShort(sel.date)} <span className="text-ink-3">· {dayCaption(sel)}</span>
+          </span>
+        ) : (
+          <span className="tabular">
+            Serie {summary.streak} <span className="text-ink-3">· record {summary.best}</span>
+          </span>
+        )
       }
       empty={
         summary.counted === 0
           ? { icon: CalendarCheck, title: 'Il calendario parte da oggi', text: 'Ogni giornata con almeno il 70% delle voci fatte diventa un quadrato pieno.' }
           : null
       }
+      legendBehind
       legend={
         <>
           <LegendItem color={GOOD} kind="square">
@@ -143,18 +158,8 @@ export function SuccessHeatmap({ days, summary, weeks = 12 }: { days: CalendarDa
           )}
         </>
       }
-      footnote={
-        sel ? (
-          <span className="text-ink-2" aria-live="polite">
-            {capitalize(fmtDateLong(sel.date))}: {KIND_TEXT[sel.kind]}
-            {(sel.kind === 'riuscita' || sel.kind === 'parziale') && `, ${fmtPercent(sel.score)} delle voci`}
-            {sel.minimal && ', giornata minima'}
-            {sel.jolly && ', salvata dal jolly: la serie continua'}
-          </span>
-        ) : (
-          'Riuscita: almeno il 70% delle voci, oppure le 4 voci della giornata minima. Tocca un giorno per i dettagli.'
-        )
-      }
+      footnote="Una giornata è riuscita con almeno il 70% delle voci fatte (sostituite contano metà), oppure con le 4 voci della giornata minima. Con 5 giornate riuscite in una settimana arriva un jolly, che salva la serie alla prossima giornata storta. Tocca un giorno per leggerlo."
+
     >
       <div ref={ref}>
         <svg

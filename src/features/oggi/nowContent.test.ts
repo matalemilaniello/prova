@@ -7,7 +7,7 @@ import { effectiveDayType, isMatchEve } from '../../engine/menu';
 import { dayCarbScale, dayNutritionDetail, recipeNutrition } from '../../engine/nutrition';
 import { buildDay, type DayItem } from '../../engine/timeline';
 import { fmtKcal, fmtMinutes } from '../../lib/format';
-import { mealNutrientsFor, nowContent, stateLabel } from './nowContent';
+import { eyebrowKicker, mealNutrientsFor, nowContent, stateLabel } from './nowContent';
 
 const MON: ISODate = '2026-11-02';
 const SUN: ISODate = '2026-11-01';
@@ -83,5 +83,32 @@ describe('card Adesso: testi', () => {
     expect(stateLabel({ item, state: 'prossima', deltaMin: 215 })).toEqual({ label: 'Prossima', time: `tra ${fmtMinutes(215)}` });
     expect(stateLabel({ item, state: 'prossima', deltaMin: 300 })).toEqual({ label: 'Prossima' });
     expect(stateLabel({ item, state: 'adesso', deltaMin: -10 }).time).toBe(`da ${fmtMinutes(10)}`);
+  });
+});
+
+describe('card Adesso: occhiello', () => {
+  it('la categoria è breve e non ripete il titolo', () => {
+    expect(eyebrowKicker('Merenda pre-partita', 'Pane, ricotta e miele')).toBe('Merenda pre-partita');
+    expect(eyebrowKicker('Cena di recupero, veloce e digeribile', 'Cous cous con pollo e spinaci')).toBe('Cena di recupero');
+    expect(eyebrowKicker('Mattino', 'Controllo del mattino')).toBeNull();
+    expect(eyebrowKicker('Primi giorni', 'Spesa di avvio')).toBe('Primi giorni');
+  });
+
+  it('le pillole del pasto sono valori, la categoria va nell’occhiello', () => {
+    const state = recalculated();
+    const meal = buildDay(MON, state).find((i) => i.kind === 'pasto' && i.slot === 'pranzo' && i.ref)!;
+    const c = nowContent(meal, ctxFor(MON, state));
+    expect(c.kicker).toBe(meal.title);
+    expect(c.meta.some((m) => m.includes(meal.title))).toBe(false);
+  });
+});
+
+describe('card Adesso: seduta', () => {
+  it('la durata della seduta e il blocco del fisioterapista si leggono senza spiegazioni', () => {
+    const state = recalculated();
+    const gym = buildDay('2026-11-03', state).find((i) => i.kind === 'palestra')!;
+    const c = nowContent(gym, { ...ctxFor('2026-11-03', state), gym: { own: 45, physio: 24 } });
+    expect(c.meta.map((m) => m.replace(/\u00a0/g, ' '))).toEqual(['45 min', '+ 24 min dal fisioterapista']);
+    expect(nowContent(gym, { ...ctxFor('2026-11-03', state), gym: { own: 50, physio: 0 } }).meta.map((m) => m.replace(/\u00a0/g, ' '))).toContain('50 min');
   });
 });

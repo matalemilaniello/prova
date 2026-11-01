@@ -12,6 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DayLog, ISODate } from '../domain/types';
+import type { NutritionState } from '../engine/nutrition';
 import { currentDate, nowHHMM, toISO } from '../engine/dates';
 import { planDayISO } from '../engine/sleep';
 import { emptyDayLog, useApp } from './store';
@@ -85,4 +86,17 @@ export function useDayLog(date: ISODate): DayLog {
 /** True se sono attivi i dati di esempio. */
 export function useDemoData(): boolean {
   return useApp((s) => s.settings.demoData);
+}
+
+/**
+ * Stato per i valori dei pasti e gli obiettivi di una data (`dayNutritionDetail`, `dayCarbScale`, `dayTargetFor`):
+ * piano, diario, controlli e profilo, con riferimento stabile. Con controlli e profilo il minimo di carboidrati di
+ * partita e vigilia (6 g/kg) usa il peso recente: passalo così in tutte le schermate, i numeri coincidono ovunque.
+ */
+export function useNutritionState(): NutritionState {
+  const plan = useApp((s) => s.plan);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const checkIns = useApp((s) => s.checkIns);
+  const profile = useApp((s) => s.profile);
+  return useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
 }

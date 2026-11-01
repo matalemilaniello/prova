@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Moon } from 'lucide-react';
-import type { Plan, SleepPlan } from '../../../domain/types';
-import { minToHHMM, nightMinutes } from '../../../engine/dates';
+import type { HHMM, ISODate, Plan, SleepPlan } from '../../../domain/types';
+import { addDays, minToHHMM, nightMinutes } from '../../../engine/dates';
 import { isOnTargetFor, sleepHours } from '../../../engine/sleep';
 import { fmtDateCompact, fmtDelta, fmtHours } from '../../../lib/format';
 import { Segmented } from '../../../ui';
@@ -12,9 +12,12 @@ import { BigValue, ChartCard, HoursValue, LegendItem } from './ChartCard';
 import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, YGrid, type Geometry } from './frame';
 import { linear, topRoundedRect } from './scale';
 
-const HEIGHT = 180;
+const HEIGHT = 156;
 const COLOR = 'var(--riposo)';
 const SOFT = `color-mix(in srgb, ${COLOR} 40%, transparent)`;
+/** Passo della scala del sonno (linea continua) e obiettivo (tratteggio): neutri, per non confondersi con le barre. */
+const STEP_LINE = 'var(--ink-2)';
+const TARGET_LINE = 'var(--ink-3)';
 
 type Mode = 'ore' | 'orari';
 
@@ -23,6 +26,11 @@ export interface SleepChartProps {
   sleep: SleepPlan;
   /** Settimana del piano: nelle sere di calcio l'orario in orario è quello dopo la partita. */
   week?: Plan['week'];
+  /**
+   * Orario a letto in vigore una sera (il passo della scala del sonno di quella settimana, `sleepPhaseOn`):
+   * le notti passate si giudicano con l'orario di allora. Senza, vale l'orario attuale.
+   */
+  phaseOn?: (evening: ISODate) => HHMM;
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
@@ -49,12 +57,13 @@ function DateAxis({ points, xAt, geo }: { points: SleepPoint[]; xAt: (i: number)
 }
 
 /**
- * Sonno a barre. "Ore": ore a letto per notte (dagli orari del controllo, non il sonno misurato) con la
- * linea dell'obiettivo.
- * "Orari": ogni notte è una barra da quando sei andato a letto alla sveglia, con l'orario obiettivo
- * e quello della fase attuale: si vede l'orario a letto che si anticipa settimana dopo settimana.
+ * Sonno a barre, colorate per le notti in orario (a letto entro 15 minuti dal passo di quella settimana; dopo il
+ * calcio serale, dall'orario previsto per quella sera). "Ore": ore a letto per notte (dagli orari del controllo,
+ * non il sonno misurato), con le ore che dà il passo di ogni settimana (linea a scalini) e l'obiettivo.
+ * "Orari": ogni notte è una barra da quando sei andato a letto alla sveglia, con il passo di ogni settimana e
+ * l'orario obiettivo: si vede l'orario a letto che si anticipa settimana dopo settimana.
  */
-export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
+export function SleepChart({ points, sleep, week = [], phaseOn }: SleepChartProps) {
   const [mode, setMode] = useState<Mode>('ore');
   const { ref, geo } = useGeometry(HEIGHT, { top: 14, right: 44, bottom: 24, left: 8 });
   const reduce = useReducedMotion();
@@ -66,6 +75,13 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
 
   const targetH = sleepHours(sleep.target, sleep.wake);
   const phaseH = sleepHours(sleep.current, sleep.wake);
+  // Passo di ogni notte: il controllo del mattino racconta la sera prima.
+  const phases = points.map((p) => (phaseOn ? phaseOn(addDays(p.date, -1)) : sleep.current));
+  const onTime = points.map((p, i) => {
+    const current = phases[i];
+    if (p.bed) return isOnTargetFor(p.bed, p.date, { sleep: { ...sleep, current }, week });
+    return p.hours !== null ? p.hours >= sleepHours(current, sleep.wake) - 0.25 : false;
+  });
   const hours = points.map((p) => p.hours).filter((h): h is number => h !== null);
   const timed = points.filter((p) => p.bed && p.wake);
   const hasData = hours.length > 0;
@@ -80,7 +96,6 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
   // ── Ore ──
   const hiH = Math.max(9, Math.ceil(Math.max(targetH, ...hours, 0)));
   const yH = linear(0, hiH, geo.bottom, geo.top);
-  const phaseOk = (h: number) => h >= phaseH - 0.25;
 
   // ── Orari (minuti notturni: 23:30 = 1410, 07:15 = 1875) ──
   const beds = timed.map((p) => nightMinutes(p.bed!));
@@ -136,13 +151,27 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
     );
   }
 
-  const nightsOk = hours.filter(phaseOk).length;
+  const measured = points.filter((p) => p.hours !== null || p.bed).length;
+  const nightsOk = points.filter((p, i) => (p.hours !== null || p.bed) && onTime[i]).length;
   const label =
     mode === 'ore'
-      ? `Ore a letto per notte negli ultimi ${n} giorni. Media degli ultimi 7 giorni ${avgH !== null ? fmtHours(avgH) : 'non disponibile'}; obiettivo ${fmtHours(targetH)}; almeno ${fmtHours(phaseH)} in ${nightsOk} notti su ${hours.length}.`
-      : `Orari a letto per notte negli ultimi ${n} giorni. A letto in media alle ${bedAvg !== null ? minToHHMM(bedAvg) : 'non disponibile'}; fase attuale ${sleep.current}, obiettivo ${sleep.target}.`;
+      ? `Ore a letto per notte negli ultimi ${n} giorni. Media degli ultimi 7 giorni ${avgH !== null ? fmtHours(avgH) : 'non disponibile'}; il passo di questa settimana dà ${fmtHours(phaseH)} a letto, l’obiettivo ${fmtHours(targetH)}; in orario ${nightsOk} notti su ${measured}.`
+      : `Orari a letto per notte negli ultimi ${n} giorni. A letto in media alle ${bedAvg !== null ? minToHHMM(bedAvg) : 'non disponibile'}; passo di questa settimana ${sleep.current}, obiettivo ${sleep.target}; in orario ${nightsOk} notti su ${measured}.`;
 
   const lineY = (v: number) => Math.round(v) + 0.5;
+
+  /** Linea a scalini: un tratto orizzontale per ogni settimana con lo stesso passo, uniti da un tratto verticale. */
+  const stairs = (y: (phase: HHMM) => number) => {
+    if (!n) return '';
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      const yy = lineY(y(phases[i]));
+      const x0 = i === 0 ? geo.left - 4 : xAt(i) - slot / 2;
+      const x1 = i === n - 1 ? geo.right + 4 : xAt(i) + slot / 2;
+      d += i === 0 ? `M${x0},${yy}H${x1}` : `V${yy}H${x1}`;
+    }
+    return d;
+  };
 
   return (
     <ChartCard
@@ -168,37 +197,31 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
         ) : undefined
       }
       empty={hasData ? null : { icon: Moon, title: 'Nessuna notte registrata', text: 'Segna a che ora sei andato a letto nel controllo del mattino.' }}
+      legendBehind
       legend={
-        mode === 'ore' ? (
-          <>
-            <LegendItem color={COLOR} kind="square">
-              Almeno {fmtHours(phaseH)}
-            </LegendItem>
-            <LegendItem color={SOFT} kind="square">
-              Meno
-            </LegendItem>
-            <LegendItem color="var(--ink-2)" kind="dash">
-              Obiettivo {fmtHours(targetH)} a letto
-            </LegendItem>
-          </>
-        ) : (
-          <>
-            <LegendItem color={COLOR} kind="square">
-              In orario
-            </LegendItem>
-            <LegendItem color={SOFT} kind="square">
-              Tardi
-            </LegendItem>
-            <LegendItem color={COLOR} kind="line">
-              Fase {sleep.current}
-            </LegendItem>
-            <LegendItem color="var(--ink-2)" kind="dash">
-              Obiettivo {sleep.target}
-            </LegendItem>
-          </>
-        )
+        <>
+          <LegendItem color={COLOR} kind="square">
+            In orario
+          </LegendItem>
+          <LegendItem color={SOFT} kind="square">
+            Tardi
+          </LegendItem>
+          <LegendItem color={STEP_LINE} kind="line">
+            Passo della settimana, {mode === 'ore' ? fmtHours(phaseH) : sleep.current}
+          </LegendItem>
+          <LegendItem color={TARGET_LINE} kind="dash">
+            Obiettivo {mode === 'ore' ? fmtHours(targetH) : sleep.target}
+          </LegendItem>
+        </>
       }
-      footnote={mode === 'orari' ? `In orario: a letto entro 15 minuti dalla fase attuale (dopo il calcio serale, dall’orario previsto per quella sera). Ogni settimana con 5 notti in orario la fase si anticipa di ${sleep.stepMin} minuti.` : undefined}
+      footnote={
+        <>
+          In orario vuol dire a letto entro 15 minuti dal passo di quella settimana (dopo il calcio serale, dall’orario
+          previsto per quella sera). Ogni settimana con 5 notti in orario il passo si anticipa di {sleep.stepMin} minuti, fino
+          all’obiettivo.
+          {mode === 'ore' && ' Le ore sono quelle a letto, dagli orari del controllo del mattino: il sonno vero è circa il 10-15% in meno.'}
+        </>
+      }
     >
       <div ref={ref}>
         {hasData && (
@@ -216,7 +239,7 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
                       <motion.path
                         key={`h-${p.date}`}
                         d={topRoundedRect(xAt(i) - barW / 2, top, barW, geo.bottom - top, Math.min(4, barW / 2))}
-                        style={{ fill: phaseOk(p.hours) ? COLOR : SOFT, opacity: scrub.index !== null && !active ? 0.45 : 1, originY: 1 }}
+                        style={{ fill: onTime[i] ? COLOR : SOFT, opacity: scrub.index !== null && !active ? 0.45 : 1, originY: 1 }}
                         initial={reduce ? false : { scaleY: 0 }}
                         animate={{ scaleY: 1 }}
                         transition={{ type: 'spring', stiffness: 380, damping: 34, delay: Math.min(0.45, i * 0.012) }}
@@ -224,7 +247,8 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
                     );
                   })}
                 </g>
-                <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={lineY(yH(targetH))} y2={lineY(yH(targetH))} style={{ stroke: 'var(--ink-2)', strokeWidth: 1.25, strokeDasharray: '5 4' }} />
+                <path aria-hidden d={stairs((ph) => yH(sleepHours(ph, sleep.wake)))} style={{ fill: 'none', stroke: STEP_LINE, strokeWidth: 1.5, strokeLinejoin: 'round' }} />
+                <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={lineY(yH(targetH))} y2={lineY(yH(targetH))} style={{ stroke: TARGET_LINE, strokeWidth: 1.25, strokeDasharray: '5 4' }} />
               </>
             ) : (
               <>
@@ -235,7 +259,7 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
                     if (!p.bed || !p.wake) return null;
                     const top = yT(nightMinutes(p.bed));
                     const bottom = yT(nightMinutes(p.wake));
-                    const ok = isOnTargetFor(p.bed, p.date, { sleep, week });
+                    const ok = onTime[i];
                     const active = scrub.index === i;
                     return (
                       <motion.rect
@@ -253,8 +277,8 @@ export function SleepChart({ points, sleep, week = [] }: SleepChartProps) {
                     );
                   })}
                 </g>
-                <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={lineY(yT(nightMinutes(sleep.current)))} y2={lineY(yT(nightMinutes(sleep.current)))} style={{ stroke: COLOR, strokeWidth: 1.5 }} />
-                <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={lineY(yT(nightMinutes(sleep.target)))} y2={lineY(yT(nightMinutes(sleep.target)))} style={{ stroke: 'var(--ink-2)', strokeWidth: 1.25, strokeDasharray: '5 4' }} />
+                <path aria-hidden d={stairs((ph) => yT(nightMinutes(ph)))} style={{ fill: 'none', stroke: STEP_LINE, strokeWidth: 1.5, strokeLinejoin: 'round' }} />
+                <line aria-hidden x1={geo.left - 4} x2={geo.right + 4} y1={lineY(yT(nightMinutes(sleep.target)))} y2={lineY(yT(nightMinutes(sleep.target)))} style={{ stroke: TARGET_LINE, strokeWidth: 1.25, strokeDasharray: '5 4' }} />
               </>
             )}
             {scrub.index === null && lastIdx >= 0 && (

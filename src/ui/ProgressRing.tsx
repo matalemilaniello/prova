@@ -22,6 +22,13 @@ export interface ProgressRingProps {
    * di un riflettore (default false). Pensata per l'anello protagonista di una schermata, da 140 px in su.
    */
   tipLight?: boolean;
+  /**
+   * Tacca di una soglia, 0-1 (es. 0,7 per la giornata riuscita): un taglio sottile nell'anello e un trattino appena
+   * fuori, come una linea del campo. Mettila nell'etichetta per i lettori di schermo ("riuscita dal 70%").
+   */
+  marker?: number;
+  /** Colore del taglio della tacca: la superficie sotto l'anello (default `var(--bg)`; su una card `var(--card)`). */
+  markerSurface?: string;
   className?: string;
 }
 
@@ -51,6 +58,22 @@ function TipLight({ id, value, size, stroke, color, reduce }: { id: string; valu
   );
 }
 
+/** Tacca della soglia: taglio nell'anello e trattino fuori, nel sistema ruotato dell'anello (0 in alto). */
+function MarkerTick({ value, size, stroke, surface }: { value: number; size: number; stroke: number; surface: string }) {
+  const a = 2 * Math.PI * value;
+  const c = size / 2;
+  const at = (rr: number) => ({ x: c + rr * Math.cos(a), y: c + rr * Math.sin(a) });
+  const inner = at(size / 2 - stroke - 1);
+  const edge = at(size / 2 + 2);
+  const out = at(size / 2 + 7);
+  return (
+    <g aria-hidden>
+      <line x1={inner.x} y1={inner.y} x2={edge.x} y2={edge.y} stroke={surface} strokeWidth={2.5} />
+      <line x1={edge.x} y1={edge.y} x2={out.x} y2={out.y} stroke="var(--ink-3)" strokeWidth={2} strokeLinecap="round" />
+    </g>
+  );
+}
+
 let ringSeq = 0;
 
 /** Anello di avanzamento animato con contenuto centrale. Si chiude con un bagliore. */
@@ -64,6 +87,8 @@ export function ProgressRing({
   celebrate = true,
   gradient = true,
   tipLight = false,
+  marker,
+  markerSurface = 'var(--bg)',
   className,
 }: ProgressRingProps) {
   const reduce = useReducedMotion();
@@ -135,6 +160,7 @@ export function ProgressRing({
           animate={{ strokeDashoffset: c * (1 - v), opacity: v === 0 ? 0 : 1 }}
           transition={reduce ? { duration: 0 } : { type: 'spring', ...RING_SPRING }}
         />
+        {marker !== undefined && marker > 0 && marker < 1 && <MarkerTick value={marker} size={size} stroke={stroke} surface={markerSurface} />}
         {tipLight && <TipLight id={gid} value={v} size={size} stroke={stroke} color={color} reduce={Boolean(reduce)} />}
       </svg>
       <div className="relative flex flex-col items-center justify-center text-center">{children}</div>

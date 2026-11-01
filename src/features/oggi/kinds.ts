@@ -169,3 +169,11 @@ export function replaceSuggestions(item: DayItem): string[] {
 
 /** Etichette da tabellone: Barlow Condensed maiuscolo, spaziato. Il mono resta per orari e dati. */
 export const BOARD_LABEL = 'font-display text-[0.8125rem] font-semibold uppercase leading-none tracking-[0.12em]';
+
+/**
+ * La voce ammette "Sostituito"? Coprifuoco, letto e telefono fuori no: o si fa o si salta, un'alternativa non ha
+ * senso. Le altre voci sì (un pasto diverso, un'altra attività).
+ */
+export function canReplace(item: Pick<DayItem, 'kind' | 'id'>): boolean {
+  return item.kind !== 'coprifuoco' && item.kind !== 'letto' && item.id !== 'minima:telefono';
+}

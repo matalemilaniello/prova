@@ -7,16 +7,22 @@ import { EXERCISES } from '../../data/exercises';
 import { estimateItemSec } from '../../data/sessions';
 import { weekdayOf } from '../../engine/dates';
 import {
+  elbowSwitchFor,
+  gateForExercise,
   introItem,
   noImpactAlternatives,
   painFlagFor,
+  painNoteForExercise,
   personalRecords,
   physioCoverage,
+  recentLogsFor,
   sessionDuration,
   standingRecords,
+  suggestNext,
   type PainGate,
   type PersonalRecord,
   type SessionDuration,
+  type Suggestion,
 } from '../../engine/training';
 import { fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
 
@@ -36,10 +42,15 @@ export interface PlayerItem {
   base: SessionExercise;
   /** Esercizio previsto (prima di eventuali sostituzioni). */
   exercise: Exercise | undefined;
-  /** Esercizio della seduta sostituito in automatico dalla regola del dolore (es. i balzi con la tibia alta). */
+  /**
+   * Esercizio della seduta sostituito in automatico dalla regola del dolore: i balzi del riscaldamento con la tibia
+   * oltre la soglia degli impatti, la panca con i manubri con il gomito sopra soglia (elbowSwitch).
+   */
   replacedFrom?: string;
   /** Perché è stato sostituito. */
   replacedReason?: string;
+  /** Per quale zona: impatti (gamba) o gomito. */
+  replacedKind?: 'impatto' | 'gomito';
   physio: boolean;
   warmup: boolean;
   /**
@@ -94,7 +105,8 @@ export function physioWeekdays(plan: Pick<Plan, 'week'>): string[] {
  * un blocco "Dal fisioterapista" in fondo. Il riscaldamento diventa un'unica lista da spuntare.
  * Nella fase di ingresso gli esercizi della seduta (non quelli del fisioterapista) hanno una serie in meno
  * e una ripetizione di riserva in più. Con gli impatti bloccati dalla regola del dolore, gli esercizi
- * d'impatto del riscaldamento diventano la prima alternativa senza volo.
+ * d'impatto del riscaldamento diventano la prima alternativa senza volo; con il gomito sopra soglia le spinte con
+ * i manubri diventano la variante del catalogo (chest press, cavi), che si può sempre riportare a quella prevista.
  */
 export function buildPlayerPlan(
   session: WorkoutSession,
@@ -117,15 +129,24 @@ export function buildPlayerPlan(
         let exercise = EXERCISES[it.exerciseId];
         let replacedFrom: string | undefined;
         let replacedReason: string | undefined;
+        let replacedKind: PlayerItem['replacedKind'];
         const flag = warmup && opts.gate ? painFlagFor(exercise, opts.gate) : null;
+        const sw = !warmup && opts.gate ? elbowSwitchFor(exercise, opts.gate) : null;
         if (flag?.kind === 'impatto') {
           const alt = noImpactAlternatives(exercise)[0];
           if (alt) {
             replacedFrom = it.exerciseId;
             replacedReason = flag.reason;
+            replacedKind = 'impatto';
             base = { ...it, exerciseId: alt.id, note: undefined };
             exercise = alt;
           }
+        } else if (sw && EXERCISES[sw.to]) {
+          replacedFrom = it.exerciseId;
+          replacedReason = sw.reason;
+          replacedKind = 'gomito';
+          base = { ...it, exerciseId: sw.to, note: undefined, ...(sw.incrementKg ? { incrementKg: sw.incrementKg } : {}) };
+          exercise = EXERCISES[sw.to];
         }
         const c = cover.get(`${bi}:${ii}`);
         const coveredBy = c ? { exerciseId: c.physioId, name: exerciseFor(c.physioId, physio)?.name ?? c.physioId } : undefined;
@@ -141,7 +162,7 @@ export function buildPlayerPlan(
           exercise,
           physio: false,
           warmup,
-          ...(replacedFrom ? { replacedFrom, replacedReason } : {}),
+          ...(replacedFrom ? { replacedFrom, replacedReason, replacedKind } : {}),
           ...(coveredBy ? { coveredBy } : {}),
         };
       }),
@@ -187,6 +208,28 @@ export function buildPlayerPlan(
     physioDays: physioWeekdays(plan),
     intro,
   };
+}
+
+/**
+ * Suggerimento di progressione per un esercizio del piano, lo stesso nell'anteprima, nella card della prossima
+ * seduta e nel lettore: le ultime due esecuzioni (per lo stallo), la regola del dolore per quell'esercizio, la
+ * fase di ingresso e, per la variante presa al posto della panca con il gomito sopra soglia, il carico ridotto.
+ * `exerciseId` è l'esercizio in uso (diverso da quello del piano se l'utente l'ha sostituito).
+ */
+export function suggestionForItem(
+  it: PlayerItem,
+  ctx: { history: readonly WorkoutLog[]; gate: PainGate; intro: boolean; catalog?: Record<string, Exercise>; exerciseId?: string },
+): Suggestion {
+  const id = ctx.exerciseId ?? it.item.exerciseId;
+  const ex = (ctx.catalog ?? EXERCISES)[id];
+  const [last = null, previous = null] = recentLogsFor(id, ctx.history, 2);
+  return suggestNext({ ...it.base, exerciseId: id }, last, {
+    gate: gateForExercise(ex, ctx.gate),
+    painNote: painNoteForExercise(ex, ctx.gate),
+    intro: !it.physio && ctx.intro,
+    previous,
+    switched: it.replacedKind === 'gomito' && id === it.item.exerciseId,
+  });
 }
 
 /**

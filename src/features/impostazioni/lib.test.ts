@@ -7,15 +7,19 @@ import {
   elbowSites,
   hasErrors,
   impactRuleNote,
+  impactThresholdPatch,
+  impactThresholdView,
   initials,
   kcalFromMacros,
   lowerLegSites,
+  matchCarbNote,
   matchEveCount,
   matchEveNote,
   mealOrderIssues,
   nextGymSession,
   normalizeSite,
   painLabel,
+  painSummary,
   shortTimeInBed,
   sleepSteps,
   sortSupplements,
@@ -41,6 +45,19 @@ describe('profilo', () => {
     expect(initials('Luca Rossi')).toBe('LR');
     expect(initials('  anna ')).toBe('A');
     expect(initials(undefined)).toBe('');
+  });
+});
+
+describe('carboidrati di partita e vigilia', () => {
+  it('dice a quanti grammi salgono partita e vigilia quando l’obiettivo del calcio resta sotto 6 g/kg', () => {
+    // 75 kg: 6 g/kg = 450 g, sopra i 385 g dell'obiettivo del calcio.
+    expect(matchCarbNote(DEFAULT_WEEK, 385, 75)).toBe('Partita e vigilia salgono a 450\u00a0g di carboidrati, 6\u00a0g per kg, per arrivare in campo con buone scorte di glicogeno.');
+    // Obiettivo già oltre il minimo, o peso sconosciuto: resta la vigilia che mangia come il calcio.
+    expect(matchCarbNote(DEFAULT_WEEK, 460, 75)).toBe('La vigilia della partita mangia come il calcio, per arrivare in campo con buone scorte di glicogeno.');
+    expect(matchCarbNote(DEFAULT_WEEK, 385, 0)).toContain('La vigilia della partita');
+    // Nessuna partita in settimana: niente nota.
+    const noMatch = DEFAULT_WEEK.map((d) => (d.football?.kind === 'partita' ? { ...d, football: { ...d.football, kind: 'calcetto' as const } } : d));
+    expect(matchCarbNote(noMatch, 385, 75)).toBeNull();
   });
 });
 
@@ -157,5 +174,30 @@ describe('pasti, sonno, macro', () => {
     // Soglia già bassa o nessuna zona sotto il ginocchio: la regola generale basta.
     expect(impactRuleNote(sites, 2)).toBeNull();
     expect(impactRuleNote(['Gomito', 'Schiena'], 3)).toBeNull();
+    // Con la soglia degli impatti del fisioterapista la frase usa quella; uguale alla soglia generale non serve.
+    expect(impactRuleNote(sites, 4, 1)).toBe('Per tibia e tendine d’Achille balzi, salti e partita si fermano già sopra 1.');
+    expect(impactRuleNote(sites, 3, 3)).toBeNull();
+  });
+
+  it('mostra la soglia per gli impatti che vale davvero e torna al predefinito con 2', () => {
+    // Senza il campo: min(soglia, 2).
+    expect(impactThresholdView({ painThreshold: 3 })).toEqual({ value: 2, fallback: 2, own: false, max: 3 });
+    expect(impactThresholdView({ painThreshold: 1 })).toEqual({ value: 1, fallback: 1, own: false, max: 1 });
+    // Scelta con il fisioterapista, mai sopra la soglia generale (che oltre quel punto frena già tutto).
+    expect(impactThresholdView({ painThreshold: 3, impactThreshold: 3 })).toEqual({ value: 3, fallback: 2, own: true, max: 3 });
+    expect(impactThresholdView({ painThreshold: 2, impactThreshold: 4 }).value).toBe(2);
+    expect(impactThresholdView({ painThreshold: 4, impactThreshold: 0 }).value).toBe(0);
+    // 2 coincide con il predefinito con qualunque soglia: il campo sparisce.
+    expect(impactThresholdPatch(2)).toBeUndefined();
+    expect(impactThresholdPatch(3)).toBe(3);
+    expect(impactThresholdPatch(0)).toBe(0);
+  });
+
+  it('riassume zone e soglie nella riga delle impostazioni', () => {
+    expect(painSummary(['Tibia', 'Gomito'], { painThreshold: 3 })).toBe('Tibia, Gomito · soglia 3');
+    expect(painSummary(['Tibia', 'Gomito'], { painThreshold: 3, impactThreshold: 3 })).toBe('Tibia, Gomito · soglia 3, impatti 3');
+    // Senza zone sotto il ginocchio la soglia per gli impatti non conta e non si mostra.
+    expect(painSummary(['Gomito'], { painThreshold: 3, impactThreshold: 1 })).toBe('Gomito · soglia 3');
+    expect(painSummary([], { painThreshold: 3 })).toBe('Nessuna zona · soglia 3');
   });
 });

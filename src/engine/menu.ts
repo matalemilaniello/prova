@@ -81,6 +81,14 @@ export function dayTypeFor(iso: ISODate, plan: AppData['plan']): DayType {
   return plan.week.find((d) => d.weekday === wd)?.dayType ?? plan.week[wd]?.dayType ?? 'riposo';
 }
 
+/** True se nella data il piano prevede la partita (non calcetto né allenamento). */
+export function isMatchDay(iso: ISODate, plan: AppData['plan']): boolean {
+  if (!isISODate(iso)) return false;
+  const wd = weekdayOf(iso);
+  const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
+  return day?.football?.kind === 'partita';
+}
+
 /** True se il giorno dopo `iso` il piano prevede una partita. */
 export function isMatchEve(iso: ISODate, plan: AppData['plan']): boolean {
   if (!isISODate(iso)) return false;
@@ -92,11 +100,11 @@ export function isMatchEve(iso: ISODate, plan: AppData['plan']): boolean {
 
 /**
  * Tipo di giorno che decide porzioni e obiettivi. La vigilia della partita mangia come un giorno di calcio
- * (carboidrati × 1,25, obiettivo del giorno di calcio): il giorno prima della gara servono glicogeno pieno e
- * più carboidrati, non meno (UEFA expert group statement on nutrition in elite football, 2021: 6-8 g/kg
- * per i professionisti; per un amatore il carico del giorno di calcio, circa 5,5 g/kg, è il compromesso).
- * Proteine e grassi sono uguali in tutti i tipi di giorno: la vigilia aggiunge solo carboidrati. Sulla settimana
- * predefinita la media resta entro il 3% del dispendio stimato, e la revisione corregge le kcal dal peso.
+ * (carboidrati × 1,25, obiettivo del giorno di calcio): il giorno prima della gara servono più carboidrati, non
+ * meno. In più, il giorno della partita e la vigilia hanno un minimo di carboidrati di 6 g/kg (UEFA expert group
+ * statement on nutrition in elite football, 2021: 6-8 g/kg), che `matchCarbs` in `engine/nutrition.ts` aggiunge
+ * alle righe di carboidrati e all'obiettivo della data (`dayTargetFor`). Proteine e grassi sono uguali in tutti i
+ * tipi di giorno: la vigilia aggiunge solo carboidrati. La revisione corregge le kcal dal peso.
  * Negli altri giorni coincide con `dayTypeFor`.
  */
 export function effectiveDayType(iso: ISODate, plan: AppData['plan']): DayType {

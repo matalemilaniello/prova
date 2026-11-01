@@ -211,6 +211,8 @@ export interface LoadWeek {
   planned: number;
   /** Soglia del 120% della media delle 4 precedenti, se c'è abbastanza storico. */
   threshold: number | null;
+  /** Settimane precedenti nella media della soglia (fino a 4; 0 senza storico). */
+  previousWeeks: number;
   ratio: number | null;
   alert: boolean;
   current: boolean;
@@ -235,7 +237,7 @@ export function loadWeeks(state: SeriesState, today: ISODate, count = 8): LoadWe
     const st = loadStatus(ws, state);
     const current = ws === thisWeek;
     const planned = current ? plannedLoadRemaining(ws, state, today).load : 0;
-    return { weekStart: ws, gym, football, total: gym + football, planned, threshold: st.threshold, ratio: st.ratio, alert: st.alert, current };
+    return { weekStart: ws, gym, football, total: gym + football, planned, threshold: st.threshold, previousWeeks: st.previous.length, ratio: st.ratio, alert: st.alert, current };
   });
 }
 

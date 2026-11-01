@@ -16,6 +16,7 @@ import {
   weightSeries,
   type CalendarDay,
 } from './series';
+import { loadNote } from './charts/LoadChart';
 
 function state(start = '2026-11-02'): AppData {
   const d = defaultAppData(start);
@@ -119,5 +120,15 @@ describe('serie dei grafici', () => {
     expect(weeks.slice(4).every((w) => w.total > 0)).toBe(true);
     expect(weeks[7].threshold).not.toBeNull();
     for (const w of weeks) expect(w.total).toBe(w.gym + w.football);
+    // Tre settimane di storico: la nota del grafico dice 3, come Allenamento, non 4.
+    expect(weeks[7].previousWeeks).toBe(3);
+    expect(loadNote(weeks[7])).toContain('della media delle 3 settimane precedenti (poi delle ultime 4)');
+  });
+
+  it('la nota del carico segue lo storico vero', () => {
+    expect(loadNote({ threshold: 2400, previousWeeks: 4 })).toContain('delle 4 settimane precedenti:');
+    expect(loadNote({ threshold: 2400, previousWeeks: 1 })).toContain('della settimana precedente');
+    expect(loadNote({ threshold: null, previousWeeks: 1 })).toContain('compare con 2 settimane di storico');
+    expect(loadNote(undefined)).not.toMatch(/—|undefined|NaN/);
   });
 });
