@@ -189,7 +189,7 @@ function ExerciseStepBase(props: ExerciseStepProps) {
       )}
 
       {/* L'ultima volta e il suggerimento, in un unico riquadro */}
-      <section aria-label="L'ultima volta e oggi" className="overflow-hidden rounded-[16px]" style={{ background: 'var(--ink-soft)' }}>
+      <section aria-label="L'ultima volta e oggi" className="overflow-hidden rounded-[16px] bg-card-3">
         <div className="flex items-end justify-between gap-3 px-3.5 pb-2.5 pt-3">
           <div className="min-w-0">
             <p className="t-label flex items-center gap-1.5 text-ink-3">

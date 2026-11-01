@@ -91,7 +91,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
       )}
 
       {lastSession && (
-        <div className="flex items-start gap-3 rounded-[16px] px-3.5 py-3" style={{ background: 'var(--ink-soft)' }}>
+        <div className="flex items-start gap-3 rounded-[16px] bg-card-3 px-3.5 py-3">
           {increases > 0 ? (
             <TrendingUp size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-good-ink" aria-hidden />
           ) : (

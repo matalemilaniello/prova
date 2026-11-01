@@ -97,7 +97,7 @@ function contentFor(item: DayItem, dayType: DayType, curfewIn: number, bed: HHMM
       return {
         kicker: 'Domenica',
         headline: item.title,
-        sub: 'Una volta sola: pranzi e basi pronti per i giorni di scuola.',
+        sub: 'Una volta sola: pranzi e basi pronti per i giorni feriali.',
         meta: (item.detail ?? '').split(' · ').filter(Boolean),
       };
     case 'revisione':

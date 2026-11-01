@@ -114,7 +114,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-riso',
         title: 'Cuoci il riso basmati e quello integrale',
         minutes: 30,
-        yields: "Riso per la vaschetta di lunedì; quello per l'insalata di mercoledì e il riso saltato di giovedì va in freezer a porzioni",
+        yields: "Riso per la vaschetta di lunedì; quello per l'insalata di mercoledì e per il riso saltato di giovedì va in freezer a porzioni",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
       },
       {

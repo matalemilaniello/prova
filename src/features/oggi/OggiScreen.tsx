@@ -349,9 +349,11 @@ export default function OggiScreen() {
   if (impactFootball) {
     painText = gate.level === 'ok' ? `Negli impatti la soglia è più bassa, ${impactT} su 10.` : painText.replace(/\s*Scrivi al fisioterapista oggi\./, '');
     footballText =
-      gate.level === 'mantieni'
-        ? `Senti il fisioterapista prima di giocare. Se giochi, nel riscaldamento il dolore non deve superare ${impactT}: altrimenti fermati.`
-        : `Stasera ${impactFootball.the} solo se saltellando su una gamba il dolore resta entro ${impactT}. Altrimenti ${impactFootball.it} e scrivi al fisioterapista oggi.`;
+      gate.level === 'riduci'
+        ? `Stasera salta ${impactFootball.the}: con questo dolore gli impatti peggiorano le cose. Scrivi al fisioterapista oggi.`
+        : gate.level === 'mantieni'
+          ? `Senti il fisioterapista prima di giocare. Se giochi, nel riscaldamento il dolore non deve superare ${impactT}: altrimenti fermati.`
+          : `Stasera ${impactFootball.the} solo se saltellando su una gamba il dolore resta entro ${impactT}. Altrimenti ${impactFootball.it} e scrivi al fisioterapista oggi.`;
   }
   const showPain = gate.level !== 'ok' || Boolean(impactFootball);
   const footballItem = data.kickoff ? items.find((i) => i.id === data.kickoff!.itemId) : undefined;

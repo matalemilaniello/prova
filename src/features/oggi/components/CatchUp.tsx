@@ -1,5 +1,5 @@
 /**
- * Recupero delle voci rimaste indietro: il foglio "Recupera" per oggi (dopo scuola) e la card "Ieri sera" per
+ * Recupero delle voci rimaste indietro: il foglio "Recupera" per oggi (il pomeriggio) e la card "Ieri sera" per
  * sistemare la giornata precedente il mattino dopo. Ogni riga ha Fatto, Sostituito e Saltato in linea.
  */
 import { useRef, useState } from 'react';

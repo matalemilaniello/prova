@@ -5,7 +5,7 @@
 import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
-import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_SHORT, listIt } from '../../lib/format';
+import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, listIt } from '../../lib/format';
 
 // ───────────────────────── Obiettivo ─────────────────────────
 
@@ -85,6 +85,20 @@ export function dayActivities(day: ScheduleDay): DayActivity[] {
 /** Quanti giorni per tipo, nell'ordine dei tipi. */
 export function dayTypeCounts(week: ScheduleDay[]): { type: DayType; count: number }[] {
   return DAY_TYPES.map((type) => ({ type, count: week.filter((d) => d.dayType === type).length })).filter((x) => x.count > 0);
+}
+
+/**
+ * Vigilie della partita che non sono già giorni di calcio: mangiano come un giorno di calcio (porzioni e
+ * obiettivo, vedi `effectiveDayType`). Frase pronta per le note, o null se non ce ne sono.
+ * "La domenica, vigilia della partita, mangia come un giorno di calcio"
+ */
+export function matchEveNote(week: ScheduleDay[]): string | null {
+  const eves = week
+    .filter((d) => d.dayType !== 'calcio' && week.find((n) => n.weekday === (d.weekday + 1) % 7)?.football?.kind === 'partita')
+    .map((d) => WEEKDAY_LONG[d.weekday]);
+  if (!eves.length) return null;
+  if (eves.length === 1) return `${eves[0] === 'domenica' ? 'La' : 'Il'} ${eves[0]}, vigilia della partita, mangia come un giorno di calcio`;
+  return `Le vigilie della partita (${listIt(eves)}) mangiano come un giorno di calcio`;
 }
 
 const daysOf = (week: ScheduleDay[], pred: (d: ScheduleDay) => boolean) =>

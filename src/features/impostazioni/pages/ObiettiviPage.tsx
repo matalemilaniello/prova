@@ -12,7 +12,7 @@ import { latestWeight, useApp, useUi } from '../../../state/store';
 import { Button, Callout, Card, DayTypeBadge, ListGroup, NumberTicker, Sheet, cn, springSnappy, staggerItem, toneColor, toneInk } from '../../../ui';
 import { FormRow, MiniStepper, tileStyle } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
-import { carbsToMatch, dayTypeCounts, kcalFromMacros } from '../lib';
+import { carbsToMatch, dayTypeCounts, kcalFromMacros, matchEveNote } from '../lib';
 import { Page, type PageProps } from './Page';
 
 /** Barra delle macro in proporzione alle kcal (proteine, carboidrati, grassi), nel colore del tipo di giorno. */
@@ -45,6 +45,7 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
   const [editing, setEditing] = useState<{ type: DayType; n: number } | null>(null);
   const [recalc, setRecalc] = useState(0);
   const counts = Object.fromEntries(dayTypeCounts(week).map((c) => [c.type, c.count])) as Partial<Record<DayType, number>>;
+  const eveNote = matchEveNote(week);
   const complete = isProfileComplete(profile);
   const weight = latestWeight({ checkIns, profile });
 
@@ -110,7 +111,9 @@ export default function ObiettiviPage({ onBack, open, backLabel }: PageProps) {
             </motion.div>
           );
         })}
-        <p className="t-footnote px-1 text-ink-3">La revisione della domenica può proporre di spostare le calorie: la variazione passa dai carboidrati, proteine e grassi restano fermi.</p>
+        <p className="t-footnote px-1 text-pretty text-ink-3">
+          {eveNote ? `${eveNote}: obiettivo e porzioni del calcio. ` : ''}La revisione della domenica può proporre di spostare le calorie: la variazione passa dai carboidrati, proteine e grassi restano fermi.
+        </p>
       </section>
 
       {editing && <TargetSheet key={editing.n} type={editing.type} onClosed={() => setEditing(null)} />}

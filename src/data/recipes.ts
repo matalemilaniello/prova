@@ -196,7 +196,7 @@ const RECIPE_LIST: Recipe[] = [
     swaps: ['porridge-cacao-banana', 'pane-ricotta-miele'],
   },
 
-  // ───────────────────────── Spuntini da portare a scuola ─────────────────────────
+  // ───────────────────────── Spuntini da portare fuori casa ─────────────────────────
   {
     id: 'panino-tacchino-mela',
     name: 'Panino integrale con fesa di tacchino, mela e mandorle',

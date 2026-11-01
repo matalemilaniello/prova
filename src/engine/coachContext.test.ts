@@ -74,8 +74,8 @@ describe('contesto', () => {
 
   it('dichiara le competenze quando ci sono', () => {
     const s = demo();
-    s.profile = { ...s.profile, expertise: 'allenatore' };
-    expect(buildCoachContext(s, NOW)).toContain('Competenze dichiarate: allenatore.');
+    s.profile = { ...s.profile, expertise: 'preparatore atletico' };
+    expect(buildCoachContext(s, NOW)).toContain('Competenze dichiarate: preparatore atletico.');
   });
 
   it('regge uno stato vuoto senza lanciare', () => {

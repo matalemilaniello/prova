@@ -46,7 +46,7 @@ export interface Profile {
   /** Peso di partenza; il peso attuale si legge dai controlli del mattino. */
   startWeightKg: number;
   goal: Goal;
-  /** Competenze dichiarate dall'utente (es. "allenatore"), usate dal coach per il tono. */
+  /** Competenze dichiarate dall'utente (es. "preparatore atletico"), usate dal coach per il tono. */
   expertise?: string;
   /** Zone di dolore da monitorare, scelte dall'utente (es. ['Tibia', 'Gomito']). */
   painSites: string[];

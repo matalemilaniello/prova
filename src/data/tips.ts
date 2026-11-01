@@ -149,7 +149,7 @@ export const TIPS: Tip[] = [
     text: 'Tre o quattro pasti con 25-40 grammi di proteine stimolano la sintesi muscolare meglio di una sola porzione grande a cena.',
   },
   {
-    id: 'proteine-spuntino-scuola',
+    id: 'proteine-spuntino-fuori',
     topic: 'proteine',
     title: 'Uno spuntino che regge fino a pranzo',
     text: 'Yogurt greco, grana o un panino con bresaola stanno qualche ora senza frigo e ti portano alle 14 senza la fame che spinge verso il bar.',

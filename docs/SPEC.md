@@ -320,7 +320,7 @@ Qualità da professionista: un professionista della nutrizione e dell'allenament
   riferimento), `unitGrams` sensati (palmo di pollo ≈ 110-120 g, pugno di riso cotto ≈ 150 g, cucchiaio di
   olio ≈ 10 g, ecc.), `buyFactor` per gli alimenti che cambiano peso con la cottura, `vegPortionG` (80 g) per
   frutta e verdura, `pantry` per olio, sale, spezie, aceto.
-- `RECIPES`: 45-60 ricette. Colazioni (7+), spuntini da scuola (7+, trasportabili, senza frigo o quasi),
+- `RECIPES`: 45-60 ricette. Colazioni (7+), spuntini da portare fuori casa (7+, trasportabili, senza frigo o quasi),
   pranzi alle 14:15 a casa (12+, molti da preparazione domenicale, 10-15 minuti di montaggio), merende e
   pre-calcio (6+, digeribili, carboidrati), cene (12+, incluse cene di recupero veloci dopo la partita).
   Vincoli: proteine 30-45 g nei pasti principali; molte fibre e vegetali **comodi** (surgelati, insalate in

@@ -85,7 +85,8 @@ export function StepCard({ status, onToggle }: { status: WeeklyStepStatus; onTog
           <Button
             className="mt-3.5"
             fullWidth
-            variant={doneToday ? 'secondary' : 'primary'}
+            // Secondario: in Oggi il pulsante principale resta quello della card Adesso.
+            variant="secondary"
             icon={Check}
             onClick={onToggle}
             aria-pressed={doneToday}

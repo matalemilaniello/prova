@@ -20,7 +20,7 @@ const RULES: { icon: typeof Activity; tone: AnyTone; title: string; text: (t: nu
     icon: TrendingDown,
     tone: 'warn',
     title: 'Sopra la soglia o in peggioramento',
-    text: (t) => `Carichi dell’ultima volta, senza aumenti. Oltre ${Math.max(5, t + 2)} su 10 si scende del 10% e ti chiede di scrivere al fisioterapista.`,
+    text: (t) => `Carichi dell’ultima volta, senza aumenti. Oltre ${Math.max(5, t + 2)} su 10 i carichi scendono del 10% e l’app ti chiede di scrivere al fisioterapista.`,
   },
   {
     icon: ClipboardCheck,

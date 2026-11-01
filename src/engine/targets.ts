@@ -5,7 +5,7 @@
  */
 import type { DayType, Goal, MacroTarget, Profile } from '../domain/types';
 
-/** Fattori di attività tarati sulla settimana tipo (lavoro in piedi a scuola + sport serale). */
+/** Fattori di attività tarati sulla settimana tipo (lavoro in parte in piedi + sport serale). */
 export const ACTIVITY_FACTOR: Record<DayType, number> = {
   calcio: 1.68,
   palestra: 1.56,

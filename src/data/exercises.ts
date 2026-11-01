@@ -2,8 +2,8 @@
  * Ritmo · catalogo degli esercizi.
  *
  * Nomi come si dicono in una palestra italiana, 2-3 indicazioni tecniche imperative per esercizio.
- * Pensato per un calciatore amatoriale con una storia di sovraccarichi (flessori, tibia lungo il bordo
- * interno, gomito laterale che fa male nelle spinte): la prevenzione segue le evidenze disponibili
+ * Pensato per un calciatore amatoriale che va in palestra, con i sovraccarichi tipici di chi gioca (flessori,
+ * gamba sotto il ginocchio, gomito nelle spinte): la prevenzione segue le evidenze disponibili
  * (Nordic hamstring curl, Copenhagen, polpacci e soleo pesanti, tibiale anteriore, carico progressivo
  * degli estensori del polso, core anti-estensione e anti-rotazione) e il riscaldamento riprende la
  * struttura del FIFA 11+ adattata alla palestra.

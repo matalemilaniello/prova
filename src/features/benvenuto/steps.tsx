@@ -33,7 +33,7 @@ import { PainSitesPicker } from '../impostazioni/components/Pickers';
 import { SleepStairs } from '../impostazioni/components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../impostazioni/components/SupplementEditor';
 import { DayEditorSheet, WeekDayList, WeekRibbon } from '../impostazioni/components/WeekEditor';
-import { GOAL_OPTIONS, dayTypeCounts, hasErrors, nextGymSession, relativeWeekday, sleepSteps, validateBody, type ProfileErrors } from '../impostazioni/lib';
+import { GOAL_OPTIONS, dayTypeCounts, hasErrors, matchEveNote, nextGymSession, relativeWeekday, sleepSteps, validateBody, type ProfileErrors } from '../impostazioni/lib';
 import { DayDial } from './DayDial';
 
 export interface StepProps {
@@ -391,6 +391,8 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
   const counts = Object.fromEntries(dayTypeCounts(plan.week).map((c) => [c.type, c.count])) as Partial<Record<DayType, number>>;
   const active = plan.supplements.filter((s) => s.active);
   const footballDays = plan.week.filter((d) => d.football).map((d) => WEEKDAY_SHORT[d.weekday]);
+  // Vigilie della partita: mangiano come un giorno di calcio (porzioni e obiettivo).
+  const eveNote = matchEveNote(plan.week);
   const name = profile.name?.trim().split(/\s+/)[0];
 
   return (
@@ -428,6 +430,9 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
             </motion.div>
           ))}
         </div>
+        {eveNote && (
+          <p className="t-footnote px-1 text-pretty text-ink-3">{`${eveNote}: ${fmtNumber(targets.calcio.kcal)} kcal, per arrivare in campo con il glicogeno pieno.`}</p>
+        )}
       </section>
 
       <ListGroup title="La prima settimana">
