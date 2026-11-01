@@ -576,3 +576,8 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   `proteinPlannedG`, `mealsCounted`, `mealsLogged`, `mealsReplaced`, `mealsSkipped`, `fiberLostBySlot`,
   `fiberStarter`, `fiberLow` e `DayIntake.planned`, `plannedLogged`, `meals`: la stima di fibre e proteine dai pasti
   segnati e il confronto con il menù previsto.
+- `Plan.impactThreshold?: number` (revisione, giro 4): soglia di dolore per gli impatti nelle zone sotto il
+  ginocchio, modificabile nelle impostazioni del dolore d'accordo con il fisioterapista. Senza il campo vale
+  min(painThreshold, 2).
+- `DayLog.barMeals?` (revisione, giro 4): pasti presi con il piano B al bar, con etichetta e valori stimati
+  dell'ordine, così la revisione conta proteine, fibre e vegetali veri invece della quota fissa dei sostituiti.

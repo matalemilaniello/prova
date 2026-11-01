@@ -596,6 +596,8 @@ export interface AppActions {
   addSweet: (date: ISODate, delta: number) => void;
   /** Ricetta al posto di quella del menù; null torna al menù. */
   swapRecipe: (date: ISODate, slot: MealSlot, recipeId: string | null) => void;
+  /** Pasto preso al bar con il piano B, con i valori stimati dell'ordine; null lo toglie. */
+  setBarMeal: (date: ISODate, slot: MealSlot, meal: NonNullable<DayLog['barMeals']>[MealSlot] | null) => void;
 
   /** Salva (o aggiorna, fondendo) il controllo del mattino della sua data. */
   saveCheckIn: (checkIn: CheckIn) => void;
@@ -711,6 +713,15 @@ export const useApp = create<AppState>()(
           patchDay(date, (d) => {
             if (recipeId) d.recipeSwaps[slot] = recipeId;
             else delete d.recipeSwaps[slot];
+            return d;
+          }),
+        setBarMeal: (date, slot, meal) =>
+          patchDay(date, (d) => {
+            const bar = { ...(d.barMeals ?? {}) };
+            if (meal) bar[slot] = meal;
+            else delete bar[slot];
+            if (Object.keys(bar).length) d.barMeals = bar;
+            else delete d.barMeals;
             return d;
           }),
 

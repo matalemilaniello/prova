@@ -122,6 +122,11 @@ export interface Plan {
   startDate: ISODate;
   /** Soglia di dolore (0-10) oltre la quale l'app frena il carico. */
   painThreshold: number;
+  /**
+   * Soglia di dolore (0-10) per gli impatti (balzi, corsa, partita) nelle zone sotto il ginocchio, decisa con il
+   * fisioterapista. Facoltativa: senza, vale min(painThreshold, 2).
+   */
+  impactThreshold?: number;
   /** Primo avvio dopo il benvenuto: le voci prima di quest'ora non contano e la prima settimana parte da qui. */
   firstUse?: { date: ISODate; time: HHMM };
 }
@@ -323,6 +328,11 @@ export interface DayLog {
   sweets: number;
   /** Ricetta scelta al posto di quella del menù, per pasto. */
   recipeSwaps: Partial<Record<MealSlot, string>>;
+  /**
+   * Pasti presi al bar con il piano B, con i valori stimati dell'ordine: la revisione li usa al posto della quota
+   * fissa dei pasti sostituiti. Facoltativo.
+   */
+  barMeals?: Partial<Record<MealSlot, { label: string; nutrients: Nutrients; vegPortions?: number }>>;
 }
 
 export interface CheckIn {
