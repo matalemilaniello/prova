@@ -170,12 +170,13 @@ describe('pasti, sonno, macro', () => {
     const sites = ['Tibia', 'Gomito', 'Tendine d’Achille', 'Schiena'];
     expect(lowerLegSites(sites)).toEqual(['Tibia', 'Tendine d’Achille']);
     expect(elbowSites(sites)).toEqual(['Gomito']);
-    expect(impactRuleNote(sites, 3)).toBe('Per tibia e tendine d’Achille balzi, salti e partita si fermano già sopra 2.');
+    expect(impactRuleNote(sites, 3)).toBe('Tibia e tendine d’Achille: balzi, salti e partita si fermano già sopra 2\u00a0su\u00a010.');
+    expect(impactRuleNote(['Tibia'], 3)).toBe('Tibia: balzi, salti e partita si fermano già sopra 2\u00a0su\u00a010.');
     // Soglia già bassa o nessuna zona sotto il ginocchio: la regola generale basta.
     expect(impactRuleNote(sites, 2)).toBeNull();
     expect(impactRuleNote(['Gomito', 'Schiena'], 3)).toBeNull();
     // Con la soglia degli impatti del fisioterapista la frase usa quella; uguale alla soglia generale non serve.
-    expect(impactRuleNote(sites, 4, 1)).toBe('Per tibia e tendine d’Achille balzi, salti e partita si fermano già sopra 1.');
+    expect(impactRuleNote(sites, 4, 1)).toBe('Tibia e tendine d’Achille: balzi, salti e partita si fermano già sopra 1\u00a0su\u00a010.');
     expect(impactRuleNote(sites, 3, 3)).toBeNull();
   });
 

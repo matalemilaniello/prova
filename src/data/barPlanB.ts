@@ -44,7 +44,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'yogurt-frutta',
     name: 'Yogurt bianco con frutta fresca',
     verdict: 'si',
-    why: 'Se il bar lo tiene in frigo è uno spuntino quasi perfetto: proteine, fermenti e una porzione di frutta.',
+    why: 'Leggero e con i fermenti, ma con poche proteine: se il bar ce l’ha, scegli lo yogurt greco (circa 15 g), oppure abbinalo a un toast.',
     approx: { kcal: 155, proteinG: 6.5, carbG: 18, fatG: 6, fiberG: 2 },
   },
   {

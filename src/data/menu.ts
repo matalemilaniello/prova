@@ -12,18 +12,21 @@
  * (verificato da `menu.test.ts`): chi mangiava poche fibre non passa a 50 g da un giorno all'altro.
  *
  * Nei giorni di calcio la merenda è un pre-calcio digeribile (verso le 18:30) e la cena è una cena di recupero
- * veloce, quasi sempre pronta dalla domenica. Partita e vigilia arrivano a 6 g/kg di carboidrati alzando pasta, riso
- * e gallette: perché le proteine non salgano troppo con loro (restano entro il 20% dell'obiettivo e le kcal entro il
- * 5%, verificato in `engine/nutrition.test.ts`), in quei giorni la merenda è il pre-calcio con gallette e banana, anche
- * alla vigilia, e lo spuntino è quasi sempre gallette, Parmigiano e clementine. Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto
- * principale (nei giorni di calcio solo le lenticchie rosse decorticate, a pranzo; alla vigilia mai a cena),
- * uova 3 volte, carne rossa una volta.
+ * veloce, quasi sempre pronta dalla domenica. Partita e vigilia arrivano a 6 g/kg di carboidrati alzando pasta, riso,
+ * pane e gallette: perché le proteine non salgano troppo con loro (restano entro il 20% dell'obiettivo e le kcal entro
+ * il 5%, verificato in `engine/nutrition.test.ts`), in quei giorni la merenda è il pre-calcio con gallette e banana,
+ * anche alla vigilia, e lo spuntino è pane, Parmigiano e una mela. Le gallette restano solo in quel pre-calcio (6
+ * merende su 28, mai due volte nello stesso giorno): sono poco sazianti e il riso soffiato porta arsenico inorganico,
+ * quindi non si ripetono. La frutta è quella che si trova tutto l'anno (mela, banana, kiwi, frutti di bosco surgelati).
+ * Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto principale (nei giorni di calcio solo le lenticchie
+ * rosse decorticate, a pranzo; alla vigilia mai a cena), uova 3 volte, carne rossa una volta.
  *
  * Spesa corta: le due settimane girano sugli stessi 36 prodotti (al massimo 40, spezie e olio a parte), con un
  * solo yogurt, un solo cereale da colazione, un solo pollo e un solo pesce fresco o surgelato per settimana.
  * Ogni confezione che si apre torna in almeno due pasti, oppure se ne usa almeno metà: lo yogurt fa da spuntino,
  * merenda e condimento, gli spinaci surgelati vanno a colazione, nella pasta e nel cous cous, il barattolo di
- * ceci si divide tra la pasta del martedì e l'insalata del venerdì. Gli spuntini si ripetono di proposito.
+ * ceci si divide tra la pasta del martedì e l'insalata del venerdì. Gli spuntini girano su cinque ricette, nessuna
+ * più di 5 volte su 14: pane e Parmigiano con mela o kiwi, yogurt con noci, frittatine.
  *
  * `prep` sono le attività della domenica che precede la settimana (60-90 minuti in tutto): servono i pasti
  * da lunedì a sabato. La domenica si cucina sul momento, oppure si usa una porzione dal freezer.
@@ -54,7 +57,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-arachidi-banana',
-          spuntino: 'gallette-grana-clementine',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-tonno-pomodoro',
           merenda: 'pre-gallette-banana',
           cena: 'box-riso-pollo-zucchine',
@@ -94,7 +97,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-ricotta-miele',
-          spuntino: 'gallette-grana-clementine',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-pollo-spinaci',
           merenda: 'yogurt-cacao-pera',
           cena: 'insalata-ceci-tonno',
@@ -106,7 +109,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pancake-avena-albumi',
           spuntino: 'skyr-mela-mandorle',
           pranzo: 'straccetti-manzo-rucola',
-          merenda: 'yogurt-clementine-gallette',
+          merenda: 'skyr-frutti-bosco-avena',
           cena: 'pasta-ragu-lenticchie',
         },
       },
@@ -114,7 +117,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-arachidi-banana',
-          spuntino: 'gallette-grana-clementine',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'pasta-ricotta-spinaci',
           merenda: 'pre-gallette-banana',
           cena: 'riso-pollo-curcuma',
@@ -179,7 +182,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'cappuccino-fette-skyr',
           spuntino: 'frittatine-spinaci',
           pranzo: 'pasta-ceci-rosmarino',
-          merenda: 'yogurt-clementine-gallette',
+          merenda: 'yogurt-cacao-pera',
           cena: 'merluzzo-pizzaiola-couscous',
         },
       },
@@ -217,7 +220,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'yogurt-greco-muesli-kiwi',
-          spuntino: 'gallette-grana-clementine',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'straccetti-manzo-rucola',
           merenda: 'skyr-frutti-bosco-avena',
           cena: 'pasta-ragu-lenticchie',
@@ -227,7 +230,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-arachidi-banana',
-          spuntino: 'gallette-grana-clementine',
+          spuntino: 'crackers-grana-pera',
           pranzo: 'riso-pollo-curcuma',
           merenda: 'pre-gallette-banana',
           cena: 'merluzzo-pizzaiola-couscous',
@@ -285,7 +288,8 @@ export const MENU_ROTATION: MenuWeek[] = [
  * - una spesa piccola: 17 prodotti per tutta la settimana (`STARTER_PRODUCTS`), quasi tutti a lunga
  *   conservazione o surgelati. Il pollo si compra fresco: le porzioni oltre il giorno dopo la spesa vanno in freezer;
  * - poche ricette che si ripetono, di proposito: la colazione è sempre la stessa, lo spuntino da portare
- *   anche, e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti;
+ *   anche (pane, Parmigiano e un kiwi), e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti.
+ *   Le gallette, al massimo una volta al giorno, vanno nel pre-calcio o con lo yogurt;
  * - fibre in salita: 28-31 g al giorno (circa 11 g ogni 1.000 kcal) contro i 34-45 g della rotazione. Chi ne
  *   mangiava poche non le raddoppia dal primo giorno: pane comune al posto dell'integrale e i ceci a piccole
  *   dosi (40 g, due volte), prima del piatto di legumi intero. I legumi sono la fibra che fermenta di più.
@@ -343,7 +347,7 @@ export const STARTER_WEEK: MenuWeek = {
         cena: 'couscous-pollo-spinaci',
       },
     },
-    // Venerdì · palestra B alle 17:00 (i ceci, a piccole dosi, venerdì e domenica)
+    // Venerdì · palestra B alle 17:00 (i ceci, a piccole dosi, venerdì e sabato)
     {
       meals: {
         colazione: 'pane-comune-arachidi-banana',
@@ -353,24 +357,24 @@ export const STARTER_WEEK: MenuWeek = {
         cena: 'merluzzo-ceci-couscous',
       },
     },
-    // Sabato · leggero (a casa: lo yogurt la mattina, le gallette il pomeriggio)
+    // Sabato · leggero (a casa: lo yogurt la mattina, pane e Parmigiano il pomeriggio; i ceci a cena)
     {
       meals: {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'yogurt-clementine-gallette',
         pranzo: 'pasta-tonno-pomodoro',
         merenda: 'gallette-grana-clementine',
-        cena: 'merluzzo-pizzaiola-couscous',
+        cena: 'merluzzo-ceci-couscous',
       },
     },
-    // Domenica · riposo, vigilia della partita
+    // Domenica · riposo, vigilia della partita (niente legumi a cena)
     {
       meals: {
         colazione: 'pane-comune-arachidi-banana',
         spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-pollo-spinaci',
         merenda: 'pre-gallette-banana',
-        cena: 'merluzzo-ceci-couscous',
+        cena: 'merluzzo-pizzaiola-couscous',
       },
     },
   ],
@@ -383,7 +387,7 @@ export const STARTER_WEEK: MenuWeek = {
  */
 export const STARTER_PRODUCTS: readonly string[] = [
   'banana',
-  'clementine',
+  'kiwi',
   'insalata',
   'spinaci',
   'pollo',

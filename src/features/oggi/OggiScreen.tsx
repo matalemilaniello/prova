@@ -36,7 +36,7 @@ import { PhysioEditorSheet } from '../allenamento/PhysioEditor';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { installReminderDue, markInstallReminded } from '../impostazioni/install';
 import { ReviewSheet } from '../progressi/ReviewSheet';
-import { RecoverSheet, YesterdayCard } from './components/CatchUp';
+import { RecoverLink, RecoverSheet, yesterdayText } from './components/CatchUp';
 import { DayHero } from './components/DayHero';
 import { DayValues } from './components/DayValues';
 import { EveningRitual } from './components/EveningRitual';
@@ -62,6 +62,11 @@ const CURFEW_CARD_FROM_MIN = 20 * 60;
 const RITUAL_LEAD_MIN = 15;
 /** Acqua in più nei giorni di calcio: con 60-90 minuti di gioco si perde oltre un litro di sudore. */
 const FOOTBALL_EXTRA_WATER_L = 0.75;
+/**
+ * Il conto alla rovescia del calcio prende la scena solo nelle ultime 5 ore (dal pomeriggio): la mattina basta la
+ * pillola dell'intestazione, e il posto resta al controllo del mattino e alla colazione.
+ */
+const KICKOFF_HERO_LEAD_MIN = 5 * 60;
 
 /** Pillola dell'intestazione a calcio finito: com'è andata, o l'invito a segnarlo. */
 const FOOTBALL_DONE: Record<FootballKind, { done: string; skipped: string; replaced: string; mark: string; at: string }> = {
@@ -74,6 +79,7 @@ interface RecoverState {
   date: ISODate;
   items: DayItem[];
   title: string;
+  subtitle?: string;
   session: number;
 }
 
@@ -312,8 +318,8 @@ export default function OggiScreen() {
   const onBody = useCallback((item: DayItem) => (opensDetail(item) ? openDetail(item) : toggle(item)), [openDetail, toggle]);
   const openPlanB = useCallback((slot?: MealSlot) => open({ type: 'barPlanB', slot }), [open]);
 
-  const openRecover = (date: ISODate, list: DayItem[], title: string) =>
-    setRecover((r) => ({ date, items: list, title, session: (r?.session ?? 0) + 1 }));
+  const openRecover = (date: ISODate, list: DayItem[], title: string, subtitle?: string) =>
+    setRecover((r) => ({ date, items: list, title, subtitle, session: (r?.session ?? 0) + 1 }));
 
   const setMinimal = (on: boolean) => {
     useApp.getState().setMinimal(today, on);
@@ -343,11 +349,20 @@ export default function OggiScreen() {
 
   // ── Intestazione ──
 
+  const heroKickoff = data.kickoff && data.kickoff.inMin <= KICKOFF_HERO_LEAD_MIN ? data.kickoff : null;
+  const preMatchItem = items.find((i) => i.kind === 'pasto' && i.slot === 'merenda' && i.title.startsWith('Merenda pre-'));
+  const preMatchTime = preMatchItem && !status[preMatchItem.id] ? preMatchItem.time : undefined;
+
   // Pillola dell'intestazione: prima l'orario, a cose fatte l'esito, finito il tempo l'invito a segnare.
   const event = ((): { text: string; tone: 'neutral' | 'good'; icon: typeof Clock; onPress?: () => void } | null => {
     const f = day?.football;
     if (f) {
-      if (data.kickoff) return null;
+      if (heroKickoff) return null;
+      // Fino al pomeriggio: l'orario del calcio e della merenda pre-calcio, come la seduta nei giorni di palestra.
+      if (data.kickoff) {
+        const words = FOOTBALL_DONE[f.kind];
+        return { text: preMatchTime ? `${words.at} ${f.time} · merenda ${preMatchTime}` : `${words.at} alle ${f.time}`, tone: 'neutral', icon: Clock };
+      }
       const it = items.find((i) => i.kind === 'calcio');
       const words = FOOTBALL_DONE[f.kind];
       const st = it ? status[it.id] : undefined;
@@ -387,7 +402,9 @@ export default function OggiScreen() {
   // degli impatti l'avviso parla della partita con la stessa regola dei balzi in palestra (`painAdvice.ts`).
   // Soglia degli impatti scelta con il fisioterapista (`Plan.impactThreshold`), altrimenti min(soglia, 2).
   const impactT = impactThresholdFor(plan);
-  const advice = footballPainAdvice(gate, data.kickoff?.kind ?? null, checkIn?.pain, impactT, customPainTests(profile));
+  // Senza palestra oggi i consigli sui carichi non servono: l'avviso parla solo del calcio.
+  const gymToday = items.some((i) => i.kind === 'palestra');
+  const advice = footballPainAdvice(gate, data.kickoff?.kind ?? null, checkIn?.pain, impactT, customPainTests(profile), gymToday);
   const impactFootball = advice.footballText && football ? football : null;
   const painText = advice.painText;
   const footballText = advice.footballText;
@@ -436,13 +453,12 @@ export default function OggiScreen() {
   // Il suggerimento sui gesti serve finché non si segna la prima voce, poi diventa rumore.
   const newUser = !Object.values(state.dayLogs).some((l) => Object.keys(l?.status ?? {}).length > 0);
   // L'orario della merenda pre-calcio accanto al conto alla rovescia, finché non lo dice già la card Adesso o è segnata.
-  const preMatchItem = items.find((i) => i.kind === 'pasto' && i.slot === 'merenda' && i.title.startsWith('Merenda pre-'));
-  const preMatch = preMatchItem && !status[preMatchItem.id] && data.now?.item.id !== preMatchItem.id ? preMatchItem.time : undefined;
+  const preMatch = preMatchTime && data.now?.item.id !== preMatchItem?.id ? preMatchTime : undefined;
   const yesterday = addDays(today, -1);
 
   // I riflettori seguono lo stesso numero dell'anello: il punteggio della giornata (a giornata riuscita e chiusa, piena luce).
   // Il primo giorno i riflettori si accendono con un bagliore: il piano è pronto.
-  const intensity = data.welcome ? 0.7 : data.kickoff ? 1 : summary.total ? Math.max(0.12, dayRingValue(summary, successful, data.complete)) : 0.3;
+  const intensity = data.welcome ? 0.7 : heroKickoff ? 1 : summary.total ? Math.max(0.12, dayRingValue(summary, successful, data.complete)) : 0.3;
   const lightFlare = flare ? flare + 1 : data.welcome ? 1 : undefined;
   // Con la voce che non si segna ancora, la card Adesso guarda avanti: la spesa da fare o la giornata di domani.
   const pendingShop = data.pendingShopping;
@@ -495,8 +511,9 @@ export default function OggiScreen() {
         phonePending={successful && phonePending ? { time: phonePending.time } : null}
         overdueCount={data.overdue.length}
         onRecover={() => openRecover(today, data.overdue, 'Recupera')}
-        kickoff={data.kickoff}
+        kickoff={heroKickoff}
         preMatch={preMatch}
+        planDay={data.planDay}
         flare={justCompleted}
         weekAdherence={data.weekAdherence}
         welcome={data.welcome}
@@ -525,8 +542,7 @@ export default function OggiScreen() {
             ) : undefined
           }
         >
-          {painText}
-          {footballText ? ` ${footballText}` : ''}
+          {[painText, footballText].filter(Boolean).join(' ')}
         </Callout>
       )}
 
@@ -544,19 +560,9 @@ export default function OggiScreen() {
         </Callout>
       )}
 
-      {data.yesterdayOpen.length > 0 && (
-        <YesterdayCard
-          key={yesterday}
-          date={yesterday}
-          items={data.yesterdayOpen}
-          dayType={dayTypeFor(yesterday, plan)}
-          onMore={() => openRecover(yesterday, data.yesterdayOpen, 'Sistema ieri')}
-          onOpen={(item) => openDataFor(yesterday, item)}
-        />
-      )}
-
       {showCheckIn && <CheckInPrompt morning={nowM < 12 * 60} onOpen={() => open({ type: 'checkin', date: today })} />}
 
+      <div className="flex flex-col gap-1.5">
       <NowCard
         pick={data.now}
         dayType={data.dayType}
@@ -580,6 +586,17 @@ export default function OggiScreen() {
         onOptions={onOptions}
         onRitual={() => setRitualOpen(true)}
       />
+      {/* Le voci di ieri ancora aperte: una riga sotto Adesso, il mattino resta della colazione. */}
+      {data.yesterdayOpen.length > 0 && (
+        <RecoverLink
+          text={yesterdayText(data.yesterdayOpen.length)}
+          action="Sistema"
+          onPress={() =>
+            openRecover(yesterday, data.yesterdayOpen, 'Sistema ieri', 'Una dimenticanza non spezza la serie. Annulli tutto con una sola notifica.')
+          }
+        />
+      )}
+      </div>
 
       {showCurfew && <CurfewCard minutes={curfewIn} curfew={curfew} bed={bed} ritual={ritualWindow} onRitual={() => setRitualOpen(true)} />}
 
@@ -662,8 +679,8 @@ export default function OggiScreen() {
         step={step ? { status: step, onToggle: toggleStep } : null}
       />
 
-      {/* Il primo giorno, a pasti già passati, i valori previsti dal menù non dicono niente. */}
-      {(data.mealsAhead || data.minimal || !data.firstDay) && (
+      {/* Il primo giorno, con dei pasti già passati prima dell'avvio, i valori del menù intero non dicono niente. */}
+      {data.fullMenu && (
         <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} />
       )}
       <TipCard
@@ -730,6 +747,7 @@ export default function OggiScreen() {
           items={recover.items}
           dayType={dayTypeFor(recover.date, plan)}
           title={recover.title}
+          subtitle={recover.subtitle}
           onClose={() => setRecover(null)}
           onOpen={(item) => openDataFor(recover.date, item)}
         />

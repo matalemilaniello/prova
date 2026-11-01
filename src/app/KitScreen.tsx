@@ -415,7 +415,7 @@ export default function KitScreen() {
           options={[
             { value: 'menu', label: 'Menù' },
             { value: 'spesa', label: 'Spesa', badge: 12 },
-            { value: 'prep', label: 'Preparazione' },
+            { value: 'prep', label: 'Ricette' },
           ]}
         />
         <Segmented

@@ -6,7 +6,7 @@ import { Card, Disclosure, Field, ScaleSlider, TextInput, type AnyTone } from '.
 import { testGesture } from '../../oggi/painTests';
 import { MiniStepper, tileStyle } from '../components/controls';
 import { PainSitesPicker } from '../components/Pickers';
-import { elbowSites, impactThresholdPatch, impactThresholdView, lowerLegSites, painLabel, sitesInText } from '../lib';
+import { elbowSites, impactRuleSentence, impactThresholdPatch, impactThresholdView, lowerLegSites, painLabel } from '../lib';
 import { Page, type PageProps } from './Page';
 
 interface Rule {
@@ -49,7 +49,7 @@ function painRules(sites: readonly string[], t: number, impact: number): Rule[] 
       icon: Footprints,
       tone: 'leggero',
       title: 'Sotto il ginocchio',
-      text: `Per ${sitesInText(lower)} balzi, salti e partita si fermano già sopra ${impact} su 10: gli impatti caricano molto queste zone${tibia ? ', e lungo la tibia il dolore può venire dall’osso, che chiede più prudenza di un tendine' : ''}.`,
+      text: `${impactRuleSentence(lower, impact)}, perché gli impatti ${lower.length > 1 ? 'caricano molto queste zone' : 'la caricano molto'}.${tibia ? ' Lungo la tibia il dolore può venire dall’osso, che chiede più prudenza di un tendine.' : ''}`,
     });
   }
   if (elbowSites(sites).length) {

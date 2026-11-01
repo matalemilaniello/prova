@@ -1,19 +1,17 @@
 /**
- * Recupero delle voci rimaste indietro: il foglio "Recupera" per oggi (il pomeriggio) e la card "Ieri sera" per
- * sistemare la giornata precedente il mattino dopo. Ogni riga ha Fatto, Sostituito e Saltato in linea (coprifuoco,
- * letto e telefono fuori solo Fatto e Saltato).
+ * Recupero delle voci rimaste indietro: il foglio "Recupera" per oggi (il pomeriggio) e per le voci di ieri ancora
+ * aperte il mattino dopo, aperto da una riga compatta (`RecoverLink`), così il mattino resta della card Adesso. Ogni
+ * riga del foglio ha Fatto, Sostituito e Saltato in linea (coprifuoco, letto e telefono fuori solo Fatto e Saltato).
  */
-import { useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { CheckCheck } from 'lucide-react';
+import { useRef } from 'react';
+import { CheckCheck, ChevronRight } from 'lucide-react';
 import type { DayType, ISODate, ItemStatus } from '../../../domain/types';
 import type { DayItem } from '../../../engine/timeline';
-import { formatWeekday } from '../../../engine/dates';
 import { haptic } from '../../../lib/haptics';
 import { plural } from '../../../lib/format';
 import { useApp, useUi } from '../../../state/store';
-import { Button, Card, Sheet, cn, spring } from '../../../ui';
-import { BOARD_LABEL, canReplace } from '../kinds';
+import { Button, Card, Sheet, cn } from '../../../ui';
+import { canReplace } from '../kinds';
 import { setItemStatusSynced } from '../shoppingSync';
 import { StatusMark } from './StatusMark';
 
@@ -116,13 +114,23 @@ export interface RecoverSheetProps {
   items: DayItem[];
   dayType: DayType;
   title?: string;
+  subtitle?: string;
   onClose: () => void;
   /** Apre il pannello di una voce con dati (il foglio si chiude prima). */
   onOpen: (item: DayItem) => void;
 }
 
 /** Foglio "Recupera": tutte le voci rimaste indietro in un colpo, con un solo Annulla alla fine. */
-export function RecoverSheet({ open, date, items, dayType, title = 'Recupera', onClose, onOpen }: RecoverSheetProps) {
+export function RecoverSheet({
+  open,
+  date,
+  items,
+  dayType,
+  title = 'Recupera',
+  subtitle = 'Un tocco per voce. Annulli tutto con una sola notifica.',
+  onClose,
+  onOpen,
+}: RecoverSheetProps) {
   const statusOf = useApp((s) => s.dayLogs[date]?.status);
   // Stati di partenza, per l'Annulla unico.
   const before = useRef<Record<string, ItemStatus | undefined> | null>(null);
@@ -156,7 +164,7 @@ export function RecoverSheet({ open, date, items, dayType, title = 'Recupera', o
       open={open}
       onClose={finish}
       title={title}
-      subtitle="Un tocco per voce. Annulli tutto con una sola notifica."
+      subtitle={subtitle}
       footer={
         <Button fullWidth size="lg" icon={CheckCheck} onClick={allDone} haptic={false}>
           Tutto fatto
@@ -184,54 +192,31 @@ export function RecoverSheet({ open, date, items, dayType, title = 'Recupera', o
   );
 }
 
-export interface YesterdayCardProps {
-  date: ISODate;
-  items: DayItem[];
-  dayType: DayType;
-  onMore: () => void;
-  onOpen: (item: DayItem) => void;
+/**
+ * Riga compatta che apre il foglio del recupero: "3 voci rimaste indietro · Recupera" oggi, "5 voci di ieri da
+ * segnare · Sistema" il mattino dopo. Un puntino ambra, il conto e l'azione: niente pulsanti grandi che tolgano il
+ * posto alla card Adesso.
+ */
+export function RecoverLink({ text, action, onPress, className }: { text: string; action: string; onPress: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-haspopup="dialog"
+      className={cn(
+        't-footnote -mx-1 flex min-h-11 w-[calc(100%+8px)] items-center gap-2.5 rounded-control px-1 text-left font-medium text-ink-2 transition-colors duration-150 active:bg-ink-soft',
+        className,
+      )}
+    >
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warn" />
+      <span className="min-w-0 flex-1">{text}</span>
+      <span className="font-semibold text-accent-ink">{action}</span>
+      <ChevronRight size={16} strokeWidth={2.4} className="-ml-1 shrink-0 text-accent-ink" aria-hidden />
+    </button>
+  );
 }
 
-const INLINE = 3;
-
-/** La mattina: le voci di ieri ancora aperte, da sistemare prima che la serie si spezzi per una dimenticanza. */
-export function YesterdayCard({ date, items, dayType, onMore, onOpen }: YesterdayCardProps) {
-  const statusOf = useApp((s) => s.dayLogs[date]?.status);
-  // Le righe restano finché la card è montata: si vede la scelta, poi la card sparisce da sola.
-  const [shown] = useState(() => items.slice(-INLINE));
-  const rest = items.length - shown.filter((i) => items.some((x) => x.id === i.id)).length;
-  const evening = shown.every((i) => Number(i.time.slice(0, 2)) >= 17 || Number(i.time.slice(0, 2)) < 5);
-  const set = (item: DayItem, st: ItemStatus | null) => setItemStatusSynced(date, item, st);
-
-  return (
-    <Card padding="none" as="section" aria-labelledby="oggi-ieri" className="overflow-hidden">
-      <div className="px-4 pt-4">
-        <h2 id="oggi-ieri" className={cn(BOARD_LABEL, 'text-ink-3')}>
-          {evening ? 'Ieri sera' : `Ieri, ${formatWeekday(date)}`}
-        </h2>
-        <p className="t-footnote mt-1.5 text-ink-2">
-          {/* Il numero delle voci lo dicono le righe qui sotto. */}
-          {items.length === 1 ? 'Segnala ora: una dimenticanza non spezza la serie.' : 'Chiudile ora: una dimenticanza non spezza la serie.'}
-        </p>
-      </div>
-      <div className="divide-y divide-line px-4">
-        <AnimatePresence initial={false}>
-          {shown.map((it) => (
-            <motion.div key={it.id} layout transition={spring}>
-              <CatchUpRow item={it} dayType={dayType} status={statusOf?.[it.id]} onSet={set} onOpen={onOpen} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-      {rest > 0 && (
-        <button
-          type="button"
-          onClick={onMore}
-          className="t-footnote flex min-h-11 w-full items-center justify-center border-t border-line font-semibold text-accent-ink"
-        >
-          {rest === 1 ? 'Un’altra di ieri' : `Altre ${rest} di ieri`}
-        </button>
-      )}
-    </Card>
-  );
+/** "Una voce di ieri da segnare", "5 voci di ieri da segnare". */
+export function yesterdayText(n: number): string {
+  return n === 1 ? 'Una voce di ieri da segnare' : `${n} voci di ieri da segnare`;
 }

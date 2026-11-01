@@ -409,18 +409,28 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   const rest = mine?.rest ?? null;
   const holdRunning = Boolean(rest && rest.mode === 'tenuta' && current && rest.key === current.key);
 
+  /** "Serie 2 · 20 kg × 9": la prossima serie da fare di un esercizio, o null se le ha già fatte tutte. */
+  const nextSetLabel = (it: PlayerItem): string | null => {
+    const l = logOf(it);
+    const n = l.sets.findIndex((s) => !s.done);
+    if (n < 0) return null;
+    const s = l.sets[n];
+    const unit = it.item.unit === 'secondi' ? ' s' : '';
+    return `Serie ${n + 1} · ${s.weightKg > 0 ? `${kgLabel(s.weightKg)} × ` : ''}${s.reps}${unit}`;
+  };
+
   const restNext = (() => {
     if (!rest) return undefined;
     const it = pplan.items.find((i) => i.key === rest.key);
     if (!it) return undefined;
-    const l = logOf(it);
-    const n = l.sets.findIndex((s) => !s.done);
-    if (n >= 0) {
-      const s = l.sets[n];
-      const unit = it.item.unit === 'secondi' ? ' s' : '';
-      return `Serie ${n + 1} · ${s.weightKg > 0 ? `${kgLabel(s.weightKg)} × ` : ''}${s.reps}${unit}`;
-    }
     const idx = pplan.steps.findIndex((st) => stepItems(st).some((x) => x.key === it.key));
+    // Passato a mano a un altro esercizio durante il recupero: la riga parla di quello che hai davanti.
+    if (step && idx !== stepIndex) {
+      const shown = stepItems(step).find((x) => nextSetLabel(x));
+      if (shown) return step.kind === 'warmup' ? `Poi: ${catalog[currentIdOf(shown)]?.name ?? nameOf(step)}` : (nextSetLabel(shown) ?? undefined);
+    }
+    const own = nextSetLabel(it);
+    if (own) return idx === stepIndex ? own : `Poi: ${nameOf(pplan.steps[idx])}`;
     const nx = pplan.steps[idx + 1];
     return nx ? `Poi: ${nameOf(nx)}` : undefined;
   })();

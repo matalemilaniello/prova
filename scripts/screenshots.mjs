@@ -64,8 +64,11 @@ mkdirSync(outDir, { recursive: true });
  * indicato (a partire da --today o da oggi), per avere sempre una giornata di partita o di palestra.
  * `firstDay` simula il primo giorno di un utente nuovo: carica i dati di esempio, li svuota (diario, controlli,
  * sedute, revisioni, spesa, preparazione, esercizi del fisioterapista), mette il primo avvio a quell'ora del giorno
- * della vista e l'inizio del piano al suo lunedì, poi ricarica senza dati di esempio.
- * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string }[]}
+ * della vista e l'inizio del piano al suo lunedì, poi ricarica senza dati di esempio. Con `firstDayAgo` il primo
+ * avvio è quel numero di giorni prima (il secondo mattino di un utente nuovo).
+ * `fold` controlla che la card Adesso cominci entro i due terzi della schermata a 390×844 (sotto la piega sarebbe un
+ * problema da segnalare).
+ * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean }[]}
  */
 const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
@@ -83,6 +86,8 @@ const VIEWS = [
   { name: 'oggi-vigilia', hash: 'oggi', weekday: 6, now: '12:40' },
   // Primo giorno di un utente nuovo, un mercoledì: benvenuto finito alle 15:30, niente spesa né esercizi del fisio.
   { name: 'oggi-primo-giorno', hash: 'oggi', weekday: 2, now: '15:35', firstDay: '15:30', wait: 900 },
+  // Il secondo mattino: benvenuto martedì alle 14:30, mercoledì (calcetto) alle 07:40, con le voci di ieri aperte.
+  { name: 'oggi-giorno-2', hash: 'oggi', weekday: 2, now: '07:40', firstDay: '14:30', firstDayAgo: 1, wait: 900, fold: true },
   { name: 'settimana', hash: 'settimana', query: { tab: 'menu' } },
   { name: 'settimana-spesa', hash: 'settimana', query: { tab: 'spesa' } },
   { name: 'settimana-preparazione', hash: 'settimana', query: { tab: 'preparazione' } },
@@ -138,25 +143,26 @@ function urlFor(view, theme, { demo = !view.fresh } = {}) {
 }
 
 /** Svuota i dati di esempio salvati e ne fa il primo giorno di un utente nuovo (vedi `firstDay`). */
-async function makeFirstDay(page, today, time) {
+async function makeFirstDay(page, today, time, ago = 0) {
   await page.evaluate(
-    ({ today, time }) => {
+    ({ today, time, ago }) => {
       const raw = JSON.parse(localStorage.getItem('ritmo:v1') ?? 'null');
       if (!raw?.state) throw new Error('stato salvato assente');
       const s = raw.state;
       const [y, m, d] = today.split('-').map(Number);
-      const dt = new Date(y, m - 1, d, 12);
+      const dt = new Date(y, m - 1, d - ago, 12);
+      const firstDate = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
       const monday = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       Object.assign(s, { dayLogs: {}, checkIns: {}, workoutLogs: [], footballLogs: [], reviews: {}, chat: [], shoppingChecked: {}, prepDone: {} });
       s.physio = { exercises: [], prescriptions: [] };
       s.plan.startDate = monday;
-      s.plan.firstUse = { date: today, time };
+      s.plan.firstUse = { date: firstDate, time };
       s.plan.supplements = s.plan.supplements.map((x) => (/vitamina d/i.test(x.name) ? { ...x, dose: 'Dose da definire con l\u2019esame', active: true } : x));
       s.settings.demoData = false;
       localStorage.setItem('ritmo:v1', JSON.stringify(raw));
     },
-    { today, time },
+    { today, time, ago },
   );
 }
 
@@ -226,7 +232,7 @@ try {
       if (view.firstDay) {
         await page.goto(urlFor(view, theme, { demo: true }), { waitUntil: 'load' });
         await page.waitForTimeout(500);
-        await makeFirstDay(page, viewToday(view) ?? localToday(), view.firstDay);
+        await makeFirstDay(page, viewToday(view) ?? localToday(), view.firstDay, view.firstDayAgo ?? 0);
         await page.goto(urlFor(view, theme, { demo: false }), { waitUntil: 'load' });
       } else {
         await page.goto(urlFor(view, theme), { waitUntil: 'load' });
@@ -244,6 +250,17 @@ try {
       if (width !== 390) {
         await page.setViewportSize({ width, height: 844 });
         await page.waitForTimeout(250);
+      }
+
+      // La card Adesso deve cominciare entro i due terzi della schermata (390×844).
+      const fold = [];
+      if (view.fold) {
+        const top = await page.evaluate(() => {
+          const el = document.querySelector('[data-screen-active="true"] [aria-labelledby="oggi-adesso"]') ?? document.querySelector('[aria-labelledby="oggi-adesso"]');
+          return el ? Math.round(el.getBoundingClientRect().top) : null;
+        });
+        if (top === null) fold.push('card Adesso assente');
+        else if (top > (844 * 2) / 3) fold.push(`card Adesso a ${top} px, sotto i due terzi della schermata`);
       }
 
       const file = join(outDir, `${view.name}-${theme}${suffix}.png`);
@@ -271,8 +288,8 @@ try {
         }
       }
 
-      if (logs.length || of360.length || of390.length) {
-        problems.push({ view: `${view.name} (${theme})`, logs, of360, of390 });
+      if (logs.length || of360.length || of390.length || fold.length) {
+        problems.push({ view: `${view.name} (${theme})`, logs, of360, of390, fold });
       }
       await context.close();
     }
@@ -291,6 +308,7 @@ if (problems.length) {
     for (const l of p.logs) console.log(`  console  ${l}`);
     for (const o of p.of390) console.log(`  overflow a 390 px  ${o}`);
     for (const o of p.of360) console.log(`  overflow a 360 px  ${o}`);
+    for (const f of p.fold ?? []) console.log(`  piega  ${f}`);
   }
 } else {
   console.log('\nNessun errore in console, nessun overflow orizzontale (390 e 360 px).');

@@ -7,7 +7,7 @@ import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
 import { MATCH_CARB_G_PER_KG } from '../../engine/targets';
 import { IMPACT_PAIN_THRESHOLD, impactThresholdFor, isElbowSite, isLowerLegSite } from '../../engine/training';
-import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, listIt, plural } from '../../lib/format';
+import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, capitalize, listIt, plural } from '../../lib/format';
 
 // ───────────────────────── Obiettivo ─────────────────────────
 
@@ -312,6 +312,13 @@ export const elbowSites = (sites: readonly string[]): string[] => sites.filter(i
 export const sitesInText = (sites: string[]) => listIt(sites.map((s) => s.charAt(0).toLowerCase() + s.slice(1)));
 
 /**
+ * "Tibia e caviglia: balzi, salti e partita si fermano già sopra 2 su 10." La zona apre la frase, così non serve
+ * l'articolo (la tibia, il tendine, le caviglie), che dipende dal nome scritto dall'utente.
+ */
+export const impactRuleSentence = (sites: string[], impact: number) =>
+  `${capitalize(sitesInText(sites))}: balzi, salti e partita si fermano già sopra ${impact}\u00a0su\u00a010`;
+
+/**
  * Soglia per gli impatti come la vive l'utente: `value` è quella che vale davvero (scelta con il fisioterapista,
  * altrimenti min(soglia, 2); mai sopra la soglia generale, che oltre quel punto frena già tutto), `fallback` quella
  * predefinita, `own` dice se l'ha scelta lui. `max` è il limite dello stepper: la soglia generale.
@@ -335,13 +342,13 @@ export function impactThresholdPatch(v: number): number | undefined {
  * La regola degli impatti per le zone scelte sotto il ginocchio, in una frase, o null se non serve (nessuna zona
  * sotto il ginocchio, oppure soglia già uguale o più bassa di quella degli impatti). `impactThreshold` è quella
  * scelta con il fisioterapista, se c'è.
- * "Per tibia balzi, salti e partita si fermano già sopra 2."
+ * "Tibia: balzi, salti e partita si fermano già sopra 2 su 10."
  */
 export function impactRuleNote(sites: readonly string[], threshold: number, impactThreshold?: number): string | null {
   const lower = lowerLegSites(sites);
   const impact = impactThresholdView({ painThreshold: threshold, impactThreshold }).value;
   if (!lower.length || impact >= threshold) return null;
-  return `Per ${sitesInText(lower)} balzi, salti e partita si fermano già sopra ${impact}.`;
+  return `${impactRuleSentence(lower, impact)}.`;
 }
 
 /**

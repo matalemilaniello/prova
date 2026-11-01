@@ -15,7 +15,7 @@ import { DAY_TYPE_LABEL, fmtNumber, listIt, MEAL_SLOT_LABEL } from '../../lib/fo
 import { haptic } from '../../lib/haptics';
 import { useNowHHMM, useNutritionState, useToday } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Button, Card, cn, DayTypeBadge, Disclosure, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneSoft, type AnyTone } from '../../ui';
+import { Button, Card, cn, DayTypeBadge, Disclosure, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneRing, toneSoft, type AnyTone } from '../../ui';
 import { barCombo, barContext, barOrder, fitCombo, lowerFirst, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
 
 const VERDICT_STYLE: Record<BarOption['verdict'], { tone: AnyTone; icon: LucideIcon }> = {
@@ -76,6 +76,13 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
     return { ...c, options: optionsById(c.ids) };
   }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve, planned]);
   const comboTotal = sumApprox(combo.options);
+  // La proposta in evidenza è già nell'ordine: il pulsante lo dice e un secondo tocco la toglie.
+  const comboChosen = combo.options.length > 0 && combo.options.every((o) => selected.includes(o.id));
+  const toggleCombo = () => {
+    const ids = combo.options.map((o) => o.id);
+    haptic(comboChosen ? 'selection' : 'light');
+    setSelected((s) => (comboChosen ? s.filter((x) => !ids.includes(x)) : [...s, ...ids.filter((x) => !s.includes(x))]));
+  };
 
   const groups = useMemo(
     () => VERDICT_ORDER.map((v) => ({ verdict: v, options: BAR_OPTIONS.filter((o) => o.verdict === v) })).filter((g) => g.options.length),
@@ -159,7 +166,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
       onClose={onClose}
       size="large"
       title="Piano B al bar"
-      subtitle="Valori indicativi della porzione tipica, anche senza rete."
+      subtitle="Valori indicativi della porzione tipica. Funziona anche senza rete."
       footer={footer}
     >
       {BAR_OPTIONS.length === 0 ? (
@@ -258,12 +265,13 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                       size="sm"
                       variant="secondary"
                       className="shrink-0"
-                      onClick={() => {
-                        haptic('light');
-                        setSelected(combo.options.map((o) => o.id));
-                      }}
+                      icon={comboChosen ? Check : undefined}
+                      haptic={false}
+                      aria-pressed={comboChosen}
+                      style={comboChosen ? { background: toneSoft('good', 16), boxShadow: toneRing('good'), borderColor: 'transparent', color: toneInk('good') } : undefined}
+                      onClick={toggleCombo}
                     >
-                      {combo.options.length === 1 ? 'Prendo questo' : 'Prendo questi'}
+                      {comboChosen ? (combo.options.length === 1 ? 'Scelto' : 'Scelti') : combo.options.length === 1 ? 'Prendo questo' : 'Prendo questi'}
                     </Button>
                   </div>
                 </Card>

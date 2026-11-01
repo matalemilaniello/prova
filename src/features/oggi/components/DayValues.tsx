@@ -16,8 +16,6 @@ interface Row {
   label: string;
   /** Unità accanto al numero dell'anello ('' per le porzioni). */
   short: string;
-  /** Nome breve sotto il numero prima del primo pasto segnato. */
-  name: string;
   unit: string;
   /** Genere dell'unità per le frasi dei lettori di schermo (le kcal e le porzioni sono femminili). */
   fem: boolean;
@@ -32,8 +30,8 @@ interface Row {
 const round = (n: number, dec: number) => (dec ? Math.round(n * 2) / 2 : Math.round(n));
 
 /**
- * Anello piccolo di un valore, coerente con il numero sotto: l'arco è il già mangiato rispetto al previsto dal
- * menù. Prima del primo pasto segnato l'anello è tratteggiato nel colore del valore: il menù c'è, si deve ancora
+ * Anello piccolo di un valore, coerente con il numero sotto: l'arco è il già mangiato rispetto all'obiettivo del
+ * giorno. Prima del primo pasto segnato l'anello è tratteggiato nel colore del valore: il menù c'è, si deve ancora
  * mangiare (non un anello vuoto, che sembrerebbe un errore).
  */
 function MiniRing({ value, dashed, tone, icon: Icon }: { value: number; dashed: boolean; tone: AnyTone; icon: typeof Flame }) {
@@ -116,18 +114,19 @@ export interface DayValuesProps {
 
 /**
  * Valori del giorno stimati dal menù, chiusi di base in una riga di quattro anelli (energia, proteine, fibre,
- * frutta e verdura). Numero e anello dicono la stessa cosa: il già mangiato, "di" quanto prevede il menù; prima del
- * primo pasto segnato il previsto, con l'anello tratteggiato. Il tocco apre il dettaglio con l'obiettivo.
+ * frutta e verdura). Un solo riferimento, l'obiettivo del giorno, lo stesso dell'intestazione e di Settimana
+ * ("2.716 di 2.800"): prima del primo pasto segnato il numero è il previsto dal menù, con l'anello tratteggiato,
+ * poi il già mangiato, con l'arco sull'obiettivo. Il tocco apre il dettaglio: il menù contro l'obiettivo, con la tacca.
  */
 export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
   const [open, setOpen] = useState(false);
   const reduce = useReducedMotion();
   const id = useId();
   const rows: Row[] = [
-    { key: 'kcal', label: 'Energia', short: 'kcal', name: 'energia', unit: 'kcal', fem: true, planned: planned.total.kcal, eaten: eaten.total.kcal, target: target.kcal, tone: 'accent', icon: Flame },
-    { key: 'prot', label: 'Proteine', short: 'g', name: 'proteine', unit: 'g', fem: false, planned: planned.total.proteinG, eaten: eaten.total.proteinG, target: target.proteinG, tone: 'palestra', icon: Drumstick },
-    { key: 'fib', label: 'Fibre', short: 'g', name: 'fibre', unit: 'g', fem: false, planned: planned.total.fiberG, eaten: eaten.total.fiberG, target: target.fiberG, tone: 'leggero', icon: Wheat },
-    { key: 'veg', label: 'Frutta e verdura', short: '', name: 'porzioni', unit: 'porzioni', fem: true, planned: planned.vegPortions, eaten: eaten.vegPortions, target: VEG_TARGET, tone: 'good', icon: Apple, decimals: 1 },
+    { key: 'kcal', label: 'Energia', short: 'kcal', unit: 'kcal', fem: true, planned: planned.total.kcal, eaten: eaten.total.kcal, target: target.kcal, tone: 'accent', icon: Flame },
+    { key: 'prot', label: 'Proteine', short: 'g', unit: 'g', fem: false, planned: planned.total.proteinG, eaten: eaten.total.proteinG, target: target.proteinG, tone: 'palestra', icon: Drumstick },
+    { key: 'fib', label: 'Fibre', short: 'g', unit: 'g', fem: false, planned: planned.total.fiberG, eaten: eaten.total.fiberG, target: target.fiberG, tone: 'leggero', icon: Wheat },
+    { key: 'veg', label: 'Frutta e verdura', short: '', unit: 'porzioni', fem: true, planned: planned.vegPortions, eaten: eaten.vegPortions, target: VEG_TARGET, tone: 'good', icon: Apple, decimals: 1 },
   ];
   const nothing = planned.total.kcal <= 0;
   const eatenOf = (r: Row) => (minimal ? 0 : r.eaten);
@@ -137,10 +136,10 @@ export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
   const summary = rows
     .map((r) => {
       const [ate, planned] = r.fem ? ['mangiate', 'previste'] : ['mangiati', 'previsti'];
-      const goal = `obiettivo ${fmt(r, r.target)}`;
+      const goal = `su un obiettivo di ${fmt(r, r.target)}`;
       return started
-        ? `${r.label}: ${fmt(r, eatenOf(r))} ${r.unit} già ${ate} su ${fmt(r, r.planned)} ${planned} dal menù, ${goal}`
-        : `${r.label}: ${fmt(r, r.planned)} ${r.unit} ${planned} dal menù, ${goal}`;
+        ? `${r.label}: ${fmt(r, eatenOf(r))} ${r.unit} già ${ate} ${goal}, ${fmt(r, r.planned)} ${planned} dal menù`
+        : `${r.label}: ${fmt(r, r.planned)} ${r.unit} ${planned} dal menù ${goal}`;
     })
     .join('. ');
 
@@ -178,12 +177,12 @@ export function DayValues({ planned, eaten, target, minimal }: DayValuesProps) {
         <span aria-hidden className="mt-2.5 grid grid-cols-4 gap-2">
           {rows.map((r) => (
             <span key={r.key} className="flex min-w-0 flex-col items-center text-center">
-              <MiniRing value={r.planned > 0 ? eatenOf(r) / r.planned : 0} dashed={!started} tone={r.tone} icon={r.icon} />
+              <MiniRing value={r.target > 0 ? eatenOf(r) / r.target : 0} dashed={!started} tone={r.tone} icon={r.icon} />
               <span className="t-num mt-1.5 whitespace-nowrap text-[1.0625rem] leading-none text-ink">
                 {fmt(r, started ? eatenOf(r) : r.planned)}
                 {r.short && <span className="t-caption ml-0.5 font-sans text-ink-3">{r.short}</span>}
               </span>
-              <span className="t-caption mt-0.5 truncate tabular text-ink-3">{started ? `di ${fmt(r, r.planned)}` : r.name}</span>
+              <span className="t-caption mt-0.5 truncate tabular text-ink-3">{`di ${fmt(r, r.target)}`}</span>
             </span>
           ))}
         </span>

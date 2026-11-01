@@ -12,7 +12,10 @@
  * e la cena è una cena di recupero veloce, con carboidrati e proteine.
  *
  * Gli id restano quelli di sempre anche quando una ricetta cambia ingredienti (lo skyr diventato yogurt greco, il
- * muesli diventato avena): li usano le sostituzioni salvate nel diario. Il nome mostrato è `name`.
+ * muesli diventato avena, gallette e clementine diventate pane e kiwi): li usano le sostituzioni salvate nel diario.
+ * Il nome mostrato è `name`.
+ * La frutta è quella che si trova tutto l'anno (mela, banana, kiwi, frutti di bosco surgelati): il menù gira in ogni
+ * stagione, quindi niente frutti che spariscono per metà dell'anno, come le clementine da aprile a ottobre.
  * Le alternative (`swaps`) mettono per prime quelle che usano gli stessi prodotti del menù: chi sostituisce un
  * pasto non allunga la spesa.
  */
@@ -117,7 +120,7 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'uova-strapazzate-spinaci',
-    name: 'Uova strapazzate e spinaci su pane tostato, con le clementine',
+    name: 'Uova strapazzate e spinaci su pane tostato, con i kiwi',
     slots: ['colazione'],
     ingredients: [
       i('uova', 2, 'pezzo'),
@@ -125,13 +128,13 @@ const RECIPE_LIST: Recipe[] = [
       i('spinaci', 2, 'pezzo'),
       i('pane-integrale', 2, 'fetta', C),
       i('olio-evo', 1, 'cucchiaino'),
-      i('clementine', 2, 'pezzo'),
+      i('kiwi', 2, 'pezzo'),
     ],
     steps: [
       'Sbatti uova e albumi con un pizzico di sale.',
       'In padella antiaderente scalda gli spinaci surgelati con l’olio e un goccio d’acqua per 3 minuti, finché l’acqua evapora.',
       'Aggiungi le uova e mescola a fuoco basso finché sono cremose.',
-      'Servi sul pane tostato, con le clementine: la vitamina C aiuta ad assorbire il ferro degli spinaci.',
+      'Servi sul pane tostato, con i kiwi: la vitamina C aiuta ad assorbire il ferro degli spinaci.',
     ],
     prepMin: 10,
     tags: ['uova', 'salata', 'proteica'],
@@ -243,34 +246,30 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'crackers-grana-pera',
-    name: 'Crackers integrali, Parmigiano a scaglie e una pera',
+    name: 'Pane, Parmigiano e una mela',
     slots: ['spuntino', 'merenda'],
-    ingredients: [
-      i('crackers-integrali', 1, 'pezzo'),
-      i('grana', 25, 'g'),
-      i('pera', 1, 'pezzo'),
-    ],
+    ingredients: [i('pane-bianco', 1, 'fetta', C), i('grana', 25, 'g'), i('mela', 1, 'pezzo')],
     steps: [
-      'Metti nello zaino un pacchetto di crackers, il formaggio in un contenitore e la pera.',
-      "Il formaggio stagionato regge senza frigo fino all’ora di pranzo.",
+      'Il pane in un sacchetto, il formaggio a scaglie in un contenitore, la mela intera nello zaino.',
+      "Niente frigo e niente preparazione: il formaggio stagionato regge fino all’ora di pranzo.",
     ],
-    prepMin: 2,
-    tags: ['da portare', 'senza frigo'],
-    swaps: ['panino-tacchino-mela', 'ceci-tostati-arancia'],
+    prepMin: 1,
+    tags: ['da portare', 'senza frigo', 'veloce'],
+    swaps: ['gallette-grana-clementine', 'skyr-mela-mandorle'],
   },
   {
     id: 'yogurt-greco-noci-clementine',
-    name: 'Yogurt greco con noci, miele e clementine',
+    name: 'Yogurt greco con noci, miele e kiwi',
     slots: ['spuntino', 'merenda'],
     ingredients: [
       i('yogurt-greco-2', 1, 'vasetto'),
       i('noci', 0.5, 'manciata'),
       i('miele', 1, 'cucchiaino'),
-      i('clementine', 2, 'pezzo'),
+      i('kiwi', 1, 'pezzo'),
     ],
     steps: [
       'Porta il vasetto chiuso nella borsa termica e le noci in un sacchetto.',
-      'Al momento versa noci e miele nel vasetto; le clementine si sbucciano al volo.',
+      'Al momento versa noci e miele nel vasetto. Il kiwi tagliato a metà si mangia con lo stesso cucchiaino.',
     ],
     prepMin: 2,
     tags: ['da portare', 'borsa termica', 'proteica'],
@@ -296,13 +295,12 @@ const RECIPE_LIST: Recipe[] = [
       i('spinaci', 2, 'pezzo', { note: 'scongelati e strizzati' }),
       i('grana', 1, 'cucchiaio'),
       i('pane-integrale', 1, 'fetta', C),
-      i('clementine', 1, 'pezzo'),
     ],
     steps: [
       'Domenica: sbatti uova e albumi con gli spinaci strizzati, il formaggio grattugiato e un pizzico di sale.',
       'Versa nei pirottini da muffin, due per spuntino, e cuoci in forno a 180 °C per 18-20 minuti.',
       'In frigo, in un contenitore chiuso, si conservano 3 giorni.',
-      'Per lo spuntino: due frittatine, il pane e una clementina, nello zaino nella borsa termica con un siberino.',
+      'Per lo spuntino: due frittatine e il pane, nello zaino nella borsa termica con un siberino.',
     ],
     prepMin: 2,
     batch: true,
@@ -342,20 +340,16 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'gallette-grana-clementine',
-    name: 'Gallette di riso, Parmigiano e clementine',
+    name: 'Pane, Parmigiano e un kiwi',
     slots: ['spuntino', 'merenda'],
-    ingredients: [
-      i('gallette-riso', 4, 'pezzo', C),
-      i('grana', 25, 'g'),
-      i('clementine', 2, 'pezzo'),
-    ],
+    ingredients: [i('pane-bianco', 1.5, 'fetta', C), i('grana', 25, 'g'), i('kiwi', 1, 'pezzo')],
     steps: [
-      'Gallette nel loro sacchetto, il formaggio in un contenitore, le clementine intere nello zaino.',
+      'Il pane in un sacchetto, il formaggio a scaglie in un contenitore, il kiwi nello zaino.',
       "Niente frigo e niente preparazione: il formaggio stagionato regge fino all’ora di pranzo.",
     ],
     prepMin: 1,
     tags: ['da portare', 'senza frigo', 'veloce'],
-    swaps: ['yogurt-greco-noci-clementine', 'crackers-grana-pera'],
+    swaps: ['crackers-grana-pera', 'yogurt-greco-noci-clementine'],
   },
 
   // ───────────────────────── Merende e pre-calcio ─────────────────────────
@@ -393,13 +387,13 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pre-pane-ricotta-miele',
-    name: 'Pane comune con ricotta e miele, clementine',
+    name: 'Pane comune con ricotta, miele e banana',
     slots: ['merenda'],
     ingredients: [
       i('pane-bianco', 2, 'fetta', C),
       i('ricotta', 2, 'cucchiaio'),
       i('miele', 2, 'cucchiaino'),
-      i('clementine', 2, 'pezzo'),
+      i('banana', 1, 'pezzo'),
     ],
     steps: [
       'Spalma la ricotta sul pane e completa con il miele.',
@@ -411,18 +405,18 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'pre-frullato-banana',
-    name: 'Frullato di banana e latte con gallette',
+    name: 'Frullato di banana e latte con pane tostato',
     slots: ['merenda'],
     ingredients: [
       i('latte', 1, 'tazza'),
       i('banana', 1, 'pezzo'),
       i('miele', 1, 'cucchiaino'),
-      i('gallette-riso', 3, 'pezzo', C),
+      i('pane-bianco', 1, 'fetta', C),
       i('yogurt-greco-2', 2, 'cucchiaio'),
     ],
     steps: [
       'Frulla latte, banana, yogurt e miele per 30 secondi.',
-      'Accompagna con le gallette. Liquido e semplice: si digerisce in fretta.',
+      'Accompagna con il pane tostato, comune e non integrale. Liquido e semplice: si digerisce in fretta.',
     ],
     prepMin: 3,
     tags: ['pre-calcio', 'digeribile', 'veloce'],
@@ -500,11 +494,11 @@ const RECIPE_LIST: Recipe[] = [
   },
   {
     id: 'yogurt-clementine-gallette',
-    name: 'Yogurt greco con clementine e gallette',
+    name: 'Yogurt greco con kiwi e gallette',
     slots: ['merenda', 'spuntino'],
-    ingredients: [i('yogurt-greco-2', 1, 'vasetto'), i('clementine', 2, 'pezzo'), i('gallette-riso', 2, 'pezzo', C)],
+    ingredients: [i('yogurt-greco-2', 1, 'vasetto'), i('kiwi', 1, 'pezzo'), i('gallette-riso', 3, 'pezzo', C)],
     steps: [
-      'Sbuccia le clementine e mescola gli spicchi allo yogurt, oppure mangiale a parte.',
+      'Taglia il kiwi a rondelle e mescolalo allo yogurt, oppure mangialo a parte.',
       'Le gallette accanto, o sbriciolate sopra per la parte croccante. Circa 20 g di proteine in due minuti.',
     ],
     prepMin: 2,

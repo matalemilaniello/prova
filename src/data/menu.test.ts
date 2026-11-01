@@ -251,6 +251,44 @@ function checkLegumesAroundFootball(week: MenuWeek, label: string) {
   });
 }
 
+// ───────────────────────── Spuntini e merende: gallette, varietà, frutta di ogni stagione ─────────────────────────
+
+/**
+ * Gallette di riso: carboidrati facili per il pre-calcio, non lo spuntino di tutti i giorni. Saziano poco e il riso
+ * soffiato è una fonte nota di arsenico inorganico (l'UE ha un limite apposta per gallette e cracker di riso): al
+ * massimo 8 spuntini e merende su 28 nelle due settimane, e mai due volte nello stesso giorno.
+ */
+const MAX_GALLETTE_SNACKS = 8;
+/** Lo stesso spuntino al massimo 5 volte su 14: chi ha il cibo come punto debole si stanca della monotonia. */
+const MAX_SAME_SNACK = 5;
+/** Agrumi d'inverno: da aprile a ottobre non si trovano, e il menù gira tutto l'anno. */
+const WINTER_FRUIT = new Set(['clementine', 'arancia']);
+const SNACK_SLOTS: MealSlot[] = ['spuntino', 'merenda'];
+
+const hasGallette = (r: Recipe | undefined) => Boolean(r?.ingredients.some((l) => l.foodId === 'gallette-riso'));
+
+/** Spuntini e merende con le gallette della settimana; fallisce se un giorno le ha due volte. */
+function checkGallette(week: MenuWeek, label: string): number {
+  let total = 0;
+  week.days.forEach((day, di) => {
+    const n = SNACK_SLOTS.filter((slot) => hasGallette(RECIPES[day.meals[slot] ?? ''])).length;
+    expect(n, `${label} ${WEEKDAYS[di]}: gallette due volte nello stesso giorno`).toBeLessThanOrEqual(1);
+    total += n;
+  });
+  return total;
+}
+
+/** Nessun pasto della settimana usa un frutto che sparisce per metà dell'anno. */
+function checkYearRoundFruit(week: MenuWeek, label: string) {
+  week.days.forEach((day, di) => {
+    for (const slot of SLOTS) {
+      const r = RECIPES[day.meals[slot] ?? ''];
+      const seasonal = r?.ingredients.filter((l) => WINTER_FRUIT.has(l.foodId)).map((l) => l.foodId) ?? [];
+      expect(seasonal, `${label} ${WEEKDAYS[di]} ${slot}: ${r?.id}`).toEqual([]);
+    }
+  });
+}
+
 function checkFat(days: DayRow[]) {
   for (const d of days) {
     const where = `${d.label} (${d.dayType}): ${fmt(d.totals.fatG)} g di grassi`;
@@ -610,6 +648,24 @@ describe('menù a rotazione', () => {
     MENU_ROTATION.forEach((week, wi) => checkLegumesAroundFootball(week, `S${wi + 1}`));
   });
 
+  it(`usa le gallette quasi solo nel pre-calcio: al massimo ${MAX_GALLETTE_SNACKS} spuntini e merende su 28, mai due al giorno`, () => {
+    const total = MENU_ROTATION.reduce((sum, week, wi) => sum + checkGallette(week, `S${wi + 1}`), 0);
+    expect(total).toBeLessThanOrEqual(MAX_GALLETTE_SNACKS);
+  });
+
+  it(`varia gli spuntini: nessuno torna più di ${MAX_SAME_SNACK} volte su 14`, () => {
+    const count = new Map<string, number>();
+    for (const week of MENU_ROTATION) for (const day of week.days) {
+      const id = day.meals.spuntino ?? '';
+      count.set(id, (count.get(id) ?? 0) + 1);
+    }
+    for (const [id, n] of count) expect(n, id).toBeLessThanOrEqual(MAX_SAME_SNACK);
+  });
+
+  it('usa frutta che si trova tutto l’anno: niente agrumi d’inverno', () => {
+    MENU_ROTATION.forEach((week, wi) => checkYearRoundFruit(week, `S${wi + 1}`));
+  });
+
   it('è vario: pesce 2-3 volte, legumi 4+, uova 2-3, carne rossa al massimo 1 a settimana', () => {
     MENU_ROTATION.forEach((week, wi) => {
       const meals = week.days.flatMap((day) => SLOTS.map((slot) => ({ slot, recipe: RECIPES[day.meals[slot] ?? ''] })));
@@ -750,6 +806,15 @@ describe('settimana di avvio', () => {
       const g = gramsOf(m.recipe, LEGUMES);
       expect(g, `avvio ${WEEKDAYS[m.di]} ${m.slot}: ${fmt(g)} g di legumi`).toBeLessThan(LEGUME_SERVING_G);
     }
+  });
+
+  it('usa le gallette al massimo una volta al giorno e frutta che si trova tutto l’anno', () => {
+    checkGallette(STARTER_WEEK, 'Avvio');
+    checkYearRoundFruit(STARTER_WEEK, 'Avvio');
+  });
+
+  it('tiene i legumi lontani dal calcio: niente ceci la sera di calcio né alla vigilia', () => {
+    checkLegumesAroundFootball(STARTER_WEEK, 'Avvio');
   });
 
   it('resta varia anche ripetendosi: pesce e uova con misura, niente carne rossa', () => {

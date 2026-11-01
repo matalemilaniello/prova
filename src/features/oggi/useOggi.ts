@@ -107,8 +107,13 @@ export interface OggiData {
   welcome: WelcomeSpot[] | null;
   /** Spesa ancora da fare oggi o domani (la sua lista si apre da Oggi). */
   pendingShopping: { item: DayItem; date: ISODate } | null;
-  /** Oggi resta almeno un pasto del piano dopo il primo avvio (altrimenti i valori del giorno non servono). */
-  mealsAhead: boolean;
+  /**
+   * Il menù di oggi vale per intero: nessun pasto viene prima del primo avvio. Il primo giorno, con dei pasti già
+   * passati, i valori del giorno conterebbero anche quelli e non si mostrano.
+   */
+  fullMenu: boolean;
+  /** Giorno del piano dal primo avvio (1 il giorno del primo avvio), null senza primo avvio (dati di esempio). */
+  planDay: number | null;
 }
 
 export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
@@ -238,7 +243,8 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     return { item: next, date: tomorrow };
   }, [items, status, today, plan, tomorrowItems, dayLogs, tomorrow, state]);
 
-  const mealsAhead = items.some((i) => i.kind === 'pasto' && !isBeforeStart(today, i, plan));
+  const fullMenu = !items.some((i) => i.kind === 'pasto' && isBeforeStart(today, i, plan));
+  const planDay = first ? daysBetween(first.date, today) + 1 : null;
 
   return {
     today,
@@ -274,6 +280,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     tomorrowItems,
     welcome,
     pendingShopping,
-    mealsAhead,
+    fullMenu,
+    planDay,
   };
 }

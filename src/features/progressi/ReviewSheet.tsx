@@ -998,7 +998,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                         <p className="t-footnote mt-1 text-pretty text-ink-3">
                           {suggestion.previous
                             ? suggestion.previous.consolidated
-                              ? `${capitalize(suggestion.previous.title.toLowerCase())}: ${suggestion.previous.done} giorni su 7, fatto. Si sale di uno.`
+                              ? `${capitalize(suggestion.previous.title.toLowerCase())}: ${suggestion.previous.done} giorni su 7, fatto. Si sale allo scalino successivo.`
                               : `${capitalize(suggestion.previous.title.toLowerCase())}: ${suggestion.previous.done} ${suggestion.previous.done === 1 ? 'giorno' : 'giorni'} su 7.`
                             : 'Un solo obiettivo piccolo, scelto sul punto più debole della settimana.'}
                         </p>

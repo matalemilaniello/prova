@@ -66,7 +66,7 @@ export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean,
             ids: ['panino-tacchino'],
             why: eve ? 'Alla vigilia servono più carboidrati: un panino magro tiene fino a pranzo.' : 'Nei giorni di calcio servono più carboidrati: un panino magro tiene fino a pranzo.',
           }
-        : { ids: ['yogurt-frutta', 'frutta-secca'], why: 'Proteine e fermenti dallo yogurt, grassi buoni dalla frutta secca: tiene fino a pranzo.' };
+        : { ids: ['yogurt-frutta', 'frutta-secca'], why: 'Fermenti dallo yogurt, grassi buoni dalla frutta secca e circa 13 g di proteine in tutto: tiene fino a pranzo.' };
     case 'pranzo':
       if (calcio) {
         return {
