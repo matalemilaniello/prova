@@ -153,6 +153,12 @@ export function labelStyle(extra: Record<string, string | number> = {}) {
   return { ...LABEL_STYLE, ...extra };
 }
 
+/**
+ * Etichette con parole ("5 ott", le iniziali dei giorni): Figtree con cifre tabellari. Il monospazio resta ai numeri
+ * degli assi, mai alle parole.
+ */
+export const WORD_LABEL = { fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500, letterSpacing: 0 } as const;
+
 /** Righe orizzontali con le etichette a destra (come Salute di iOS). */
 export function YGrid({ geo, ticks, y, format, strongZero = false }: { geo: Geometry; ticks: number[]; y: (v: number) => number; format: (v: number) => string; strongZero?: boolean }) {
   return (
@@ -184,7 +190,7 @@ export function XLabels({ geo, items }: { geo: Geometry; items: { x: number; lab
   return (
     <g aria-hidden>
       {items.map((it) => (
-        <text key={`${it.x}-${it.label}`} x={it.x} y={geo.bottom + 17} textAnchor={it.anchor ?? 'middle'} style={LABEL_STYLE}>
+        <text key={`${it.x}-${it.label}`} x={it.x} y={geo.bottom + 17} textAnchor={it.anchor ?? 'middle'} style={labelStyle(WORD_LABEL)}>
           {it.label}
         </text>
       ))}

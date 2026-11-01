@@ -47,6 +47,12 @@ export function sampleOverlay(type: string, state: AppData = useApp.getState()):
   switch (type) {
     case 'recipe': {
       const meals = mealsForDate(today, state);
+      // ?recipe=<id> apre quella ricetta (nel pasto di oggi che la prevede, se c'è); senza, il pranzo di oggi.
+      const asked = getUrlParam('recipe');
+      if (asked && RECIPES[asked]) {
+        const slot = meals.meals.find((m) => m.recipeId === asked)?.slot ?? RECIPES[asked].slots[0];
+        return { type: 'recipe', recipeId: asked, date: today, slot };
+      }
       const entry = meals.bySlot.pranzo ?? meals.meals[0];
       const recipeId = entry?.recipeId ?? Object.keys(RECIPES)[0] ?? '';
       return { type: 'recipe', recipeId, date: today, slot: entry?.slot ?? RECIPES[recipeId]?.slots[0] };

@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { ChevronDown, Ellipsis, Store } from 'lucide-react';
 import type { DayType, HHMM, ItemStatus, MealSlot, Plan } from '../../../domain/types';
 import { dayMinutes, type DayItem, type StatusSource } from '../../../engine/timeline';
+import { listIt } from '../../../lib/format';
 import { cn, keepHyphens, spring, useLongPress } from '../../../ui';
 import { opensDetail } from '../kinds';
 import { StatusMark } from './StatusMark';
@@ -34,12 +35,14 @@ const COLLAPSE_FROM = 4;
 /** Da quante voci precedenti al primo avvio si raccolgono in una riga. */
 const BEFORE_COLLAPSE_FROM = 2;
 /**
- * Le voci oltre queste ore da adesso si raccolgono in una riga "Più tardi", se sono almeno `LATER_COLLAPSE_FROM` e
- * dopo l'ultimo appuntamento della giornata (calcio, palestra, revisione), che non si nasconde mai.
+ * Le voci oltre queste ore da adesso si raccolgono: in fondo alla giornata in una riga "Più tardi" (se sono almeno
+ * `LATER_COLLAPSE_FROM`), prima di un appuntamento (calcio, palestra, revisione, che non si nasconde mai) in una riga
+ * con i loro nomi (se sono almeno `GAP_COLLAPSE_FROM`). In vista restano le prossime ore e gli appuntamenti.
  */
 const LATER_WINDOW_MIN = 5 * 60;
 const LATER_COLLAPSE_FROM = 3;
-/** Gli appuntamenti della giornata: mai dentro "Più tardi". */
+const GAP_COLLAPSE_FROM = 2;
+/** Gli appuntamenti della giornata: mai raccolti in una riga. */
 const ALWAYS_SHOWN = new Set<DayItem['kind']>(['calcio', 'palestra', 'revisione']);
 
 type ItemEntry = { type: 'item'; item: DayItem; m: number };
@@ -47,7 +50,7 @@ type Entry =
   | ItemEntry
   | { type: 'done'; items: DayItem[]; m: number }
   | { type: 'before'; items: DayItem[]; m: number }
-  | { type: 'later'; items: DayItem[]; m: number };
+  | { type: 'later'; items: DayItem[]; m: number; key: string; gap: boolean };
 
 /**
  * Timeline della giornata: orario, cerchio da toccare, voce; la linea dell'ora attuale scorre tra le voci. Le voci
@@ -74,7 +77,8 @@ export function Timeline({
   const itemEntries: ItemEntry[] = items.map((item) => ({ type: 'item' as const, item, m: dayMinutes(item.time, plan) }));
   const [expanded, setExpanded] = useState(false);
   const [showBefore, setShowBefore] = useState(false);
-  const [showLater, setShowLater] = useState(false);
+  // Righe raccolte aperte, per id della prima voce: si riaprono una per una.
+  const [shownGroups, setShownGroups] = useState<ReadonlySet<string>>(() => new Set());
   const entries: Entry[] = [];
   let from = 0;
   // Primo giorno: le voci prima dell'inizio non contano, si raccolgono in una riga.
@@ -85,29 +89,33 @@ export function Timeline({
     from = before;
   }
   // Le voci già segnate all'inizio della giornata si raccolgono in una riga: resta in vista quello che manca.
-  let run = from;
-  while (run < itemEntries.length && status[itemEntries[run].item.id] && itemEntries[run].m <= nowM) run++;
-  if (!expanded && run - from >= COLLAPSE_FROM) {
-    entries.push({ type: 'done', items: itemEntries.slice(from, run).map((e) => e.item), m: itemEntries[from].m });
-    from = run;
+  let doneTo = from;
+  while (doneTo < itemEntries.length && status[itemEntries[doneTo].item.id] && itemEntries[doneTo].m <= nowM) doneTo++;
+  if (!expanded && doneTo - from >= COLLAPSE_FROM) {
+    entries.push({ type: 'done', items: itemEntries.slice(from, doneTo).map((e) => e.item), m: itemEntries[from].m });
+    from = doneTo;
   }
-  // La sera lontana si raccoglie in una riga: in vista resta quello che viene nelle prossime ore.
-  // Calcio, palestra e revisione restano sempre in vista: la riga comincia dopo l'ultimo di questi.
-  let to = itemEntries.length;
-  if (!showLater) {
-    let at = itemEntries.findIndex((e, i) => i >= from && e.m > nowM + LATER_WINDOW_MIN);
-    if (at !== -1) {
-      for (let i = itemEntries.length - 1; i >= at; i--) {
-        if (ALWAYS_SHOWN.has(itemEntries[i].item.kind)) {
-          at = i + 1;
-          break;
-        }
-      }
-    }
-    if (at !== -1 && itemEntries.length - at >= LATER_COLLAPSE_FROM && !itemEntries.slice(at).some((e) => e.item.id === currentId || overdueIds.has(e.item.id))) to = at;
+  // Oltre le prossime ore la giornata si raccoglie: in vista restano gli appuntamenti (calcio, palestra, revisione),
+  // la voce di Adesso e quelle rimaste indietro; le altre stanno in una riga prima dell'appuntamento o in fondo.
+  const at = itemEntries.findIndex((e, i) => i >= from && e.m > nowM + LATER_WINDOW_MIN);
+  const pinned = (e: ItemEntry) => ALWAYS_SHOWN.has(e.item.kind) || e.item.id === currentId || overdueIds.has(e.item.id);
+  const end = at === -1 ? itemEntries.length : at;
+  entries.push(...itemEntries.slice(from, end));
+  let run: ItemEntry[] = [];
+  const flush = (tail: boolean) => {
+    const key = run[0]?.item.id;
+    const min = tail ? LATER_COLLAPSE_FROM : GAP_COLLAPSE_FROM;
+    if (key && run.length >= min && !shownGroups.has(key)) entries.push({ type: 'later', items: run.map((e) => e.item), m: run[0].m, key, gap: !tail });
+    else entries.push(...run);
+    run = [];
+  };
+  for (const e of itemEntries.slice(end)) {
+    if (pinned(e)) {
+      flush(false);
+      entries.push(e);
+    } else run.push(e);
   }
-  entries.push(...itemEntries.slice(from, to));
-  if (to < itemEntries.length) entries.push({ type: 'later', items: itemEntries.slice(to).map((e) => e.item), m: itemEntries[to].m });
+  flush(true);
   let nowIndex = entries.findIndex((e) => (e.type === 'item' || e.type === 'later') && e.m > nowM);
   if (nowIndex === -1) nowIndex = entries.length;
   // Le righe raccolte stanno sempre prima della linea dell'ora.
@@ -122,7 +130,7 @@ export function Timeline({
       {entries.map((e, i) => {
         const first = i === 0 && nowIndex !== 0;
         const last = i === entries.length - 1 && nowIndex !== entries.length;
-        const key = e.type === 'item' ? e.item.id : e.type;
+        const key = e.type === 'item' ? e.item.id : e.type === 'later' ? `later:${e.key}` : e.type;
         return (
           <Fragment key={key}>
             {i === nowIndex && <NowLine now={now} first={i === 0} />}
@@ -131,7 +139,15 @@ export function Timeline({
             ) : e.type === 'done' ? (
               <DoneRun items={e.items} dayType={dayType} status={status} first={first} last={last} onExpand={() => setExpanded(true)} />
             ) : e.type === 'later' ? (
-              <LaterRun items={e.items} dayType={dayType} status={status} first={first} last={last} onExpand={() => setShowLater(true)} />
+              <LaterRun
+                items={e.items}
+                gap={e.gap}
+                dayType={dayType}
+                status={status}
+                first={first}
+                last={last}
+                onExpand={() => setShownGroups((g) => new Set(g).add(e.key))}
+              />
             ) : e.type === 'item' ? (
               <TimelineRow
                 item={e.item}
@@ -212,9 +228,30 @@ function DoneRun({
   );
 }
 
-/** Voci della sera lontana raccolte in una riga, con l'icona di ciascuna: un tocco le mostra. */
+/** Nomi brevi dei riti e della notte, per le righe raccolte. */
+const SHORT_NAME: Partial<Record<DayItem['kind'], string>> = {
+  preparazione: 'Preparazione',
+  spesa: 'Spesa',
+  revisione: 'Revisione',
+  coprifuoco: 'Telefono fuori',
+  letto: 'A letto',
+  fisio: 'Fisioterapista',
+  controllo: 'Controllo',
+};
+
+/** Nome breve di una voce in una riga raccolta: "Cena di recupero, veloce e digeribile" diventa "cena di recupero". */
+function shortName(item: DayItem, i: number): string {
+  const t = SHORT_NAME[item.kind] ?? item.title.split(',')[0];
+  return i === 0 ? t : t.charAt(0).toLowerCase() + t.slice(1);
+}
+
+/**
+ * Voci lontane raccolte in una riga, con l'icona di ciascuna: un tocco le mostra. In fondo alla giornata "Più tardi,
+ * fino alle 00:15"; prima di un appuntamento (`gap`) i loro nomi, "Pranzo e merenda".
+ */
 function LaterRun({
   items,
+  gap,
   dayType,
   status,
   first,
@@ -222,6 +259,7 @@ function LaterRun({
   onExpand,
 }: {
   items: DayItem[];
+  gap: boolean;
   dayType: DayType;
   status: Record<string, ItemStatus>;
   first: boolean;
@@ -229,6 +267,7 @@ function LaterRun({
   onExpand: () => void;
 }) {
   const end = items[items.length - 1].time;
+  const names = items.length <= 3 ? listIt(items.map(shortName)) : `${listIt(items.slice(0, 2).map(shortName))} e altre ${items.length - 2}`;
   return (
     <li className="relative flex items-stretch">
       <span aria-hidden className="w-[46px] shrink-0 pr-1 pt-[15px] text-right leading-[12px]">
@@ -248,7 +287,13 @@ function LaterRun({
         >
           <span className="min-w-0 flex-1">
             <span className="t-callout block font-semibold leading-snug text-ink-2">
-              Più tardi, fino alle <span className="t-mono text-[0.875rem]">{end}</span>
+              {gap ? (
+                names
+              ) : (
+                <>
+                  Più tardi, fino alle <span className="tabular">{end}</span>
+                </>
+              )}
             </span>
             <span className="mt-1.5 flex flex-wrap items-center gap-1" aria-hidden>
               {items.map((it) => (
@@ -445,12 +490,16 @@ function TimelineRow({
           {...lp}
           aria-label={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}`}
           aria-haspopup={opens ? 'dialog' : undefined}
-          className="flex min-h-12 w-full items-start gap-2 rounded-[14px] py-[9px] pl-1.5 pr-1 text-left transition-colors duration-150 active:bg-ink-soft"
+          className={cn(
+            'flex min-h-12 w-full items-start gap-2 rounded-[14px] pl-1.5 pr-1 text-left transition-colors duration-150 active:bg-ink-soft',
+            // Con il piano B sotto, la voce finisce prima: la pillola tocca su 44 px senza invadere la voce.
+            showPlanB ? 'pb-1 pt-[9px]' : 'py-[9px]',
+          )}
         >
           <span className="min-w-0 flex-1">
             <span className={cn('t-callout block font-semibold leading-snug transition-colors duration-200', titleCls)}>{item.title}</span>
             {item.detail && (
-              <span className={cn('t-footnote mt-0.5 transition-colors duration-200', current ? 'line-clamp-2' : 'line-clamp-1', detailCls)}>{keepHyphens(item.detail)}</span>
+              <span className={cn('t-footnote mt-0.5 line-clamp-1 transition-colors duration-200', detailCls)}>{keepHyphens(item.detail)}</span>
             )}
             {status === 'sostituito' && (
               <span className="t-footnote mt-1 block text-warn-ink">{note ? (item.kind === 'pasto' ? `Al posto: ${note}` : note) : 'Sostituito'}</span>
@@ -466,7 +515,7 @@ function TimelineRow({
           <button
             type="button"
             onClick={() => onPlanB(item.slot)}
-            className="t-footnote -mt-1.5 mb-2 ml-1.5 inline-flex h-9 w-fit items-center gap-1.5 rounded-full bg-control px-3.5 font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--control-line)] transition-transform duration-150 active:scale-95"
+            className="hit-44 t-footnote mb-2 ml-1.5 mt-2 inline-flex h-9 w-fit items-center gap-1.5 rounded-full bg-control px-3.5 font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--control-line)] transition-transform duration-150 active:scale-95"
           >
             <Store size={14} strokeWidth={2.4} aria-hidden className="text-accent-ink" />
             Piano B al bar

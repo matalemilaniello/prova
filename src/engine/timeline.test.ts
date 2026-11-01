@@ -33,6 +33,7 @@ import {
   ritualItems,
   shoppingLeadFor,
   shoppingOptionsFor,
+  shoppingTarget,
   starterShopping,
   STARTER_SHOPPING_ID,
   minutesToCurfew,
@@ -706,6 +707,26 @@ describe('primo avvio', () => {
     expect(shoppingLeadFor(addDays(NEXT, 7), st)).toBeUndefined();
     const mid = { ...s0, plan: { ...s0.plan, firstUse: { date: WED, time: '15:30' } } as Plan };
     expect(shoppingLeadFor(addDays(WED, 5), mid)).toBeUndefined();
+  });
+
+  it('la lista dietro la spesa è quella di Settimana: spuntarla tutta segna la voce', () => {
+    const s = withFirst();
+    const item = byId(buildDay(WED, s), STARTER_SHOPPING_ID)!;
+    const target = shoppingTarget(WED, s, item)!;
+    // Spesa di avvio: la lista della settimana del primo avvio, da mercoledì.
+    expect(target.weekStart).toBe(MON);
+    expect(target.keys).toEqual(shoppingList(MON, s, { fromDate: WED }).items.map((i) => i.key));
+    expect(target.keys.length).toBeGreaterThan(0);
+    expect(derivedStatus(WED, s, item)).toBeUndefined();
+    const checked = { ...s, shoppingChecked: { [MON]: target.keys } };
+    expect(derivedStatus(WED, checked, item)).toBe('fatto');
+    // Spesa del sabato: la lista della settimana dopo, con le stesse opzioni di Settimana.
+    const s0 = makeState();
+    const sat = byId(buildDay(SAT, s0), 'rito:spesa')!;
+    const next = addDays(SAT, 2);
+    expect(shoppingTarget(SAT, s0, sat)).toEqual({ weekStart: next, keys: shoppingList(next, s0, shoppingOptionsFor(next, s0)).items.map((i) => i.key) });
+    // Le altre voci non hanno lista.
+    expect(shoppingTarget(SAT, s0, { id: 'pasto:pranzo', kind: 'pasto' })).toBeNull();
   });
 
   it('i giorni prima del primo avvio non contano nella serie', () => {

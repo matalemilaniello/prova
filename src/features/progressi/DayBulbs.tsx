@@ -83,7 +83,8 @@ export function DayBulbs({ days, size = 'md', className }: { days: CalendarDay[]
                 {d.minimal && lit && <span className={cn('rounded-full bg-[var(--bg)]', md ? 'size-2' : 'size-1.5')} />}
               </motion.span>
               {md && (
-                <span className={cn('t-mono text-[0.6875rem] tabular-nums', live ? 'text-ink-2' : 'text-ink-3')}>
+                // Il monospazio resta ai numeri: "oggi" è una parola, in Figtree.
+                <span className={cn('text-[0.6875rem] tabular-nums', live && pct === 0 ? 'font-sans font-medium' : 't-mono', live ? 'text-ink-2' : 'text-ink-3')}>
                   {live ? (pct > 0 ? fmtNumber(pct) : 'oggi') : lit || half ? fmtNumber(pct) : '·'}
                 </span>
               )}

@@ -6,7 +6,7 @@ import { Pill } from '../../../ui';
 import type { LoadWeek } from '../series';
 import { weekLabel } from './axis';
 import { BigValue, ChartCard, LegendItem } from './ChartCard';
-import { ChartSvg, labelStyle, useGeometry, useScrub, YGrid } from './frame';
+import { ChartSvg, labelStyle, useGeometry, useScrub, WORD_LABEL, YGrid } from './frame';
 import { linear, niceDomain, safeId, topRoundedRect } from './scale';
 
 const HEIGHT = 152;
@@ -115,7 +115,7 @@ export function LoadChart({ weeks }: { weeks: LoadWeek[] }) {
                   x={xAt(i)}
                   y={geo.bottom + 17}
                   textAnchor="middle"
-                  style={labelStyle(w.current ? { fill: 'var(--ink)', fontWeight: 600 } : {})}
+                  style={labelStyle(w.current ? { ...WORD_LABEL, fill: 'var(--ink)', fontWeight: 600 } : WORD_LABEL)}
                 >
                   {weekLabel(w.weekStart, i > 0 ? weeks[i - 1].weekStart : null)}
                 </text>

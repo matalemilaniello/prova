@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronRight, CircleCheck, Moon, ShieldCheck } from 'lucide-react';
+import { Check, ChevronRight, CircleCheck, Moon, ShieldCheck } from 'lucide-react';
 import type { HHMM } from '../../../domain/types';
 import { SUCCESS_THRESHOLD, itemsToSuccess, type AdherenceSummary, type StreakInfo } from '../../../engine/timeline';
 import { fmtMinutes, fmtPercent, plural } from '../../../lib/format';
 import { BallIcon, NumberTicker, ProgressRing, cn, spring, type AnyTone } from '../../../ui';
 import type { Kickoff } from '../useOggi';
+import type { WelcomeSpot } from '../firstDay';
 import { BOARD_LABEL } from '../kinds';
 
 export interface DayHeroProps {
@@ -25,8 +26,13 @@ export interface DayHeroProps {
   flare?: boolean;
   /** Aderenza media dei giorni chiusi degli ultimi 7 (come in Progressi), null se non ce ne sono. */
   weekAdherence: number | null;
-  /** Primo giorno d'uso: al posto di tre zeri, da che ora parte la giornata. */
-  firstDay?: { time: HHMM } | null;
+  /**
+   * Primo giorno d'uso, finché la giornata non è chiusa: "Il piano è pronto" con i due o tre orari che la reggono,
+   * al posto dell'anello a zero, delle statistiche vuote e del conto alla rovescia.
+   */
+  welcome?: WelcomeSpot[] | null;
+  /** Tocco su un orario del tabellone del primo giorno (la spesa apre la sua lista). */
+  onWelcomeSpot?: (spot: WelcomeSpot) => void;
 }
 
 const KICKOFF_WORD: Record<Kickoff['kind'], [string, string]> = {
@@ -108,9 +114,11 @@ export function DayHero({
   preMatch,
   flare,
   weekAdherence,
-  firstDay,
+  welcome,
+  onWelcomeSpot,
 }: DayHeroProps) {
   const reduce = useReducedMotion();
+  if (welcome?.length) return <WelcomeBoard spots={welcome} onSpot={onWelcomeSpot} overdueCount={overdueCount} onRecover={onRecover} />;
   const marked = summary.done + summary.replaced;
   const celebrate = successful && !phonePending;
   const ringValue = dayRingValue(summary, successful, complete);
@@ -126,14 +134,7 @@ export function DayHero({
 
   // Una sola forma di tabellone in tutti i giorni: anello e tre numeri in colonna, come il segnapunti di uno stadio.
   const num = cn('t-num leading-none', big ? 'text-[1.75rem]' : 'text-[1.625rem]');
-  const stats = firstDay ? (
-    <div className="min-w-0 flex-1">
-      <p className={cn(BOARD_LABEL, 'text-[0.75rem] text-accent-ink')}>Primo giorno</p>
-      <p className="t-headline mt-1.5 text-ink">
-        La giornata parte dalle <span className="t-mono">{firstDay.time}</span>
-      </p>
-    </div>
-  ) : (
+  const stats = (
     <dl className="grid min-w-0 flex-1 grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_minmax(0,0.95fr)]">
       <Stat label="Serie" first>
         <NumberTicker value={streak.days} className={cn(num, 'text-ink')} />
@@ -182,10 +183,10 @@ export function DayHero({
               )}
             </p>
             <p className="t-footnote mt-1 text-ink-2">
-              Alle <span className="t-mono text-ink">{kickoff.time}</span>
+              Alle <span className="font-semibold tabular text-ink">{kickoff.time}</span>
               {preMatch && kickoff.inMin > 0 ? (
                 <>
-                  , merenda alle <span className="t-mono text-ink">{preMatch}</span>
+                  , merenda alle <span className="font-semibold tabular text-ink">{preMatch}</span>
                 </>
               ) : null}
             </p>
@@ -221,7 +222,11 @@ export function DayHero({
             </AnimatePresence>
             {streak.jolly > 0 && (
               <span
-                className="t-caption ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--line-strong)]"
+                className={cn(
+                  't-caption inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--line-strong)]',
+                  // Da solo (giornata chiusa) sta sotto l'anello, non appeso a destra di una riga vuota.
+                  status && 'ml-auto',
+                )}
                 title="Salva la serie alla prossima giornata non riuscita"
               >
                 <ShieldCheck size={12} strokeWidth={2.6} aria-hidden className="text-accent-ink" />
@@ -243,19 +248,105 @@ export function DayHero({
         )}
       </div>
 
-      {overdueCount > 0 && (
-        <button
-          type="button"
-          onClick={onRecover}
-          aria-haspopup="dialog"
-          className="t-footnote -mx-1 mt-1 flex min-h-11 w-[calc(100%+8px)] items-center gap-2.5 rounded-control px-1 text-left font-medium text-ink-2 transition-colors duration-150 active:bg-ink-soft"
-        >
-          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warn" />
-          <span className="flex-1">{plural(overdueCount, 'voce rimasta indietro', 'voci rimaste indietro')}</span>
-          <span className="font-semibold text-accent-ink">Recupera</span>
-          <ChevronRight size={16} strokeWidth={2.4} className="-ml-1 text-accent-ink" aria-hidden />
-        </button>
-      )}
+      <RecoverRow count={overdueCount} onRecover={onRecover} />
+    </section>
+  );
+}
+
+function RecoverRow({ count, onRecover }: { count: number; onRecover: () => void }) {
+  if (count <= 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={onRecover}
+      aria-haspopup="dialog"
+      className="t-footnote -mx-1 mt-1 flex min-h-11 w-[calc(100%+8px)] items-center gap-2.5 rounded-control px-1 text-left font-medium text-ink-2 transition-colors duration-150 active:bg-ink-soft"
+    >
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warn" />
+      <span className="flex-1">{plural(count, 'voce rimasta indietro', 'voci rimaste indietro')}</span>
+      <span className="font-semibold text-accent-ink">Recupera</span>
+      <ChevronRight size={16} strokeWidth={2.4} className="-ml-1 text-accent-ink" aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * Il primo giorno: il piano già deciso, detto in due o tre orari come il tabellone di uno stadio ("Stasera 23:45,
+ * telefono fuori · Domani 15:15, spesa di avvio · 21:00, partita"). Niente anello a zero: la giornata è appena
+ * cominciata. La spesa da fare apre la sua lista.
+ */
+function WelcomeBoard({
+  spots,
+  onSpot,
+  overdueCount,
+  onRecover,
+}: {
+  spots: WelcomeSpot[];
+  onSpot?: (spot: WelcomeSpot) => void;
+  overdueCount: number;
+  onRecover: () => void;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <section aria-labelledby="oggi-pronto" className="relative -mt-1">
+      <motion.h2
+        id="oggi-pronto"
+        className="font-display text-[1.75rem] font-semibold leading-[1.02] text-ink"
+        initial={reduce ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={spring}
+      >
+        Il piano è pronto
+      </motion.h2>
+      {/* Colonne larghe quanto il loro contenuto: "Spesa di avvio" non va a capo per fare posto a "Partita". */}
+      <ol className="mt-4 flex border-y border-line py-3.5">
+        {spots.map((spot, i) => {
+          const done = spot.status === 'fatto' || spot.status === 'sostituito';
+          const opens = spot.kind === 'spesa' && !spot.status && Boolean(onSpot);
+          const body = (
+            <>
+              <span className={cn(BOARD_LABEL, 'block h-3 text-[0.75rem] text-ink-3')}>
+                {spot.group ?? '\u00a0'}
+              </span>
+              <span className={cn('t-num mt-2 flex items-center gap-1 text-[1.75rem] leading-none', done ? 'text-good-ink' : 'text-ink')}>
+                {done && <Check size={18} strokeWidth={3} aria-hidden />}
+                {spot.time}
+              </span>
+              <span className={cn('t-footnote mt-1.5 line-clamp-2 block font-medium', opens ? 'text-accent-ink' : 'text-ink-2')}>
+                {spot.name}
+                {opens && <ChevronRight size={15} strokeWidth={2.5} aria-hidden className="-mt-px ml-0.5 inline align-middle" />}
+              </span>
+            </>
+          );
+          const label = `${spot.tomorrow ? 'Domani' : spot.group === 'Stasera' ? 'Stasera' : 'Oggi'} alle ${spot.time}: ${spot.name}${done ? ', fatto' : ''}`;
+          return (
+            <motion.li
+              key={spot.id}
+              className={cn('min-w-0 flex-[1_1_auto]', i > 0 && 'border-l border-line pl-3', i < spots.length - 1 && 'pr-3')}
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: reduce ? 0 : 0.08 + i * 0.07 }}
+            >
+              {opens ? (
+                <button
+                  type="button"
+                  onClick={() => onSpot?.(spot)}
+                  aria-label={`${label}. Apri la lista della spesa`}
+                  className="-m-1 block w-[calc(100%+8px)] rounded-control p-1 text-left transition-colors duration-150 active:bg-ink-soft"
+                >
+                  {body}
+                </button>
+              ) : (
+                <>
+                  <span className="sr-only">{label}</span>
+                  <div aria-hidden>{body}</div>
+                </>
+              )}
+            </motion.li>
+          );
+        })}
+      </ol>
+      <RecoverRow count={overdueCount} onRecover={onRecover} />
     </section>
   );
 }

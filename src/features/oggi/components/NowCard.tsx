@@ -1,11 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { BedDouble, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Store, Timer } from 'lucide-react';
+import { BedDouble, CalendarDays, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Store, Timer } from 'lucide-react';
 import type { DayType, HHMM, MealSlot, Nutrients } from '../../../domain/types';
 import { gymDuration, type AdherenceSummary, type DayItem, type NowPick, type StreakInfo } from '../../../engine/timeline';
 import { useApp } from '../../../state/store';
-import { fmtPercent, plural } from '../../../lib/format';
-import { Button, Card, IconButton, NumberTicker, cn, spring, toneColor, toneInk } from '../../../ui';
+import { Button, Card, IconButton, cn, spring, toneColor, toneInk } from '../../../ui';
 import { BOARD_LABEL, itemIcon, itemTone } from '../kinds';
 import { eyebrowKicker, nowContent, stateLabel } from '../nowContent';
 
@@ -21,6 +20,11 @@ export interface NowCardProps {
   curfewIn: number;
   /** La voce non si può ancora segnare: da che ora sì (coprifuoco onesto). */
   lockedUntil: HHMM | null;
+  /**
+   * Con la voce non ancora segnabile l'azione principale guarda avanti: la lista della spesa (oggi o domani) oppure
+   * la giornata di domani. L'orario da cui si segna resta come testo, mai un pulsante spento.
+   */
+  lockedAction?: { kind: 'spesa' | 'domani'; onPress: () => void } | null;
   /** Dal coprifuoco meno 15 minuti la voce del telefono apre il rito della sera. */
   ritual: boolean;
   /** Valori dei pasti del giorno per slot (`dayNutritionDetail(...).bySlot`): gli stessi di Settimana. */
@@ -42,7 +46,7 @@ export interface NowCardProps {
 
 /** Card "Adesso": la prossima voce da fare, grande, con l'azione principale a portata di pollice. */
 export function NowCard(props: NowCardProps) {
-  const { pick, dayType, curfewIn, bed, lockedUntil, ritual, mealValues, shopping, onMark, onOpen, onOptions, onRitual, onPlanB } = props;
+  const { pick, dayType, curfewIn, bed, lockedUntil, lockedAction, ritual, mealValues, shopping, onMark, onOpen, onOptions, onRitual, onPlanB } = props;
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
   if (!pick) return <DoneCard {...props} />;
@@ -76,10 +80,16 @@ export function NowCard(props: NowCardProps) {
   );
 
   if (lockedUntil && !ritual) {
-    primary = (
-      <Button size="lg" variant="secondary" icon={MoonStar} className="min-w-0 flex-1 px-4" disabled>
-        {`Si segna dalle ${lockedUntil}`}
+    const spesa = lockedAction?.kind === 'spesa';
+    primary = lockedAction ? (
+      <Button size="lg" icon={spesa ? ShoppingBasket : CalendarDays} className="min-w-0 flex-1 px-4" onClick={lockedAction.onPress} aria-haspopup="dialog">
+        {spesa ? 'Lista della spesa' : 'Vedi domani'}
       </Button>
+    ) : null;
+    secondary = (
+      <p className={cn('t-footnote leading-snug text-ink-3', lockedAction ? 'shrink-0 text-right' : 'flex-1')}>
+        Si segna{lockedAction ? <br /> : ' '}dalle <span className="font-semibold tabular text-ink-2">{lockedUntil}</span>
+      </p>
     );
   } else if (ritual) {
     primary = (
@@ -153,7 +163,7 @@ export function NowCard(props: NowCardProps) {
           exit={{ opacity: 0, y: -14, filter: 'blur(3px)' }}
           transition={spring}
         >
-          {/* Tre livelli: occhiello (stato, quando, categoria), titolo, una riga di dettagli. Il monospazio solo per l'orario. */}
+          {/* Tre livelli: occhiello (stato, quando, categoria), titolo, una riga di dettagli. Orari in Figtree tabellare, come il testo intorno. */}
           <div className="flex items-center justify-between gap-3">
             <h2 id="oggi-adesso" className={cn(BOARD_LABEL, 'flex min-w-0 flex-1 items-center')} style={{ color: late ? 'var(--warn-ink)' : ink }}>
               {pick.state === 'adesso' ? (
@@ -190,7 +200,7 @@ export function NowCard(props: NowCardProps) {
               {showTime && (
                 <li className={cn('whitespace-nowrap font-semibold', late ? 'text-warn-ink' : 'text-ink')}>
                   {late && <span className="font-sans font-medium">era alle </span>}
-                  <span className="t-mono text-[0.875rem]">{item.time}</span>
+                  <span className="tabular">{item.time}</span>
                 </li>
               )}
               {c.meta.map((m, i) => (
@@ -216,17 +226,20 @@ export function NowCard(props: NowCardProps) {
   );
 }
 
-/** Giornata chiusa: tutte le voci che contano sono segnate. La serie scorre, "A letto" resta a portata. */
-function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem, bedLocked, justCompleted, onMark }: NowCardProps) {
+/**
+ * Giornata chiusa: tutte le voci che contano sono segnate. Tre livelli e niente di ripetuto: punteggio e serie li dice
+ * il tabellone qui sopra (che scorre con il bagliore), la card dice com'è finita e cosa resta per la notte.
+ */
+function DoneCard({ summary, successful, curfew, bed, curfewIn, bedItem, bedLocked, justCompleted, onMark }: NowCardProps) {
   const reduce = useReducedMotion();
   const empty = summary.total === 0;
-  const target = streak.days;
-  const [shown, setShown] = useState(() => (justCompleted && streak.includesToday ? Math.max(0, target - 1) : target));
-  useEffect(() => {
-    if (shown === target) return;
-    const id = window.setTimeout(() => setShown(target), reduce ? 0 : 520);
-    return () => window.clearTimeout(id);
-  }, [target, shown, reduce]);
+  // Prima del coprifuoco la riga dice la sera che resta; dopo, la buonanotte (con la serie che continua, se riuscita).
+  const evening = curfewIn > 0 ? `Telefono fuori alle ${curfew}, a letto alle ${bed}.` : null;
+  const line = empty
+    ? (evening ?? 'Buonanotte.')
+    : successful
+      ? (evening ?? 'Buonanotte, la serie continua.')
+      : `Sotto il 70%: domani si riparte.${evening ? ` ${evening}` : ''}`;
 
   return (
     <Card variant="highlight" tone={successful ? 'good' : 'neutral'} padding="none" as="section" aria-labelledby="oggi-adesso">
@@ -241,10 +254,7 @@ function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem,
         />
       )}
       <motion.div className="relative p-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-        <h2 id="oggi-adesso" className={cn(BOARD_LABEL, successful ? 'text-good-ink' : 'text-ink-2')}>
-          {empty ? 'Giornata libera' : successful ? 'Giornata completa' : 'Giornata chiusa'}
-        </h2>
-        <div className="mt-4 flex items-center gap-4">
+        <div className="flex items-center gap-4">
           <motion.span
             aria-hidden
             className={cn(
@@ -258,21 +268,15 @@ function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem,
             {empty ? <MoonStar size={26} strokeWidth={2.2} /> : <Check size={28} strokeWidth={3} />}
           </motion.span>
           <div className="min-w-0">
-            <p className="t-title text-ink">{empty ? 'Niente in programma' : 'Tutto segnato'}</p>
-            {!empty &&
-              (successful ? (
-                <p className="t-callout mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-ink-2">
-                  <span>Giornata al {fmtPercent(summary.score)}, serie di</span>
-                  <NumberTicker value={shown} className="t-num text-[1.375rem] leading-none text-accent-ink" />
-                  <span>{plural(target, 'giorno', 'giorni', false)}</span>
-                </p>
-              ) : (
-                <p className="t-callout mt-0.5 text-ink-2">Giornata al {fmtPercent(summary.score)}, sotto il 70%. Domani si riparte.</p>
-              ))}
+            <h2 id="oggi-adesso" className={cn(BOARD_LABEL, successful ? 'text-good-ink' : 'text-ink-2')}>
+              {empty ? 'Giornata libera' : successful ? 'Giornata riuscita' : 'Giornata chiusa'}
+            </h2>
+            <p className="t-title mt-1 text-ink">{empty ? 'Niente in programma' : 'Tutto segnato'}</p>
+            <p className="t-callout mt-0.5 text-pretty text-ink-2">{line}</p>
           </div>
         </div>
 
-        {bedItem ? (
+        {bedItem && (
           <button
             type="button"
             onClick={() => onMark(bedItem)}
@@ -281,14 +285,10 @@ function DoneCard({ summary, successful, streak, curfew, bed, curfewIn, bedItem,
           >
             <BedDouble size={18} strokeWidth={2.2} aria-hidden className="shrink-0 text-riposo-ink" />
             <span className="min-w-0 flex-1 font-medium text-ink">
-              A letto alle <span className="t-mono">{bed}</span>
+              A letto alle <span className="font-semibold tabular">{bed}</span>
             </span>
             <span className="t-footnote shrink-0 font-semibold text-accent-ink">{bedLocked ? `Dalle ${bedLocked}` : 'Segna'}</span>
           </button>
-        ) : (
-          <p className="t-callout mt-4 text-ink-2">
-            {curfewIn > 0 ? `Telefono fuori alle ${curfew}, a letto alle ${bed}.` : `Buonanotte. Domani si riparte.`}
-          </p>
         )}
       </motion.div>
     </Card>

@@ -81,7 +81,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
           ))}
         </dl>
         {/* Il perché della seduta dietro un tocco; i minuti del fisioterapista stanno sul loro blocco, in fondo. */}
-        <Disclosure variant="inline" title="Com’è pensata" className="-mt-1 px-1">
+        <Disclosure variant="inline" tone="quiet" title="Com’è pensata" className="-mt-1 px-1">
           {session.focus}
         </Disclosure>
       </header>

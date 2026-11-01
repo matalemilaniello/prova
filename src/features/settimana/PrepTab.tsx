@@ -13,7 +13,7 @@ import { isStarterDay, mealsForDate, menuWeekFor, starterEnd } from '../../engin
 import { capitalize, fmtMinutes, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
-import { Button, Callout, Card, EmptyState, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
+import { Button, Callout, Card, EmptyState, ProgressRing, SectionTitle, staggerItem } from '../../ui';
 import { cn } from '../../ui/cn';
 import { toneInk, toneRing, toneSoft } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
@@ -118,8 +118,8 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
             )}
           </ProgressRing>
         </div>
-        <div className="mt-4 flex flex-col gap-2">
-          <ProgressBar value={total ? doneMin / total : 0} tone={allDone ? 'good' : 'accent'} label={`${doneMin} minuti fatti su ${total}`} />
+        {/* L'anello dice le attività fatte; qui i minuti che mancano, senza una seconda barra con lo stesso avanzamento. */}
+        <div className="mt-4 border-t border-line pt-3">
           <div className="t-footnote flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ink-2">
             <span className="whitespace-nowrap">{allDone ? (prepPast ? 'Fatta: la settimana è pronta' : 'Tutto pronto') : `Mancano ${fmtMinutes(total - doneMin)}`}</span>
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-ink-3">

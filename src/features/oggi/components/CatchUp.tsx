@@ -14,6 +14,7 @@ import { plural } from '../../../lib/format';
 import { useApp, useUi } from '../../../state/store';
 import { Button, Card, Sheet, cn, spring } from '../../../ui';
 import { BOARD_LABEL, canReplace } from '../kinds';
+import { setItemStatusSynced } from '../shoppingSync';
 import { StatusMark } from './StatusMark';
 
 const CHOICES: { status: ItemStatus; label: string }[] = [
@@ -127,7 +128,7 @@ export function RecoverSheet({ open, date, items, dayType, title = 'Recupera', o
   const before = useRef<Record<string, ItemStatus | undefined> | null>(null);
   if (open && !before.current) before.current = Object.fromEntries(items.map((i) => [i.id, statusOf?.[i.id]]));
 
-  const set = (item: DayItem, st: ItemStatus | null) => useApp.getState().setItemStatus(date, item.id, st);
+  const set = (item: DayItem, st: ItemStatus | null) => setItemStatusSynced(date, item, st);
 
   const finish = () => {
     const start = before.current ?? {};
@@ -139,7 +140,7 @@ export function RecoverSheet({ open, date, items, dayType, title = 'Recupera', o
     useUi.getState().toast(`Segnate ${plural(changed.length, 'voce', 'voci')}`, 'good', {
       actionLabel: 'Annulla',
       onAction: () => {
-        for (const i of changed) useApp.getState().setItemStatus(date, i.id, start[i.id] ?? null);
+        for (const i of changed) setItemStatusSynced(date, i, start[i.id] ?? null);
       },
     });
   };
@@ -200,7 +201,7 @@ export function YesterdayCard({ date, items, dayType, onMore, onOpen }: Yesterda
   const [shown] = useState(() => items.slice(-INLINE));
   const rest = items.length - shown.filter((i) => items.some((x) => x.id === i.id)).length;
   const evening = shown.every((i) => Number(i.time.slice(0, 2)) >= 17 || Number(i.time.slice(0, 2)) < 5);
-  const set = (item: DayItem, st: ItemStatus | null) => useApp.getState().setItemStatus(date, item.id, st);
+  const set = (item: DayItem, st: ItemStatus | null) => setItemStatusSynced(date, item, st);
 
   return (
     <Card padding="none" as="section" aria-labelledby="oggi-ieri" className="overflow-hidden">
@@ -228,7 +229,7 @@ export function YesterdayCard({ date, items, dayType, onMore, onOpen }: Yesterda
           onClick={onMore}
           className="t-footnote flex min-h-11 w-full items-center justify-center border-t border-line font-semibold text-accent-ink"
         >
-          {`Altre ${rest} di ieri`}
+          {rest === 1 ? 'Un’altra di ieri' : `Altre ${rest} di ieri`}
         </button>
       )}
     </Card>

@@ -6,7 +6,10 @@
  *   - l'apostrofo dritto al posto di quello tipografico (’): tra due lettere ("l'orario", 'Com\'è andata') e dopo
  *     una parola tronca ("un po' di", 'un po\' di'), scritto com'è, con l'escape \' o come entità HTML nel testo
  *     JSX. Un apice che apre una citazione ('così') e quello che la chiude non contano;
- *   - il trattino lungo (—), che nei testi dell'interfaccia non si usa (SPEC §3).
+ *   - il trattino lungo (—), che nei testi dell'interfaccia non si usa (SPEC §3);
+ *   - le virgolette doppie dritte ("Ritmo") nei testi visibili: si usano quelle basse (« »). Conta una coppia che
+ *     racchiude una parola, scritta com'è, con l'escape \" o come entità HTML; gli attributi JSX (className="…") e
+ *     le coppie dopo un segno di uguale ('[aria-checked="true"]', codice in una stringa) non contano.
  *
  * Uso:
  *   node scripts/check-typography.mjs                 elenco per area, esce sempre con 0
@@ -16,8 +19,8 @@
  *   node scripts/check-typography.mjs --fix --area oggi
  *                                                     sostituisce gli apostrofi nei testi dei file dell'area,
  *                                                     test compresi (così le attese restano uguali al testo):
- *                                                     \' diventa ’ senza escape; il trattino lungo va
- *                                                     riscritto a mano
+ *                                                     \' diventa ’ senza escape, una coppia di virgolette
+ *                                                     dritte diventa « »; il trattino lungo va riscritto a mano
  *   node scripts/check-typography.mjs --quiet         solo i conteggi
  *
  * Eccezioni: una riga che contiene il commento `tipografia-ok` non viene controllata, per i rari testi che
@@ -134,6 +137,52 @@ export function straightApostrophes(kind, raw) {
   });
   return found;
 }
+/**
+ * Coppie di virgolette doppie dritte nel testo di un nodo, ciascuna come due segni nel sorgente (`"`, `\"` o
+ * `&quot;`). Una coppia conta se la prima virgoletta è seguita da una lettera ("Ritmo", "Com’è andata"); dopo un
+ * segno di uguale è codice (un selettore o un attributo scritto in una stringa) e non conta.
+ */
+export function straightQuotePairs(kind, raw) {
+  const [from, to] = contentBounds(kind, raw);
+  /** @type {{ at: number, len: number, t: number }[]} */
+  const marks = [];
+  let text = '';
+  for (let i = from; i < to; ) {
+    const c = raw[i];
+    if (c === '\\') {
+      if (raw[i + 1] === '"') {
+        marks.push({ at: i, len: 2, t: text.length });
+        text += '"';
+      } else text += ' ';
+      i += 2;
+      continue;
+    }
+    if (c === '"') {
+      marks.push({ at: i, len: 1, t: text.length });
+      text += '"';
+      i += 1;
+      continue;
+    }
+    if (kind === ts.SyntaxKind.JsxText && raw.slice(i, i + 6).toLowerCase() === '&quot;') {
+      marks.push({ at: i, len: 6, t: text.length });
+      text += '"';
+      i += 6;
+      continue;
+    }
+    text += c;
+    i += 1;
+  }
+  const pairs = [];
+  for (let k = 0; k + 1 < marks.length; ) {
+    const open = marks[k];
+    const code = text[open.t - 1] === '=';
+    if (!code && LETTER.test(text[open.t + 1] ?? '')) {
+      pairs.push([open, marks[k + 1]]);
+      k += 2;
+    } else k += 1;
+  }
+  return pairs;
+}
 const EM_DASH = /—/;
 const isTest = (file) => /\.test\.tsx?$/.test(file);
 
@@ -163,7 +212,9 @@ function textNodes(sf) {
       // Gli import non sono testo.
       if (!(node.parent && (ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)))) {
         const start = node.kind === ts.SyntaxKind.JsxText ? node.pos : node.getStart(sf);
-        nodes.push({ start, end: node.end, kind: node.kind });
+        // Il valore di un attributo JSX (className="…") è codice per le virgolette, non per gli apostrofi.
+        const attribute = Boolean(node.parent && ts.isJsxAttribute(node.parent));
+        nodes.push({ start, end: node.end, kind: node.kind, attribute });
       }
     }
     ts.forEachChild(node, visit);
@@ -182,7 +233,7 @@ const files = walk(join(root, 'src'))
   .filter((f) => !onlyArea || areaOf(f.rel) === onlyArea)
   .filter((f) => fix || !isTest(f.rel));
 
-/** @type {Record<string, { apostrophes: number, dashes: number, items: string[] }>} */
+/** @type {Record<string, { apostrophes: number, quotes: number, dashes: number, items: string[] }>} */
 const report = {};
 let fixedCount = 0;
 
@@ -193,28 +244,38 @@ for (const f of files) {
   const lines = src.split('\n');
   const skipLine = new Set(lines.map((l, i) => (l.includes('tipografia-ok') ? i : -1)).filter((i) => i >= 0));
   const area = areaOf(f.rel);
-  const entry = (report[area] ??= { apostrophes: 0, dashes: 0, items: [] });
+  const entry = (report[area] ??= { apostrophes: 0, quotes: 0, dashes: 0, items: [] });
   const edits = [];
 
-  for (const { start, end, kind } of textNodes(sf)) {
+  for (const { start, end, kind, attribute } of textNodes(sf)) {
     const raw = src.slice(start, end);
     const line = sf.getLineAndCharacterOfPosition(start).line;
     if (skipLine.has(line)) continue;
     const hits = straightApostrophes(kind, raw);
     const apostrophes = hits.length;
+    const pairs = attribute ? [] : straightQuotePairs(kind, raw);
+    const quotes = pairs.length;
     const dash = EM_DASH.test(raw);
-    if (!apostrophes && !dash) continue;
-    if (fix && apostrophes) {
+    if (!apostrophes && !quotes && !dash) continue;
+    if (fix && (apostrophes || quotes)) {
+      const subs = [
+        ...hits.map((h) => ({ ...h, to: '’' })),
+        ...pairs.flatMap(([a, b]) => [
+          { ...a, to: '«' },
+          { ...b, to: '»' },
+        ]),
+      ].sort((a, b) => b.at - a.at);
       let text = raw;
-      for (const h of [...hits].reverse()) text = text.slice(0, h.at) + '’' + text.slice(h.at + h.len);
+      for (const h of subs) text = text.slice(0, h.at) + h.to + text.slice(h.at + h.len);
       edits.push({ start, end, text });
-      fixedCount += apostrophes;
+      fixedCount += apostrophes + quotes;
     }
     if (isTest(f.rel)) continue;
     entry.apostrophes += apostrophes;
+    entry.quotes += quotes;
     if (dash) entry.dashes++;
     const snippet = raw.replace(/\s+/g, ' ').trim().slice(0, 90);
-    entry.items.push(`  ${f.rel}:${line + 1}  ${apostrophes ? "’" : ''}${dash ? '—' : ''}  ${snippet}`);
+    entry.items.push(`  ${f.rel}:${line + 1}  ${apostrophes ? "’" : ''}${quotes ? '«»' : ''}${dash ? '—' : ''}  ${snippet}`);
   }
 
   if (fix && edits.length) {
@@ -224,16 +285,19 @@ for (const f of files) {
   }
 }
 
-const areas = Object.keys(report).filter((a) => report[a].apostrophes || report[a].dashes).sort();
+const areas = Object.keys(report).filter((a) => report[a].apostrophes || report[a].quotes || report[a].dashes).sort();
 let total = 0;
 for (const a of areas) {
   const r = report[a];
-  total += r.apostrophes + r.dashes;
-  console.log(`${a}: ${r.apostrophes} apostrofi dritti${r.dashes ? `, ${r.dashes} trattini lunghi` : ''}`);
+  total += r.apostrophes + r.quotes + r.dashes;
+  const parts = [`${r.apostrophes} apostrofi dritti`];
+  if (r.quotes) parts.push(`${r.quotes} coppie di virgolette dritte`);
+  if (r.dashes) parts.push(`${r.dashes} trattini lunghi`);
+  console.log(`${a}: ${parts.join(', ')}`);
   if (!quiet) console.log(r.items.join('\n'));
 }
-if (fix) console.log(`\nSostituiti ${fixedCount} apostrofi (test compresi). Il trattino lungo va riscritto a mano.`);
-else if (!total) console.log('Testi a posto: apostrofi tipografici e nessun trattino lungo.');
+if (fix) console.log(`\nSostituiti ${fixedCount} tra apostrofi e coppie di virgolette (test compresi). Il trattino lungo va riscritto a mano.`);
+else if (!total) console.log('Testi a posto: apostrofi tipografici, virgolette basse e nessun trattino lungo.');
 else console.log(`\nIn tutto ${total}. Correggi con: node scripts/check-typography.mjs --fix --area <area>`);
 
 if (strict && total && !fix) process.exit(1);

@@ -31,7 +31,7 @@ import { Button, Callout, Card, Pill, Sheet, TextArea, Toggle } from '../../../u
 import { StatGrid } from '../components/BackupStats';
 import { FormRow, InlineReveal } from '../components/controls';
 import { useClosingSheet } from '../components/SupplementEditor';
-import { ManualCopySheet } from './PromemoriaPage';
+import { ManualCopySheet } from '../components/ManualCopySheet';
 import { Page, type PageProps } from './Page';
 
 const MIME = 'application/json';

@@ -7,8 +7,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Check, Clock, Feather, Settings, Timer } from 'lucide-react';
 import type { FootballKind, HHMM, ISODate, ItemStatus, MealSlot } from '../../domain/types';
 import { navigate } from '../../app/router';
-import { addDays, daysBetween, formatWeekday, weekIndexSince, weekdayOf } from '../../engine/dates';
-import { dayTypeFor } from '../../engine/menu';
+import { addDays, daysBetween, formatWeekday, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
+import { dayTypeFor, isMatchEve } from '../../engine/menu';
 import { fiberRampWeek } from '../../engine/nutrition';
 import { STEP_ITEM_ID, reviewWeekFor, weeklyStepStatus } from '../../engine/review';
 import { bedtimeFor, checkInSleepHours, curfewFor } from '../../engine/sleep';
@@ -17,12 +17,11 @@ import {
   dayMinutes,
   gymTotalMin,
   mealSchedule,
-  firstUseOf,
   isSuccessful,
   markableFrom,
   minutesToCurfew,
   physioMinutes,
-  STARTER_SHOPPING_ID,
+  shoppingTarget,
   statusSource,
   type AdherenceSummary,
   type DayItem,
@@ -46,12 +45,15 @@ import { NowCard } from './components/NowCard';
 import { PhysioSheet } from './components/PhysioSheet';
 import { QuickWorkoutSheet } from './components/QuickWorkoutSheet';
 import { CheckInPrompt, CurfewCard, SetupRow, TipCard } from './components/SmallCards';
+import { CALENDAR_TASK_HASH } from '../impostazioni/reminders';
 import { Timeline } from './components/Timeline';
+import { TomorrowSheet } from './components/TomorrowSheet';
 import { TrackersCard } from './components/Trackers';
 import { opensDetail } from './kinds';
 import { FOOTBALL_NOUN, footballPainAdvice } from './painAdvice';
 import { customPainTests } from './painTests';
 import { dayRingValue } from './components/DayHero';
+import { setItemStatusSynced } from './shoppingSync';
 import { useOggi } from './useOggi';
 
 /** La card del coprifuoco compare dalle 20:00: prima la timeline basta. */
@@ -100,6 +102,7 @@ export default function OggiScreen() {
   const [quickGym, setQuickGym] = useState<{ item: DayItem; date: ISODate; session: number } | null>(null);
   const [ritualOpen, setRitualOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [tomorrowOpen, setTomorrowOpen] = useState(false);
   const optionsItem = optionsId ? (items.find((i) => i.id === optionsId) ?? null) : null;
 
   const curfew = curfewFor(today, plan);
@@ -138,10 +141,8 @@ export default function OggiScreen() {
 
   // ── Azioni ──
 
-  const setStatus = useCallback(
-    (item: DayItem, st: ItemStatus | null, note?: string) => useApp.getState().setItemStatus(today, item.id, st, note),
-    [today],
-  );
+  // La spesa segnata qui spunta anche la lista di Settimana (e l'Annulla la rimette com'era).
+  const setStatus = useCallback((item: DayItem, st: ItemStatus | null, note?: string) => setItemStatusSynced(today, item, st, note), [today]);
 
   const lockedUntil = useCallback(
     (item: DayItem): HHMM | null => (canMarkNow(today, item, now, plan) ? null : markableFrom(today, item, plan)),
@@ -232,16 +233,19 @@ export default function OggiScreen() {
     [refuseLocked, status, openQuickGym, setStatus, celebrateIfNeeded, toast],
   );
 
-  const goSettimana = useCallback((tab: 'spesa' | 'preparazione' | 'spesa-avvio') => {
-    // La scheda e la settimana viaggiano nell'hash: Settimana li legge anche se è già aperta.
-    // La preparazione apre subito il lettore a schermo intero; la spesa di avvio è quella di questa settimana.
-    window.location.hash =
-      tab === 'preparazione'
-        ? 'settimana?tab=preparazione&settimana=prossima&guida=1'
-        : tab === 'spesa-avvio'
-          ? 'settimana?tab=spesa&settimana=corrente'
-          : 'settimana?tab=spesa&settimana=prossima';
+  // La scheda e la settimana viaggiano nell'hash: Settimana li legge anche se è già aperta.
+  // La preparazione apre subito il lettore a schermo intero.
+  const goPrep = useCallback(() => {
+    window.location.hash = 'settimana?tab=preparazione&settimana=prossima&guida=1';
   }, []);
+  /** Lista della spesa di una voce, nella settimana delle sue spunte (la spesa di avvio di lunedì, vista domenica, è la prossima). */
+  const openShopping = useCallback(
+    (item: DayItem, date: ISODate = today) => {
+      const week = shoppingTarget(date, state, item)?.weekStart ?? addDays(weekStart(date), 7);
+      window.location.hash = `settimana?tab=spesa&settimana=${week === weekStart(today) ? 'corrente' : 'prossima'}`;
+    },
+    [today, state],
+  );
 
   const openDetail = useCallback(
     (item: DayItem) => {
@@ -262,10 +266,10 @@ export default function OggiScreen() {
           setPhysioOpen(true);
           break;
         case 'spesa':
-          goSettimana(item.id === STARTER_SHOPPING_ID ? 'spesa-avvio' : 'spesa');
+          openShopping(item);
           break;
         case 'preparazione':
-          goSettimana('preparazione');
+          goPrep();
           break;
         case 'revisione':
           setReviewOpen(true);
@@ -274,7 +278,7 @@ export default function OggiScreen() {
           break;
       }
     },
-    [open, today, goSettimana],
+    [open, today, openShopping, goPrep],
   );
 
   const onOptions = useCallback((item: DayItem) => {
@@ -371,7 +375,6 @@ export default function OggiScreen() {
   const startsIn = daysBetween(today, plan.startDate);
   const eyebrow =
     startsIn > 0 && startsIn <= 7 ? `Il piano parte ${startsIn === 1 ? 'domani' : formatWeekday(plan.startDate)}` : week > 0 ? `Settimana ${week} del piano` : undefined;
-  const firstUse = firstUseOf(plan);
 
   // ── Avvisi ──
 
@@ -421,7 +424,8 @@ export default function OggiScreen() {
 
   // Configurazione da completare (esercizi del fisioterapista, dose di un integratore): sotto la timeline, non conta.
   const openSetup = () => {
-    if (data.setup?.kind === 'fisio') setPhysioEditorOpen(true);
+    if (data.setup?.kind === 'calendario') window.location.hash = CALENDAR_TASK_HASH;
+    else if (data.setup?.kind === 'fisio') setPhysioEditorOpen(true);
     else window.location.hash = 'impostazioni?sezione=integratori';
   };
 
@@ -431,24 +435,37 @@ export default function OggiScreen() {
   const optionsSource = optionsItem ? statusSource(today, state, optionsItem) : null;
   // Il suggerimento sui gesti serve finché non si segna la prima voce, poi diventa rumore.
   const newUser = !Object.values(state.dayLogs).some((l) => Object.keys(l?.status ?? {}).length > 0);
-  const preMatch = items.find((i) => i.kind === 'pasto' && i.slot === 'merenda' && i.title.startsWith('Merenda pre-'))?.time;
+  // L'orario della merenda pre-calcio accanto al conto alla rovescia, finché non lo dice già la card Adesso o è segnata.
+  const preMatchItem = items.find((i) => i.kind === 'pasto' && i.slot === 'merenda' && i.title.startsWith('Merenda pre-'));
+  const preMatch = preMatchItem && !status[preMatchItem.id] && data.now?.item.id !== preMatchItem.id ? preMatchItem.time : undefined;
   const yesterday = addDays(today, -1);
 
   // I riflettori seguono lo stesso numero dell'anello: il punteggio della giornata (a giornata riuscita e chiusa, piena luce).
-  const intensity = data.kickoff ? 1 : summary.total ? Math.max(0.12, dayRingValue(summary, successful, data.complete)) : 0.3;
+  // Il primo giorno i riflettori si accendono con un bagliore: il piano è pronto.
+  const intensity = data.welcome ? 0.7 : data.kickoff ? 1 : summary.total ? Math.max(0.12, dayRingValue(summary, successful, data.complete)) : 0.3;
+  const lightFlare = flare ? flare + 1 : data.welcome ? 1 : undefined;
+  // Con la voce che non si segna ancora, la card Adesso guarda avanti: la spesa da fare o la giornata di domani.
+  const pendingShop = data.pendingShopping;
+  const lockedAction = pendingShop
+    ? { kind: 'spesa' as const, onPress: () => openShopping(pendingShop.item, pendingShop.date) }
+    : data.tomorrowItems.length
+      ? { kind: 'domani' as const, onPress: () => setTomorrowOpen(true) }
+      : null;
+  const tomorrow = addDays(today, 1);
 
   return (
     <Screen
       title={fmtDayTitle(today)}
       eyebrow={eyebrow}
-      light={{ intensity, tone: data.dayType, flare: flare || undefined, curfew: curfewIn <= 0 && !data.complete }}
+      light={{ intensity, tone: data.dayType, flare: lightFlare, curfew: curfewIn <= 0 && !data.complete }}
       subtitle={
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <DayTypeBadge
             dayType={data.dayType}
             label={data.matchEve ? 'Vigilia della partita' : undefined}
           />
-          <span className="t-callout font-semibold tabular text-ink-2">{fmtKcal(data.target.kcal)}</span>
+          {/* Prima che il piano parta l'obiettivo del giorno non vale ancora. */}
+          {startsIn <= 0 && <span className="t-callout font-semibold tabular text-ink-2">{fmtKcal(data.target.kcal)}</span>}
           {event &&
             (event.onPress ? (
               <button
@@ -482,7 +499,11 @@ export default function OggiScreen() {
         preMatch={preMatch}
         flare={justCompleted}
         weekAdherence={data.weekAdherence}
-        firstDay={data.firstDay && firstUse ? { time: firstUse.time } : null}
+        welcome={data.welcome}
+        onWelcomeSpot={(spot) => {
+          const it = items.find((i) => i.id === spot.id) ?? data.tomorrowItems.find((i) => i.id === spot.id);
+          if (it?.kind === 'spesa') openShopping(it, spot.tomorrow ? tomorrow : today);
+        }}
       />
 
       {showPain && (
@@ -546,6 +567,7 @@ export default function OggiScreen() {
         bed={bed}
         curfewIn={curfewIn}
         lockedUntil={data.now ? lockedUntil(data.now.item) : null}
+        lockedAction={lockedAction}
         ritual={Boolean(data.now && phonePending && data.now.item.id === phonePending.id && ritualWindow)}
         mealValues={data.planned.bySlot}
         bedItem={data.bedItem}
@@ -640,7 +662,10 @@ export default function OggiScreen() {
         step={step ? { status: step, onToggle: toggleStep } : null}
       />
 
-      <DayValues planned={data.planned} eaten={data.eaten} target={data.target} minimal={data.minimal} />
+      {/* Il primo giorno, a pasti già passati, i valori previsti dal menù non dicono niente. */}
+      {(data.mealsAhead || data.minimal || !data.firstDay) && (
+        <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} />
+      )}
       <TipCard
         date={today}
         dayType={data.dayType}
@@ -740,6 +765,20 @@ export default function OggiScreen() {
         onPhoneOut={(time) => {
           if (!phone) return;
           if (!markDone(phone, { note: `Telefono fuori alle ${time}` })) toast(`Buonanotte. Telefono fuori alle ${time}`, 'good');
+        }}
+      />
+
+      <TomorrowSheet
+        open={tomorrowOpen}
+        date={tomorrow}
+        items={data.tomorrowItems}
+        dayType={dayTypeFor(tomorrow, plan)}
+        matchEve={isMatchEve(tomorrow, plan)}
+        onClose={() => setTomorrowOpen(false)}
+        onShopping={() => {
+          const it = data.tomorrowItems.find((i) => i.kind === 'spesa');
+          setTomorrowOpen(false);
+          if (it) openShopping(it, tomorrow);
         }}
       />
 

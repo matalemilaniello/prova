@@ -6,6 +6,7 @@
 import type { AppData, DayType, FootballKind, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
 import { addDays, addMinutes, hhmmToMin, isISODate, minToHHMM, weekStart, weekdayOf } from '../../engine/dates';
 import type { ShoppingLead } from '../../engine/shopping';
+import { STARTER_FIBER_SHARE } from '../../data/menu';
 import { FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
 
 interface MealSchedule {
@@ -191,16 +192,38 @@ export function dayTypePhrase(t: DayType): string {
   return t === 'calcio' ? 'di calcio' : t === 'palestra' ? 'di palestra' : t === 'leggero' ? 'leggero' : 'di riposo';
 }
 
+/** Le righe che seguono il tipo di giorno (`carbScaled`: pasta, riso, pane, avena, patate, gallette), dette in breve. */
+export const SCALED_FOODS_LABEL = 'Pasta, riso e pane';
+
 /**
- * Quanto cambiano i carboidrati rispetto alla ricetta: "Carboidrati +25% per un giorno di calcio". Il fattore
- * comprende il tipo di giorno e la scala del piano; il riferimento delle ricette è il giorno di palestra, dove la
- * differenza viene solo dagli obiettivi del piano.
+ * Di quanto cambiano le porzioni di pasta, riso e pane rispetto alla ricetta, e perché: "Pasta, riso e pane +25% per
+ * un giorno di calcio". La percentuale è delle righe che si adattano, non dei carboidrati del giorno: alla vigilia le
+ * righe crescono del 65% ma il totale passa da 385 a 425 g, il 10% in più. Per questo non si scrive "Carboidrati +65%".
+ * Il fattore comprende il tipo di giorno e la scala del piano; il riferimento delle ricette è il giorno di palestra,
+ * dove la differenza viene solo dagli obiettivi del piano. Con `floorGPerKg` (partita e vigilia, quando il minimo per
+ * kg alza davvero le porzioni) il motivo è il minimo: "Pasta, riso e pane +65% per arrivare a 6 g di carboidrati per kg".
+ * Con `foods` (la ricetta: i nomi delle righe che si adattano, al massimo tre) la frase nomina proprio quelle: "Riso
+ * basmati +65% per arrivare a 6 g di carboidrati per kg".
  */
-export function portionShort(dayType: DayType, factor: number, matchEve = false): { lead: string; pct: string; tail: string } | null {
+export function portionShort(
+  dayType: DayType,
+  factor: number,
+  matchEve = false,
+  floorGPerKg?: number,
+  foods?: readonly string[],
+): { lead: string; pct: string; tail: string } | null {
   const pct = Math.round(Math.abs(factor - 1) * 100);
   if (!pct) return null;
-  const who = matchEve ? 'per la vigilia della partita' : dayType === 'palestra' ? 'per i tuoi obiettivi' : `per un giorno ${dayTypePhrase(dayType)}`;
-  return { lead: 'Carboidrati ', pct: `${factor > 1 ? '+' : '−'}${fmtNumber(pct)}%`, tail: ` ${who}.` };
+  const who =
+    floorGPerKg && factor > 1
+      ? `per arrivare a ${fmtNumber(floorGPerKg)} g di carboidrati per kg`
+      : matchEve
+        ? 'per la vigilia della partita'
+        : dayType === 'palestra'
+          ? 'per i tuoi obiettivi'
+          : `per un giorno ${dayTypePhrase(dayType)}`;
+  const named = foods && foods.length > 0 && foods.length <= 3 ? listIt(foods.map((f, i) => (i === 0 ? f : lowerFirst(f)))) : null;
+  return { lead: `${named ?? SCALED_FOODS_LABEL} `, pct: `${factor > 1 ? '+' : '−'}${fmtNumber(pct)}%`, tail: ` ${who}.` };
 }
 
 /** Giorno e orario della spesa di avvio (la voce di Oggi), se il motore della timeline la prevede. */
@@ -210,6 +233,16 @@ export function starterShoppingSafe(plan: Plan): { date: ISODate; time: HHMM } |
   } catch {
     return null;
   }
+}
+
+/**
+ * Giorno della spesa per la lista della settimana di `monday` quando non è il sabato prima: la spesa di avvio, se
+ * cade in quella settimana. Da lì si contano i giorni in cui il fresco regge in frigo. Undefined altrimenti (la
+ * lista usa il sabato della prima spesa o il sabato prima del lunedì).
+ */
+export function shoppingDateFor(plan: Plan, monday: ISODate): ISODate | undefined {
+  const s = starterShoppingSafe(plan);
+  return s && weekStart(s.date) === monday ? s.date : undefined;
 }
 
 export interface FirstShoppingInfo {
@@ -285,16 +318,28 @@ const MACRO_TOLERANCE = 0.15;
 const PROTEIN_MAX_EXCESS = 0.25;
 /** Grassi: fino a 15 g sotto l'obiettivo vanno bene (o il 15%, se è di più), come nel controllo del menù. */
 const FAT_SLACK_G = 15;
+/** Fibre: fino a 5 g sotto il riferimento vanno bene, come per la proposta della revisione. */
+const FIBER_SLACK_G = 5;
+
+/**
+ * Riferimento delle fibre per il giorno: l'obiettivo, oppure nei giorni di avvio la quota che il menù di avvio porta
+ * di proposito (`STARTER_FIBER_SHARE`, circa 28 g su 35), perché le fibre salgono per gradi.
+ */
+export function fiberReferenceG(targetFiberG: number, starter: boolean): number {
+  return starter ? Math.round(targetFiberG * STARTER_FIBER_SHARE) : targetFiberG;
+}
 
 /**
  * Giudizio del giorno, con le stesse soglie del controllo del menù (`src/data/menu.test.ts`): "In linea" con kcal
  * entro ±8%, carboidrati entro ±15%, proteine tra −15% e +25% (qualche grammo in più non è un problema) e grassi
- * non oltre 15 g sotto l'obiettivo né oltre il 15% sopra. Altrimenti la voce più lontana dall'obiettivo.
+ * non oltre 15 g sotto l'obiettivo né oltre il 15% sopra; fibre non oltre 5 g sotto il riferimento (`fiberRefG`, di
+ * base l'obiettivo; nei giorni di avvio `fiberReferenceG`). Altrimenti la voce più lontana dall'obiettivo.
  * I grammi si confrontano arrotondati, come si leggono nella card.
  */
 export function dayVerdict(
-  t: { kcal: number; proteinG: number; carbG: number; fatG: number },
-  target: { kcal: number; proteinG: number; carbG: number; fatG: number },
+  t: { kcal: number; proteinG: number; carbG: number; fatG: number; fiberG?: number },
+  target: { kcal: number; proteinG: number; carbG: number; fatG: number; fiberG?: number },
+  fiberRefG?: number,
 ): Verdict {
   const dev = (v: number, ref: number) => (ref > 0 ? Math.round(v) / ref - 1 : 0);
   const k = dev(t.kcal, target.kcal);
@@ -310,5 +355,7 @@ export function dayVerdict(
   });
   const worst = off.filter((m) => m.over > 0).sort((a, b) => b.over - a.over)[0];
   if (worst) return { good: false, text: `${worst.name} ${worst.d > 0 ? 'sopra' : 'sotto'} l’obiettivo` };
+  const fiberRef = fiberRefG ?? target.fiberG;
+  if (t.fiberG !== undefined && fiberRef && Math.round(t.fiberG) < fiberRef - FIBER_SLACK_G) return { good: false, text: 'Fibre sotto l’obiettivo' };
   return { good: true, text: 'In linea con l’obiettivo' };
 }

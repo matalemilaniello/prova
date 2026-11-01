@@ -54,7 +54,7 @@ describe('le prime volte', () => {
     expect(steps[3].detail).toMatch(/^Fine alle 22:30, poi cena di recupero e a letto alle \d\d:\d\d$/);
     expect(steps.at(-1)?.title).toBe('Prima revisione');
     // Senza zone di dolore il controllo non le nomina.
-    expect(firstWeekSteps(p, []).find((s) => s.kind === 'controllo')?.detail).toBe('Peso, sonno ed energia');
+    expect(firstWeekSteps(p, []).find((s) => s.kind === 'controllo')?.detail).toBe('Peso, sonno ed energia, nessuna zona di dolore');
   });
 
   it('dopo l’ora di andare a letto la prima sera non compare', () => {

@@ -2,8 +2,9 @@
  * Scheda Spesa: lista aggregata per reparto dal menù della settimana, con spunte salvate,
  * avanzamento, prodotti da dispensa separati e "Copia lista" (appunti, con ripiego a selezione).
  * Ogni reparto si chiude e mostra solo quello che resta da prendere: i prodotti spuntati scendono nel gruppo
- * "Nel carrello", chiuso di base. Carne e pesce freschi che servono a metà settimana hanno un fiocco sulla riga
- * e una sola nota in fondo al reparto con cosa congelare appena a casa.
+ * "Nel carrello", chiuso di base. Carne e pesce freschi che servono oltre il giorno dopo la spesa (di sabato, o la
+ * spesa di avvio nel giorno in cui cade) hanno un fiocco sulla riga e una sola nota in fondo al reparto con cosa
+ * congelare appena a casa.
  * Nella prima settimana di chi inizia a metà settimana la lista parte dal giorno di inizio.
  * Nei giorni di avvio (niente preparazione della domenica) è la spesa di avvio: lo dicono l'etichetta e la riga sotto
  * il titolo, senza un riquadro in più. I giorni compresi stanno nella stessa riga.
@@ -38,7 +39,7 @@ import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, Card, CheckRow, Disclosure, EmptyState, ProgressRing, Sheet } from '../../ui';
 import { copyText } from './clipboard';
-import { dateSpanText, daysText, lowerFirst } from './helpers';
+import { dateSpanText, daysText, lowerFirst, shoppingDateFor } from './helpers';
 
 /** Icona del reparto. Niente colori dei tipi di giorno: i reparti sono neutri, come le corsie. */
 const CATEGORY_ICON: Record<ShopCategory, LucideIcon> = {
@@ -79,7 +80,9 @@ function spanText(dates: ISODate[], mealCount: number, opts: { lead: boolean; st
 }
 
 export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
-  const list = useMemo(() => shoppingList(weekStart, state, { fromDate, lead }), [weekStart, state, fromDate, lead]);
+  // La spesa di avvio cade quando cade: il fresco si conta da quel giorno, non dal sabato.
+  const shopDate = useMemo(() => shoppingDateFor(state.plan, weekStart), [state.plan, weekStart]);
+  const list = useMemo(() => shoppingList(weekStart, state, { fromDate, lead, shopDate }), [weekStart, state, fromDate, lead, shopDate]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);
   const toast = useUi((s) => s.toast);
@@ -184,22 +187,21 @@ export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, o
       )}
 
 
-      {list.groups.map((g) => (
-        <CategorySection key={g.category} category={g.category} items={g.items} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />
-      ))}
+      {/* I reparti sono una lista sola: tra un reparto e l'altro 16 px, i 24 px restano tra la lista e il resto. */}
+      <div className="flex flex-col gap-4">
+        {list.groups.map((g) => (
+          <CategorySection key={g.category} category={g.category} items={g.items} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />
+        ))}
 
-      {inCart.length > 0 && (
-        <CartSection items={inCart} onToggle={(k) => toggleShopping(weekStart, k)} onReset={reset} />
-      )}
+        {inCart.length > 0 && <CartSection items={inCart} onToggle={(k) => toggleShopping(weekStart, k)} onReset={reset} />}
 
-      {list.pantry.length > 0 && (
-        <PantrySection items={list.pantry} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />
-      )}
+        {list.pantry.length > 0 && <PantrySection items={list.pantry} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />}
+      </div>
 
-      <Disclosure variant="inline" title="Come si calcolano le quantità" className="px-1">
+      <Disclosure variant="inline" tone="quiet" title="Come si calcolano le quantità" className="px-1">
         Dal menù della settimana, con le porzioni di ogni tipo di giorno e le ricette che hai cambiato. Pesi a crudo dove serve,
-        arrotondati per eccesso. Carne e pesce freschi reggono in frigo uno o due giorni: quelli per metà settimana vanno in freezer
-        appena a casa.
+        arrotondati per eccesso. Carne e pesce freschi reggono in frigo uno o due giorni: le porzioni per più avanti vanno in
+        freezer appena a casa.
       </Disclosure>
 
       <CopyFallbackSheet text={fallback} onClose={() => setFallback(null)} />
@@ -313,7 +315,7 @@ function CategorySection({
                   transition={{ duration: 0.2 }}
                   className={i > 0 ? DIVIDER : undefined}
                 >
-                  <CheckRow checked={false} onChange={() => onToggle(item.key)} title={item.name} subtitle={<ItemSubtitle item={item} />} meta={item.amount} tone="good" />
+                  <CheckRow checked={false} onChange={() => onToggle(item.key)} title={item.name} subtitle={itemSubtitle(item, category)} meta={item.amount} tone="good" />
                 </motion.li>
               ))}
             </AnimatePresence>
@@ -390,7 +392,7 @@ function PantrySection({ items, checked, onToggle }: { items: ShoppingItem[]; ch
   );
 }
 
-/** Una sola riga per gruppo: carne e pesce freschi da congelare appena a casa, per i giorni di metà settimana. */
+/** Una sola riga per gruppo: carne e pesce freschi da congelare appena a casa, per i giorni oltre il giorno dopo la spesa. */
 function FreezeNote({ items }: { items: ShoppingItem[] }) {
   if (!items.length) return null;
   const what = items.map((i) => `${lowerFirst(i.name)} per ${listIt((i.freezeDates ?? []).map((d) => WEEKDAY_LONG[weekdayOf(d)]))}`).join('; ');
@@ -402,10 +404,18 @@ function FreezeNote({ items }: { items: ShoppingItem[] }) {
   );
 }
 
-/** Sotto il nome: stato a crudo e giorni; un fiocco per i freschi da congelare in parte (la nota è in fondo al reparto). */
-function ItemSubtitle({ item }: { item: ShoppingItem }) {
-  const line = [item.hint, daysText(item.days)].filter(Boolean).join(' · ').replace(/ /g, ' ');
-  if (!item.freezeDates?.length) return <>{line}</>;
+/** Reparti in cui i giorni d'uso servono davvero al banco: carne e pesce freschi reggono poco in frigo. */
+const DAYS_SHOWN = new Set<ShopCategory>(['Carne e pesce']);
+
+/**
+ * Sotto il nome: lo stato a crudo o la confezione e, solo per i freschi che reggono poco, i giorni; un fiocco per quelli
+ * da congelare in parte (la nota è in fondo al reparto). Per il resto basta il nome con la quantità: i giorni sono nel menù.
+ */
+function itemSubtitle(item: ShoppingItem, category: ShopCategory): ReactNode {
+  const days = DAYS_SHOWN.has(category) || item.freezeDates?.length ? daysText(item.days) : '';
+  const line = [item.hint, days].filter(Boolean).join(' · ').replace(/ /g, ' ');
+  if (!line) return undefined;
+  if (!item.freezeDates?.length) return line;
   return (
     <span className="inline-flex items-center gap-1.5">
       <span>{line}</span>

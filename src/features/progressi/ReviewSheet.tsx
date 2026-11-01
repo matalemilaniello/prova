@@ -336,7 +336,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
           </dl>
         </Card>
         {mealsReady && s.mealsCounted > 0 && (
-          <Disclosure variant="inline" title="Come si stimano fibre e proteine" className="mt-2 px-1">
+          <Disclosure variant="inline" tone="quiet" title="Come si stimano fibre e proteine" className="mt-2 px-1">
             Da {s.mealsLogged} pasti segnati su {s.mealsCounted}: un pasto fatto vale la ricetta del menù
             {s.mealsAtBar > 0 ? `, ${s.mealsAtBar === 1 ? 'quello preso' : `i ${s.mealsAtBar} presi`} al bar i valori dell’ordine` : ', uno preso al bar i valori dell’ordine'}, uno
             sostituito con altro metà del pasto previsto, uno saltato niente. Contano i giorni con almeno 3 pasti segnati su 5.
@@ -352,7 +352,7 @@ function Report({ s, days, goal, threshold }: { s: WeekStats; days: CalendarDay[
 function VotesStep({ votes, setVotes, energyAvg }: { votes: Partial<Votes>; setVotes: (fn: (v: Partial<Votes>) => Partial<Votes>) => void; energyAvg: number | null }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="t-callout text-pretty text-ink-2">Da 1 a 10, d’istinto: come è andata, non come doveva andare.</p>
+      <p className="t-callout text-pretty text-ink-2">Da 1 a 10, d’istinto: com’è andata, non come doveva andare.</p>
       <Card className="flex flex-col gap-5">
         {VOTE_FIELDS.map((f, i) => (
           <div key={f.key} className={i > 0 ? 'border-t border-line pt-5' : undefined}>
@@ -367,6 +367,8 @@ function VotesStep({ votes, setVotes, energyAvg }: { votes: Partial<Votes>; setV
               highLabel={f.high}
               ghost={f.key === 'energia' && energyAvg !== null ? energyAvg : undefined}
               ghostLabel="media del mattino"
+              // L'invito a toccare la linea basta una volta, sul primo voto: ripetuto quattro volte era rumore.
+              placeholder={i === 0 ? undefined : ''}
             />
             {f.key === 'energia' && energyAvg !== null && (
               <p className="t-caption mt-1.5 text-ink-3">Il cerchio vuoto è la media dei controlli del mattino: {fmtNumber(energyAvg, 1, true)}.</p>

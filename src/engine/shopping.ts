@@ -18,10 +18,11 @@
  * mangia come un giorno di calcio) e scala del piano (`dayCarbScale`). Con `checkIns` e `profile` nello stato il
  * minimo di carboidrati di partita e vigilia usa il peso recente, come nelle altre schermate.
  *
- * Conservazione: la spesa si fa nel fine settimana. Carne e pesce freschi da crudi reggono in frigo
- * 1-2 giorni; se un pasto cucinato sul momento li usa da mercoledì in poi, la voce porta una nota che dice
- * di congelare quelle porzioni (`note`, `freezeDates`). Ciò che si cuoce nella preparazione della domenica
- * non conta: lì si cucina subito e si conserva cotto.
+ * Conservazione: carne e pesce freschi da crudi reggono in frigo 1-2 giorni. Si contano dal giorno della spesa
+ * (`shopDate`: il sabato prima del lunedì, il sabato della prima spesa con `lead`, il giorno della spesa di avvio):
+ * se un pasto cucinato sul momento li usa oltre il giorno dopo la spesa (`FRESH_DAYS`), la voce porta una nota che
+ * dice di congelare quelle porzioni appena a casa (`note`, `freezeDates`). Ciò che si cuoce nella preparazione della
+ * domenica non conta: lì si cucina subito e si conserva cotto.
  *
  * Con `fromDate` la lista parte da quel giorno (la prima settimana di chi inizia a metà settimana).
  * Con `lead` comprende anche i giorni del fine settimana prima del lunedì: chi comincia il venerdì sera o il
@@ -116,6 +117,8 @@ export interface ShoppingList {
   leadDates: ISODate[];
   /** True se tutti i giorni con pasti sono di avvio: è la spesa di avvio. */
   starter: boolean;
+  /** Giorno della spesa da cui si contano i giorni di frigo dei freschi (vedi `ShoppingOptions.shopDate`). */
+  shopDate?: ISODate;
 }
 
 export interface ShoppingOptions {
@@ -128,6 +131,12 @@ export interface ShoppingOptions {
    * prima spesa) alla domenica, tranne i pasti `skipSlots` di quel giorno (vengono prima della spesa).
    */
   lead?: ShoppingLead;
+  /**
+   * Giorno in cui si fa la spesa: carne e pesce freschi per i pasti oltre il giorno dopo vanno in freezer. Senza, il
+   * sabato del `lead`; per la spesa di avvio il primo giorno di avvio della lista; altrimenti il sabato prima del lunedì.
+   * Per la spesa di avvio conviene passarlo (`starterShopping(plan).date`): può cadere il giorno dopo il primo avvio.
+   */
+  shopDate?: ISODate;
 }
 
 export interface ShoppingLead {
@@ -329,8 +338,24 @@ export function shoppingQuantity(food: Food | undefined, buyG: number): ShopQuan
 /** Carne e pesce freschi, al banco o in vaschetta: da crudi 1-2 giorni in frigo. */
 const PERISHABLE = new Set(['pollo', 'tacchino', 'manzo', 'salmone']);
 
-/** Ultimo giorno della settimana (0 = lunedì) in cui il fresco comprato nel weekend si cucina senza congelarlo. */
-export const FRESH_LAST_WEEKDAY = 1;
+/**
+ * Giorni dopo la spesa in cui carne e pesce freschi da crudi si cucinano senza congelarli: il giorno stesso e quello
+ * dopo (in frigo reggono 1-2 giorni). Comprati mercoledì, vanno in freezer quelli da venerdì in poi; comprati sabato,
+ * quelli da lunedì in poi.
+ */
+export const FRESH_DAYS = 1;
+
+/** Giorno della spesa quando non è indicato: il sabato del `lead`, il primo giorno di avvio, il sabato prima del lunedì. */
+export function defaultShopDate(monday: ISODate, opts: { lead?: ShoppingLead; starterDates?: readonly ISODate[]; starter?: boolean } = {}): ISODate {
+  if (opts.lead && opts.lead.date < monday) return opts.lead.date;
+  if (opts.starter && opts.starterDates?.length) return opts.starterDates[0];
+  return addDays(monday, -2);
+}
+
+/** Ultimo giorno in cui il fresco comprato `shopDate` si cucina senza passare dal freezer. */
+export function freshUntil(shopDate: ISODate): ISODate {
+  return addDays(shopDate, FRESH_DAYS);
+}
 
 /** True per carne e pesce freschi (non confezionati a lunga conservazione, non surgelati). */
 export function isPerishable(food: Pick<Food, 'id' | 'category' | 'buyLabel' | 'pantry'>): boolean {
@@ -398,6 +423,10 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
     }
   }
 
+  const starter = mealDays > 0 && starterDates.length >= mealDays;
+  const shopDate = opts.shopDate ?? defaultShopDate(monday, { lead, starterDates, starter });
+  const freshLast = freshUntil(shopDate);
+
   const all: ShoppingItem[] = [];
   for (const [foodId, { eaten, uses }] of acc) {
     const food = foods[foodId];
@@ -418,8 +447,8 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
       days: [...new Set(uses.map((u) => u.date))].sort(),
     };
     if (isPerishable(food)) {
-      // I giorni del fine settimana prima del lunedì seguono la spesa: niente da congelare.
-      const late = uses.filter((u) => !u.ahead && u.date >= monday && weekdayOf(u.date) > FRESH_LAST_WEEKDAY);
+      // Il fresco regge in frigo fino al giorno dopo la spesa: le porzioni per i giorni seguenti vanno in freezer.
+      const late = uses.filter((u) => !u.ahead && u.date > freshLast);
       const lateDates = [...new Set(late.map((u) => u.date))].sort();
       if (lateDates.length) {
         const lateBuyG = late.reduce((a, u) => a + u.grams, 0) * (food.buyFactor ?? 1);
@@ -451,7 +480,8 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
     dates,
     starterDates,
     leadDates,
-    starter: mealDays > 0 && starterDates.length >= mealDays,
+    starter,
+    shopDate,
   };
 }
 

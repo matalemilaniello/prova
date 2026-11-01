@@ -12,7 +12,7 @@ import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
 import { formatRelativeDay, weekdayOf } from '../../engine/dates';
 import { mealsForDate, swapOptions } from '../../engine/menu';
-import { dayCarbScale, dayTargetFor, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
+import { dayCarbScale, dayTargetFor, matchCarbs, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber, fmtPercent, listIt } from '../../lib/format';
 import { useApp } from '../../state/store';
@@ -65,6 +65,11 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
   const colorType = meals.scheduledDayType;
   const scale = useMemo(() => dayCarbScale(date, nutrition), [date, nutrition]);
   const targetKcal = useMemo(() => dayTargetFor(date, nutrition)?.kcal ?? 0, [date, nutrition]);
+  // Partita e vigilia: il minimo per kg, solo quando alza davvero le porzioni (come nel Menù).
+  const floor = useMemo(() => {
+    const m = matchCarbs(date, nutrition);
+    return m?.extraG ? m.gPerKg : undefined;
+  }, [date, nutrition]);
   const schedule = mealScheduleFor(date, plan);
   const slotTitle = slotEff ? schedule[slotEff]?.title : undefined;
   const previewing = Boolean(slotEff && currentId && viewId !== currentId);
@@ -140,7 +145,7 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
 
         <Hero recipe={recipe} dayType={colorType} label={meals.matchEve ? 'Vigilia della partita' : undefined} sunday={weekdayOf(date) === 6} />
         <Values recipe={recipe} dayType={dayType} scale={scale} targetKcal={targetKcal} />
-        <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} />
+        <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} floor={floor} />
         <Steps recipe={recipe} />
         {slotEff && entry && (
           <Alternatives
@@ -238,17 +243,22 @@ function Ingredients({
   colorType,
   scale,
   matchEve,
+  floor,
 }: {
   recipe: Recipe;
   dayType: DayType;
   colorType: DayType;
   scale: number;
   matchEve: boolean;
+  /** Minimo di carboidrati per kg di partita e vigilia, quando alza le porzioni. */
+  floor?: number;
 }) {
   const factor = totalCarbFactor(dayType, scale);
   const units = [...new Set(recipe.ingredients.map((l) => HAND_HELP[l.unit]).filter((x): x is string => Boolean(x)))];
   const hasScaled = recipe.ingredients.some((l) => l.carbScaled) && factor !== 1;
-  const sentence = hasScaled ? portionShort(dayType, factor, matchEve) : null;
+  // Nomina le righe che cambiano in questa ricetta ("Riso basmati +65%…"), non i carboidrati del giorno.
+  const scaledNames = [...new Set(recipe.ingredients.filter((l) => l.carbScaled).map((l) => (FOODS[l.foodId] ? shopName(FOODS[l.foodId]) : l.foodId)))];
+  const sentence = hasScaled ? portionShort(dayType, factor, matchEve, floor, scaledNames) : null;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-ingredienti">
       <SectionTitle
@@ -303,7 +313,7 @@ function Ingredients({
         </ul>
       </Card>
       {units.length > 0 && (
-        <Disclosure variant="inline" title="Come misurare a occhio" className="px-1">
+        <Disclosure variant="inline" tone="quiet" title="Come misurare a occhio" className="px-1">
           Con la tua mano: {listIt(units)}. I grammi accanto servono a controllare con la bilancia le prime volte.
         </Disclosure>
       )}

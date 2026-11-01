@@ -135,9 +135,10 @@ const lowerFirst = (s: string) => (s.length > 1 && s[1] === s[1].toLowerCase() ?
 
 /**
  * Al posto della barra di scrittura nell'anteprima: la rete esterna è bloccata, come in Messaggi quando
- * non si può rispondere. Il piano B al bar resta a un tocco.
+ * non si può rispondere. Il piano B al bar resta a un tocco con la tazza in alto a sinistra, un solo accesso.
+ * `onBarPlan` resta nella firma per chi la usa già.
  */
-export function PreviewStrip({ onBarPlan }: { onBarPlan: () => void }) {
+export function PreviewStrip(_props: { onBarPlan?: () => void }) {
   return (
     <div
       className="flex items-center gap-3 py-3"
@@ -150,9 +151,6 @@ export function PreviewStrip({ onBarPlan }: { onBarPlan: () => void }) {
         <p className="t-callout font-semibold text-ink">Anteprima senza rete</p>
         <p className="t-caption text-ink-2">Il coach risponde nell’app installata.</p>
       </div>
-      <Button size="sm" variant="secondary" icon={Coffee} onClick={onBarPlan}>
-        Piano B
-      </Button>
     </div>
   );
 }

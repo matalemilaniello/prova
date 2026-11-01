@@ -72,7 +72,8 @@ export function firstWeekSteps(plan: Plan, painSites: readonly string[] = []): F
           break;
         case 'controllo':
           if (!seen.has('controllo')) {
-            add(d, it, 'controllo', 'Controllo del mattino', painSites.length ? 'Peso, sonno, dolori ed energia' : 'Peso, sonno ed energia');
+            // Senza zone di dolore lo dice qui, dove si vede cosa chiederà il controllo.
+            add(d, it, 'controllo', 'Controllo del mattino', painSites.length ? 'Peso, sonno, dolori ed energia' : 'Peso, sonno ed energia, nessuna zona di dolore');
           }
           break;
         case 'spesa':

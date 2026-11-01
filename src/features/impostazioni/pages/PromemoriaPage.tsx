@@ -4,32 +4,20 @@
  * dice che il file va aggiornato. La scelta resta su questo dispositivo.
  */
 import { useMemo, useState } from 'react';
-import { CalendarCheck2, CalendarPlus, Check, ClipboardCheck, Coffee, Copy, Download, Dumbbell, HeartPulse, RefreshCw, Share, Smartphone, UtensilsCrossed } from 'lucide-react';
-import { IS_PREVIEW, isStandalone } from '../../../app/env';
+import { CalendarPlus, Check, Copy, Download, RefreshCw, Share } from 'lucide-react';
+import { IS_PREVIEW } from '../../../app/env';
 import { addMinutes } from '../../../engine/dates';
-import { ICS_FILE_NAME, REMINDER_KINDS, REMINDER_LABEL, reminderEvents, remindersIcs, type ReminderEvent, type ReminderKind } from '../../../engine/ics';
-import { canShareFiles, copyText, downloadText, shareText } from '../../../lib/backup';
+import { REMINDER_KINDS, REMINDER_LABEL, reminderEvents, type ReminderEvent, type ReminderKind } from '../../../engine/ics';
 import { WEEKDAY_SHORT, fmtDateLong, listIt } from '../../../lib/format';
-import { haptic } from '../../../lib/haptics';
 import { usePlanDay } from '../../../state/hooks';
-import { useApp, useUi } from '../../../state/store';
-import { Button, Callout, Card, Disclosure, NumberTicker, Pill, Sheet, TextArea, type AnyTone } from '../../../ui';
+import { useApp } from '../../../state/store';
+import { Button, Callout, Card, Disclosure, NumberTicker, Pill } from '../../../ui';
 import { SelectRow, tileStyle } from '../components/controls';
-import { useClosingSheet } from '../components/SupplementEditor';
-import { saveCalendarFile, saveReminderKinds, useCalendarStatus, useReminderPrefs } from '../reminders';
+import { ManualCopySheet } from '../components/ManualCopySheet';
+import { KIND_ICON } from '../components/reminderIcons';
+import { saveReminderKinds, useCalendarStatus, useReminderPrefs } from '../reminders';
+import { useCalendarDelivery } from '../useCalendarDelivery';
 import { Page, type PageProps } from './Page';
-
-const MIME = 'text/calendar;charset=utf-8';
-
-const KIND_ICON: Record<ReminderKind, { icon: typeof Coffee; tone: AnyTone }> = {
-  controllo: { icon: ClipboardCheck, tone: 'good' },
-  colazione: { icon: Coffee, tone: 'accent' },
-  pranzo: { icon: UtensilsCrossed, tone: 'palestra' },
-  palestra: { icon: Dumbbell, tone: 'palestra' },
-  fisio: { icon: HeartPulse, tone: 'leggero' },
-  coprifuoco: { icon: Smartphone, tone: 'riposo' },
-  revisione: { icon: CalendarCheck2, tone: 'good' },
-};
 
 /** Solo gli eventi di questa settimana (il primo gradino della scala del sonno). */
 const thisWeek = (events: ReminderEvent[]) => events.filter((e) => !e.stage || e.stage.index === 0);
@@ -52,18 +40,16 @@ const weeklyAlerts = (events: ReminderEvent[]) => thisWeek(events).reduce((n, e)
 export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
+  const reviews = useApp((s) => s.reviews);
   const { kinds } = useReminderPrefs();
   const today = usePlanDay();
-  const [manual, setManual] = useState<string | null>(null);
-  const shareable = useMemo(() => !IS_PREVIEW && canShareFiles(), []);
-  // Su iPhone, nell'app installata, il download di un file spesso non apre niente: meglio il foglio Condividi.
-  const shareFirst = useMemo(() => shareable && isStandalone(), [shareable]);
+  const state = useMemo(() => ({ plan, physio, reviews }), [plan, physio, reviews]);
 
   const byKind = useMemo(() => {
     const out = {} as Record<ReminderKind, ReminderEvent[]>;
-    for (const k of REMINDER_KINDS) out[k] = reminderEvents({ plan, physio }, [k], today);
+    for (const k of REMINDER_KINDS) out[k] = reminderEvents(state, [k], today);
     return out;
-  }, [plan, physio, today]);
+  }, [state, today]);
   const available = useMemo(() => kinds.filter((k) => byKind[k].length > 0), [kinds, byKind]);
   const perWeek = available.reduce((n, k) => n + weeklyAlerts(byKind[k]), 0);
   const status = useCalendarStatus(available);
@@ -71,39 +57,18 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
   const targetCurfew = addMinutes(plan.sleep.target, -plan.sleep.curfewLeadMin);
   const noPhysio = physio.prescriptions.length === 0 && plan.week.some((d) => d.physio);
 
-  const toast = useUi.getState().toast;
-  const build = () => remindersIcs({ plan, physio }, available, { start: today, now: new Date() });
   // Le istruzioni stanno dietro un tocco; quando il file è appena uscito si aprono da sole, è il momento in cui servono.
   const [howOpen, setHowOpen] = useState(false);
-  const delivered = (message: string) => {
-    saveCalendarFile({ plan, physio }, available, today);
-    haptic('success');
-    toast(message, 'good');
-    setHowOpen(true);
-  };
+  const { mode, shareable, copy, download, share, manual, closeManual } = useCalendarDelivery({
+    state,
+    kinds: available,
+    today,
+    onDelivered: () => setHowOpen(true),
+  });
+  // Su iPhone, nell'app installata, il download di un file spesso non apre niente: meglio il foglio Condividi.
+  const shareFirst = mode === 'condividi';
 
   const setKind = (k: ReminderKind, on: boolean) => saveReminderKinds(on ? [...kinds, k] : kinds.filter((x) => x !== k));
-
-  const copy = async () => {
-    if (!available.length) return;
-    const text = build();
-    if (await copyText(text)) delivered('Calendario copiato negli appunti');
-    else setManual(text);
-  };
-
-  const download = async () => {
-    if (!available.length) return;
-    if (IS_PREVIEW) return copy();
-    if (downloadText(ICS_FILE_NAME, build(), MIME)) delivered('Calendario scaricato: aprilo per aggiungere gli eventi');
-    else await copy();
-  };
-
-  const share = async () => {
-    if (!available.length) return;
-    const res = await shareText(ICS_FILE_NAME, build(), MIME, 'Promemoria di Ritmo');
-    if (res === 'condiviso') delivered('Calendario condiviso: aprilo per aggiungere gli eventi');
-    else if (res === 'non-disponibile') await download();
-  };
 
   const stale = status.state === 'da-aggiornare';
   const none = !available.length;
@@ -251,7 +216,7 @@ export default function PromemoriaPage({ onBack, open, backLabel }: PageProps) {
         </Disclosure>
       </Card>
 
-      {manual !== null && <ManualCopySheet text={manual} onClosed={() => setManual(null)} />}
+      {manual !== null && <ManualCopySheet text={manual} onClosed={closeManual} />}
     </Page>
   );
 }
@@ -261,12 +226,5 @@ function shortDate(iso: string): string {
   return fmtDateLong(iso).replace(/^\S+\s/, '');
 }
 
-/** Quando gli appunti non sono disponibili: il testo da selezionare e copiare a mano. */
-export function ManualCopySheet({ text, onClosed, title = 'Copia a mano' }: { text: string; onClosed: () => void; title?: string }) {
-  const [open, close] = useClosingSheet(onClosed);
-  return (
-    <Sheet open={open} onClose={close} size="large" title={title} subtitle="Gli appunti non sono disponibili qui. Tieni premuto sul testo, scegli Seleziona tutto e poi Copia.">
-      <TextArea value={text} onChange={() => undefined} readOnly rows={16} className="selectable font-mono text-[0.75rem]" aria-label="Testo da copiare" onFocus={(e) => e.currentTarget.select()} />
-    </Sheet>
-  );
-}
+/** Spostato in components/ManualCopySheet: resta esportato da qui per chi lo importa ancora da questa pagina. */
+export { ManualCopySheet };

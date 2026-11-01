@@ -15,7 +15,7 @@ import { DAY_TYPE_LABEL, fmtNumber, listIt, MEAL_SLOT_LABEL } from '../../lib/fo
 import { haptic } from '../../lib/haptics';
 import { useNowHHMM, useNutritionState, useToday } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Button, Card, cn, DayTypeBadge, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneSoft, type AnyTone } from '../../ui';
+import { Button, Card, cn, DayTypeBadge, Disclosure, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneSoft, type AnyTone } from '../../ui';
 import { barCombo, barContext, barOrder, fitCombo, lowerFirst, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
 
 const VERDICT_STYLE: Record<BarOption['verdict'], { tone: AnyTone; icon: LucideIcon }> = {
@@ -234,7 +234,10 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
                       </li>
                     ))}
                   </ul>
-                  <p className="t-footnote mt-2.5 text-ink-2">{combo.why}</p>
+                  {/* Il perché della combinazione dietro un tocco: in vista restano cosa ordinare e i numeri. */}
+                  <Disclosure variant="inline" tone="quiet" title="Perché" className="mt-2">
+                    {combo.why}
+                  </Disclosure>
                   <div className="mt-4 flex items-end justify-between gap-3 border-t border-line pt-3.5">
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

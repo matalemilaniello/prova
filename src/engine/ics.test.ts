@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { AppData, Plan } from '../domain/types';
+import type { AppData, ISODate, Plan } from '../domain/types';
 import { defaultPlan } from '../data/defaults';
+import { addDays, weekdayOf } from './dates';
+import { curfewFor } from './sleep';
 import {
   BYDAY,
   bedtimeStages,
   buildIcs,
+  calendarFileRecord,
   calendarSignature,
   calendarStatus,
   escapeText,
@@ -17,6 +20,7 @@ import {
   remindersIcs,
   romeOffsetMin,
   romeToUtcStamp,
+  sleepStairOrigin,
   stageBedtime,
   unfold,
   utcStamp,
@@ -374,5 +378,76 @@ describe('scala del sonno e stato del file nel calendario', () => {
   it('senza coprifuoco né integratori della sera l’orario a letto non conta', () => {
     const f2: CalendarFileRecord = { ...file, kinds: ['controllo'], sig: calendarSignature(base, ['controllo']) };
     expect(calendarStatus(f2, withBed('00:00'), '2026-11-05').state).toBe('aggiornato');
+  });
+});
+
+describe('benvenuto di domenica, piano dal lunedì', () => {
+  // Benvenuto finito domenica 1 novembre alle 20:00: il piano parte lunedì 2, prima revisione domenica 8.
+  const SUNDAY = '2026-11-01';
+  const plan: Plan = { ...defaultPlan('2026-11-02'), firstUse: { date: SUNDAY, time: '20:00' } };
+  const st = { plan };
+  const kinds = ['controllo', 'coprifuoco', 'revisione'] as const;
+
+  /** Orario del coprifuoco che il calendario fa suonare per la sera `evening` (giornata del piano). */
+  function calendarCurfew(events: ReminderEvent[], evening: ISODate, start: ISODate): string | undefined {
+    const wd = weekdayOf(evening);
+    const hits = events.filter((e) => {
+      if (!(e.planDays ?? e.days).includes(wd)) return false;
+      const ring = e.planDays ? addDays(evening, 1) : evening;
+      const from = e.from && e.from > start ? e.from : start;
+      if (ring < from) return false;
+      return !e.until || localStamp(ring, e.time) <= localStamp(e.until.date, e.until.time);
+    });
+    expect(hits.length).toBeLessThanOrEqual(1);
+    return hits[0]?.time;
+  }
+
+  it('la scala parte dalla prima settimana del piano, non da quella del file', () => {
+    expect(sleepStairOrigin(plan, SUNDAY)).toBe('2026-11-02');
+    // Piano già avviato: la settimana del file.
+    expect(sleepStairOrigin(plan, '2026-11-11')).toBe('2026-11-09');
+    // Domenica con la revisione della settimana già salvata: il passo dopo arriva con la prossima revisione.
+    expect(sleepStairOrigin(plan, '2026-11-08', [{ weekStart: '2026-11-02' }])).toBe('2026-11-09');
+    expect(sleepStairOrigin(plan, '2026-11-08')).toBe('2026-11-02');
+  });
+
+  it('il coprifuoco della prima settimana è quello di Oggi, sera per sera', () => {
+    const events = reminderEvents(st, ['coprifuoco'], SUNDAY);
+    // Stasera e tutta la settimana 1: l'orario di partenza (a letto 00:45, telefono fuori alle 00:15).
+    for (let d = SUNDAY; d <= '2026-11-08'; d = addDays(d, 1)) expect(calendarCurfew(events, d, SUNDAY)).toBe(curfewFor(d, plan));
+    // Settimana 2, dopo la prima revisione accettata: un passo prima.
+    const week2: Plan = { ...plan, sleep: { ...plan.sleep, current: '00:30' } };
+    for (let d = '2026-11-09'; d <= '2026-11-15'; d = addDays(d, 1)) expect(calendarCurfew(events, d, SUNDAY)).toBe(curfewFor(d, week2));
+  });
+
+  it('nel file il primo gradino arriva alla notte di domenica 8, il secondo parte dalla notte di lunedì 9', () => {
+    const steps = vevents(remindersIcs(st, ['coprifuoco'], { start: SUNDAY, now: NOW })).filter((e) => !/-(mo|we)-g/.test(e.UID));
+    expect(steps[0]['DTSTART;TZID=Europe/Rome']).toBe('20261102T001500');
+    expect(steps[0].RRULE).toContain('UNTIL=20261109T044400Z');
+    expect(steps[1]['DTSTART;TZID=Europe/Rome']).toBe('20261110T000000');
+  });
+
+  it('lo stato resta aggiornato lungo la prima settimana e oltre, se la revisione anticipa', () => {
+    const file = calendarFileRecord(st, [...kinds], SUNDAY);
+    expect(file.origin).toBe('2026-11-02');
+    for (const today of ['2026-11-01', '2026-11-02', '2026-11-04', '2026-11-08']) expect(calendarStatus(file, st, today).state).toBe('aggiornato');
+    const review = { weekStart: '2026-11-02', votes: { energia: 7, digestione: 7, umore: 7, campo: 7 }, acceptedProposals: [] };
+    const after = { plan: { ...plan, sleep: { ...plan.sleep, current: '00:30' } }, reviews: [review] };
+    expect(calendarStatus(file, after, '2026-11-08').state).toBe('aggiornato');
+    expect(calendarStatus(file, after, '2026-11-11').state).toBe('aggiornato');
+    // La revisione non ha anticipato: il calendario è avanti.
+    expect(calendarStatus(file, { plan, reviews: [review] }, '2026-11-11')).toMatchObject({ state: 'da-aggiornare', reason: 'sonno', bed: '00:30' });
+  });
+
+  it('un file con la scala dalla settimana di creazione diventa da aggiornare quando le due scale divergono', () => {
+    // Com'erano i file prima: scala contata dalla settimana del 26 ottobre, quindi già al secondo gradino lunedì 2.
+    const { origin: _origin, ...legacy } = calendarFileRecord(st, [...kinds], SUNDAY);
+    void _origin;
+    expect(stageBedtime(legacy.sleep, legacy.at, '2026-11-02')).toBe('00:30');
+    // Stasera le due scale coincidono ancora.
+    expect(calendarStatus(legacy, st, SUNDAY).state).toBe('aggiornato');
+    for (const today of ['2026-11-02', '2026-11-04']) {
+      expect(calendarStatus(legacy, st, today)).toMatchObject({ state: 'da-aggiornare', reason: 'sonno', bed: '00:30' });
+    }
   });
 });

@@ -11,7 +11,6 @@ import {
   dayNutrition,
   dayNutritionDetail,
   dayTargetFor,
-  fiberRampFactor,
   fiberRampWeek,
   formatPortion,
   lineQty,
@@ -22,13 +21,16 @@ import {
   referenceWeightKg,
   totalCarbFactor,
   lineGrams,
+  PIECE_WORDS,
   portionParts,
+  portionWithName,
   portionWords,
   recipeNutrition,
   recipeVegPortions,
   roundGrams,
   roundHalf,
   UNIT_WORDS,
+  WHOLE_PIECES,
 } from './nutrition';
 import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
 
@@ -219,16 +221,111 @@ describe('porzioni a occhio', () => {
   });
 });
 
+describe('porzioni a pezzi: il nome dell’alimento al posto di "pezzo"', () => {
+  it('sostantivo, genere e articolo dell’alimento', () => {
+    expect(portionWords(1, 'pezzo', 'banana')).toBe('una banana');
+    expect(portionWords(0.5, 'pezzo', 'banana')).toBe('mezza banana');
+    expect(portionWords(0.5, 'pezzo', 'limone')).toBe('mezzo limone');
+    expect(portionWords(0.5, 'pezzo', 'carote')).toBe('mezza carota');
+    expect(portionWords(0.5, 'pezzo', 'cipolla-rossa')).toBe('mezza cipolla');
+    expect(portionWords(0.5, 'pezzo', 'cetriolo')).toBe('mezzo cetriolo');
+    expect(portionWords(2, 'pezzo', 'uova')).toBe('2 uova');
+    expect(portionWords(1, 'pezzo', 'uova')).toBe('un uovo');
+    expect(portionWords(1, 'pezzo', 'arancia')).toBe('un’arancia');
+    expect(portionWords(1, 'pezzo', 'aglio')).toBe('uno spicchio');
+    expect(portionWords(2, 'pezzo', 'clementine')).toBe('2 clementine');
+    expect(portionWords(1.5, 'pezzo', 'piadina-integrale')).toBe('una piadina e mezza');
+    // Senza l'id dell'alimento resta l'unità generica.
+    expect(portionWords(1, 'pezzo')).toBe('1 pezzo');
+  });
+
+  it('gallette, quadretti e frutta secca si contano a unità intere', () => {
+    expect(WHOLE_PIECES.has('gallette-riso')).toBe(true);
+    expect(WHOLE_PIECES.has('cioccolato-fondente')).toBe(true);
+    expect(portionPhrase(6.5, 'pezzo', 'gallette-riso')).toBe('7 gallette');
+    expect(portionPhrase(3.5, 'pezzo', 'gallette-riso')).toBe('quasi 4 gallette');
+    expect(portionPhrase(3.4, 'pezzo', 'gallette-riso')).toBe('3 gallette abbondanti');
+    expect(portionPhrase(1.2, 'pezzo', 'gallette-riso')).toBe('una galletta abbondante');
+    expect(portionPhrase(2, 'pezzo', 'cioccolato-fondente')).toBe('2 quadretti');
+    expect(portionPhrase(2.4, 'pezzo', 'datteri')).toBe('2 datteri abbondanti');
+    expect(portionPhrase(2.5, 'pezzo', 'datteri')).toBe('quasi 3 datteri');
+    expect(portionPhrase(0.3, 'pezzo', 'gallette-riso')).toBe('meno di una galletta');
+    expect(portionWords(0.5, 'pezzo', 'gallette-riso')).toBe('una galletta');
+  });
+
+  it('la frase con il nome: "7 gallette di riso", "quasi una piadina integrale e mezza", "mezzo limone"', () => {
+    const gallette: IngredientLine = { foodId: 'gallette-riso', qty: 4, unit: 'pezzo', carbScaled: true };
+    const p = portionParts(gallette, 'calcio', FOODS, 1.3);
+    expect(p.portion).toBe('7 gallette');
+    expect(p.named).toBe('7 gallette di riso');
+    expect(p.text).toBe('7 gallette · ≈ 50 g');
+    expect(portionWithName(p, 'gallette di riso')).toBe('7 gallette di riso');
+    const piadina = portionParts({ foodId: 'piadina-integrale', qty: 1, unit: 'pezzo', carbScaled: true }, 'calcio', FOODS, 1.04);
+    expect(piadina.portion).toBe('quasi una piadina e mezza');
+    expect(piadina.named).toBe('quasi una piadina integrale e mezza');
+    const limone = portionParts({ foodId: 'limone', qty: 0.5, unit: 'pezzo' }, 'palestra', FOODS);
+    expect(limone.portion).toBe('mezzo limone');
+    expect(portionWithName(limone, 'limone')).toBe('mezzo limone');
+    // "abbondante" e "e mezzo" stanno sulla misura, il complemento chiude: "un cucchiaio abbondante di olio".
+    const poche = portionParts({ foodId: 'gallette-riso', qty: 2, unit: 'pezzo', carbScaled: true }, 'calcio', FOODS, 0.96);
+    expect(poche.named).toBe('2 gallette abbondanti di riso');
+    expect(portionParts({ foodId: 'sgombro', qty: 1.5, unit: 'pezzo' }, 'palestra', FOODS).named).toBe('una scatoletta e mezza di sgombro');
+    expect(portionParts({ foodId: 'aglio', qty: 1, unit: 'pezzo' }, 'palestra', FOODS).named).toBe('uno spicchio d’aglio');
+    expect(portionParts({ foodId: 'cipolla-rossa', qty: 0.5, unit: 'pezzo' }, 'palestra', FOODS).named).toBe('mezza cipolla rossa');
+    // Le altre unità aggiungono il nome dopo "di".
+    const pasta = portionParts({ foodId: 'pasta', qty: 2, unit: 'pugno', carbScaled: true }, 'calcio', FOODS, 1);
+    expect(pasta.named).toBeUndefined();
+    expect(portionWithName(pasta, 'pasta')).toBe(`${pasta.portion} di pasta`);
+  });
+
+  it('nessuna porzione di nessuna ricetta dice "pezzo", su nessun tipo di giorno e con ogni scala', () => {
+    const types: DayType[] = ['calcio', 'palestra', 'leggero', 'riposo'];
+    const scales = [0.6, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.35, 1.45, 1.6];
+    const found: string[] = [];
+    let checked = 0;
+    for (const r of Object.values(RECIPES)) {
+      for (const l of r.ingredients) {
+        if (l.unit !== 'pezzo') continue;
+        for (const t of types) {
+          for (const k of l.carbScaled ? scales : [1]) {
+            const p = portionParts(l, t, FOODS, k);
+            for (const s of [p.portion, p.text, p.named ?? '', portionWithName(p, 'x')]) if (/pezz/i.test(s)) found.push(`${r.id} · ${l.foodId} · ${t} × ${k}: ${s}`);
+            // Gli alimenti che si contano a unità intere non hanno mai "mezzo" o "mezza".
+            if (WHOLE_PIECES.has(l.foodId)) expect(p.portion, `${r.id} · ${l.foodId}`).not.toMatch(/mezz/);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(found).toEqual([]);
+    expect(checked).toBeGreaterThan(200);
+  });
+
+  it('ogni alimento contato a pezzi nelle ricette ha le sue parole', () => {
+    const missing = new Set<string>();
+    for (const r of Object.values(RECIPES)) for (const l of r.ingredients) if (l.unit === 'pezzo' && !PIECE_WORDS[l.foodId]) missing.add(l.foodId);
+    expect([...missing]).toEqual([]);
+  });
+});
+
+type Promise = { ref: number; side: 'eq' | 'su' | 'giu' | 'sotto' };
+
 /** Quantità e scarto ammesso che una porzione a parole promette ("quasi 1 fetta e mezza" → 1,5, sotto, 0,25). */
-function promised(text: string, unit: Exclude<PortionUnit, 'g' | 'ml'>): { ref: number; side: 'eq' | 'su' | 'giu' | 'sotto' } {
-  const w = UNIT_WORDS[unit];
+function promised(text: string, unit: Exclude<PortionUnit, 'g' | 'ml'>, foodId?: string): Promise {
+  const piece = unit === 'pezzo' && foodId ? PIECE_WORDS[foodId] : undefined;
+  const w = piece ?? UNIT_WORDS[unit];
   let t = text;
-  let side: 'eq' | 'su' | 'giu' | 'sotto' = 'eq';
+  let side: Promise['side'] = 'eq';
   if (t.startsWith('quasi ')) [side, t] = ['giu', t.slice(6)];
   else if (t.startsWith('meno di ')) [side, t] = ['sotto', t.slice(8)];
   if (/ abbondant[ei]$/.test(t)) [side, t] = ['su', t.replace(/ abbondant[ei]$/, '')];
   const mezzo = w.fem ? 'mezza' : 'mezzo';
   if (t === `${mezzo} ${w.one}`) return { ref: 0.5, side };
+  const one = piece ? `(?:${piece.art ?? (piece.fem ? 'una' : 'un')}\\s?${piece.one})` : '';
+  if (piece) {
+    const single = t.match(new RegExp(`^${one}( e ${mezzo})?$`));
+    if (single) return { ref: 1 + (single[1] ? 0.5 : 0), side };
+  }
   const m = t.match(new RegExp(`^(\\d+) (?:${w.one}|${w.many})( e ${mezzo})?$`));
   if (!m) throw new Error(`porzione non riconosciuta: ${text}`);
   return { ref: Number(m[1]) + (m[2] ? 0.5 : 0), side };
@@ -252,11 +349,13 @@ describe('porzioni coerenti con i grammi in tutte le ricette', () => {
             const grams = lineGrams(l, t, FOODS, k);
             expect(q * per).toBeCloseTo(grams, 6);
             const { portion } = portionParts(l, t, FOODS, k);
-            const { ref, side } = promised(portion, l.unit);
+            const { ref, side } = promised(portion, l.unit, l.foodId);
+            // A unità intere (una galletta non si divide) lo scarto arriva a mezza unità.
+            const gap = l.unit === 'pezzo' && WHOLE_PIECES.has(l.foodId) ? 0.5 : 0.25;
             const where = `${r.id} · ${l.foodId} · ${t} × ${k}: ${portion} per ${q.toFixed(2)}`;
             if (side === 'eq') expect(Math.abs(ref - q) / q, where).toBeLessThanOrEqual(PORTION_TOLERANCE + 1e-9);
-            else if (side === 'su') expect(q > ref && q - ref <= 0.25, where).toBe(true);
-            else if (side === 'giu') expect(q < ref && ref - q <= 0.25, where).toBe(true);
+            else if (side === 'su') expect(q > ref && q - ref <= gap, where).toBe(true);
+            else if (side === 'giu') expect(q < ref && ref - q <= gap, where).toBe(true);
             else expect(q < ref, where).toBe(true);
             checked++;
           }
@@ -329,9 +428,9 @@ describe('le porzioni seguono gli obiettivi del piano', () => {
 
   it('avvio graduale delle fibre nelle prime due settimane', () => {
     expect(fiberRampWeek(start, base)).toBe(1);
-    expect(fiberRampFactor(addDays(start, 6), base)).toBe(0.6);
-    expect(fiberRampFactor(addDays(start, 7), base)).toBe(0.8);
-    expect(fiberRampFactor(addDays(start, 14), base)).toBe(1);
+    expect(fiberRampWeek(addDays(start, 6), base)).toBe(1);
+    expect(fiberRampWeek(addDays(start, 7), base)).toBe(2);
+    expect(fiberRampWeek(addDays(start, 14), base)).toBeNull();
     // I giorni di avvio prima del lunedì di inizio sono già nella prima settimana; prima ancora, niente avvio.
     expect(fiberRampWeek(addDays(start, -1), base)).toBe(1);
     expect(fiberRampWeek(addDays(start, -8), base)).toBeNull();
@@ -394,6 +493,20 @@ describe('partita e vigilia: almeno 6 g/kg di carboidrati', () => {
     }
   });
 
+  it('nei giorni di avvio il minimo si misura sul menù di avvio, quello che c’è nel piatto', () => {
+    // Primo avvio di mercoledì: la domenica è un giorno di avvio e la vigilia della partita del lunedì.
+    const starter: Plan = { ...plan, firstUse: { date: '2026-11-04', time: '15:30' } };
+    const s = { ...state, plan: starter };
+    for (const d of ['2026-11-08', '2026-11-09']) {
+      const det = dayNutritionDetail(d, s);
+      expect(det.total.carbG, d).toBeGreaterThanOrEqual(429);
+      expect(det.total.carbG, d).toBeLessThan(436);
+    }
+    // Le sostituzioni del diario non cambiano la scala: vale il menù previsto.
+    const swapped = { ...s, dayLogs: { '2026-11-08': { date: '2026-11-08', status: {}, recipeSwaps: { merenda: 'pre-gallette-banana' } } } };
+    expect(dayCarbScale('2026-11-08', swapped as typeof s)).toBe(dayCarbScale('2026-11-08', s));
+  });
+
   it('peso di riferimento: media dei 7 giorni fino all’ultima pesata, poi profilo, poi proteine del piano', () => {
     const checkIns = {
       '2026-10-20': weighIn('2026-10-20', 80),
@@ -404,6 +517,31 @@ describe('partita e vigilia: almeno 6 g/kg di carboidrati', () => {
     expect(referenceWeightKg(monday, { plan, dayLogs: {}, checkIns })).toBeCloseTo(72, 6);
     expect(referenceWeightKg(monday, { plan, dayLogs: {}, checkIns: {}, profile })).toBe(74);
     expect(referenceWeightKg(monday, { plan, dayLogs: {} })).toBeCloseTo(135 / PROTEIN_G_PER_KG, 6);
+  });
+
+  it('il menù previsto resta vicino all’obiettivo: kcal entro il 5%, proteine non oltre il 20%', () => {
+    // Pasta, riso e gallette alzati fino al minimo portano anche proteine: il menù di partita e vigilia le tiene a bada.
+    const KCAL_TOLERANCE = 0.05;
+    const PROTEIN_MAX = 1.2;
+    const check = (p: Plan, dates: string[]) => {
+      for (const d of dates) {
+        const det = dayNutritionDetail(d, { plan: p, dayLogs: {} });
+        const where = `${d}: ${Math.round(det.total.kcal)} kcal su ${det.target.kcal}, ${Math.round(det.total.proteinG)} g di proteine`;
+        expect(det.matchCarbs, where).not.toBeNull();
+        expect(Math.abs(det.total.kcal / det.target.kcal - 1), where).toBeLessThanOrEqual(KCAL_TOLERANCE);
+        expect(det.total.proteinG / det.target.proteinG, where).toBeLessThanOrEqual(PROTEIN_MAX);
+      }
+    };
+    // Rotazione: le due partite e le due vigilie delle due settimane.
+    const rotation = defaultPlan(start);
+    check(rotation, [0, 6, 7, 13].map((n) => addDays(start, n)));
+    // Giorni di avvio: primo avvio in ogni giorno della settimana prima, piano dal lunedì di inizio.
+    for (let n = 0; n < 7; n++) {
+      const first = addDays('2026-11-02', n);
+      const p: Plan = { ...defaultPlan(n < 4 ? '2026-11-02' : '2026-11-09'), firstUse: { date: first, time: '15:30' } };
+      const dates = Array.from({ length: 14 }, (_, i) => addDays(first, i)).filter((d) => isMatchDay(d, p) || isMatchEve(d, p));
+      check(p, dates);
+    }
   });
 
   it('un obiettivo già sopra il minimo non cambia', () => {

@@ -1,5 +1,5 @@
 /**
- * Settimana: striscia dei 7 giorni e tre schede, Menù, Spesa e Preparazione.
+ * Settimana: tre schede, Menù (con la striscia dei 7 giorni per scegliere il giorno), Spesa e Preparazione.
  * Si può scorrere tra le settimane (dall'inizio del piano a due mesi avanti); un giorno toccato nella
  * striscia apre il suo menù. `?tab=menu|spesa|preparazione` sceglie la scheda iniziale (screenshot).
  *
@@ -13,10 +13,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AppData, ISODate } from '../../domain/types';
-import { MENU_ROTATION } from '../../data/menu';
 import { useUrlParam } from '../../app/urlParams';
 import { addDays, daysBetween, formatWeekRange, weekDates, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
-import { isStarterDay, menuWeekFor, rotationIndexFor } from '../../engine/menu';
+import { isStarterDay, menuWeekFor } from '../../engine/menu';
 import { shoppingList, shoppingProgress } from '../../engine/shopping';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
@@ -74,7 +73,6 @@ export default function SettimanaScreen() {
   const selected = dates.includes(picked) ? picked : dates[weekdayOf(picked)];
   const minOffset = Math.min(0, -Math.max(0, weekIndexSince(plan.startDate, today)));
   const planWeek = weekIndexSince(plan.startDate, monday) + 1;
-  const rotation = rotationIndexFor(monday, plan.startDate);
   // Nei giorni di avvio il menù è quello di avvio, non una settimana della rotazione.
   const starterWeek = dates.some((d) => isStarterDay(d, plan));
 
@@ -199,8 +197,10 @@ export default function SettimanaScreen() {
         <span className="block overflow-hidden">
           <span className="-ml-4 flex flex-wrap items-center gap-y-1 [&>span]:whitespace-nowrap [&>span]:before:inline-block [&>span]:before:w-4 [&>span]:before:text-center [&>span]:before:text-ink-3 [&>span]:before:content-['·']">
             <span className="font-semibold text-ink">{relativeWeekLabel(offset)}</span>
-            {starterWeek ? <span>Menù di avvio</span> : MENU_ROTATION.length > 1 && <span>Menù {rotation + 1} di {MENU_ROTATION.length}</span>}
-            {planWeek >= 1 && <span>{planWeek}ª del piano</span>}
+            {/* Il menù della rotazione non serve a chi lo segue: resta solo quello di avvio, che è diverso. */}
+            {starterWeek && <span>Menù di avvio</span>}
+            {/* Nei giorni di avvio la riga resta su una riga: la settimana del piano la dice già Oggi. */}
+            {planWeek >= 1 && !starterWeek && <span>{planWeek}ª del piano</span>}
           </span>
         </span>
       }
@@ -230,7 +230,8 @@ export default function SettimanaScreen() {
       }
     >
       <div ref={rootRef} className="flex flex-col gap-6">
-        <WeekStrip dates={dates} plan={plan} today={today} selected={tab === 'menu' ? selected : ''} onSelect={pickDay} success={success} />
+        {/* La striscia sceglie il giorno del menù: Spesa e Preparazione valgono per tutta la settimana e partono subito. */}
+        {tab === 'menu' && <WeekStrip dates={dates} plan={plan} today={today} selected={selected} onSelect={pickDay} success={success} />}
         <motion.div id={panelId} role="tabpanel" aria-label={tab === 'menu' ? 'Menù' : tab === 'spesa' ? 'Spesa' : 'Preparazione'} onPanEnd={onPanEnd} style={{ touchAction: 'pan-y' }}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div

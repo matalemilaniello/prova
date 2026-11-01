@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { DayType, Food, IngredientLine, MealSlot, MenuWeek, Nutrients, Recipe } from '../domain/types';
 import { FOODS } from './foods';
 import { RECIPES } from './recipes';
-import { MENU_ROTATION, PREP_GUIDE, STARTER_PRODUCTS, STARTER_WEEK } from './menu';
+import { MENU_ROTATION, PREP_GUIDE, STARTER_FIBER_SHARE, STARTER_PRODUCTS, STARTER_WEEK } from './menu';
 import { BAR_OPTIONS } from './barPlanB';
 
 // ───────────────────────── Riferimenti (settimana tipo e obiettivi predefiniti) ─────────────────────────
@@ -56,6 +56,8 @@ const MAX_FIBER_FOOTBALL = 40;
  * all'altro a 40 g: nei giorni di avvio 22-32 g (circa 11 g ogni 1.000 kcal), poi la rotazione.
  */
 const MIN_FIBER_STARTER = 22;
+/** Obiettivo di fibre predefinito (DEFAULT_TARGETS), uguale per tutti i tipi di giorno. */
+const FIBER_TARGET = 35;
 const MAX_FIBER_STARTER = 32;
 /** Scarto minimo tra la media delle fibre della rotazione e quella della settimana di avvio. */
 const FIBER_STEP = 6;
@@ -73,6 +75,7 @@ const REF_WEIGHT_KG = MACRO_TARGET.calcio.proteinG / 1.9;
 const MATCH_FLOOR_G = Math.round((MATCH_CARB_G_PER_KG * REF_WEIGHT_KG) / 5) * 5;
 /** Giorno della partita (lunedì) e vigilia (domenica), 0 = lunedì. */
 const MATCH_DAYS = [0, 6];
+const MATCH_EVE = 6;
 
 const FISH = new Set(['salmone', 'salmone-affumicato', 'merluzzo', 'gamberi', 'tonno', 'sgombro']);
 const LEGUMES = new Set(['ceci', 'cannellini', 'borlotti', 'lenticchie', 'lenticchie-rosse', 'pasta-lenticchie']);
@@ -273,7 +276,9 @@ function checkFootballMeals(week: MenuWeek, label: string) {
   week.days.forEach((day, di) => {
     const calcio = FOOTBALL_DAY[di];
     const where = `${label} ${WEEKDAYS[di]}`;
-    expect(RECIPES[day.meals.merenda ?? '']?.tags.includes('pre-calcio'), `${where} merenda`).toBe(calcio);
+    const pre = RECIPES[day.meals.merenda ?? '']?.tags.includes('pre-calcio');
+    // Alla vigilia della partita la merenda può essere un pre-calcio: carboidrati facili e poca fibra servono anche lì.
+    if (!(di === MATCH_EVE && pre)) expect(pre, `${where} merenda`).toBe(calcio);
     expect(RECIPES[day.meals.cena ?? '']?.tags.includes('recupero'), `${where} cena`).toBe(calcio);
     if (calcio) expect(recipeTotals(RECIPES[day.meals.pranzo ?? ''], 'calcio').fiberG, `${where} pranzo`).toBeLessThanOrEqual(20);
   });
@@ -734,6 +739,8 @@ describe('settimana di avvio', () => {
     }
     const avg = (days: DayRow[]) => days.reduce((s, d) => s + d.totals.fiberG, 0) / days.length;
     expect(avg(DAYS) - avg(STARTER_DAYS), 'scarto tra rotazione e avvio').toBeGreaterThanOrEqual(FIBER_STEP);
+    // Il Menù dice "per ora circa 28 g" (35 g × STARTER_FIBER_SHARE): la media dei giorni di avvio ci sta vicino.
+    expect(Math.abs(avg(STARTER_DAYS) - FIBER_TARGET * STARTER_FIBER_SHARE), `media ${fmt(avg(STARTER_DAYS), 1)} g`).toBeLessThanOrEqual(3);
   });
 
   it('introduce i legumi a piccole dosi: ceci in almeno 2 pasti, mai un piatto di legumi intero', () => {
@@ -826,5 +833,17 @@ describe('testi', () => {
       ...MENU_ROTATION.flatMap((w) => w.prep.map((t) => t.title)),
     ];
     for (const t of titles) expect(t[0], t).toBe(t[0].toLocaleUpperCase('it-IT'));
+  });
+
+  it('a pezzi la nota non ripete la porzione: la conta già, con il nome dell’alimento', () => {
+    // "2 cubetti · due cubetti", "un tocchetto · un pezzo da 25 g": la porzione dice già quanti e cosa.
+    const COUNT = /^(un|uno|una|un’|mezz[oa]|due|tre|quattro|cinque|\d)/i;
+    for (const r of Object.values(RECIPES)) {
+      for (const l of r.ingredients) {
+        if (l.unit !== 'pezzo' || !l.note) continue;
+        expect(COUNT.test(l.note), `${r.id}/${l.foodId}: "${l.note}"`).toBe(false);
+        expect(/pezz[oi]/i.test(l.note), `${r.id}/${l.foodId}: "${l.note}"`).toBe(false);
+      }
+    }
   });
 });

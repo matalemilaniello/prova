@@ -39,7 +39,8 @@ l'utente li conferma o li cambia nell'onboarding e tutto resta salvato solo sul 
 - **Maiuscole:** nei titoli e nelle etichette solo la prima parola maiuscola (più i nomi propri). "Lista della
   spesa", non "Lista Della Spesa".
 - Frasi brevi, voce attiva, tono da allenatore competente e calmo. Niente esclamazioni a raffica, niente emoji.
-- Incisi con le virgole; il trattino lungo (—) non si usa nei testi dell'interfaccia.
+- Incisi con le virgole; il trattino lungo (—) non si usa nei testi dell'interfaccia. Apostrofo tipografico (’) e
+  virgolette basse (« »): `scripts/check-typography.mjs` li controlla nella CI.
 - Errori: dicono cosa è successo e come rimediare, senza scuse.
 - Numeri e date in formato italiano: `2.600 kcal`, `70,2 kg`, `6 h 40`, `martedì 10 novembre`, orari `07:30`.
   Usa `Intl.NumberFormat('it-IT')` e `Intl.DateTimeFormat('it-IT')`.
@@ -74,8 +75,8 @@ l'utente li conferma o li cambia nell'onboarding e tutto resta salvato solo sul 
   ogni schermata e di ogni pannello in `screenshots/` a 390×844 (iPhone), tema scuro e chiaro, con i dati di
   esempio caricati. Deve poter aprire i pannelli (ricetta, controllo del mattino, seduta, coach, revisione).
   Supporta l'URL `?demo=1` che carica i dati di esempio e salta l'onboarding, e `?theme=chiaro|scuro`.
-  Supporta anche `?overlay=recipe|checkin|session|football|barPlanB` per aprire un pannello e
-  `?onboarding=1` per mostrare l'onboarding. La vista `oggi-primo-giorno` simula il primo giorno di un utente nuovo
+  Supporta anche `?overlay=recipe|checkin|session|football|barPlanB` per aprire un pannello (con `?recipe=<id>` la
+  ricetta da aprire) e `?onboarding=1` per mostrare l'onboarding. La vista `oggi-primo-giorno` simula il primo giorno di un utente nuovo
   (dati svuotati, primo avvio alle 15:30 di un mercoledì, senza dati di esempio).
 
 ### Pubblicazione
@@ -262,7 +263,10 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   obiettivo (`useNutritionState()` in `state/hooks.ts`). Con `onlyDone` un pasto sostituito con il piano B al bar
   vale i valori dell'ordine (`DayLog.barMeals`), come nella revisione. Le porzioni a occhio usano `portionPhrase`:
   mezze unità, con "abbondante" o "quasi" quando l'arrotondamento si allontanerebbe dai grammi di oltre il 10%
-  ("1 fetta abbondante · ≈ 50 g", "quasi 2 fette").
+  ("1 fetta abbondante · ≈ 50 g", "quasi 2 fette"). A pezzi la porzione nomina l'alimento e mai "pezzo"
+  (`PIECE_WORDS`: "7 gallette", "mezzo limone", "uno spicchio d’aglio"); gallette, quadretti, frutta secca, uova e
+  cubetti si contano solo a unità intere (`WHOLE_PIECES`). Il menù previsto su cui `dayCarbScale` misura il minimo è
+  quello di `mealsForDate` senza le sostituzioni del diario: nei giorni di avvio il menù di avvio.
 - `menu.ts` · `menuWeekFor(iso, planStart)` (rotazione su `MENU_ROTATION`), `mealsForDate(iso, state)`:
   restituisce per ogni slot la ricetta effettiva (sostituzioni comprese) e il tipo di giorno delle porzioni
   (`effectiveDayType`: la vigilia della partita mangia come un giorno di calcio). Nei giorni di avvio
@@ -309,6 +313,9 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   avvio: la lista della settimana dopo comprende anche i pasti di avvio da dopo la spesa del sabato alla domenica
   (`lead`, calcolato da `shoppingLeadFor` in `timeline.ts`), senza note di congelamento per quei giorni.
   `shoppingList` accetta `NutritionState`: le quantità di partita e vigilia seguono il minimo di carboidrati.
+  Conservazione: un fresco regge fino al giorno dopo la spesa (`FRESH_DAYS` = 1, `freshUntil`); oltre, la lista dice di
+  metterlo in freezer a porzioni. Il giorno della spesa è `ShoppingOptions.shopDate` (per difetto `defaultShopDate`: il
+  sabato prima del lunedì, il sabato della prima spesa con `lead`, il primo giorno di avvio nella spesa di avvio).
 - `training.ts` · `lastLogFor(exerciseId, logs)`, `suggestNext(sessionExercise, lastLog)` (progressione
   doppia: se tutte le serie hanno raggiunto `repMax` con il carico precedente, proponi carico +incremento e
   `repMin`; altrimenti stesso carico puntando a +1 ripetizione; dopo due esecuzioni di fila con la media delle
@@ -364,7 +371,9 @@ Tutte le date sono locali. Mai `new Date('YYYY-MM-DD')` (UTC): usa i costruttori
   `sessionDuration`, blocco del fisioterapista compreso), esercizi del fisio (solo se inseriti), coprifuoco,
   revisione della domenica alle 18:00 (dalla prima settimana da rivedere). L'utente sceglie quali. Il coprifuoco segue
   la scala del sonno: una serie con `UNTIL` per ogni settimana, l'ultimo gradino senza fine; nelle sere di
-  calcio vale l'orario dopo la partita. `calendarStatus` dice se il file aggiunto è ancora allineato al piano.
+  calcio vale l'orario dopo la partita. La scala conta le settimane dalla prima settimana da rivedere, mai prima
+  dell'inizio del piano (`sleepStairOrigin`); il file ricorda da dove l'ha contata (`CalendarFileRecord.origin`).
+  `calendarStatus` dice se il file aggiunto è ancora allineato al piano.
 - `coachContext.ts` · costruisce il contesto per il coach (profilo, piano, giornata di oggi con stati e riti
   del fine settimana, ultimi 7 controlli, dolori, ultime sedute, menù di oggi con valori, scalino della
   settimana) in testo compatto. Le zone di dolore non entrano nel prompt di sistema, solo nel contesto.
@@ -396,7 +405,10 @@ Qualità da professionista: un professionista della nutrizione e dell'allenament
   conservazione torna in almeno due pasti della settimana o arriva a metà confezione nelle due settimane. Le
   alternative mettono prima le ricette con gli stessi prodotti. Nei passaggi non si scrivono le quantità degli
   ingredienti scalati (le dicono le porzioni). Vigilia della partita: fibre ≤ 40 g anche con il minimo di
-  carboidrati, niente legumi a cena, niente ricette da preparazione della domenica.
+  carboidrati, niente legumi a cena, niente ricette da preparazione della domenica. Partita e vigilia, con il minimo
+  di 6 g/kg nel piatto: kcal entro ±5% dell'obiettivo della data e proteine non oltre il 20% (pasta, riso e gallette
+  alzati portano anche proteine), anche nei giorni di avvio (`engine/nutrition.test.ts`). Per questo la merenda di
+  quei giorni è il pre-calcio con gallette e banana, anche alla vigilia.
 - `BAR_OPTIONS`: 15-20 opzioni reali di un bar italiano con verdetto ('si', 'meglio', 'programmato') e motivo.
 - Scrivi uno script di verifica `scripts/check-menu.ts` (eseguibile con `npx tsx` o come test Vitest
   `src/data/menu.test.ts`) che stampa i totali per giorno e fallisce se i vincoli non sono rispettati.
@@ -425,13 +437,20 @@ Ogni schermata apre in uno stato realistico. Con i dati di esempio deve sembrare
 anno di nascita, altezza, peso, obiettivo, competenze (facoltativo); 3) La tua settimana: giorni e orari di
 calcio, palestra, fisio (precompilati, modificabili con pochi tocchi); 4) Sonno: sveglia, ora attuale, obiettivo
 (spiega il passo di 15 minuti a settimana); 5) Zone da monitorare e integratori. Finale: "Il tuo piano è pronto"
-con riepilogo (kcal per tipo di giorno ricalcolate, prima seduta, orario a letto di questa settimana).
-Pulsante secondario "Prova con dati di esempio".
+con riepilogo (kcal per tipo di giorno ricalcolate, prima seduta, orario a letto di questa settimana) e l'invito agli
+avvisi nel calendario (controllo del mattino, coprifuoco, revisione della domenica), tranne quando invita a
+installare l'app (l'app installata rifà il benvenuto). Pulsante secondario "Prova con dati di esempio".
 
 ### Oggi (`src/features/oggi/`)
 - Intestazione: giorno ("Martedì 10"), tipo di giorno con colore, kcal obiettivo, ingranaggio.
 - Anello di avanzamento della giornata (voci fatte / totali) e serie di giornate riuscite.
-- Card "Adesso" con la prossima voce non segnata (grande, con azione primaria).
+- Card "Adesso" con la prossima voce non segnata (grande, con azione primaria). Se la voce non si può ancora segnare
+  (es. il coprifuoco prima dell'orario), Adesso offre "Lista della spesa" (spesa da fare oggi o domani) oppure "Vedi
+  domani", con l'orario da cui si segna.
+- Il primo giorno, al posto dell'anello, "Il piano è pronto" con al massimo tre orari in colonne (`welcomeBoard`); anello,
+  statistiche e conto alla rovescia tornano dal giorno dopo o a giornata chiusa.
+- Una riga "Da completare" sotto la timeline, una cosa alla volta e senza contare: promemoria nel calendario da
+  aggiungere o aggiornare (`useCalendarTask`), esercizi del fisioterapista, dose degli integratori.
 - Se il controllo del mattino non è fatto: card in alto che apre `CheckInSheet`.
 - Timeline: ogni voce ha orario, titolo, dettaglio; tocco breve → segna fatto (con animazione e vibrazione
   se disponibile); tocco lungo o pulsante "…" → foglio con Fatto / Sostituito (con nota) / Saltato / Annulla.
@@ -446,7 +465,7 @@ Pulsante secondario "Prova con dati di esempio".
   quattro piccoli anelli che si aprono con un tocco.
 
 ### Settimana (`src/features/settimana/`)
-- Striscia dei 7 giorni con tipo di giorno e attività; selezione del giorno.
+- Striscia dei 7 giorni con tipo di giorno e attività, nella scheda Menù; selezione del giorno.
 - Schede: **Menù** (pasti del giorno selezionato, con porzioni a occhio adattate al tipo di giorno, valori
   stimati, sostituzione con alternative), **Spesa** (lista aggregata per reparto, spunte, avanzamento,
   copia come testo), **Preparazione** (attività della domenica con minuti e resa, spunte, tempo totale).
@@ -476,8 +495,8 @@ Pulsante secondario "Prova con dati di esempio".
 ### Progressi (`src/features/progressi/`)
 - Numeri chiave della settimana: peso medio 7 giorni e variazione, sonno medio, aderenza, fibre stimate.
 - Grafici SVG disegnati a mano, in scala, leggibili in entrambi i temi: peso con media mobile a 7 giorni,
-  sonno con linea dell'obiettivo, dolore per zona, carico settimanale con soglia, calendario delle giornate
-  riuscite (heatmap delle ultime 8-12 settimane).
+  sonno con linea dell'obiettivo, dolore per zona, carico settimanale con soglia, uno alla volta (scelti con un
+  `Segmented`), e sotto il calendario delle giornate riuscite (heatmap delle ultime 8-12 settimane).
 - **Revisione della domenica**: voti 1-10 (energia, digestione, umore, sensazioni in campo), vita in cm, pliche
   facoltative, statistiche, proposte con "Accetta" / "Accetta tutte", salvataggio. Disponibile sempre per la
   settimana appena chiusa; la domenica è evidenziata.
@@ -637,3 +656,25 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   `BAR_VEG_PORTIONS` e `barOrder` in `features/coach/barPick.ts` (`plannedMeal` accetta `NutritionState`).
 - Impostazioni (giro 4, nessun campo in `types.ts`): `impactThresholdView`, `impactThresholdPatch`, `painSummary`,
   `matchCarbNote` in `features/impostazioni/lib.ts`; `impactRuleNote` ha un terzo argomento facoltativo.
+- Giro 5 (nessun campo nuovo in `types.ts`), motori e schermate:
+  - nutrizione (sistema): `PIECE_WORDS`, `WHOLE_PIECES`, `PortionParts.named`, `portionWithName(parts, nome)`,
+    `foodId` facoltativo in `portionWords` e `portionPhrase`; `dayCarbScale` misura il minimo sul menù previsto, quello
+    di avvio nei giorni di avvio. Tolto `fiberRampFactor`: nei giorni di avvio il riferimento delle fibre è
+    `STARTER_FIBER_SHARE` (0,8) in `data/menu.ts`, in Menù e nei valori del giorno di Oggi.
+  - stato (sistema): `normalizeImpactThreshold` arrotonda al mezzo punto e toglie il campo a 2 (anche in
+    `updatePlan`); `normalizeBarMeals(raw, status)` tiene solo i pasti segnati sostituiti, con l'etichetta su una riga.
+    `?recipe=<id>` tra i parametri delle anteprime (`app/boot.ts`).
+  - spesa (Settimana): `ShoppingOptions.shopDate`, `ShoppingList.shopDate`, `FRESH_DAYS` = 1, `defaultShopDate`,
+    `freshUntil`; tolto `FRESH_LAST_WEEKDAY` (il fresco si contava fino a mercoledì qualunque fosse il giorno della
+    spesa).
+  - menù (Settimana): partita e vigilia entro ±5% delle kcal e con proteine non oltre +20% (test in
+    `engine/nutrition.test.ts`); alla vigilia la merenda può essere un pre-calcio (`menu.test.ts`).
+  - Oggi: `shoppingTarget(iso, state, item)` in `engine/timeline.ts` (la usano `derivedStatus` e Oggi),
+    `setItemStatusSynced` in `features/oggi/shoppingSync.ts` (la spesa segnata fatta spunta la lista; Annulla, Saltato
+    e Sostituito la ripristinano), `welcomeBoard` in `features/oggi/firstDay.ts`; `OggiData.setup` accetta anche
+    `CalendarTask` e `OggiData.valuesTarget` è il riferimento dei valori del giorno.
+  - calendario (Impostazioni): `sleepStairOrigin(plan, start, reviews?)`, `calendarFileRecord(state, kinds, at)`,
+    `CalendarFileRecord.origin?`, `ReminderState.reviews?`; in `features/impostazioni`: `useCalendarDelivery`,
+    `useCalendarTask`, `CALENDAR_TASK_TEXT`, `CALENDAR_TASK_HASH`, `saveCalendarFile(…, remember?)`,
+    `components/ManualCopySheet` e `components/reminderIcons`.
+  - controllo tipografico: anche le virgolette doppie dritte nei testi (`straightQuotePairs`), con `--fix` in « ».

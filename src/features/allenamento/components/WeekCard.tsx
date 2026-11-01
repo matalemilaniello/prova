@@ -113,7 +113,7 @@ export function WeekCard({ days, status, planned, onDay }: WeekCardProps) {
       <div className="border-t border-line p-4">
         <p className="t-label mb-3 text-ink-3">Carico della settimana</p>
         <LoadMeter status={status} planned={planned} />
-        <Disclosure variant="inline" title="Come si calcola" className="mt-2">
+        <Disclosure variant="inline" tone="quiet" title="Come si calcola" className="mt-2">
           Ogni seduta e ogni partita valgono minuti × RPE (metodo di Foster), in unità arbitrarie (UA). La soglia è il{' '}
           {fmtNumber(Math.round(LOAD_ALERT_RATIO * 100))}% della media delle settimane precedenti (fino a {LOAD_LOOKBACK_WEEKS}): oltre, il carico sale
           più in fretta dell’adattamento.

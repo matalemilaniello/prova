@@ -60,13 +60,16 @@ import { useToday, useNow, useDayLog } from '../../state/hooks';
   `src/lib/haptics.ts` (Android e iPhone con Safari 18+). Button, IconButton, Toggle, Segmented, CheckRow e
   Stepper vibrano già da soli.
 - **Testi**: italiano, maiuscola solo sulla prima parola, niente emoji, niente trattino lungo, apostrofo
-  tipografico (’: "l’orario", "Com’è andata"). Formattatori in `src/lib/format.ts` (vedi sotto).
-  `npm run check:typography` elenca per area gli apostrofi dritti e i trattini lunghi nei testi (stringhe tra apici
-  o tra virgolette doppie, template e JSX, non i commenti): tra due lettere ("l'orario") e dopo una parola tronca
-  ("un po' di", anche scritto `'un po\' di'`), mentre un apice che apre e chiude una citazione non conta.
-  `node scripts/check-typography.mjs --fix --area <area>` sostituisce gli apostrofi nei file dell'area, test
-  compresi (`\'` diventa `’` senza escape); `--strict` esce con errore (per la CI). Una riga con il commento
-  `tipografia-ok` è esclusa (testi che sono codice).
+  tipografico (’: "l’orario", "Com’è andata") e virgolette basse («Ritmo»). Formattatori in `src/lib/format.ts`
+  (vedi sotto).
+  `npm run check:typography` elenca per area gli apostrofi dritti, le virgolette doppie dritte e i trattini lunghi nei
+  testi (stringhe tra apici o tra virgolette doppie, template e JSX, non i commenti). Apostrofi: tra due lettere
+  ("l'orario") e dopo una parola tronca ("un po' di", anche scritto `'un po\' di'`), mentre un apice che apre e chiude
+  una citazione non conta. Virgolette: una coppia che racchiude una parola ('Chiamala "Ritmo"'), non negli attributi
+  JSX (`className="…"`) né dopo un segno di uguale (`'[aria-checked="true"]'`, codice in una stringa).
+  `node scripts/check-typography.mjs --fix --area <area>` sostituisce apostrofi e virgolette nei file dell'area, test
+  compresi (`\'` diventa `’` senza escape, una coppia di virgolette dritte diventa « »); `--strict` esce con errore
+  (per la CI). Una riga con il commento `tipografia-ok` è esclusa (testi che sono codice).
 
 ## Struttura di una schermata
 
@@ -360,15 +363,18 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
 - `normalizeData` ripara ogni sezione (diari senza `status`, sedute senza `exercises`, zone di dolore non in
   array, numeri scritti come testo…) e conserva i campi sconosciuti: un backup danneggiato non blocca mai l'app.
   `DATA_VERSION` è 3 (2: fibre da 30 a 35 g; 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia delle 07:15).
-  Campi facoltativi del giro 4: `Plan.impactThreshold` resta un numero da 0 a 10 (anche da testo, "2,5"),
-  altrimenti sparisce (`normalizeImpactThreshold`); `DayLog.barMeals` tiene solo pasti noti con etichetta e kcal,
-  valori numerici tra 0 e un tetto da pasto (`normalizeBarMeal`, `normalizeBarMeals`), e sparisce se vuoto.
+  Campi facoltativi del giro 4: `Plan.impactThreshold` resta un numero da 0 a 10 al mezzo punto (anche da testo,
+  "2,5"; "1,3" diventa 1,5), altrimenti sparisce (`normalizeImpactThreshold`); sparisce anche a 2, che coincide sempre
+  con il predefinito min(soglia, 2). `DayLog.barMeals` tiene solo pasti noti con etichetta (su una riga) e kcal,
+  valori numerici tra 0 e un tetto da pasto (`normalizeBarMeal`), e solo per i pasti che nel diario dello stesso giorno
+  sono segnati sostituiti (`normalizeBarMeals(raw, status)`): un ordine rimasto su un pasto fatto o non segnato
+  sparisce, come farebbe `setItemStatus`. Senza pasti validi il campo sparisce.
 - Pasti al bar: `setBarMeal(date, slot, { label, nutrients, vegPortions? } | null)` salva l'ordine già ripulito
   (un ordine senza etichetta o kcal vale come `null`). `setItemStatus` toglie il pasto al bar dello slot quando la
   voce `pasto:<slot>` diventa fatta, saltata o annullata; resta finché il pasto è sostituito. Chi segna un'altra
   sostituzione scritta a mano per quel pasto chiama `setBarMeal(date, slot, null)`.
-- `updatePlan({ impactThreshold })`: un valore vuoto o illeggibile toglie il campo (vale il predefinito
-  min(soglia, 2)), uno fuori scala si riporta tra 0 e 10.
+- `updatePlan({ impactThreshold })`: un valore vuoto o illeggibile, o 2, toglie il campo (vale il predefinito
+  min(soglia, 2)), uno fuori scala si riporta tra 0 e 10, al mezzo punto.
 - `useUi`: `overlay`, `open(overlay)`, `close()`, `toast(message, tone?, opts?)`, `dismissToast(id)`.
 - Hook (`src/state/hooks.ts`): **usa questi al posto di `new Date()` nelle schermate**:
   `usePlanDay()` (alias `useLogicalToday()`): **la giornata del piano**, quella da usare in Oggi, Settimana,
@@ -428,13 +434,25 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   `{ when: 'partita' | 'vigilia', weightKg, gPerKg, floorG, baseG, extraG, extraKcal }` o null.
   `dayTargetFor(date, state)` è **l'obiettivo da mostrare per una data** (tipo effettivo più il minimo: es. 360 → 430
   g e +280 kcal per 72 kg); `dayNutritionDetail` lo restituisce in `target` (e `matchCarbs`). `dayCarbScale` sale
-  quanto serve perché il menù previsto arrivi al minimo: nel piatto ci sono davvero 6 g/kg. Lo stato è
+  quanto serve perché il menù previsto arrivi al minimo: nel piatto ci sono davvero 6 g/kg. Il menù previsto è quello
+  di `mealsForDate` senza le sostituzioni del diario, quindi nei giorni di avvio il menù di avvio. Lo stato è
   `NutritionState` (`MenuState` più `checkIns` e `profile` facoltativi): passa `useNutritionState()`.
   **Porzioni a parole**: `portionPhrase(qty, unit)` (usata da `portionParts`) tiene le mezze unità quando stanno entro
   il 10% (`PORTION_TOLERANCE`) dei grammi; altrimenti lo dice, con al massimo un quarto di unità di scarto e le unità
   intere preferite: "1 fetta abbondante · ≈ 50 g" (fetta da 40 g), "quasi 1 fetta e mezza", "quasi 2 fette", "mezza
-  fetta abbondante". `portionWords` resta l'arrotondamento a mezze unità senza qualificatori. Avvio delle fibre: `fiberRampWeek(date, plan)` (1, 2 o null) e
-  `fiberRampFactor` (0,6 / 0,8 / 1).
+  fetta abbondante". `portionWords` resta l'arrotondamento a mezze unità senza qualificatori.
+  **A pezzi la porzione nomina l'alimento**, mai "pezzo": `PIECE_WORDS` (per id di alimento: sostantivo, plurale,
+  genere, articolo, aggettivo e complemento) e `WHOLE_PIECES` (gallette, quadretti di cioccolato, frutta secca, uova,
+  cubetti di spinaci: si contano a unità intere, con "abbondanti" o "quasi" e al massimo mezza unità di scarto).
+  `portionWords(qty, unit, foodId?)` e `portionPhrase(qty, unit, foodId?)` accettano l'id dell'alimento;
+  `portionParts` lo passa da sé. `PortionParts.portion` è la forma breve, accanto al nome dell'ingrediente ("7
+  gallette", "mezzo limone", "quasi una piadina e mezza"); `PortionParts.named`, solo a pezzi, è la frase che nomina
+  già l'alimento ("7 gallette di riso", "quasi una piadina integrale e mezza", "2 gallette abbondanti di riso"). Per
+  una frase fuori dalla riga dell'ingrediente usa `portionWithName(parts, nome)`: `named` quando c'è, altrimenti
+  "porzione di nome" ("2 pugni e mezzo di pasta"). Mai `${portion} di ${nome}` a mano: darebbe "7 gallette di
+  gallette di riso". Avvio delle fibre: `fiberRampWeek(date, plan)` (1, 2 o null: le prime due settimane, per il
+  consiglio di Oggi). Le quantità le decide il menù: nei giorni di avvio il riferimento delle fibre è l'obiettivo ×
+  `STARTER_FIBER_SHARE` (0,8, `src/data/menu.ts`), lo stesso in Menù e nei valori del giorno di Oggi.
 - `src/engine/menu.ts`: `MEAL_SLOTS`, `menuWeekFor`, `menuDayFor`, `rotationIndexFor`, `dayTypeFor(iso, plan)`
   (tipo previsto dalla settimana: etichette e colori), `effectiveDayType(iso, plan)` (tipo per porzioni e obiettivi:
   la **vigilia della partita** mangia come un giorno di calcio), `isMatchEve(iso, plan)`, `isMatchDay(iso, plan)`,
@@ -481,6 +499,15 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   è la durata della seduta come la mostra Allenamento (`sessionDuration`: fase di ingresso, doppioni del
   fisioterapista tolti, `own` + `physio` = `total`); `gymTotalMin` il totale in minuti. `firstReviewWeek(plan)` e
   `isReviewableWeek(monday, plan)`: la prima settimana da rivedere (riesportate da `engine/review.ts`).
+  `shoppingTarget(iso, state, item)` → `{ weekStart, keys } | null`: la lista che sta dietro una voce della spesa (la
+  stessa di `derivedStatus` e di Settimana). In Oggi `setItemStatusSynced` (`features/oggi/shoppingSync.ts`) la usa:
+  la spesa segnata fatta spunta tutta la lista, Annulla, Saltato e Sostituito la rimettono com'era.
+- Timeline di Oggi (`features/oggi/components/Timeline.tsx`): in vista restano le prossime 5 ore, la voce di Adesso,
+  quelle rimaste indietro e gli appuntamenti (calcio, palestra, revisione). Oltre, le voci prima di un appuntamento si
+  raccolgono in una riga con i loro nomi ("Pranzo, merenda e preparazione", da `GAP_COLLAPSE_FROM` = 2 voci) e quelle
+  in fondo alla giornata in "Più tardi" (da 3).
+- Grafici di Progressi (`features/progressi/charts/frame.tsx`): le etichette con parole ("5 ott", le iniziali dei
+  giorni, "oggi") usano `WORD_LABEL` (Figtree con cifre tabellari); il monospazio resta ai numeri degli assi.
 
 ## Parametri URL (anteprime e screenshot)
 
@@ -488,5 +515,6 @@ I dati di esempio sono deterministici per giornata: lo storico dei giorni passat
 solo quali voci di oggi risultano già segnate.
 
 `?demo=1` dati di esempio senza onboarding · `?theme=scuro|chiaro` (anche `dark|light`) · `?overlay=recipe|checkin|session|football|barPlanB`
+(con `?recipe=<id>` il pannello della ricetta apre quella ricetta, nel pasto di oggi che la prevede se c'è)
 · `?onboarding=1` · `?tab=…` (scheda iniziale di una schermata) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).
 Esempio: `index.html?demo=1&theme=chiaro&now=18:30#oggi`.

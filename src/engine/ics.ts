@@ -9,12 +9,14 @@
  * - Gli UID sono stabili: rigenerando il file dopo un cambio di piano molti calendari aggiornano gli eventi.
  * - Il coprifuoco segue la scala del sonno: una serie con UNTIL per ogni gradino (un passo a settimana, dal
  *   lunedì), l'ultimo, all'obiettivo, si ripete senza fine. Gli orari dopo mezzanotte cadono nel giorno dopo.
+ *   La scala conta le settimane come il piano: il primo passo arriva con la prima revisione, quindi un file
+ *   creato prima dell'inizio del piano tiene l'orario di partenza per tutta la prima settimana (`sleepStairOrigin`).
  */
 import type { AppData, HHMM, ISODate, Plan, Supplement, TimelineItem, Weekday, WeeklyReview } from '../domain/types';
 import { SESSIONS } from '../data/sessions';
 import { hashString } from '../lib/id';
-import { addDays, daysBetween, hhmmToMin, isHHMM, minToHHMM, nightMinutes, weekdayOf, weekStart } from './dates';
-import { buildTimeline, physioMinutes, supplementList, takenSupplements } from './timeline';
+import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, nightMinutes, weekdayOf, weekStart } from './dates';
+import { buildTimeline, firstReviewWeek, isReviewableWeek, physioMinutes, supplementList, takenSupplements } from './timeline';
 import { firstReviewDate } from './review';
 import { bedtimeFor, curfewFor, dayCutoffMin } from './sleep';
 import { sessionDuration } from './training';
@@ -82,7 +84,8 @@ export interface ReminderEvent {
   stage?: { index: number; count: number; bed: HHMM };
 }
 
-export type ReminderState = Pick<AppData, 'plan'> & Partial<Pick<AppData, 'physio'>>;
+/** Piano ed esercizi del fisioterapista; le revisioni servono solo a far partire bene la scala del sonno. */
+export type ReminderState = Pick<AppData, 'plan'> & Partial<Pick<AppData, 'physio' | 'reviews'>>;
 
 // ───────────────────────── Testo RFC 5545 ─────────────────────────
 
@@ -298,6 +301,26 @@ export function bedtimeStages(sleep: Pick<Plan['sleep'], 'current' | 'target' | 
   return out;
 }
 
+/**
+ * Lunedì da cui la scala del sonno conta le settimane per un file creato `start`: il gradino 0 vale fino alla
+ * domenica di quella settimana, perché l'orario a letto del piano si sposta solo con una revisione accettata.
+ * - Mai prima della prima settimana da rivedere: chi finisce il benvenuto di domenica (piano dal lunedì) tiene
+ *   l'orario di partenza per tutta la prima settimana, come Oggi.
+ * - Una domenica con la revisione della settimana già salvata, dal lunedì dopo: l'orario a letto è già quello
+ *   della settimana che arriva e il passo successivo verrà con la prossima revisione.
+ */
+export function sleepStairOrigin(
+  plan: Pick<Plan, 'startDate' | 'firstUse'>,
+  start: ISODate,
+  reviews: readonly Pick<WeeklyReview, 'weekStart'>[] = [],
+): ISODate {
+  const monday = weekStart(start);
+  const first = firstReviewWeek(plan) ?? (isISODate(plan.startDate) ? weekStart(plan.startDate) : null);
+  if (first && first > monday) return first;
+  if (weekdayOf(start) === 6 && reviews.some((r) => r.weekStart === monday)) return addDays(monday, 7);
+  return monday;
+}
+
 /** Orario a letto previsto dalla scala per la settimana di `date`, partendo dalla settimana di `from`. */
 export function stageBedtime(sleep: Pick<Plan['sleep'], 'current' | 'target' | 'stepMin'>, from: ISODate, date: ISODate): HHMM {
   const stages = bedtimeStages(sleep);
@@ -307,18 +330,20 @@ export function stageBedtime(sleep: Pick<Plan['sleep'], 'current' | 'target' | '
 
 /**
  * Eventi della notte (coprifuoco, integratori della sera) per ogni gradino della scala del sonno.
- * Ogni gradino copre una settimana del piano, da lunedì a domenica; l'ultimo si ripete senza fine.
+ * Ogni gradino copre una settimana del piano, da lunedì a domenica; l'ultimo si ripete senza fine. Il gradino 0
+ * parte da `start` (il giorno del file) e arriva alla domenica della settimana `origin` (`sleepStairOrigin`).
  */
 function stagedNightEvents(
   kind: ReminderKind,
   plan: Plan,
   start: ISODate,
+  origin: ISODate,
   occurrences: (stagePlan: Plan, dateOf: (wd: Weekday) => ISODate, stage: { index: number; count: number; bed: HHMM }) => Occurrence[],
 ): ReminderEvent[] {
   const stages = bedtimeStages(plan.sleep);
   const cutoff = dayCutoffMin(plan);
   const cutoffEnd = minToHHMM(cutoff - 1);
-  const monday = weekStart(start);
+  const monday = weekStart(origin);
   const out: ReminderEvent[] = [];
   stages.forEach((bed, index) => {
     const weekMonday = addDays(monday, index * 7);
@@ -333,8 +358,9 @@ function stagedNightEvents(
         ...ev,
         uid: single ? ev.uid : `${ev.uid}-g${bed.replace(':', '')}`,
         stage,
-        // Il primo gradino parte da oggi, gli altri dal lunedì della loro settimana; se la notte scavalca la
-        // mezzanotte, dal giorno dopo (alle 00:15 di oggi suonava ancora la notte di ieri).
+        // Il primo gradino parte da oggi (anche prima dell'inizio del piano), gli altri dal lunedì della loro
+        // settimana; se la notte scavalca la mezzanotte, dal giorno dopo (alle 00:15 di oggi suonava ancora la
+        // notte di ieri).
         ...(index > 0 ? { from: addDays(weekMonday, shifted ? 1 : 0) } : shifted ? { from: addDays(start, 1) } : {}),
         // Fine del gradino: la notte di domenica, prima dell'inizio della giornata di lunedì.
         ...(last ? {} : { until: { date: addDays(weekMonday, 7), time: cutoffEnd } }),
@@ -350,10 +376,27 @@ function stagedNightEvents(
 export interface CalendarFileRecord {
   /** Giorno in cui è stato creato. */
   at: ISODate;
+  /**
+   * Lunedì da cui la scala del sonno del file conta le settimane (`sleepStairOrigin`). Manca nei file creati
+   * prima che ci fosse: la loro scala partiva dalla settimana di `at`.
+   */
+  origin?: ISODate;
   kinds: ReminderKind[];
   /** Impronta del piano, senza l'orario a letto attuale (quello lo segue la scala). */
   sig: string;
   sleep: Pick<Plan['sleep'], 'current' | 'target' | 'stepMin'>;
+}
+
+/** Il ricordo del file creato `at` con questi promemoria: quello da salvare dopo averlo consegnato. */
+export function calendarFileRecord(state: ReminderState, kinds: ReminderKind[], at: ISODate): CalendarFileRecord {
+  const { current, target, stepMin } = state.plan.sleep;
+  return {
+    at,
+    origin: sleepStairOrigin(state.plan, at, state.reviews),
+    kinds: REMINDER_KINDS.filter((k) => kinds.includes(k)),
+    sig: calendarSignature(state, kinds),
+    sleep: { current, target, stepMin },
+  };
 }
 
 /** Impronta di tutto ciò che finisce nel calendario, tranne l'orario a letto di questa settimana. */
@@ -376,7 +419,9 @@ export type CalendarStatus =
  * - 'piano': pasti, settimana, integratori, sveglia, obiettivo del sonno o promemoria scelti sono cambiati.
  * - 'sonno': l'orario a letto del piano non è quello che la scala del file prevede per questa settimana
  *   (la revisione non ha anticipato, oppure l'orario è stato cambiato a mano). Prima della revisione della
- *   settimana appena chiusa vale anche il gradino precedente; la domenica, dopo la revisione, anche il prossimo.
+ *   settimana appena chiusa vale anche il gradino precedente, ma solo se quella settimana si poteva rivedere
+ *   (prima dell'inizio del piano nessuna revisione sposta l'orario); la domenica, dopo la revisione, anche il
+ *   prossimo.
  */
 export function calendarStatus(
   file: CalendarFileRecord | null | undefined,
@@ -389,13 +434,17 @@ export function calendarStatus(
   const eveningSupps = kinds.includes('colazione') && takenSupplements(state.plan).some((s) => s.timing === 'sera');
   if (!kinds.includes('coprifuoco') && !eveningSupps) return { state: 'aggiornato', at: file.at };
   const current = state.plan.sleep.current;
-  const allowed = new Set<HHMM>([stageBedtime(file.sleep, file.at, today)]);
-  if (weekdayOf(today) === 6) allowed.add(stageBedtime(file.sleep, file.at, addDays(today, 1)));
+  // La scala che il file ha scritto davvero: i file di prima contavano dalla settimana in cui erano stati creati.
+  const origin = file.origin ?? file.at;
+  const expected = stageBedtime(file.sleep, origin, today);
+  const allowed = new Set<HHMM>([expected]);
+  if (weekdayOf(today) === 6) allowed.add(stageBedtime(file.sleep, origin, addDays(today, 1)));
   const lastWeek = addDays(weekStart(today), -7);
-  if (!(state.reviews ?? []).some((r: WeeklyReview) => r.weekStart === lastWeek)) allowed.add(stageBedtime(file.sleep, file.at, lastWeek));
+  const reviewed = (state.reviews ?? []).some((r: WeeklyReview) => r.weekStart === lastWeek);
+  if (!reviewed && isReviewableWeek(lastWeek, state.plan)) allowed.add(stageBedtime(file.sleep, origin, lastWeek));
   return allowed.has(current)
     ? { state: 'aggiornato', at: file.at }
-    : { state: 'da-aggiornare', at: file.at, reason: 'sonno', bed: stageBedtime(file.sleep, file.at, today) };
+    : { state: 'da-aggiornare', at: file.at, reason: 'sonno', bed: expected };
 }
 
 const findItem = (items: TimelineItem[], id: string) => items.find((i) => i.id === id);
@@ -421,13 +470,16 @@ const TIMING_TITLE: Record<Exclude<Supplement['timing'], 'colazione'>, string> =
 };
 
 /**
- * Eventi ricorrenti per i promemoria scelti.
- * `start` serve solo a scegliere una settimana rappresentativa (default: il piano).
+ * Eventi ricorrenti per i promemoria scelti, per un file creato `start` (default: l'inizio del piano).
+ * Da `start` dipendono la settimana tipo e la partenza della scala del sonno (`sleepStairOrigin`).
  */
 export function reminderEvents(state: ReminderState, kinds: ReminderKind[], start: ISODate = state.plan.startDate): ReminderEvent[] {
   const want = new Set(kinds);
   const { plan } = state;
-  const tl = weekTimelines(state, start);
+  // La settimana tipo e il primo gradino della scala del sonno: quella del file, ma non prima della prima
+  // settimana da rivedere (un file creato di domenica per un piano che parte lunedì guarda la settimana del piano).
+  const origin = sleepStairOrigin(plan, start, state.reviews);
+  const tl = weekTimelines(state, origin);
   // Solo gli integratori con una dose: uno "da definire" non finisce nel promemoria (come in Oggi).
   const active = takenSupplements(plan);
   const byTiming = (t: Supplement['timing']) => active.filter((s) => s.timing === t);
@@ -483,7 +535,7 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
     const evening = byTiming('sera');
     if (evening.length) {
       events.push(
-        ...stagedNightEvents('colazione', plan, start, (p, dateOf) =>
+        ...stagedNightEvents('colazione', plan, start, origin, (p, dateOf) =>
           ALL_DAYS.map((day) => ({
             day,
             time: curfewFor(dateOf(day), p),
@@ -561,7 +613,7 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
 
   if (want.has('coprifuoco')) {
     events.push(
-      ...stagedNightEvents('coprifuoco', plan, start, (p, dateOf, stage) =>
+      ...stagedNightEvents('coprifuoco', plan, start, origin, (p, dateOf, stage) =>
         ALL_DAYS.map((day) => {
           const date = dateOf(day);
           const scale =

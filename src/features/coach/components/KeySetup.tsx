@@ -27,7 +27,7 @@ const STEPS: { title: string; text: string; link?: { label: string; href: string
   },
   {
     title: 'Crea una chiave API',
-    text: 'In Impostazioni, Chiavi API, crea una chiave chiamata "Ritmo" e copiala: si vede una volta sola.',
+    text: 'Chiamala «Ritmo» e copiala: si vede una volta sola.',
     link: { label: 'Chiavi API', href: CONSOLE_KEYS_URL },
   },
   {
@@ -271,7 +271,7 @@ export function KeyForm({ onSaved, autoFocus }: KeyFormProps) {
     >
       <Field
         label={current ? 'Nuova chiave API' : 'Chiave API'}
-        hint={current ? `Attuale: ${maskKey(current)}. Quella nuova la sostituisce.` : 'Inizia con sk-ant-. Resta salvata solo su questo telefono.'}
+        hint={current ? `Attuale: ${maskKey(current)}. Quella nuova la sostituisce.` : undefined}
         error={error}
       >
         <TextInput
@@ -326,7 +326,7 @@ export function PreviewCallout({ className }: { className?: string }) {
   if (!IS_PREVIEW) return null;
   return (
     <Callout tone="neutral" icon={WifiOff} title="Anteprima senza rete" className={className}>
-      Qui il coach non può collegarsi a Claude: puoi leggere come funziona e provare il piano B al bar, che non ha bisogno di rete.
+      Qui il coach non può collegarsi a Claude: puoi vedere come si attiva. Il piano B al bar, in fondo, funziona lo stesso.
     </Callout>
   );
 }

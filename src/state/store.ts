@@ -38,6 +38,7 @@ import type {
 import { DATA_VERSION, STORAGE_KEY, defaultAppData, defaultPlan, DEFAULT_PROFILE, DEFAULT_SETTINGS, DEFAULT_TARGETS } from '../data/defaults';
 import { buildDemo } from '../demo/seed';
 import { isHHMM, isISODate, nowMinutes, todayISO } from '../engine/dates';
+import { IMPACT_PAIN_THRESHOLD } from '../engine/training';
 import { uid } from '../lib/id';
 
 // ───────────────────────── Storage sicuro ─────────────────────────
@@ -255,13 +256,16 @@ function normalizePlan(raw: unknown, fallbackStart: ISODate): Plan {
 }
 
 /**
- * Soglia per gli impatti (facoltativa): un numero da 0 a 10, anche scritto come testo ("2,5"); altrimenti il campo
- * sparisce e vale il predefinito min(soglia, 2).
+ * Soglia per gli impatti (facoltativa): un numero da 0 a 10, anche scritto come testo ("2,5"), al mezzo punto come
+ * la scala del dolore; altrimenti il campo sparisce e vale il predefinito min(soglia, 2). Anche 2 toglie il campo:
+ * min(2, soglia) coincide sempre con il predefinito (`IMPACT_PAIN_THRESHOLD`), come fa lo stepper delle impostazioni.
  */
 export function normalizeImpactThreshold(raw: unknown): number | undefined {
   if (raw === null || typeof raw === 'boolean') return undefined;
   const n = optNum(raw);
-  return n === undefined ? undefined : clampN(n, 0, 10);
+  if (n === undefined) return undefined;
+  const v = clampN(Math.round(n * 2) / 2, 0, 10);
+  return v === IMPACT_PAIN_THRESHOLD ? undefined : v;
 }
 
 function normalizeProfile(raw: unknown): Profile {
@@ -301,7 +305,8 @@ const BAR_MEAL_MAX = { kcal: 3000, grams: 300, veg: 10, label: 120 };
  */
 export function normalizeBarMeal(raw: unknown): BarMeal | null {
   if (!isObj(raw)) return null;
-  const label = typeof raw.label === 'string' ? raw.label.trim().slice(0, BAR_MEAL_MAX.label) : '';
+  // Etichetta su una riga: a capo e spazi ripetuti di un backup scritto a mano diventano uno spazio.
+  const label = typeof raw.label === 'string' ? raw.label.replace(/\s+/g, ' ').trim().slice(0, BAR_MEAL_MAX.label).trim() : '';
   const n = isObj(raw.nutrients) ? raw.nutrients : null;
   if (!label || !n) return null;
   const kcal = optNum(n.kcal);
@@ -323,12 +328,17 @@ export function normalizeBarMeal(raw: unknown): BarMeal | null {
   } as NonNullable<BarMeal>);
 }
 
-/** Pasti presi al bar del giorno: solo pasti noti e voci leggibili; senza nessuno il campo sparisce. */
-export function normalizeBarMeals(raw: unknown): DayLog['barMeals'] {
+/**
+ * Pasti presi al bar del giorno: solo pasti noti e voci leggibili; senza nessuno il campo sparisce. Con `status`
+ * (il diario dello stesso giorno) restano solo i pasti segnati sostituiti, come vuole `setItemStatus`: un ordine
+ * rimasto su un pasto fatto, saltato o non segnato non entra nei valori del giorno né nella revisione.
+ */
+export function normalizeBarMeals(raw: unknown, status?: Record<string, ItemStatus>): DayLog['barMeals'] {
   if (!isObj(raw)) return undefined;
   const out: NonNullable<DayLog['barMeals']> = {};
   for (const [slot, v] of Object.entries(raw)) {
     if (!MEAL_SLOT_SET.has(slot)) continue;
+    if (status && status[`pasto:${slot}`] !== 'sostituito') continue;
     const meal = normalizeBarMeal(v);
     if (meal) out[slot as MealSlot] = meal;
   }
@@ -351,7 +361,7 @@ function normalizeDayLogs(raw: unknown): AppData['dayLogs'] {
       waterGlasses: clampN(Math.round(num(v.waterGlasses, 0)), 0, 40),
       sweets: clampN(Math.round(num(v.sweets, 0)), 0, 20),
       recipeSwaps: strRecord(v.recipeSwaps, (slot) => MEAL_SLOT_SET.has(slot)),
-      barMeals: normalizeBarMeals(v.barMeals),
+      barMeals: normalizeBarMeals(v.barMeals, status),
     } as DayLog);
   }
   return out;

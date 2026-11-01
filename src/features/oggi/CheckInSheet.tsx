@@ -117,14 +117,16 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
   const [pain, setPain] = useState<Record<string, number>>(() => (existing ? { ...existing.pain } : {}));
   const [energy, setEnergy] = useState<number | undefined>(existing?.energy);
 
+  const ritualChip = Boolean(ritual && ritual !== plannedBed);
   const bedOptions: QuickOption[] = [
-    ...(ritual && ritual !== plannedBed ? [{ key: 'rito', label: `Rito ${ritual}`, value: ritual }] : []),
+    ...(ritualChip && ritual ? [{ key: 'rito', label: `Rito ${ritual}`, value: ritual }] : []),
     // Prima del previsto è proprio quello che il piano cerca: deve costare un tocco, come il ritardo.
     // Etichette brevi, così le scelte stanno su una riga: i minuti li dice "previsto 00:45" accanto.
     { key: '-15', label: '−15', aria: '15 minuti prima', value: addMinutes(plannedBed, -15) },
     { key: 'orario', label: 'In orario', value: plannedBed },
     { key: '15', label: '+15', aria: '15 minuti dopo', value: addMinutes(plannedBed, 15) },
-    { key: '30', label: '+30', aria: '30 minuti dopo', value: addMinutes(plannedBed, 30) },
+    // Con l'orario del rito della sera "+30" lascia il posto: a 360 px ogni scelta resta larga almeno 44 px.
+    ...(ritualChip ? [] : [{ key: '30', label: '+30', aria: '30 minuti dopo', value: addMinutes(plannedBed, 30) }]),
     { key: 'altro', label: 'Altro', value: null },
   ];
   const wakeOptions: QuickOption[] = [
@@ -281,7 +283,7 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
               bed && lateBy < 0 ? (
                 <span className="inline-flex items-center gap-1.5 font-medium text-good-ink">
                   <Check size={14} strokeWidth={2.6} aria-hidden />
-                  {fmtMinutes(-lateBy)} di letto in più
+                  {fmtMinutes(-lateBy)} prima del previsto
                 </span>
               ) : null
             }
@@ -375,7 +377,7 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
                         {testSafety(site, customTests) && <span className="block">{testSafety(site, customTests)}</span>}
                       </p>
                       {typeof last === 'number' && v === undefined && (
-                        <Chip selected={false} onChange={() => setPain((p) => ({ ...p, [site]: last }))} className="h-9! px-3.5! text-[0.875rem]!">
+                        <Chip selected={false} onChange={() => setPain((p) => ({ ...p, [site]: last }))} className="hit-44 h-9! px-3.5! text-[0.875rem]!">
                           {prev?.date === addDays(date, -1) ? `Come ieri (${last})` : `Come l’ultima volta (${last})`}
                         </Chip>
                       )}
@@ -432,7 +434,7 @@ function QuickTime({
   selected: string | null;
   onPick: (o: QuickOption) => void;
   stepper: ReactNode;
-  /** Riscontro sotto le scelte (es. "15 min di letto in più"). */
+  /** Riscontro sotto le scelte (es. "15 min prima del previsto"). */
   note?: ReactNode;
 }) {
   const Icon = icon;
@@ -449,9 +451,9 @@ function QuickTime({
         </span>
       </div>
       {/* Una riga sola anche a 360 px: le scelte si dividono la larghezza. */}
-      <div className="mt-2.5 flex gap-1">
+      <div className="mt-2.5 flex gap-1.5">
         {options.map((o) => (
-          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-10! min-w-0 flex-[1_1_auto] justify-center whitespace-nowrap px-1.5! text-[0.875rem]! tabular">
+          <Chip key={o.key} selected={selected === o.key} onChange={() => onPick(o)} className="h-11! min-w-11 flex-[1_1_auto] justify-center whitespace-nowrap px-2! text-[0.875rem]! tabular">
             {o.aria ? (
               <>
                 <span aria-hidden>{o.label}</span>

@@ -24,7 +24,7 @@ import {
   type SessionDuration,
   type Suggestion,
 } from '../../engine/training';
-import { fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
+import { fmtMinutes, fmtNumber, WEEKDAY_SHORT, listIt } from '../../lib/format';
 
 export const PHYSIO_BLOCK_TITLE = 'Dal fisioterapista';
 
@@ -233,12 +233,15 @@ export function suggestionForItem(
 }
 
 /**
- * Durata da mostrare: "55 min" oppure, con gli esercizi del fisioterapista, "45 min + 24 dal fisioterapista".
- * `short` dà la forma compatta per le righe strette ("45 + 24 min").
+ * Durata da mostrare, come in Oggi: "55 min" oppure, con gli esercizi del fisioterapista,
+ * "45 min + 24 min dal fisioterapista" (va a capo prima del "+", mai dentro una durata).
+ * `short` dà la forma compatta per le righe strette ("45 + 24 min", come la timeline).
  */
 export function durationLabel(d: Pick<SessionDuration, 'own' | 'physio'>, opts: { short?: boolean } = {}): string {
-  if (!d.physio) return `${d.own} min`;
-  return opts.short ? `${d.own} + ${d.physio} min` : `${d.own} min + ${d.physio} dal fisioterapista`;
+  if (!d.physio) return fmtMinutes(d.own);
+  if (opts.short && d.own < 60 && d.physio < 60) return `${d.own} + ${d.physio} min`;
+  const both = `${fmtMinutes(d.own)} + ${fmtMinutes(d.physio)}`;
+  return opts.short ? both : `${both} dal fisioterapista`;
 }
 
 /** Nomi brevi degli esercizi saltati, per le frasi: "polpacci da seduto e Tyler twist". */

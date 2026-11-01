@@ -7,7 +7,7 @@ import type { Trend } from '../../../engine/review';
 import type { PainPoint } from '../series';
 import { mondayTicks } from './axis';
 import { ChartCard } from './ChartCard';
-import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, YGrid } from './frame';
+import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, WORD_LABEL, YGrid } from './frame';
 import { linear, monotonePath, segments } from './scale';
 
 const HEIGHT = 146;
@@ -109,7 +109,7 @@ export function PainChart({ series, threshold }: { series: PainSeries[]; thresho
                 xAt,
                 geo,
               ).map((t) => (
-                <text key={t.x} x={t.x} y={geo.bottom + 17} textAnchor={t.anchor} style={labelStyle()}>
+                <text key={t.x} x={t.x} y={geo.bottom + 17} textAnchor={t.anchor} style={labelStyle(WORD_LABEL)}>
                   {t.label}
                 </text>
               ))}

@@ -1,9 +1,10 @@
 import { useId, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, ChevronRight, ClipboardCheck, HeartPulse, Lightbulb, MoonStar, Pill, RefreshCw, SmartphoneCharging } from 'lucide-react';
+import { CalendarPlus, ChevronDown, ChevronRight, ClipboardCheck, HeartPulse, Lightbulb, MoonStar, Pill, RefreshCw, SmartphoneCharging } from 'lucide-react';
 import type { DayType, HHMM, ISODate } from '../../../domain/types';
 import { TIP_TOPIC_LABEL, tipOfDay, type TipContext } from '../../../data/tips';
 import type { SetupTask } from '../../../engine/timeline';
+import { CALENDAR_TASK_TEXT, type CalendarTask } from '../../impostazioni/reminders';
 import { fmtMinutes, listIt } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Card, ListGroup, ListRow, ProgressBar, cn, spring, toneInk } from '../../../ui';
@@ -79,19 +80,23 @@ export function CurfewCard({ minutes, curfew, bed, ritual, onRitual }: CurfewCar
 }
 
 /** Cosa dice la riga "Da completare" (nei test e nell'interfaccia). */
-export function setupText(task: SetupTask): string {
+export function setupText(task: SetupTask | CalendarTask): string {
+  if (task.kind === 'calendario') return CALENDAR_TASK_TEXT[task.state];
   return task.kind === 'fisio' ? 'Inserisci gli esercizi del fisioterapista' : `${listIt(task.names)}: inserisci la dose`;
 }
+
+const SETUP_ICON = (task: SetupTask | CalendarTask) =>
+  task.kind === 'calendario' ? (task.state === 'da-aggiornare' ? RefreshCw : CalendarPlus) : task.kind === 'fisio' ? HeartPulse : Pill;
 
 /**
  * Configurazione rimasta da completare, sotto la timeline: una riga neutra, una cosa alla volta, senza orario.
  * Non conta nella giornata.
  */
-export function SetupRow({ task, onPress }: { task: SetupTask; onPress: () => void }) {
+export function SetupRow({ task, onPress }: { task: SetupTask | CalendarTask; onPress: () => void }) {
   return (
     <ListGroup>
       <ListRow
-        icon={task.kind === 'fisio' ? HeartPulse : Pill}
+        icon={SETUP_ICON(task)}
         iconTone="neutral"
         title={<span className="text-ink-2">Da completare</span>}
         subtitle={setupText(task)}

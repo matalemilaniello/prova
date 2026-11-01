@@ -34,14 +34,19 @@ export function LoadMeter({ status, planned, className }: LoadMeterProps) {
             <NumberTicker value={load} className={cn('t-num text-[2.5rem]', over ? 'text-warn-ink' : 'text-ink')} />
             <span className="t-unit text-[0.8125rem] text-ink-2">UA</span>
           </div>
+          {/* Una riga sola: il confronto con la media (con meno storico su 2 o 3 settimane, e lo dice) e il suo valore. */}
           <p className="t-footnote mt-0.5 text-ink-2">
-            {ratio !== null ? `${fmtNumber(ratio)}% della media` : load > 0 ? 'minuti × RPE' : 'Ancora nessuna attività'}
+            {ratio !== null && average !== null ? (
+              <>
+                {fmtNumber(ratio)}% della media{status.previous.length >= 2 ? ` di ${status.previous.length} settimane` : ''}
+                <span className="text-ink-3 tabular">{` · ${fmtNumber(Math.round(average))} UA`}</span>
+              </>
+            ) : load > 0 ? (
+              'minuti × RPE'
+            ) : (
+              'Ancora nessuna attività'
+            )}
           </p>
-        </div>
-        <div className="text-right">
-          {/* Con meno storico la media è su 2 o 3 settimane: l'etichetta dice su quante. */}
-          <p className="t-label text-ink-3">{status.previous.length >= 2 ? `Media ${status.previous.length} settimane` : 'Media'}</p>
-          <p className="t-callout mt-1 font-semibold text-ink tabular">{average !== null ? `${fmtNumber(Math.round(average))} UA` : '–'}</p>
         </div>
       </div>
 

@@ -8,7 +8,7 @@ import { Button } from '../../../ui';
 import type { WeightPoint } from '../series';
 import { mondayTicks } from './axis';
 import { BigValue, ChartCard, LegendItem } from './ChartCard';
-import { ChartSvg, EndDot, ScrubRule, useGeometry, useScrub, YGrid } from './frame';
+import { ChartSvg, EndDot, labelStyle, ScrubRule, useGeometry, useScrub, WORD_LABEL, YGrid } from './frame';
 import { areaPath, linear, monotonePath, niceDomain, safeId, segments } from './scale';
 
 const HEIGHT = 160;
@@ -135,7 +135,7 @@ export function WeightChart({ points, today }: { points: WeightPoint[]; today: s
                   x={t.x}
                   y={geo.bottom + 17}
                   textAnchor={t.anchor}
-                  style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fill: 'var(--ink-3)', letterSpacing: '0.02em' }}
+                  style={labelStyle(WORD_LABEL)}
                 >
                   {t.label}
                 </text>

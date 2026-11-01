@@ -9,7 +9,7 @@ import { Segmented } from '../../../ui';
 import type { SleepPoint } from '../series';
 import { mondayTicks } from './axis';
 import { BigValue, ChartCard, HoursValue, LegendItem } from './ChartCard';
-import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, YGrid, type Geometry } from './frame';
+import { ChartSvg, labelStyle, ScrubRule, useGeometry, useScrub, WORD_LABEL, YGrid, type Geometry } from './frame';
 import { linear, topRoundedRect } from './scale';
 
 const HEIGHT = 156;
@@ -48,7 +48,7 @@ function DateAxis({ points, xAt, geo }: { points: SleepPoint[]; xAt: (i: number)
         xAt,
         geo,
       ).map((t) => (
-        <text key={t.x} x={t.x} y={geo.bottom + 17} textAnchor={t.anchor} style={labelStyle()}>
+        <text key={t.x} x={t.x} y={geo.bottom + 17} textAnchor={t.anchor} style={labelStyle(WORD_LABEL)}>
           {t.label}
         </text>
       ))}

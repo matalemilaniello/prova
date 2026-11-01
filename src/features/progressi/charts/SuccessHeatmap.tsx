@@ -6,7 +6,7 @@ import type { Weekday } from '../../../domain/types';
 import type { CalendarDay, CalendarSummary } from '../series';
 import { monthShort } from './axis';
 import { BigValue, ChartCard, LegendItem } from './ChartCard';
-import { labelStyle, useGeometry } from './frame';
+import { labelStyle, useGeometry, WORD_LABEL } from './frame';
 import { haptic } from '../../../lib/haptics';
 
 const GOOD = 'var(--good)';
@@ -176,24 +176,24 @@ export function SuccessHeatmap({ days, summary, weeks = 12 }: { days: CalendarDa
         >
           <g aria-hidden>
             {months.map((m) => (
-              <text key={`${m.x}-${m.label}`} x={m.x} y={10} style={labelStyle()}>
+              <text key={`${m.x}-${m.label}`} x={m.x} y={10} style={labelStyle(WORD_LABEL)}>
                 {m.label}
               </text>
             ))}
             {asRows
               ? ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((c) => (
-                  <text key={c} x={cellX(c) + cell / 2} y={10} textAnchor="middle" style={labelStyle({ fontSize: 10 })}>
+                  <text key={c} x={cellX(c) + cell / 2} y={10} textAnchor="middle" style={labelStyle({ ...WORD_LABEL, fontSize: 10 })}>
                     {WEEKDAY_INITIAL[c]}
                   </text>
                 ))
               : ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((r) => (
-                  <text key={r} x={offsetX} y={cellY(r) + cell / 2} dy="0.34em" style={labelStyle({ fontSize: 9.5 })}>
+                  <text key={r} x={offsetX} y={cellY(r) + cell / 2} dy="0.34em" style={labelStyle({ ...WORD_LABEL, fontSize: 10 })}>
                     {r % 2 === 0 || r === 6 ? WEEKDAY_INITIAL[r] : ''}
                   </text>
                 ))}
             {asRows &&
               Array.from({ length: nWeeks }, (_, r) => (
-                <text key={`w${r}`} x={offsetX} y={cellY(r) + cell / 2} dy="0.34em" style={labelStyle({ fontSize: 10 })}>
+                <text key={`w${r}`} x={offsetX} y={cellY(r) + cell / 2} dy="0.34em" style={labelStyle({ ...WORD_LABEL, fontSize: 10 })}>
                   {fmtDateShort(days[r * 7].date)}
                 </text>
               ))}

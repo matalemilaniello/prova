@@ -130,7 +130,7 @@ export function EveningRitual({ open, today, state, now, curfew, bed, curfewIn, 
             )}
           </h2>
           <p className="t-callout mt-3 max-w-[30ch] text-ink-2">
-            Coprifuoco alle <span className="t-mono">{curfew}</span>, a letto alle <span className="t-mono">{bed}</span>. Luci basse, domani è già deciso.
+            Coprifuoco alle <span className="font-semibold tabular text-ink">{curfew}</span>, a letto alle <span className="font-semibold tabular text-ink">{bed}</span>. Luci basse, domani è già deciso.
           </p>
         </motion.div>
 
@@ -161,7 +161,7 @@ export function EveningRitual({ open, today, state, now, curfew, bed, curfewIn, 
         <div className="mt-6 flex items-center gap-3.5 rounded-card bg-card px-4 py-4 shadow-[inset_0_0_0_1px_var(--line)]">
           <AlarmClock size={20} strokeWidth={2} aria-hidden className="shrink-0 text-ink-2" />
           <p className="t-callout min-w-0 flex-1 text-ink-2">
-            Sveglia alle <span className="t-mono text-ink">{wake}</span>
+            Sveglia alle <span className="font-semibold tabular text-ink">{wake}</span>
           </p>
           <span className="t-num text-[1.375rem] text-ink">{fmtHours(sleepHours(bed, wake))}</span>
           <span className="t-caption -ml-2 text-ink-3">a letto</span>
@@ -189,7 +189,7 @@ export function EveningRitual({ open, today, state, now, curfew, bed, curfewIn, 
                 <ol className="t-footnote flex list-decimal flex-col gap-1.5 pl-5 text-ink-2 marker:text-ink-3">
                   <li>Apri Comandi Rapidi, scheda Automazione, poi Nuova automazione.</li>
                   <li>
-                    Scegli Orario del giorno: <span className="t-mono text-ink">{curfew}</span>, ogni giorno, Esegui immediatamente.
+                    Scegli Orario del giorno: <span className="font-semibold tabular text-ink">{curfew}</span>, ogni giorno, Esegui immediatamente.
                   </li>
                   <li>Aggiungi l’azione Imposta Full immersion: Riposo, attiva.</li>
                   <li>Facoltativo: aggiungi Imposta luminosità al 20%.</li>

@@ -12,7 +12,10 @@
  * (verificato da `menu.test.ts`): chi mangiava poche fibre non passa a 50 g da un giorno all'altro.
  *
  * Nei giorni di calcio la merenda è un pre-calcio digeribile (verso le 18:30) e la cena è una cena di recupero
- * veloce, quasi sempre pronta dalla domenica. Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto
+ * veloce, quasi sempre pronta dalla domenica. Partita e vigilia arrivano a 6 g/kg di carboidrati alzando pasta, riso
+ * e gallette: perché le proteine non salgano troppo con loro (restano entro il 20% dell'obiettivo e le kcal entro il
+ * 5%, verificato in `engine/nutrition.test.ts`), in quei giorni la merenda è il pre-calcio con gallette e banana, anche
+ * alla vigilia, e lo spuntino è quasi sempre gallette, Parmigiano e clementine. Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto
  * principale (nei giorni di calcio solo le lenticchie rosse decorticate, a pranzo; alla vigilia mai a cena),
  * uova 3 volte, carne rossa una volta.
  *
@@ -51,7 +54,7 @@ export const MENU_ROTATION: MenuWeek[] = [
       {
         meals: {
           colazione: 'pane-arachidi-banana',
-          spuntino: 'yogurt-greco-noci-clementine',
+          spuntino: 'gallette-grana-clementine',
           pranzo: 'pasta-tonno-pomodoro',
           merenda: 'pre-gallette-banana',
           cena: 'box-riso-pollo-zucchine',
@@ -113,7 +116,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'gallette-grana-clementine',
           pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'yogurt-clementine-gallette',
+          merenda: 'pre-gallette-banana',
           cena: 'riso-pollo-curcuma',
         },
       },
@@ -166,7 +169,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-ricotta-miele',
           spuntino: 'frittatine-spinaci',
           pranzo: 'pasta-ricotta-spinaci',
-          merenda: 'pre-frullato-banana',
+          merenda: 'pre-gallette-banana',
           cena: 'box-riso-pollo-zucchine',
         },
       },
@@ -226,7 +229,7 @@ export const MENU_ROTATION: MenuWeek[] = [
           colazione: 'pane-arachidi-banana',
           spuntino: 'gallette-grana-clementine',
           pranzo: 'riso-pollo-curcuma',
-          merenda: 'yogurt-clementine-gallette',
+          merenda: 'pre-gallette-banana',
           cena: 'merluzzo-pizzaiola-couscous',
         },
       },
@@ -280,7 +283,7 @@ export const MENU_ROTATION: MenuWeek[] = [
  *
  * - nessuna ricetta da preparazione: tutto si cucina sul momento, in 15 minuti al massimo;
  * - una spesa piccola: 17 prodotti per tutta la settimana (`STARTER_PRODUCTS`), quasi tutti a lunga
- *   conservazione o surgelati. Il pollo si compra fresco e le porzioni dal mercoledì vanno in freezer;
+ *   conservazione o surgelati. Il pollo si compra fresco: le porzioni oltre il giorno dopo la spesa vanno in freezer;
  * - poche ricette che si ripetono, di proposito: la colazione è sempre la stessa, lo spuntino da portare
  *   anche, e dopo il calcio c'è sempre la stessa cena di recupero, pronta in 12 minuti;
  * - fibre in salita: 28-31 g al giorno (circa 11 g ogni 1.000 kcal) contro i 34-45 g della rotazione. Chi ne
@@ -292,6 +295,12 @@ export const MENU_ROTATION: MenuWeek[] = [
  * di recupero nei giorni di calcio. Pesce 7 volte (tonno 3, merluzzo 4), pollo 5, uova 2, carne rossa mai.
  * I giorni seguono la settimana tipo del piano predefinito, come la rotazione.
  */
+/**
+ * Quota dell'obiettivo di fibre che il menù di avvio porta, di proposito: circa 28 g su 35 (`menu.test.ts` lo
+ * verifica sulla media dei giorni). Il Menù la mostra come riferimento dei giorni di avvio, con la tacca sulla barra.
+ */
+export const STARTER_FIBER_SHARE = 0.8;
+
 export const STARTER_WEEK: MenuWeek = {
   days: [
     // Lunedì · calcio, partita alle 21:00 (la spesa di avvio è nel primo pomeriggio)
@@ -358,9 +367,9 @@ export const STARTER_WEEK: MenuWeek = {
     {
       meals: {
         colazione: 'pane-comune-arachidi-banana',
-        spuntino: 'yogurt-clementine-gallette',
+        spuntino: 'gallette-grana-clementine',
         pranzo: 'pasta-pollo-spinaci',
-        merenda: 'gallette-grana-clementine',
+        merenda: 'pre-gallette-banana',
         cena: 'merluzzo-ceci-couscous',
       },
     },

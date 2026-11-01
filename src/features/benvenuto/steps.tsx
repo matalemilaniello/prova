@@ -10,7 +10,7 @@ import { currentDate, formatDayLong } from '../../engine/dates';
 import { curfewFor } from '../../engine/sleep';
 import { DAY_TYPE_LABEL, DAY_TYPES, fmtNumber } from '../../lib/format';
 import { useNow } from '../../state/hooks';
-import { Callout, Card, DayTypeBadge, Field, ListGroup, NumberTicker, Segmented, TextInput, cn, staggerItem, toneInk, toneSoft } from '../../ui';
+import { Card, DayTypeBadge, Disclosure, Field, ListGroup, NumberTicker, Segmented, TextInput, cn, staggerItem, toneInk, toneSoft } from '../../ui';
 import { ChoiceCards, FormRow, InlineNumber, TimePill, tileStyle } from '../impostazioni/components/controls';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { PainSitesPicker } from '../impostazioni/components/Pickers';
@@ -20,6 +20,7 @@ import { DayEditorSheet, WeekDayList } from '../impostazioni/components/WeekEdit
 import { GOAL_OPTIONS, hasErrors, impactRuleNote, matchCarbNote, targetDayCounts, targetDaysLabel, validateBody, type ProfileErrors } from '../impostazioni/lib';
 import { DayDial } from './DayDial';
 import { finalizePlan, firstWeekSteps, startInfo } from './firstWeek';
+import { CalendarInvite } from './CalendarInvite';
 import { FirstWeekList } from './FirstWeekList';
 
 export interface StepProps {
@@ -442,22 +443,18 @@ export function StepReady({ profile, plan, targets, install }: Pick<StepProps, '
             );
           })}
         </div>
-        <p className="t-footnote px-1 text-pretty text-ink-3">
-          {carbNote ? `${carbNote} ` : ''}
-          Sono numeri di partenza: la revisione della domenica propone le correzioni.
-        </p>
+        {/* La chiave delle sigle e il perché della vigilia stanno dietro un tocco: in vista restano i numeri. */}
+        <Disclosure variant="inline" tone="quiet" title="Come si leggono" className="px-1">
+          P, C e G sono proteine, carboidrati e grassi in grammi. {carbNote ? `${carbNote} ` : ''}Sono numeri di partenza: la
+          revisione della domenica propone le correzioni.
+        </Disclosure>
       </section>
 
-      {install && (
+      {/* Chi deve ancora installare l'app rifà questi passi dall'icona: gli avvisi li aggiunge lì, una volta sola. */}
+      {install ? (
         <InstallCard note="Installata, Ritmo parte da capo: i dati scritti in Safari restano a Safari. Installala adesso e rifai questi passi dall’icona, bastano due minuti." />
-      )}
-
-      {profile.painSites.length ? (
-        <p className="t-footnote px-1 text-ink-3">Puoi cambiare tutto dalle impostazioni, quando vuoi.</p>
       ) : (
-        <Callout tone="neutral" title="Nessuna zona di dolore">
-          Il controllo del mattino chiederà solo sonno, peso ed energia. Zone e tutto il resto si cambiano dalle impostazioni, quando vuoi.
-        </Callout>
+        <CalendarInvite plan={final} />
       )}
     </div>
   );

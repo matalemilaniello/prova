@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan } from '../../domain/types';
 import { DEFAULT_WEEK, defaultPlan } from '../../data/defaults';
-import { dayActivities, dayVerdict, firstShoppingSafe, lowerFirst, portionShort, prepSkipped, preShoppingSlots } from './helpers';
+import { dayActivities, dayVerdict, fiberReferenceG, firstShoppingSafe, lowerFirst, portionShort, prepSkipped, preShoppingSlots } from './helpers';
 
 const target = { kcal: 2800, proteinG: 135, carbG: 385, fatG: 80 };
 
@@ -18,6 +18,20 @@ describe('giudizio del giorno', () => {
     expect(dayVerdict({ kcal: 2850, proteinG: 165, carbG: 370, fatG: 75 }, target).good).toBe(true);
     expect(dayVerdict({ kcal: 3060, proteinG: 150, carbG: 400, fatG: 80 }, target)).toEqual({ good: false, text: '+9% sull’obiettivo' });
     expect(dayVerdict({ kcal: 2700, proteinG: 110, carbG: 400, fatG: 80 }, target).text).toBe('Proteine sotto l’obiettivo');
+  });
+
+  it('guarda anche le fibre, con il riferimento dei giorni di avvio', () => {
+    const withFiber = { ...target, fiberG: 35 };
+    const day = { kcal: 2800, proteinG: 150, carbG: 380, fatG: 75, fiberG: 29 };
+    // 29 g su 35: sotto di oltre 5 g.
+    expect(dayVerdict(day, withFiber)).toEqual({ good: false, text: 'Fibre sotto l’obiettivo' });
+    // Nei giorni di avvio il menù porta di proposito circa 28 g: in linea.
+    expect(fiberReferenceG(35, true)).toBe(28);
+    expect(fiberReferenceG(35, false)).toBe(35);
+    expect(dayVerdict(day, withFiber, fiberReferenceG(35, true)).good).toBe(true);
+    expect(dayVerdict({ ...day, fiberG: 31 }, withFiber).good).toBe(true);
+    // Senza fibre nei dati il giudizio resta quello di kcal e macronutrienti.
+    expect(dayVerdict({ kcal: 2800, proteinG: 150, carbG: 380, fatG: 75 }, withFiber).good).toBe(true);
   });
 });
 
@@ -57,12 +71,41 @@ describe('settimana senza preparazione', () => {
 
 describe('porzioni del giorno', () => {
   const text = (p: ReturnType<typeof portionShort>) => (p ? `${p.lead}${p.pct}${p.tail}` : null);
-  it('dice di quanto cambiano i carboidrati e perché, in breve', () => {
-    expect(text(portionShort('calcio', 1.25))).toBe('Carboidrati +25% per un giorno di calcio.');
-    expect(text(portionShort('calcio', 1.25, true))).toBe('Carboidrati +25% per la vigilia della partita.');
-    expect(text(portionShort('leggero', 0.9))).toBe('Carboidrati −10% per un giorno leggero.');
-    expect(text(portionShort('palestra', 1.06))).toBe('Carboidrati +6% per i tuoi obiettivi.');
+  it('dice di quanto cambiano pasta, riso e pane e perché, in breve', () => {
+    expect(text(portionShort('calcio', 1.25))).toBe('Pasta, riso e pane +25% per un giorno di calcio.');
+    expect(text(portionShort('calcio', 1.25, true))).toBe('Pasta, riso e pane +25% per la vigilia della partita.');
+    expect(text(portionShort('leggero', 0.9))).toBe('Pasta, riso e pane −10% per un giorno leggero.');
+    expect(text(portionShort('palestra', 1.06))).toBe('Pasta, riso e pane +6% per i tuoi obiettivi.');
     expect(portionShort('palestra', 1)).toBeNull();
+  });
+
+  it('partita e vigilia con il minimo per kg: il motivo è il minimo', () => {
+    expect(text(portionShort('calcio', 1.653, true, 6))).toBe('Pasta, riso e pane +65% per arrivare a 6 g di carboidrati per kg.');
+    expect(text(portionShort('calcio', 1.634, false, 6))).toBe('Pasta, riso e pane +63% per arrivare a 6 g di carboidrati per kg.');
+  });
+
+  it('nella ricetta nomina le righe che cambiano', () => {
+    expect(text(portionShort('calcio', 1.653, true, 6, ['Riso basmati']))).toBe('Riso basmati +65% per arrivare a 6 g di carboidrati per kg.');
+    expect(text(portionShort('calcio', 1.25, false, undefined, ['Pane integrale', 'Fiocchi d’avena']))).toBe('Pane integrale e fiocchi d’avena +25% per un giorno di calcio.');
+    expect(text(portionShort('calcio', 1.25, false, undefined, []))).toBe('Pasta, riso e pane +25% per un giorno di calcio.');
+  });
+
+  it('la percentuale non è mai detta dei carboidrati del giorno', () => {
+    // Alla vigilia le righe di pasta, riso e pane crescono del 65%, i carboidrati del giorno di molto meno.
+    const cases: [Parameters<typeof portionShort>[0], number, boolean, number?][] = [
+      ['calcio', 1.653, true, 6],
+      ['calcio', 1.634, false, 6],
+      ['calcio', 1.25, true],
+      ['calcio', 1.25, false],
+      ['leggero', 0.9, false],
+      ['riposo', 0.75, false],
+      ['palestra', 1.06, false],
+    ];
+    for (const [dayType, factor, eve, floor] of cases) {
+      const t = text(portionShort(dayType, factor, eve, floor)) ?? '';
+      expect(t, t).not.toMatch(/carboidrati\s*[+−-]?\s*\d+([,.]\d+)?\s*%/i);
+      expect(t, t).toMatch(/^Pasta, riso e pane [+−]\d+% /);
+    }
   });
 });
 

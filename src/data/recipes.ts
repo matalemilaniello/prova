@@ -122,7 +122,7 @@ const RECIPE_LIST: Recipe[] = [
     ingredients: [
       i('uova', 2, 'pezzo'),
       i('albume', 2, 'pezzo'),
-      i('spinaci', 2, 'pezzo', { note: 'due cubetti' }),
+      i('spinaci', 2, 'pezzo'),
       i('pane-integrale', 2, 'fetta', C),
       i('olio-evo', 1, 'cucchiaino'),
       i('clementine', 2, 'pezzo'),
@@ -246,8 +246,8 @@ const RECIPE_LIST: Recipe[] = [
     name: 'Crackers integrali, Parmigiano a scaglie e una pera',
     slots: ['spuntino', 'merenda'],
     ingredients: [
-      i('crackers-integrali', 1, 'pezzo', { note: 'un pacchetto' }),
-      i('grana', 1, 'pezzo'),
+      i('crackers-integrali', 1, 'pezzo'),
+      i('grana', 25, 'g'),
       i('pera', 1, 'pezzo'),
     ],
     steps: [
@@ -293,7 +293,7 @@ const RECIPE_LIST: Recipe[] = [
     ingredients: [
       i('uova', 1, 'pezzo'),
       i('albume', 3, 'pezzo'),
-      i('spinaci', 2, 'pezzo', { note: 'cubetti scongelati e strizzati' }),
+      i('spinaci', 2, 'pezzo', { note: 'scongelati e strizzati' }),
       i('grana', 1, 'cucchiaio'),
       i('pane-integrale', 1, 'fetta', C),
       i('clementine', 1, 'pezzo'),
@@ -346,7 +346,7 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['spuntino', 'merenda'],
     ingredients: [
       i('gallette-riso', 4, 'pezzo', C),
-      i('grana', 1, 'pezzo', { note: 'un pezzo da 25 g' }),
+      i('grana', 25, 'g'),
       i('clementine', 2, 'pezzo'),
     ],
     steps: [
@@ -369,8 +369,8 @@ const RECIPE_LIST: Recipe[] = [
       i('yogurt-greco-2', 0.5, 'vasetto'),
     ],
     steps: [
-      'Mangia con calma gallette, banana e yogurt, 2 ore e mezza prima del calcio: carboidrati facili e poca fibra.',
-      'Da qui al calcio solo acqua, a piccoli sorsi.',
+      'Gallette, banana e yogurt, con calma: carboidrati facili e poca fibra, che si digeriscono in fretta.',
+      'Nei giorni di calcio mangiala 2 ore e mezza prima, poi solo acqua a piccoli sorsi.',
     ],
     prepMin: 2,
     tags: ['pre-calcio', 'digeribile', 'veloce'],
@@ -472,7 +472,7 @@ const RECIPE_LIST: Recipe[] = [
     ingredients: [
       i('fiocchi-latte', 1, 'vasetto'),
       i('pomodorini', 1, 'manciata'),
-      i('crackers-integrali', 1, 'pezzo', { note: 'un pacchetto' }),
+      i('crackers-integrali', 1, 'pezzo'),
       i('origano', 0.5, 'cucchiaino'),
     ],
     steps: ['Taglia i pomodorini a metà e mescolali ai fiocchi di latte con origano e pepe.', 'Accompagna con i crackers.'],
@@ -486,7 +486,7 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['merenda'],
     ingredients: [
       i('pane-integrale', 1, 'fetta', C),
-      i('cioccolato-fondente', 2, 'pezzo', { note: 'due quadretti' }),
+      i('cioccolato-fondente', 2, 'pezzo'),
       i('kefir', 1, 'bicchiere'),
       i('arancia', 1, 'pezzo'),
     ],
@@ -672,7 +672,7 @@ const RECIPE_LIST: Recipe[] = [
     slots: ['pranzo'],
     ingredients: [
       i('orzo', 2, 'pugno', C),
-      i('sgombro', 1, 'pezzo', { note: 'una scatoletta' }),
+      i('sgombro', 1, 'pezzo'),
       i('cannellini', 1, 'mano a coppa'),
       i('fagiolini', 1.5, 'pugno'),
       i('pomodorini', 1, 'manciata'),
@@ -1155,7 +1155,7 @@ const RECIPE_LIST: Recipe[] = [
     ingredients: [
       i('couscous', 1.5, 'pugno', C),
       i('pollo', 1, 'palmo'),
-      i('spinaci', 2, 'pezzo', { note: 'due cubetti' }),
+      i('spinaci', 2, 'pezzo'),
       i('olio-evo', 1.5, 'cucchiaio'),
       i('pepe', 0.5, 'cucchiaino'),
     ],

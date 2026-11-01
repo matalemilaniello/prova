@@ -72,29 +72,43 @@ describe('store', () => {
       dayLogs: {
         '2026-11-10': {
           date: '2026-11-10',
-          status: {},
+          status: { 'pasto:spuntino': 'sostituito', 'pasto:pranzo': 'sostituito', 'pasto:cena': 'sostituito', 'pasto:merenda': 'sostituito' },
           barMeals: {
-            spuntino: { label: 'Toast', nutrients: { kcal: '380', proteinG: '20', carbG: 40, fatG: 'x', fiberG: -3 }, vegPortions: '1,5' },
+            spuntino: { label: ' Toast\n e  spremuta ', nutrients: { kcal: '380', proteinG: '20', carbG: 40, fatG: 'x', fiberG: -3 }, vegPortions: '1,5' },
             pranzo: { label: '', nutrients: { kcal: 500 } },
             cena: { label: 'Piadina', nutrients: { proteinG: 20 } },
             brunch: { label: 'Uova', nutrients: { kcal: 400 } },
             merenda: 'yogurt',
+            // Il pasto è segnato fatto: l'ordine rimasto non vale più.
+            colazione: { label: 'Cappuccino e brioche', nutrients: { kcal: 330 } },
           },
+        },
+        '2026-11-12': {
+          date: '2026-11-12',
+          status: { 'pasto:colazione': 'fatto' },
+          barMeals: { colazione: { label: 'Cappuccino e brioche', nutrients: { kcal: 330 } } },
         },
         '2026-11-11': { date: '2026-11-11', status: {}, barMeals: [] },
       },
     });
     expect(fixed.plan.impactThreshold).toBe(2.5);
     expect(fixed.dayLogs['2026-11-10'].barMeals).toEqual({
-      spuntino: { label: 'Toast', nutrients: { kcal: 380, proteinG: 20, carbG: 40, fatG: 0, fiberG: 0 }, vegPortions: 1.5 },
+      spuntino: { label: 'Toast e spremuta', nutrients: { kcal: 380, proteinG: 20, carbG: 40, fatG: 0, fiberG: 0 }, vegPortions: 1.5 },
     });
     expect('barMeals' in fixed.dayLogs['2026-11-11']).toBe(false);
+    expect('barMeals' in fixed.dayLogs['2026-11-12']).toBe(false);
     for (const bad of [{ ...base.plan, impactThreshold: 'tanto' }, { ...base.plan, impactThreshold: null }, { ...base.plan, impactThreshold: true }]) {
       expect('impactThreshold' in normalizeData({ ...base, plan: bad }).plan).toBe(false);
     }
     expect(normalizeData({ ...base, plan: { ...base.plan, impactThreshold: 14 } }).plan.impactThreshold).toBe(10);
     expect(normalizeImpactThreshold(-1)).toBe(0);
     expect(normalizeImpactThreshold(undefined)).toBeUndefined();
+    // Al mezzo punto, come la scala del dolore; 2 coincide sempre con il predefinito min(soglia, 2) e toglie il campo.
+    expect(normalizeImpactThreshold('1,3')).toBe(1.5);
+    expect(normalizeImpactThreshold(0.2)).toBe(0);
+    expect(normalizeImpactThreshold(2)).toBeUndefined();
+    expect(normalizeImpactThreshold('2,1')).toBeUndefined();
+    expect('impactThreshold' in normalizeData({ ...base, plan: { ...base.plan, impactThreshold: 2 } }).plan).toBe(false);
     expect(normalizeBarMeal({ label: 'Pizza', nutrients: { kcal: 9000, proteinG: 900 } })?.nutrients).toMatchObject({ kcal: 3000, proteinG: 300 });
     expect('impactThreshold' in normalizeData(base).plan).toBe(false);
   });
@@ -107,7 +121,11 @@ describe('store', () => {
     expect(useApp.getState().plan.impactThreshold).toBe(10);
     a.updatePlan({ impactThreshold: Number.NaN });
     expect('impactThreshold' in useApp.getState().plan).toBe(false);
+    a.updatePlan({ impactThreshold: 1.25 });
+    expect(useApp.getState().plan.impactThreshold).toBe(1.5);
     a.updatePlan({ impactThreshold: 2 });
+    expect('impactThreshold' in useApp.getState().plan).toBe(false);
+    a.updatePlan({ impactThreshold: 1 });
     a.updatePlan({ impactThreshold: undefined });
     expect('impactThreshold' in useApp.getState().plan).toBe(false);
     a.updatePlan({ painThreshold: 4 });

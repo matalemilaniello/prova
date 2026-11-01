@@ -40,7 +40,7 @@ import { MENU_ROTATION } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { DEFAULT_TARGETS, DEFAULT_WEEK, defaultPlan } from '../data/defaults';
 import { addDays, daysBetween, isISODate } from './dates';
-import { effectiveDayType, isMatchDay, isMatchEve, mealsForDate, menuDayFor, type MenuState } from './menu';
+import { effectiveDayType, isMatchDay, isMatchEve, mealsForDate, type MenuState } from './menu';
 import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
 
 /**
@@ -251,15 +251,16 @@ export function dayTargetFor(date: ISODate, state: NutritionState): MacroTarget 
  * delle righe di carboidrati del menù previsto quel giorno. Così il totale del giorno segue l'obiettivo
  * (+150 kcal nel piano → circa +150 kcal nel piatto). Il giorno della partita e la vigilia la scala sale
  * almeno quanto serve perché i carboidrati del menù previsto arrivino al minimo (`matchCarbs`): nel piatto ci
- * sono davvero 6 g/kg, non solo nell'obiettivo.
+ * sono davvero 6 g/kg, non solo nell'obiettivo. Il menù previsto è quello che `mealsForDate` dà senza le
+ * sostituzioni del diario: nei giorni di avvio è il menù di avvio, non la rotazione.
  */
 export function dayCarbScale(date: ISODate, state: NutritionState): number {
   const dayType = effectiveDayType(date, state.plan);
   const delta = targetDelta(dayType, state.plan);
   const match = matchCarbs(date, state);
   if (!delta && !match?.extraG) return 1;
-  const planned = menuDayFor(date, state.plan.startDate);
-  const parts = planned ? carbParts(Object.values(planned.meals ?? {}), dayType) : null;
+  const plannedIds = mealsForDate(date, { plan: state.plan, dayLogs: {} }).meals.map((m) => m.plannedId);
+  const parts = plannedIds.length ? carbParts(plannedIds, dayType) : null;
   const base = parts && parts.scaledKcal > 0 ? parts.scaledKcal : menuCarbKcal(dayType);
   const scale = scaleFrom(delta, base);
   if (!match?.extraG || !parts || !(parts.scaledCarbG > 0)) return scale;
@@ -394,43 +395,167 @@ export const UNIT_WORDS: Record<Exclude<PortionUnit, 'g' | 'ml'>, UnitWords> = {
   bicchiere: { one: 'bicchiere', many: 'bicchieri' },
 };
 
+/**
+ * Parole di un alimento contato a pezzi. Con l'unità 'pezzo' la porzione nomina l'alimento invece di dire
+ * "pezzo": "6 pezzi e mezzo" di gallette diventano "7 gallette", "mezzo pezzo" di limone "mezzo limone".
+ */
+export interface PieceWords {
+  one: string;
+  many: string;
+  /** Femminile: "mezza banana", "una banana e mezza". */
+  fem?: boolean;
+  /** Articolo del singolare quando non è "un" o "una": "uno spicchio", "un’arancia". */
+  art?: string;
+  /** Sostantivo con l'aggettivo, singolare e plurale, per la frase con il nome: "piadina integrale", "cipolle rosse". */
+  full?: [string, string];
+  /**
+   * Complemento che chiude la frase con il nome, dopo "e mezzo" e "abbondante" come in "un cucchiaio abbondante di
+   * olio": "2 gallette abbondanti di riso", "una scatoletta e mezza di sgombro".
+   */
+  of?: string;
+}
+
+/** Parole per id di alimento, per tutti gli alimenti che hanno `unitGrams.pezzo`. */
+export const PIECE_WORDS: Record<string, PieceWords> = {
+  'gallette-riso': { one: 'galletta', many: 'gallette', fem: true, of: 'di riso' },
+  'piadina-integrale': { one: 'piadina', many: 'piadine', fem: true, full: ['piadina integrale', 'piadine integrali'] },
+  'crackers-integrali': { one: 'pacchetto', many: 'pacchetti', of: 'di cracker integrali' },
+  tonno: { one: 'scatoletta', many: 'scatolette', fem: true, of: 'di tonno' },
+  sgombro: { one: 'scatoletta', many: 'scatolette', fem: true, of: 'di sgombro' },
+  uova: { one: 'uovo', many: 'uova' },
+  albume: { one: 'albume', many: 'albumi' },
+  grana: { one: 'tocchetto', many: 'tocchetti', of: 'di grana' },
+  mela: { one: 'mela', many: 'mele', fem: true },
+  pera: { one: 'pera', many: 'pere', fem: true },
+  banana: { one: 'banana', many: 'banane', fem: true },
+  arancia: { one: 'arancia', many: 'arance', fem: true, art: 'un’' },
+  clementine: { one: 'clementina', many: 'clementine', fem: true },
+  kiwi: { one: 'kiwi', many: 'kiwi' },
+  datteri: { one: 'dattero', many: 'datteri' },
+  spinaci: { one: 'cubetto', many: 'cubetti', of: 'di spinaci' },
+  zucchine: { one: 'zucchina', many: 'zucchine', fem: true },
+  pomodorini: { one: 'pomodorino', many: 'pomodorini' },
+  carote: { one: 'carota', many: 'carote', fem: true },
+  'cipolla-rossa': { one: 'cipolla', many: 'cipolle', fem: true, full: ['cipolla rossa', 'cipolle rosse'] },
+  cetriolo: { one: 'cetriolo', many: 'cetrioli' },
+  peperoni: { one: 'peperone', many: 'peperoni' },
+  patate: { one: 'patata', many: 'patate', fem: true },
+  limone: { one: 'limone', many: 'limoni' },
+  mandorle: { one: 'mandorla', many: 'mandorle', fem: true },
+  noci: { one: 'noce', many: 'noci', fem: true },
+  'cioccolato-fondente': { one: 'quadretto', many: 'quadretti', of: 'di cioccolato' },
+  aglio: { one: 'spicchio', many: 'spicchi', art: 'uno', of: 'd’aglio' },
+};
+
+/**
+ * Alimenti che si contano solo a unità intere: una galletta da 8 g, un quadretto di cioccolato, un dattero o un
+ * uovo non si dividono a metà. La porzione arrotonda all'unità e lo dice con "abbondanti" o "quasi".
+ */
+export const WHOLE_PIECES: ReadonlySet<string> = new Set([
+  'gallette-riso',
+  'crackers-integrali',
+  'uova',
+  'albume',
+  'datteri',
+  'spinaci',
+  'pomodorini',
+  'mandorle',
+  'noci',
+  'cioccolato-fondente',
+]);
+
+type HandUnit = Exclude<PortionUnit, 'g' | 'ml'>;
+
+/** Parole dell'alimento quando la riga è a pezzi e l'alimento è noto. */
+function pieceWordsFor(unit: HandUnit, foodId: string | undefined): PieceWords | undefined {
+  return unit === 'pezzo' && foodId ? PIECE_WORDS[foodId] : undefined;
+}
+
 /** Arrotonda a mezze unità (minimo mezza). */
 export function roundHalf(q: number): number {
   if (!(q > 0)) return 0;
   return Math.max(0.5, Math.round(q * 2) / 2);
 }
 
-/** "1 pugno e mezzo", "mezza fetta", "2 cucchiai". */
-export function portionWords(qty: number, unit: Exclude<PortionUnit, 'g' | 'ml'>): string {
-  const w = UNIT_WORDS[unit] ?? { one: unit, many: unit };
-  const q = roundHalf(qty);
+/** Quantità già arrotondata a parole: "1 pugno e mezzo", "mezza fetta"; con l'articolo "una banana e mezza". */
+function countWords(q: number, w: { one: string; many: string; fem?: boolean; art?: string }, article: boolean): string {
   const whole = Math.floor(q);
   const half = q - whole >= 0.5;
   const mezzo = w.fem ? 'mezza' : 'mezzo';
   if (whole === 0) return `${mezzo} ${w.one}`;
-  const base = `${whole} ${whole === 1 ? w.one : w.many}`;
+  const art = w.art ?? (w.fem ? 'una' : 'un');
+  const base = whole === 1 && article ? `${art}${art.endsWith('’') ? '' : ' '}${w.one}` : `${whole} ${whole === 1 ? w.one : w.many}`;
   return half ? `${base} e ${mezzo}` : base;
+}
+
+/** Parole brevi (il sostantivo) o intere (con l'aggettivo) di un alimento a pezzi. */
+function pieceForms(p: PieceWords, full: boolean): PieceWords {
+  return full && p.full ? { ...p, one: p.full[0], many: p.full[1] } : p;
+}
+
+/**
+ * "1 pugno e mezzo", "mezza fetta", "2 cucchiai". Con l'unità 'pezzo' e l'id dell'alimento nomina l'alimento:
+ * "una banana e mezza", "mezzo limone", "7 gallette" (gli alimenti di `WHOLE_PIECES` arrotondano all'unità).
+ */
+export function portionWords(qty: number, unit: HandUnit, foodId?: string): string {
+  const piece = pieceWordsFor(unit, foodId);
+  if (piece) {
+    const q = foodId && WHOLE_PIECES.has(foodId) ? Math.max(1, Math.round(qty)) : roundHalf(qty);
+    return countWords(q, piece, true);
+  }
+  return countWords(roundHalf(qty), UNIT_WORDS[unit] ?? { one: unit, many: unit }, false);
 }
 
 /** Scarto massimo tra la porzione detta a parole e i grammi, oltre il quale si aggiunge "abbondante" o "quasi". */
 export const PORTION_TOLERANCE = 0.1;
+
+type Qualifier = 'esatta' | 'abbondante' | 'quasi' | 'meno';
+
+/** Quantità di riferimento della porzione detta a parole e come si scosta dalla quantità vera. */
+function portionRef(qty: number, wholeOnly: boolean): { ref: number; how: Qualifier } {
+  if (wholeOnly) {
+    const ref = Math.max(1, Math.round(qty));
+    if (Math.abs(ref - qty) / qty <= PORTION_TOLERANCE) return { ref, how: 'esatta' };
+    if (qty > ref) return { ref, how: 'abbondante' };
+    return { ref, how: ref - qty > 0.5 ? 'meno' : 'quasi' };
+  }
+  const half = roundHalf(qty);
+  if (Math.abs(half - qty) / qty <= PORTION_TOLERANCE) return { ref: half, how: 'esatta' };
+  const whole = Math.round(qty);
+  const ref = whole >= 1 && Math.abs(qty - whole) <= 0.25 ? whole : Math.floor(qty) + 0.5;
+  if (qty > ref) return { ref, how: 'abbondante' };
+  return { ref, how: ref - qty > 0.25 ? 'meno' : 'quasi' };
+}
+
+function qualify(words: string, ref: number, how: Qualifier): string {
+  if (how === 'abbondante') return `${words} ${Math.floor(ref) >= 2 ? 'abbondanti' : 'abbondante'}`;
+  if (how === 'quasi') return `quasi ${words}`;
+  if (how === 'meno') return `meno di ${words}`;
+  return words;
+}
+
+/** Porzione a parole nelle due forme: breve, accanto al nome dell'ingrediente, e intera, che nomina l'alimento. */
+function phraseForms(qty: number, unit: HandUnit, foodId?: string): { short: string; named?: string } {
+  const piece = pieceWordsFor(unit, foodId);
+  const wholeOnly = Boolean(piece && foodId && WHOLE_PIECES.has(foodId));
+  const q = qty > 0 ? qty : wholeOnly ? 1 : 0.5;
+  const { ref, how } = qty > 0 ? portionRef(q, wholeOnly) : { ref: q, how: 'esatta' as const };
+  if (!piece) return { short: qualify(countWords(ref, UNIT_WORDS[unit] ?? { one: unit, many: unit }, false), ref, how) };
+  const named = qualify(countWords(ref, pieceForms(piece, true), true), ref, how);
+  return { short: qualify(countWords(ref, pieceForms(piece, false), true), ref, how), named: piece.of ? `${named} ${piece.of}` : named };
+}
 
 /**
  * Porzione a parole coerente con i grammi. Se la mezza unità più vicina si discosta di più del 10% dalla quantità
  * vera, lo dice con "abbondante" o "quasi", al massimo un quarto di unità di scarto, e preferisce le unità intere:
  * 1,25 → "1 fetta abbondante", 1,35 → "quasi 1 fetta e mezza", 1,8 → "quasi 2 fette", 0,6 → "mezza fetta
  * abbondante". Così "1 fetta abbondante · ≈ 50 g" torna con la fetta da 40 g.
+ * Con l'unità 'pezzo' e l'id dell'alimento nomina l'alimento ("mezzo limone", "quasi una piadina e mezza"); gli
+ * alimenti di `WHOLE_PIECES` si contano a unità intere, con al massimo mezza unità di scarto ("7 gallette" per 6,5,
+ * "quasi 4 gallette" per 3,5).
  */
-export function portionPhrase(qty: number, unit: Exclude<PortionUnit, 'g' | 'ml'>): string {
-  if (!(qty > 0)) return portionWords(0.5, unit);
-  const half = roundHalf(qty);
-  if (Math.abs(half - qty) / qty <= PORTION_TOLERANCE) return portionWords(half, unit);
-  const whole = Math.round(qty);
-  const ref = whole >= 1 && Math.abs(qty - whole) <= 0.25 ? whole : Math.floor(qty) + 0.5;
-  const words = portionWords(ref, unit);
-  if (qty > ref) return `${words} ${Math.floor(ref) >= 2 ? 'abbondanti' : 'abbondante'}`;
-  if (ref - qty > 0.25) return `meno di ${words}`;
-  return `quasi ${words}`;
+export function portionPhrase(qty: number, unit: HandUnit, foodId?: string): string {
+  return phraseForms(qty, unit, foodId).short;
 }
 
 /** Arrotondamento umano dei grammi: sotto 10 g al grammo, poi a 5 g. */
@@ -441,12 +566,17 @@ export function roundGrams(g: number): number {
 }
 
 export interface PortionParts {
-  /** "1 pugno e mezzo" oppure "150 g" / "200 ml". */
+  /** "1 pugno e mezzo" oppure "150 g" / "200 ml"; a pezzi il sostantivo dell'alimento ("7 gallette", "mezzo limone"). */
   portion: string;
   /** Grammi arrotondati (0 se non noti). */
   grams: number;
   /** "1 pugno e mezzo · ≈ 225 g" */
   text: string;
+  /**
+   * Solo a pezzi, quando le parole dell'alimento sono note: la porzione che nomina già l'alimento per intero
+   * ("7 gallette di riso", "mezzo limone"), da scrivere al posto di "porzione di nome". Vedi `portionWithName`.
+   */
+  named?: string;
 }
 
 /**
@@ -472,8 +602,18 @@ export function portionParts(
     const text = density !== undefined && density !== 1 && grams ? `${portion} · ≈ ${grams} g` : portion;
     return { portion, grams, text };
   }
-  const portion = portionPhrase(lineQty(line, dayType, k), line.unit);
-  return { portion, grams, text: grams ? `${portion} · ≈ ${grams} g` : portion };
+  const { short: portion, named } = phraseForms(lineQty(line, dayType, k), line.unit, line.foodId);
+  const out: PortionParts = { portion, grams, text: grams ? `${portion} · ≈ ${grams} g` : portion };
+  if (named) out.named = named;
+  return out;
+}
+
+/**
+ * Porzione con il nome dell'alimento, per le frasi fuori dalla riga dell'ingrediente: "2 pugni e mezzo di pasta",
+ * "7 gallette di riso", "mezzo limone". `name` è il nome già nella forma da frase (es. in minuscolo).
+ */
+export function portionWithName(parts: Pick<PortionParts, 'portion' | 'named'>, name: string): string {
+  return parts.named ?? `${parts.portion} di ${name}`;
 }
 
 /** "1 pugno e mezzo · ≈ 225 g", "2 cucchiai · ≈ 20 g", "150 g". */
@@ -561,17 +701,13 @@ export function dayNutrition(date: ISODate, state: NutritionState | AppData, opt
 
 /**
  * Settimana di avvio delle fibre: 1 nella prima settimana del piano, 2 nella seconda, null dopo (o prima
- * dell'inizio). Chi parte da un consumo basso aumenta le fibre per gradi, con più acqua, per evitare gonfiore.
+ * dell'inizio). Chi parte da un consumo basso aumenta le fibre per gradi, con più acqua, per evitare gonfiore: Oggi
+ * mostra il consiglio sulle fibre. Le quantità le decide il menù (nei giorni di avvio circa l'80% dell'obiettivo,
+ * `STARTER_FIBER_SHARE` in `data/menu.ts`), non un fattore per settimana.
  */
 export function fiberRampWeek(iso: ISODate, plan: Pick<Plan, 'startDate'>): 1 | 2 | null {
   const days = daysBetween(plan.startDate, iso);
   // I giorni di avvio prima del lunedì di inizio (fino a una settimana) fanno parte della prima settimana.
   if (days < -7 || days >= 14) return null;
   return days < 7 ? 1 : 2;
-}
-
-/** Quota dell'obiettivo di fibre da puntare nell'avvio: 0,6 la prima settimana, 0,8 la seconda, poi 1. */
-export function fiberRampFactor(iso: ISODate, plan: Pick<Plan, 'startDate'>): number {
-  const w = fiberRampWeek(iso, plan);
-  return w === 1 ? 0.6 : w === 2 ? 0.8 : 1;
 }

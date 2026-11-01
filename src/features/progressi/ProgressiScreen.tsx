@@ -1,6 +1,7 @@
 /**
- * Progressi: numeri chiave degli ultimi 7 giorni, andamento di peso, ore a letto, dolore e carico,
- * calendario delle giornate riuscite e la revisione della domenica (in evidenza la domenica).
+ * Progressi: numeri chiave degli ultimi 7 giorni, andamento di peso, ore a letto, dolore e carico (un grafico alla
+ * volta, scelto con un controllo segmentato), calendario delle giornate riuscite e la revisione della domenica (in
+ * evidenza la domenica).
  *
  * ?view=revisione apre subito la revisione della settimana appena chiusa (per gli screenshot).
  */
@@ -34,7 +35,7 @@ import {
 import { capitalize, listIt } from '../../lib/format';
 import { usePlanDay } from '../../state/hooks';
 import { useApp } from '../../state/store';
-import { IconButton, Screen, SectionTitle, staggerItem } from '../../ui';
+import { IconButton, Screen, SectionTitle, Segmented, staggerItem } from '../../ui';
 import { LoadChart } from './charts/LoadChart';
 import { PainChart, SITE_TONES, type PainSeries } from './charts/PainChart';
 import { SleepChart } from './charts/SleepChart';
@@ -79,6 +80,16 @@ function pulse(s: PeriodStats): string | null {
   }
   return parts.length ? `${capitalize(listIt(parts))}.` : null;
 }
+
+type ChartKey = 'peso' | 'sonno' | 'dolore' | 'carico';
+const CHARTS: { value: ChartKey; label: string }[] = [
+  { value: 'peso', label: 'Peso' },
+  { value: 'sonno', label: 'Sonno' },
+  { value: 'dolore', label: 'Dolore' },
+  { value: 'carico', label: 'Carico' },
+];
+/** Cambio di grafico: dissolvenza breve, senza spostare la pagina. */
+const fadeSwap = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.16 } } as const;
 
 function Reveal({ i, children }: { i: number; children: React.ReactNode }) {
   return <motion.div {...staggerItem(i, 0.05, 0.4)}>{children}</motion.div>;
@@ -175,6 +186,14 @@ export default function ProgressiScreen() {
   const showLoad = hasLoad;
   const showCalendar = hasMarkedDay || calSummary.successful > 0;
 
+  // I grafici disponibili: peso, ore a letto e dolore con il primo controllo, il carico con la prima seduta.
+  const chartOptions: { value: ChartKey; label: string }[] = [
+    ...(fresh ? [] : CHARTS.filter((c) => c.value !== 'carico')),
+    ...(showLoad ? CHARTS.filter((c) => c.value === 'carico') : []),
+  ];
+  const [chart, setChart] = useState<ChartKey>('peso');
+  const shownChart = chartOptions.some((o) => o.value === chart) ? chart : chartOptions[0]?.value;
+
   // Settimana 1 è la prima da rivedere: chi comincia nel fine settimana vive prima i giorni di avvio.
   const weekNo = planWeekNumber(today, plan);
   // La revisione appena salvata ha la sua card: lo storico mostra le altre.
@@ -219,26 +238,30 @@ export default function ProgressiScreen() {
         </Reveal>
       ) : null}
 
-      {/* Un solo titolo per tutti i grafici: ogni card ha già il suo nome, i titoli di sezione su una card sola erano rumore. */}
-      {(!fresh || showLoad || showCalendar) && (
+      {/* Un grafico alla volta: peso, ore a letto, dolore e carico si scelgono con un tocco, il calendario resta sotto. */}
+      {(shownChart || showCalendar) && (
         <section className="flex flex-col gap-3" aria-label="Andamento">
           <SectionTitle>Andamento</SectionTitle>
-          {!fresh && (
-            <>
-              <Reveal i={i++}>
-                <WeightChart points={weight} today={today} />
-              </Reveal>
-              <Reveal i={i++}>
-                <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} phaseOn={phaseOn} />
-              </Reveal>
-              <Reveal i={i++}>
-                <PainChart series={pain} threshold={plan.painThreshold} />
-              </Reveal>
-            </>
-          )}
-          {showLoad && (
+          {chartOptions.length > 1 && shownChart && (
             <Reveal i={i++}>
-              <LoadChart weeks={load} />
+              <Segmented aria-label="Grafico" size="sm" options={chartOptions} value={shownChart} onChange={setChart} />
+            </Reveal>
+          )}
+          {shownChart && (
+            <Reveal i={i++}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={shownChart} {...fadeSwap}>
+                  {shownChart === 'peso' ? (
+                    <WeightChart points={weight} today={today} />
+                  ) : shownChart === 'sonno' ? (
+                    <SleepChart points={sleep} sleep={plan.sleep} week={plan.week} phaseOn={phaseOn} />
+                  ) : shownChart === 'dolore' ? (
+                    <PainChart series={pain} threshold={plan.painThreshold} />
+                  ) : (
+                    <LoadChart weeks={load} />
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </Reveal>
           )}
           {showCalendar && (

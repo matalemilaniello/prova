@@ -20,7 +20,7 @@ import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { usePlanDay } from '../../state/hooks';
-import { BallIcon, Button, Card, DayTypeBadge, Disclosure, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, staggerItem } from '../../ui';
+import { BallIcon, Button, Card, DayTypeBadge, Disclosure, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, cn, staggerItem } from '../../ui';
 import { toneColor, toneInk } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import type { IconLike } from '../../ui/icon';
@@ -28,6 +28,7 @@ import { swatchFor } from './art/foodArt';
 import {
   dayActivities,
   dayVerdict,
+  fiberReferenceG,
   firstShoppingSafe,
   lowerFirst,
   mealScheduleFor,
@@ -107,12 +108,20 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
         </Card>
       ) : (
         <>
-          <DayNutritionCard colorType={colorType} detail={detail} />
+          <DayNutritionCard colorType={colorType} detail={detail} starter={meals.starter} />
 
           <section className="flex flex-col gap-3" aria-labelledby="settimana-pasti">
             <SectionTitle
               id="settimana-pasti"
-              subtitle={<PortionNote dayType={dayType} colorType={colorType} factor={factor} matchEve={meals.matchEve} floor={detail.matchCarbs?.gPerKg} />}
+              subtitle={
+                <PortionNote
+                  dayType={dayType}
+                  colorType={colorType}
+                  factor={factor}
+                  matchEve={meals.matchEve}
+                  floor={detail.matchCarbs?.extraG ? detail.matchCarbs.gPerKg : undefined}
+                />
+              }
             >
               Pasti del giorno
             </SectionTitle>
@@ -135,7 +144,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
               ))}
             </ul>
           </section>
-          <Disclosure variant="inline" title="Come si misurano le porzioni" className="px-1">
+          <Disclosure variant="inline" tone="quiet" title="Come si misurano le porzioni" className="px-1">
             Palmo, pugno e mano a coppa sono quelli della tua mano: crescono con te. Accanto a ogni porzione ci sono i
             grammi, per controllare con la bilancia le prime volte. Valori stimati dalle tabelle CREA e USDA.
           </Disclosure>
@@ -160,20 +169,20 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
 }
 
 /**
- * Perché le porzioni colorate cambiano: la percentuale dei carboidrati rispetto alla ricetta e, il giorno della partita
- * e la vigilia, il minimo per kg. È l'unico punto del Menù che lo spiega.
+ * Perché le porzioni colorate cambiano: di quanto crescono pasta, riso e pane rispetto alla ricetta e, il giorno della
+ * partita e la vigilia, il minimo per kg che lo chiede (`floor`, solo quando alza davvero le porzioni). La percentuale
+ * è delle porzioni, non dei carboidrati del giorno. È l'unico punto del Menù che lo spiega.
  */
 function PortionNote({ dayType, colorType, factor, matchEve, floor }: { dayType: DayType; colorType: DayType; factor: number; matchEve: boolean; floor?: number }) {
-  const p = portionShort(dayType, factor, matchEve);
+  const p = portionShort(dayType, factor, matchEve, floor);
   if (!p) return null;
-  const tail = floor ? `${p.tail.replace(/\.$/, '')}, almeno ${fmtNumber(floor)} g per kg.` : p.tail;
   return (
     <>
       {p.lead}
       <span style={{ color: toneInk(colorType) }} className="font-semibold">
         {p.pct}
       </span>
-      {tail}
+      {p.tail}
     </>
   );
 }
@@ -214,19 +223,26 @@ function StarterNote({ date, shop, onOpenShopping }: { date: ISODate; shop: Firs
 
 // ───────────────────────── Valori del giorno ─────────────────────────
 
-function DayNutritionCard({ colorType, detail }: { colorType: DayType; detail: ReturnType<typeof dayNutritionDetail> }) {
+/**
+ * Valori del giorno rispetto all'obiettivo della data. Nei giorni di avvio le fibre salgono per gradi: la barra
+ * delle fibre ha la tacca del riferimento di quei giorni (`fiberReferenceG`, circa 28 g su 35), il giudizio si fa su
+ * quello e una riga sola lo dice.
+ */
+function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; detail: ReturnType<typeof dayNutritionDetail>; starter?: boolean }) {
   // Obiettivo della data: tipo di giorno effettivo più il minimo di carboidrati di partita e vigilia.
   const target = detail.target;
   const t = detail.total;
   const ratio = target.kcal ? t.kcal / target.kcal : 0;
-  const verdict = dayVerdict(t, target);
+  const fiberRef = fiberReferenceG(target.fiberG, Boolean(starter));
+  const ramp = fiberRef < target.fiberG;
+  const verdict = dayVerdict(t, target, fiberRef);
   const veg = Math.round(detail.vegPortions * 2) / 2;
   const vegShown = Math.min(7, Math.floor(detail.vegPortions + 0.25));
   const rows = [
     { label: 'Proteine', v: t.proteinG, target: target.proteinG },
     { label: 'Carboidrati', v: t.carbG, target: target.carbG },
     { label: 'Grassi', v: t.fatG, target: target.fatG },
-    { label: 'Fibre', v: t.fiberG, target: target.fiberG },
+    { label: 'Fibre', v: t.fiberG, target: target.fiberG, marker: ramp && target.fiberG ? fiberRef / target.fiberG : undefined },
   ];
   return (
     <Card variant="highlight" tone={colorType} padding="lg" as="section" aria-label="Valori stimati del giorno">
@@ -260,11 +276,18 @@ function DayNutritionCard({ colorType, detail }: { colorType: DayType; detail: R
                   <span className="text-ink-3"> / {fmtNumber(r.target)}&nbsp;g</span>
                 </dd>
               </div>
-              <ProgressBar value={r.target ? r.v / r.target : 0} size="xs" tone={colorType} label={`${r.label}: ${Math.round(r.v)} su ${r.target} g`} />
+              <ProgressBar
+                value={r.target ? r.v / r.target : 0}
+                size="xs"
+                tone={colorType}
+                marker={r.marker}
+                label={`${r.label}: ${Math.round(r.v)} su ${r.target} g${r.marker ? `, per ora circa ${fiberRef} g` : ''}`}
+              />
             </div>
           ))}
         </dl>
       </div>
+      {ramp && <p className="t-caption mt-3 text-ink-3">Fibre in aumento graduale: per ora circa {fiberRef}&nbsp;g.</p>}
       <div className="mt-5 flex items-center gap-3 border-t border-line pt-4">
         <div className="flex shrink-0 gap-1" aria-hidden>
           {Array.from({ length: 7 }, (_, i) => (
@@ -368,15 +391,24 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
             <span aria-hidden className="text-ink-3"> · </span>
             <span className="whitespace-nowrap">{recipe.prepMin} min</span>
           </span>
-          {/* Le porzioni cambiate per il tipo di giorno, a parole: i grammi sono negli ingredienti e nella ricetta. */}
+          {/* Le porzioni cambiate per il tipo di giorno, a parole: i grammi sono negli ingredienti e nella ricetta. A pezzi
+              la porzione nomina già l'alimento ("7 gallette di riso"), mai "7 gallette di gallette di riso". */}
           {!open && changed.length > 0 && (
             <span className="mt-1.5 flex flex-col gap-0.5">
               {changed.map(({ l, idx, food, p }) => (
                 <span key={`${l.foodId}-${idx}`} className="t-footnote text-pretty text-ink-2">
-                  <span className="font-semibold" style={{ color: toneInk(colorType) }}>
-                    {p.portion}
-                  </span>{' '}
-                  di {food ? lowerFirst(shopName(food)) : l.foodId}
+                  {p.named ? (
+                    <span className="font-semibold" style={{ color: toneInk(colorType) }}>
+                      {p.named}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="font-semibold" style={{ color: toneInk(colorType) }}>
+                        {p.portion}
+                      </span>{' '}
+                      di {food ? lowerFirst(shopName(food)) : l.foodId}
+                    </>
+                  )}
                 </span>
               ))}
             </span>
@@ -456,21 +488,27 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
         )}
       </AnimatePresence>
 
-      <div className="flex items-center gap-1 border-t border-line px-2 py-1">
-        <Button variant="ghost" size="sm" icon={ArrowLeftRight} onClick={onSwap} aria-label={`Cambia ${title.toLowerCase()}`}>
+      {/* Due collegamenti quieti allineati al testo, senza una fascia divisa: la card resta il pasto, non una barra di comandi. */}
+      <div className={cn('flex items-center gap-5 pb-2.5 pl-[86px] pr-4', open ? 'pt-1' : '-mt-1.5')}>
+        <button
+          type="button"
+          onClick={onSwap}
+          aria-label={`Cambia ${title.toLowerCase()}`}
+          className="hit-44 t-footnote inline-flex h-8 items-center gap-1.5 font-semibold text-ink-2 transition-opacity duration-150 active:opacity-60"
+        >
+          <ArrowLeftRight aria-hidden size={14} strokeWidth={2.4} className="text-accent-ink" />
           Cambia
-        </Button>
-        <span className="flex-1" />
+        </button>
         <button
           type="button"
           onClick={toggle}
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
-          className="hit-44 inline-flex h-9 items-center gap-1.5 rounded-control px-3 text-[0.875rem] font-medium text-ink-2"
+          className="hit-44 t-footnote inline-flex h-8 items-center gap-1 font-medium text-ink-2 transition-opacity duration-150 active:opacity-60"
         >
           {recipe.ingredients.length} ingredienti
           <motion.span aria-hidden className="inline-flex" animate={{ rotate: open ? 180 : 0 }} transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}>
-            <ChevronDown size={16} strokeWidth={2.4} />
+            <ChevronDown size={15} strokeWidth={2.4} />
           </motion.span>
         </button>
       </div>

@@ -7,10 +7,11 @@ import { weekDates } from './dates';
 import { emptyDayLog as emptyLog } from '../state/store';
 import { effectiveDayType } from './menu';
 import { dayCarbScale, lineGrams } from './nutrition';
-import { shoppingLeadFor } from './timeline';
+import { shoppingLeadFor, starterShopping } from './timeline';
 import {
-  FRESH_LAST_WEEKDAY,
+  FRESH_DAYS,
   SHOP_CATEGORIES,
+  defaultShopDate,
   formatShopWeight,
   freezeNote,
   isPerishable,
@@ -231,13 +232,40 @@ describe('conservazione di carne e pesce freschi', () => {
     expect(isPerishable(FOODS.tonno)).toBe(false);
   });
 
-  it('dice di congelare le porzioni cucinate da mercoledì in poi', () => {
+  it('il fresco regge in frigo fino al giorno dopo la spesa: le porzioni seguenti vanno in freezer', () => {
     expect(fresh).toBeDefined();
-    const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id) });
+    expect(FRESH_DAYS).toBe(1);
+    // Spesa di lunedì: lunedì e martedì dal frigo, da mercoledì dal freezer.
+    const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id), shopDate: '2026-11-02' });
     const pollo = list.items.find((i) => i.foodId === 'pollo')!;
-    expect(FRESH_LAST_WEEKDAY).toBe(1);
+    expect(list.shopDate).toBe('2026-11-02');
     expect(pollo.freezeDates).toEqual(['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
     expect(pollo.note).toBe('Congela le porzioni per mercoledì, giovedì, venerdì, sabato e domenica, separate, e passale in frigo la sera prima');
+  });
+
+  it('senza giorno indicato la spesa è il sabato prima: dal lunedì il fresco passa dal freezer', () => {
+    expect(defaultShopDate('2026-11-02')).toBe('2026-10-31');
+    const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id) });
+    expect(list.shopDate).toBe('2026-10-31');
+    // Comprato sabato, il pollo di lunedì sarebbe al terzo giorno di frigo.
+    expect(list.items.find((i) => i.foodId === 'pollo')!.freezeDates).toEqual(weekDates('2026-11-02'));
+  });
+
+  it('con la spesa di mercoledì il pollo di mercoledì e giovedì resta in frigo, quello di venerdì e domenica va in freezer', () => {
+    // Primo avvio mercoledì 4 novembre alle 14:30: la spesa di avvio è quel pomeriggio.
+    const midPlan = { ...plan, firstUse: { date: '2026-11-04', time: '14:30' } } as AppData['plan'];
+    const shop = starterShopping(midPlan)!;
+    expect(shop.date).toBe('2026-11-04');
+    const st = { plan: midPlan, dayLogs: {} };
+    const list = shoppingList(shop.weekStart, st, { fromDate: shop.fromDate, shopDate: shop.date });
+    expect(list.starter).toBe(true);
+    const pollo = list.items.find((i) => i.foodId === 'pollo')!;
+    expect(pollo.days).toEqual(expect.arrayContaining(['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-08']));
+    expect(pollo.freezeDates).toEqual(['2026-11-06', '2026-11-08']);
+    expect(sp(pollo.note ?? '')).toBe('Congela le porzioni per venerdì e domenica, separate, e passale in frigo la sera prima');
+    // Senza il giorno indicato vale il primo giorno di avvio della lista: lo stesso risultato.
+    const byDefault = shoppingList(shop.weekStart, st, { fromDate: shop.fromDate }).items.find((i) => i.foodId === 'pollo')!;
+    expect(byDefault.freezeDates).toEqual(['2026-11-06', '2026-11-08']);
   });
 
   it('una porzione sola: giorno e peso da congelare', () => {
@@ -267,7 +295,7 @@ describe('conservazione di carne e pesce freschi', () => {
     const list = shoppingList('2026-11-02', state(), { rotation: dinner(fresh.id) });
     const text = shoppingText(list);
     expect(text).toContain('APPENA A CASA');
-    expect(text).toContain('- Petto di pollo: congela le porzioni per mercoledì');
+    expect(text).toContain('- Petto di pollo: congela le porzioni per lunedì');
     expect(shoppingText(list, { includeFreezer: false })).not.toContain('APPENA A CASA');
   });
 });

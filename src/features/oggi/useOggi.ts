@@ -4,7 +4,7 @@
 import { useMemo } from 'react';
 import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
-import { dayTypeFor, isMatchEve } from '../../engine/menu';
+import { dayTypeFor, isMatchEve, isStarterDay } from '../../engine/menu';
 import { dayNutritionDetail, dayTargetFor, type DayNutritionDetail } from '../../engine/nutrition';
 import { periodStats } from '../../engine/review';
 import {
@@ -12,6 +12,7 @@ import {
   buildDay,
   countingStart,
   dayMinutes,
+  derivedStatus,
   effectiveStatus,
   firstShopping,
   firstUseOf,
@@ -31,7 +32,10 @@ import {
   type StreakInfo,
   type TimelineState,
 } from '../../engine/timeline';
+import { STARTER_FIBER_SHARE } from '../../data/menu';
 import { useApp } from '../../state/store';
+import { useCalendarTask, type CalendarTask } from '../impostazioni/reminders';
+import { welcomeBoard, type WelcomeSpot } from './firstDay';
 
 /** Fino a quest'ora Oggi propone di sistemare le voci rimaste aperte ieri. */
 export const YESTERDAY_UNTIL_MIN = 12 * 60;
@@ -53,6 +57,11 @@ export interface OggiData {
   matchEve: boolean;
   /** Obiettivo del giorno (`dayTargetFor`: con la vigilia quello del calcio, più il minimo di carboidrati di partita e vigilia). */
   target: MacroTarget;
+  /**
+   * Riferimento dei valori del giorno: l'obiettivo, ma nei giorni di avvio le fibre sono quelle che il menù di avvio porta
+   * di proposito (`STARTER_FIBER_SHARE`, circa 28 g su 35), come nel Menù di Settimana.
+   */
+  valuesTarget: MacroTarget;
   items: DayItem[];
   status: Record<string, ItemStatus>;
   summary: AdherenceSummary;
@@ -75,7 +84,11 @@ export interface OggiData {
   /** Primo giorno d'uso: le voci prima dell'inizio non contano. */
   firstDay: boolean;
   /** Configurazione da completare (esercizi del fisioterapista, dose di un integratore): fuori dalla timeline. */
-  setup: SetupTask | null;
+  /**
+   * Una cosa da completare alla volta, sotto la timeline: prima i promemoria nel calendario (l'unico modo in cui Ritmo
+   * raggiunge l'utente con l'app chiusa), poi esercizi del fisioterapista e dose degli integratori.
+   */
+  setup: SetupTask | CalendarTask | null;
   /** Calcio di oggi ancora da giocare (o in corso). */
   kickoff: Kickoff | null;
   counts: (item: DayItem) => boolean;
@@ -88,6 +101,14 @@ export interface OggiData {
   weekAdherence: number | null;
   /** Prima spesa dei giorni di avvio, quando oggi ci sono pasti che vengono prima (`DayItem.preShopping`). */
   shopping: { time: HHMM; tomorrow: boolean } | null;
+  /** Voci di domani, come le mostrerà Oggi. */
+  tomorrowItems: DayItem[];
+  /** Primo giorno, finché la giornata non è chiusa: i due o tre orari che la reggono, al posto dell'anello. */
+  welcome: WelcomeSpot[] | null;
+  /** Spesa ancora da fare oggi o domani (la sua lista si apre da Oggi). */
+  pendingShopping: { item: DayItem; date: ISODate } | null;
+  /** Oggi resta almeno un pasto del piano dopo il primo avvio (altrimenti i valori del giorno non servono). */
+  mealsAhead: boolean;
 }
 
 export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
@@ -146,7 +167,11 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
 
   const first = firstUseOf(plan);
   const firstDay = Boolean(first && first.date === today);
-  const setup = useMemo(() => setupTask(today, state), [today, state]);
+  const calendar = useCalendarTask();
+  const setup = useMemo<SetupTask | CalendarTask | null>(() => {
+    if (dayLogs[today]?.minimal) return null;
+    return calendar ?? setupTask(today, state);
+  }, [dayLogs, today, calendar, state]);
 
   const kickoff = useMemo<Kickoff | null>(() => {
     const day = plan.week.find((d) => d.weekday === weekdayOf(today));
@@ -167,6 +192,11 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
   const planned = useMemo(() => dayNutritionDetail(today, nutrition), [today, nutrition]);
   const eaten = useMemo(() => dayNutritionDetail(today, nutrition, { onlyDone: true }), [today, nutrition]);
   const target = useMemo(() => dayTargetFor(today, nutrition), [today, nutrition]);
+  const starterDay = isStarterDay(today, plan);
+  const valuesTarget = useMemo(
+    () => (starterDay ? { ...target, fiberG: Math.round(target.fiberG * STARTER_FIBER_SHARE) } : target),
+    [starterDay, target],
+  );
 
   const weekSweets = useMemo(() => {
     let n = 0;
@@ -191,12 +221,32 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     return shop ? { time: shop.time, tomorrow: shop.date > today } : null;
   }, [items, state, today]);
 
+  const tomorrow = addDays(today, 1);
+  const tomorrowItems = useMemo(() => buildDay(tomorrow, state), [tomorrow, state]);
+
+  const welcome = useMemo(() => {
+    if (!firstDay || complete) return null;
+    const spots = welcomeBoard(items, tomorrowItems, { beforeStart: (it) => isBeforeStart(today, it, plan), status });
+    return spots.length ? spots : null;
+  }, [firstDay, complete, items, tomorrowItems, today, plan, status]);
+
+  const pendingShopping = useMemo(() => {
+    const own = items.find((i) => i.kind === 'spesa' && !status[i.id] && !isBeforeStart(today, i, plan));
+    if (own) return { item: own, date: today };
+    const next = tomorrowItems.find((i) => i.kind === 'spesa');
+    if (!next || dayLogs[tomorrow]?.status?.[next.id] || derivedStatus(tomorrow, state, next)) return null;
+    return { item: next, date: tomorrow };
+  }, [items, status, today, plan, tomorrowItems, dayLogs, tomorrow, state]);
+
+  const mealsAhead = items.some((i) => i.kind === 'pasto' && !isBeforeStart(today, i, plan));
+
   return {
     today,
     state,
     dayType,
     matchEve,
     target,
+    valuesTarget,
     items,
     status,
     summary,
@@ -221,5 +271,9 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     weekSweets,
     weekAdherence,
     shopping,
+    tomorrowItems,
+    welcome,
+    pendingShopping,
+    mealsAhead,
   };
 }

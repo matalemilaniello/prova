@@ -43,7 +43,7 @@ import { estimateItemSec, SESSIONS } from '../data/sessions';
 import { fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
 import { MEAL_SLOTS, isStarterDay, mealsForDate, menuWeekFor } from './menu';
-import { shoppingList, shoppingProgress, type ShoppingLead, type ShoppingOptions } from './shopping';
+import { shoppingList, type ShoppingLead, type ShoppingOptions } from './shopping';
 import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
 
@@ -559,7 +559,8 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
       time: starter.time,
       kind: 'spesa',
       title: 'Spesa di avvio',
-      detail: n ? `${plural(n, 'prodotto', 'prodotti')}, lista pronta in Settimana` : 'Lista pronta in Settimana',
+      // Il numero basta: la voce apre la lista.
+      detail: n ? plural(n, 'prodotto', 'prodotti') : 'Lista pronta in Settimana',
     });
   }
 
@@ -841,17 +842,42 @@ export function derivedStatus(iso: ISODate, state: TimelineState, item: DayItem)
       return prep.tasks.length > 0 && prep.tasks.every((t) => done.has(t.id)) ? 'fatto' : undefined;
     }
     case 'spesa': {
-      const starter = item.id === STARTER_SHOPPING_ID ? starterShopping(state.plan) : null;
-      const monday = starter ? starter.weekStart : addDays(weekStart(iso), 7);
-      const checked = state.shoppingChecked?.[monday];
+      // Senza spunte niente lista da calcolare: la settimana si ricava senza costruirla.
+      const checked = state.shoppingChecked?.[shoppingWeek(iso, state, item).weekStart];
       if (!checked?.length) return undefined;
-      const opts = starter ? (starter.fromDate ? { fromDate: starter.fromDate } : {}) : shoppingOptionsFor(monday, state);
-      const progress = shoppingProgress(shoppingList(monday, state, opts), checked);
-      return progress.total > 0 && progress.ratio >= SHOPPING_DONE_RATIO - 1e-9 ? 'fatto' : undefined;
+      const target = shoppingTarget(iso, state, item);
+      const set = new Set(checked);
+      const done = target ? target.keys.filter((k) => set.has(k)).length : 0;
+      return target && target.keys.length > 0 && done / target.keys.length >= SHOPPING_DONE_RATIO - 1e-9 ? 'fatto' : undefined;
     }
     default:
       return undefined;
   }
+}
+
+export interface ShoppingTarget {
+  /** Settimana delle spunte (`shoppingChecked[weekStart]`). */
+  weekStart: ISODate;
+  /** Chiavi delle voci da comprare, come le spunta Settimana. */
+  keys: string[];
+}
+
+/**
+ * La lista dietro una voce della spesa: la settimana delle spunte e le chiavi da comprare, con le stesse opzioni
+ * di Settimana (la spesa di avvio da `starterShopping`, quella del sabato con `shoppingOptionsFor`). Serve a
+ * `derivedStatus` e a Oggi, che segnando la spesa fatta spunta anche la lista. Null per le altre voci.
+ */
+export function shoppingTarget(iso: ISODate, state: TimelineState, item: Pick<DayItem, 'id' | 'kind'>): ShoppingTarget | null {
+  if (item.kind !== 'spesa') return null;
+  const { weekStart: monday, starter } = shoppingWeek(iso, state, item);
+  const opts = starter ? (starter.fromDate ? { fromDate: starter.fromDate } : {}) : shoppingOptionsFor(monday, state);
+  return { weekStart: monday, keys: shoppingList(monday, state, opts).items.map((i) => i.key) };
+}
+
+/** Settimana della lista di una voce della spesa: quella della spesa di avvio, altrimenti la settimana dopo. */
+function shoppingWeek(iso: ISODate, state: TimelineState, item: Pick<DayItem, 'id'>): { weekStart: ISODate; starter: StarterShopping | null } {
+  const starter = item.id === STARTER_SHOPPING_ID ? starterShopping(state.plan) : null;
+  return { weekStart: starter ? starter.weekStart : addDays(weekStart(iso), 7), starter };
 }
 
 /** Da dove viene lo stato di una voce: dal diario, da un registro, o da nessuna parte. */
