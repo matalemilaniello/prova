@@ -63,6 +63,23 @@ describe('avviso del dolore nel giorno di partita', () => {
     expect(a.footballText).toBe(`Prima di uscire rifai il test, ${testGesture('Tibia')}: se il dolore supera 2, salta la partita.`);
   });
 
+  it('partita senza palestra: niente consigli sui carichi, il fisioterapista una volta sola', () => {
+    const s = state({ Tibia: 4 });
+    const gate = painGate(s, MON);
+    const withGym = footballPainAdvice(gate, 'partita', s.checkIns[MON].pain, 2);
+    expect(`${withGym.painText} ${withGym.footballText}`.match(/fisioterapista/g)).toHaveLength(1);
+    expect(withGym.painText).not.toMatch(/se domani è ancora sopra soglia/i);
+    const noGym = footballPainAdvice(gate, 'partita', s.checkIns[MON].pain, 2, undefined, false);
+    expect(noGym.painText).toBe('');
+    expect(noGym.footballText).toMatch(/^Stasera niente partita/);
+    expect(noGym.skip).toBe(true);
+    // Senza una lettura di oggi sopra soglia il rinvio al fisioterapista della palestra resta l'unico: non si toglie.
+    const w: WorkoutLog = { id: 'w1', date: '2026-11-07', sessionId: 'C', durationMin: 40, rpe: 5, pain: { Tibia: 3 }, exercises: [] };
+    const later = state({ Tibia: 1 }, [w]);
+    const g2 = painGate(later, MON);
+    expect(footballPainAdvice(g2, 'partita', later.checkIns[MON].pain, 2).painText).toBe(g2.level === 'ok' ? 'Negli impatti la soglia è più bassa, 2 su 10: niente balzi in palestra.' : g2.message);
+  });
+
   it('senza calcio o senza blocco degli impatti il testo è quello della palestra', () => {
     const s = state({ Tibia: 1 });
     const gate = painGate(s, MON);

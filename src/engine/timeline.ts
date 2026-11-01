@@ -107,6 +107,11 @@ export const SHOPPING_DONE_RATIO = 0.8;
 export const STARTER_SHOPPING_AFTER_LUNCH_MIN = 60;
 export const STARTER_SHOPPING_AFTER_START_MIN = 30;
 export const STARTER_SHOPPING_LATEST: HHMM = '19:30';
+/** Quanto tiene occupati la spesa di avvio (17 prodotti, andata e ritorno): non si sovrappone agli appuntamenti. */
+export const STARTER_SHOPPING_DURATION_MIN = 45;
+/** Margini della palestra per la spesa di avvio: 15 minuti per arrivarci, 30 per doccia e rientro. */
+export const GYM_LEAD_MIN = 15;
+export const GYM_AFTER_MIN = 30;
 /** Id della spesa di avvio (la spesa del sabato è `rito:spesa`). */
 export const STARTER_SHOPPING_ID = 'rito:spesa-avvio';
 /** Jolly della serie: uno a settimana con 5 giornate riuscite, al massimo uno da parte. */
@@ -518,20 +523,65 @@ export interface StarterShopping {
 }
 
 /**
+ * Finestre occupate di una giornata, in minuti dalla mezzanotte: la palestra (da 15 minuti prima a 30 minuti dopo
+ * la fine), il calcio dalla merenda pre-calcio alla fine, gli esercizi del fisioterapista se ci sono.
+ */
+function busyWindows(
+  day: ScheduleDay | undefined,
+  plan: Pick<Plan, 'mealTimes'> & Partial<Pick<Plan, 'sleep'>>,
+  state: Pick<TimelineState, 'physio' | 'workoutLogs'>,
+): [number, number][] {
+  if (!day) return [];
+  const out: [number, number][] = [];
+  const gymMin = day.gymSessionId ? gymTotalMin(day.gymSessionId, state) : undefined;
+  if (day.gymSessionId) {
+    const start = hhmmToMin(day.gymTime ?? DEFAULT_GYM_TIME);
+    out.push([start - GYM_LEAD_MIN, start + (gymMin ?? 55) + GYM_AFTER_MIN]);
+  }
+  if (day.football) {
+    const start = hhmmToMin(day.football.time);
+    const pre = plan.sleep && isEveningFootball(day) ? hhmmToMin(mealSchedule(day, { mealTimes: plan.mealTimes, sleep: plan.sleep }).merenda.time) : start - PRE_FOOTBALL_MIN_GAP_MIN;
+    out.push([Math.min(pre, start - PRE_FOOTBALL_MIN_GAP_MIN), start + Math.max(0, day.football.durationMin)]);
+  }
+  const mins = physioMinutes(state.physio);
+  if (day.physio && mins > 0 && plan.sleep) {
+    const at = hhmmToMin(physioTime(day, { mealTimes: plan.mealTimes, sleep: plan.sleep }, mins, gymMin));
+    out.push([at, at + mins]);
+  }
+  return out;
+}
+
+/**
  * Spesa di avvio: chi comincia non ha ancora fatto la spesa del sabato. Il primo giorno feriale dal primo
  * avvio con il tempo per farla (un'ora dopo il pranzo, mezz'ora dopo l'avvio, entro le 19:30; chi comincia di
  * domenica la fa il lunedì) compra i pasti dei giorni di avvio, quelli senza preparazione. Chi comincia di
  * sabato, o il venerdì sera, ha già la spesa del sabato. Null senza `Plan.firstUse`.
+ * La spesa non si sovrappone a palestra, calcio (merenda pre-calcio compresa) ed esercizi del fisioterapista:
+ * si fa prima della seduta se mancano almeno 60 minuti, altrimenti dopo; se fino alle 19:30 non c'è posto, il
+ * giorno dopo. Con `state` la palestra dura come in Allenamento (fase di ingresso e blocco del fisioterapista).
  */
-export function starterShopping(plan: Pick<Plan, 'startDate' | 'mealTimes'>): StarterShopping | null {
+export function starterShopping(
+  plan: Pick<Plan, 'startDate' | 'mealTimes'> & Partial<Pick<Plan, 'week' | 'sleep'>>,
+  state: Pick<TimelineState, 'physio' | 'workoutLogs'> = {},
+): StarterShopping | null {
   const first = firstUseOf(plan);
   if (!first) return null;
   const after = round5(hhmmToMin(plan.mealTimes.pranzo) + STARTER_SHOPPING_AFTER_LUNCH_MIN, true);
+  const latest = hhmmToMin(STARTER_SHOPPING_LATEST);
+  /** Primo orario libero da `from` alle 19:30, a passi di 5 minuti; null se la giornata è piena. */
+  const freeFrom = (iso: ISODate, from: number): number | null => {
+    const wd = weekdayOf(iso);
+    const busy = busyWindows(plan.week?.find((d) => d.weekday === wd), plan, state);
+    for (let m = from; m <= latest; m += 5) {
+      if (!busy.some(([a, b]) => m < b && m + STARTER_SHOPPING_DURATION_MIN > a)) return m;
+    }
+    return null;
+  };
   let date = first.date;
-  let at = Math.max(after, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true));
-  if (weekdayOf(date) === 6 || at > hhmmToMin(STARTER_SHOPPING_LATEST)) {
+  let at = weekdayOf(date) === 6 ? null : freeFrom(date, Math.max(after, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true)));
+  if (at === null) {
     date = addDays(date, 1);
-    at = after;
+    at = freeFrom(date, after) ?? after;
   }
   if (weekdayOf(date) >= 5) return null;
   const monday = weekStart(date);
@@ -551,7 +601,7 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
   const out: DayItem[] = [];
 
-  const starter = starterShopping(plan);
+  const starter = starterShopping(plan, state);
   if (starter && starter.date === iso) {
     const n = shoppingList(starter.weekStart, state, starter.fromDate ? { fromDate: starter.fromDate } : {}).items.length;
     out.push({
@@ -644,7 +694,7 @@ export function firstShopping(state: TimelineState): FirstShopping | null {
   const { plan } = state;
   const first = firstUseOf(plan);
   if (!first) return null;
-  const starter = starterShopping(plan);
+  const starter = starterShopping(plan, state);
   if (starter) return { id: STARTER_SHOPPING_ID, date: starter.date, time: starter.time };
   const sat = weekdayOf(first.date) === 5 ? first.date : weekdayOf(first.date) === 4 ? addDays(first.date, 1) : null;
   if (!sat) return null;
@@ -660,7 +710,7 @@ export function firstShopping(state: TimelineState): FirstShopping | null {
  */
 export function shoppingLeadFor(monday: ISODate, state: TimelineState): ShoppingLead | undefined {
   const { plan } = state;
-  if (starterShopping(plan)) return undefined;
+  if (starterShopping(plan, state)) return undefined;
   const shop = firstShopping(state);
   if (!shop || shop.id !== 'rito:spesa' || addDays(shop.date, 2) !== monday) return undefined;
   const wd = weekdayOf(shop.date);
@@ -876,7 +926,7 @@ export function shoppingTarget(iso: ISODate, state: TimelineState, item: Pick<Da
 
 /** Settimana della lista di una voce della spesa: quella della spesa di avvio, altrimenti la settimana dopo. */
 function shoppingWeek(iso: ISODate, state: TimelineState, item: Pick<DayItem, 'id'>): { weekStart: ISODate; starter: StarterShopping | null } {
-  const starter = item.id === STARTER_SHOPPING_ID ? starterShopping(state.plan) : null;
+  const starter = item.id === STARTER_SHOPPING_ID ? starterShopping(state.plan, state) : null;
   return { weekStart: starter ? starter.weekStart : addDays(weekStart(iso), 7), starter };
 }
 

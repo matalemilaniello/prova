@@ -626,6 +626,38 @@ describe('primo avvio', () => {
     expect(byId(buildDay(THU, s), STARTER_SHOPPING_ID)).toBeUndefined();
   });
 
+  it('spesa di avvio: mai durante la seduta, il calcio o gli esercizi del fisioterapista', () => {
+    const s0 = makeState();
+    const at = (date: ISODate, time: string, patch: Partial<AppData> = {}) => {
+      const st = { ...s0, ...patch, plan: { ...s0.plan, firstUse: { date, time } } as Plan };
+      return { st, shop: starterShopping(st.plan, st)! };
+    };
+    const min = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    // Martedì 16:58, seduta A alle 17:00: niente spesa tra le 16:45 e la fine della seduta più doccia e rientro.
+    const { st, shop } = at(TUE, '16:58');
+    const gymEnd = 17 * 60 + gymDuration('A', st)!.total + 30;
+    expect(shop.date).toBe(TUE);
+    expect(min(shop.time)).toBeGreaterThanOrEqual(gymEnd);
+    expect(min(shop.time)).toBeLessThanOrEqual(19 * 60 + 30);
+    const items = buildDay(TUE, st);
+    const gym = byId(items, 'palestra:A')!;
+    const spesa = byId(items, STARTER_SHOPPING_ID)!;
+    expect(min(spesa.time)).toBeGreaterThan(min(gym.time) + gymDuration('A', st)!.total);
+    // Con almeno un'ora prima della seduta la spesa resta prima.
+    expect(at(TUE, '15:00').shop.time).toBe('15:30');
+    // Alle 16:00 non ci sta più: dopo la seduta.
+    expect(min(at(TUE, '16:00').shop.time)).toBeGreaterThanOrEqual(gymEnd);
+    // Giovedì 19:00, allenamento alle 20:30 con la merenda pre-calcio alle 18:00: niente posto, venerdì dopo pranzo.
+    expect(at(THU, '19:00').shop).toMatchObject({ date: '2026-11-13', time: '15:15' });
+    // Mercoledì con gli esercizi del fisioterapista dopo pranzo: la spesa aspetta che finiscano.
+    const physio = { exercises: [], prescriptions: [{ exerciseId: 'tyler-twist', sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 60 }] } as unknown as AppData['physio'];
+    const withPhysio = at(WED, '14:00', { physio });
+    const fisio = byId(buildDay(WED, withPhysio.st), 'fisio')!;
+    const fisioEnd = min(fisio.time) + physioMinutes(physio);
+    const spesaWed = min(withPhysio.shop.time);
+    expect(spesaWed + 45 <= min(fisio.time) || spesaWed >= fisioEnd).toBe(true);
+  });
+
   it('la domenica del primo avvio non ha revisione né preparazione', () => {
     const s0 = makeState();
     const first = { ...s0, plan: { ...s0.plan, firstUse: { date: SUN, time: '20:40' } } as Plan };

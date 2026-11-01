@@ -21,7 +21,7 @@ export const FOOTBALL_NOUN: Record<FootballKind, { the: string; bare: string }> 
 };
 
 export interface FootballPainAdvice {
-  /** Testo sul resto della giornata (palestra), già depurato dal rinvio al fisioterapista se lo dice il calcio. */
+  /** Testo sul resto della giornata (palestra), già depurato dal rinvio al fisioterapista; vuoto senza palestra. */
   painText: string;
   /** Cosa fare con il calcio di stasera, o null se il calcio non è in gioco. */
   footballText: string | null;
@@ -29,9 +29,14 @@ export interface FootballPainAdvice {
   skip: boolean;
 }
 
+/** Rinvii al fisioterapista nel testo della palestra (anche "Tibia a 4 su 10: se domani è ancora sopra soglia…"). */
+const PHYSIO_SENTENCES = /\s*(?:[^.:]+: )?(?:Scrivi al fisioterapista oggi\.|[Ss]e domani è ancora sopra soglia, scrivi al fisioterapista\.)/g;
+
 /**
  * Avviso del dolore per Oggi. `kind` è il calcio di oggi ancora da giocare (null se non c'è); `todayPain`
  * sono le letture del controllo di oggi; `impactThreshold` è la soglia degli impatti (min(soglia, 2)).
+ * Con `gymToday` falso (giorno di calcio senza palestra) i consigli sui carichi e sui balzi non servono: resta
+ * solo il testo del calcio. Il fisioterapista si nomina una volta sola.
  */
 export function footballPainAdvice(
   gate: Pick<PainGate, 'level' | 'impact' | 'impactSite' | 'message'>,
@@ -39,25 +44,31 @@ export function footballPainAdvice(
   todayPain: CheckIn['pain'] | undefined,
   impactThreshold: number,
   customTests?: Record<string, string>,
+  gymToday = true,
 ): FootballPainAdvice {
   if (!gate.impact || !kind) return { painText: gate.message, footballText: null, skip: false };
   const noun = FOOTBALL_NOUN[kind];
   const site = gate.impactSite;
   const v = site ? todayPain?.[site] : undefined;
   const testedToday = typeof v === 'number' && Number.isFinite(v) && v > impactThreshold;
-  const gymText =
-    gate.level === 'ok' ? `Negli impatti la soglia è più bassa, ${impactThreshold} su 10: niente balzi in palestra.` : gate.message.replace(/\s*Scrivi al fisioterapista oggi\./, '');
+  const gymText = !gymToday
+    ? ''
+    : gate.level === 'ok'
+      ? `Negli impatti la soglia è più bassa, ${impactThreshold} su 10: niente balzi in palestra.`
+      : gate.message;
+  // Quando il calcio rimanda già al fisioterapista, la palestra non lo ripete.
+  const withoutPhysio = gymText.replace(PHYSIO_SENTENCES, '').trim();
 
   if (gate.level === 'riduci') {
     return {
-      painText: gymText,
+      painText: withoutPhysio,
       footballText: `Stasera niente ${noun.bare}: con questo dolore gli impatti peggiorano le cose. Scrivi al fisioterapista oggi.`,
       skip: true,
     };
   }
   if (testedToday) {
     return {
-      painText: gymText,
+      painText: withoutPhysio,
       footballText: `Stasera niente ${noun.bare}: in campo gli impatti sono molti di più. Senti il fisioterapista prima di tornare a giocare.`,
       skip: true,
     };
