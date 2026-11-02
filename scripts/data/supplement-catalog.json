@@ -1,0 +1,4500 @@
+[
+  {
+    "id": "vitamina-d",
+    "name": "Vitamina D",
+    "aliases": [
+      "vitamina D3",
+      "D3",
+      "colecalciferolo",
+      "cholecalciferol",
+      "vitamin D",
+      "vitamin D3",
+      "vitamina D2",
+      "ergocalciferolo",
+      "ergocalciferol",
+      "calciferolo",
+      "vitamina D3 vegana",
+      "vitamina D da lichene"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "conversions": {
+      "UI": 0.025
+    },
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 15,
+      "unit": "µg",
+      "label": "600 UI · fabbisogno EFSA, Endocrine Society 2024"
+    },
+    "doseOptions": [
+      {
+        "amount": 15,
+        "unit": "µg",
+        "label": "600 UI · fabbisogno EFSA, Endocrine Society 2024"
+      },
+      {
+        "amount": 25,
+        "unit": "µg",
+        "label": "1000 UI · atleti da autunno a primavera (IOC)"
+      },
+      {
+        "amount": 50,
+        "unit": "µg",
+        "label": "2000 UI · massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 100,
+      "unit": "µg",
+      "source": "EFSA 2023 (LOAEL 250 µg/die da 2 RCT, fattore di incertezza 2,5)",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 50,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Con un pasto che contiene grassi: picco di D3 +32% rispetto a un pasto senza grassi (Dawson-Hughes 2015). Le colazioni di Ritmo hanno 15–18 g di grassi (24–31% delle kcal) e vanno bene; con una colazione senza grassi meglio pranzo o cena. L’ora del giorno non conta.",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "25(OH)D sierica"
+      ],
+      "when": "Non di routine negli adulti sani (Endocrine Society 2024; Nota AIFA 96: il dosaggio «non deve essere inteso come procedura di screening»). Serve prima di dosi oltre 50 µg (2000 UI), con malassorbimento, farmaci che interferiscono o osteopatie. Soglie della Nota 96: sotto 12 ng/mL (30 nmol/L) carenza; sotto 20 ng/mL con farmaci o malassorbimento; sotto 30 ng/mL nell’osteoporosi da trattare. 1 ng/mL ≈ 2,5 nmol/L."
+    },
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A tra i supplementi medici (per correggere una carenza). Negli atleti insufficienti la 25(OH)D sale, ma nessuno dei 7 studi con misure di prestazione ha mostrato effetti in 12 settimane (Farrokhyar 2017, 13 RCT, 532 atleti). Endocrine Society 2024: negli adulti sani sotto i 75 anni non integrare oltre i fabbisogni (raccomandazione condizionale)."
+    },
+    "whenUseful": "Esposizione solare scarsa (da autunno a primavera, lavoro al chiuso), carenza accertata, malassorbimento. Senza esame: dose di mantenimento da 15 a 25 µg/die. Correggere una carenza è compito del medico: l’IOC cita 50.000 UI a settimana per 8–16 settimane o 10.000 UI/die «con attento monitoraggio», oltre l’UL.",
+    "cautions": [
+      "Meglio la dose giornaliera dei boli: 60.000 UI al mese senza beneficio sulla mortalità (D-Health 2022); 500.000 UI una volta l’anno aumentano cadute (RR 1,15) e fratture (RR 1,26) (Sanders 2010).",
+      "Effetto critico dell’UL: ipercalciuria persistente, che «può essere» un segno precoce di eccesso (EFSA 2023). Nel VITAL, con 2000 UI/die, nessun eccesso di ipercalcemia.",
+      "Meglio la D3 della D2: alza di più la 25(OH)D anche con la dose giornaliera (Tripkovic 2017).",
+      "Gocce e flaconcini prescritti a settimana o al mese si registrano con la loro frequenza: per l’UL conta la media giornaliera."
+    ],
+    "interactions": [
+      "Insieme al calcio, con i diuretici tiazidici: rischio di ipercalcemia (LPI)."
+    ],
+    "sportNotes": "IOC 2018: 1000 UI/die di D3 da autunno a primavera nella tabella sull’immunità («moderate support, further support required»); per la popolazione generale da 800 a 1000–2000 UI/die. Fratture da stress: 2000 mg di calcio + 800 UI di D per 8 settimane, −20% in reclute donne (Lappe 2008), risultato non trasferibile con certezza a un calciatore uomo. Nessun RCT sulla sindrome da stress tibiale mediale.",
+    "cancerNotes": "VITAL (2000 UI/die per 5,3 anni): incidenza di cancro HR 0,96 (0,88–1,06). Keum 2019: mortalità per cancro RR 0,87 (0,79–0,96), soprattutto con dosi giornaliere; con boli mensili nessun beneficio (D-Health, HR 1,15, 0,96–1,39). WCRF: non come prevenzione; eccezione solo per esposizione solare scarsa.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL della vitamina D",
+        "url": "https://doi.org/10.2903/j.efsa.2023.8145"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Demay et al., linea guida Endocrine Society 2024",
+        "url": "https://doi.org/10.1210/clinem/dgae290"
+      },
+      {
+        "label": "Nota AIFA 96 (riproduzione del testo)",
+        "url": "https://www.torrinomedica.it/note-aifa/nota-96-aifa/"
+      },
+      {
+        "label": "Dawson-Hughes et al., J Acad Nutr Diet 2015",
+        "url": "https://doi.org/10.1016/j.jand.2014.09.014"
+      },
+      {
+        "label": "Tripkovic et al., Am J Clin Nutr 2017",
+        "url": "https://doi.org/10.3945/ajcn.116.138693"
+      },
+      {
+        "label": "Manson et al., VITAL, NEJM 2019",
+        "url": "https://doi.org/10.1056/NEJMoa1809944"
+      },
+      {
+        "label": "Keum et al., Ann Oncol 2019",
+        "url": "https://doi.org/10.1093/annonc/mdz059"
+      },
+      {
+        "label": "D-Health, Lancet Diabetes Endocrinol 2022",
+        "url": "https://doi.org/10.1016/S2213-8587(21)00345-4"
+      },
+      {
+        "label": "Sanders et al., JAMA 2010",
+        "url": "https://doi.org/10.1001/jama.2010.594"
+      },
+      {
+        "label": "Farrokhyar et al., Sports Med 2017",
+        "url": "https://doi.org/10.1007/s40279-017-0749-4"
+      },
+      {
+        "label": "Lappe et al., J Bone Miner Res 2008",
+        "url": "https://doi.org/10.1359/jbmr.080102"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      }
+    ],
+    "_nota": "Dose predefinita 15 µg invece dei 25 µg della ricerca: Endocrine Society 2024 sconsiglia negli adulti sani tra 19 e 74 anni l’integrazione empirica sopra la DRI (600 UI). 25 µg resta tra le opzioni (IOC 2018). Vedi docs/FASE2.md § 9.1."
+  },
+  {
+    "id": "calcifediolo",
+    "name": "Calcifediolo",
+    "aliases": [
+      "calcidiolo",
+      "calcifediol",
+      "calcidiol",
+      "calcifediolo monoidrato",
+      "calcidiol monohydrate",
+      "25-idrossicolecalciferolo",
+      "25(OH)D3",
+      "25-idrossi vitamina D"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "countsAs": [
+      {
+        "id": "vitamina-d",
+        "factor": 2.5,
+        "note": "EFSA 2023: 1 µg di calcidiolo monoidrato vale 2,5 µg di vitamina D, fattore valido fino a 10 µg/die."
+      }
+    ],
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 10,
+      "unit": "µg",
+      "label": "vale 25 µg (1000 UI) di vitamina D"
+    },
+    "doseOptions": [
+      {
+        "amount": 5,
+        "unit": "µg",
+        "label": "vale 12,5 µg (500 UI) di vitamina D"
+      },
+      {
+        "amount": 10,
+        "unit": "µg",
+        "label": "vale 25 µg (1000 UI) di vitamina D"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": true,
+      "exams": [
+        "25(OH)D sierica"
+      ],
+      "when": "In Italia è anche un farmaco su prescrizione, dopo l’esame. Il calcifediolo è la 25(OH)D stessa: l’esame va letto sapendo che lo prendi."
+    },
+    "evidence": {
+      "level": "limitata",
+      "ais": null,
+      "summary": "Metabolita della vitamina D: per l’UL EFSA conta 2,5 volte la D3, fino a 10 µg/die. Questa ricerca non ha valutato studi clinici specifici."
+    },
+    "whenUseful": "Su indicazione del medico. Non si sceglie da soli.",
+    "cautions": [
+      "L’app lo converte in vitamina D (×2,5) e lo somma alle altre fonti per il controllo dell’UL di 100 µg."
+    ],
+    "interactions": [
+      "Le stesse della vitamina D (calcio con diuretici tiazidici)."
+    ],
+    "sportNotes": "Nessun dato specifico negli sportivi in questa ricerca.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL della vitamina D",
+        "url": "https://doi.org/10.2903/j.efsa.2023.8145"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-b1",
+    "name": "Vitamina B1 (tiamina)",
+    "aliases": [
+      "tiamina",
+      "aneurina",
+      "thiamine",
+      "thiamin",
+      "vitamin B1",
+      "B1",
+      "tiamina cloridrato",
+      "tiamina mononitrato",
+      "benfotiamina"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1.1,
+      "unit": "mg",
+      "label": "≈ fabbisogno a 2800 kcal (PRI 0,1 mg/MJ)"
+    },
+    "doseOptions": [
+      {
+        "amount": 1.1,
+        "unit": "mg",
+        "label": "≈ fabbisogno a 2800 kcal"
+      },
+      {
+        "amount": 25,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 25,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun UL per la «tossicità estremamente bassa» (SCF). Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina."
+    },
+    "whenUseful": "Carenza (alcol, malassorbimento). Con una dieta varia non serve.",
+    "cautions": [],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-b2",
+    "name": "Vitamina B2 (riboflavina)",
+    "aliases": [
+      "riboflavina",
+      "riboflavin",
+      "vitamin B2",
+      "B2",
+      "E101",
+      "riboflavina-5'-fosfato",
+      "riboflavina 5 fosfato"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1.6,
+      "unit": "mg",
+      "label": "fabbisogno dell’uomo (PRI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 1.6,
+        "unit": "mg",
+        "label": "fabbisogno dell’uomo (PRI)"
+      },
+      {
+        "amount": 25,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 25,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun UL: l’assorbimento si satura e 400 mg/die negli studi sull’emicrania non hanno dato effetti avversi gravi (SCF). EFSA considera l’attività fisica già coperta dal fabbisogno."
+    },
+    "whenUseful": "Carenza accertata. Con una dieta varia non serve.",
+    "cautions": [],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "niacina",
+    "name": "Niacina (vitamina B3)",
+    "aliases": [
+      "vitamina B3",
+      "B3",
+      "vitamina PP",
+      "niacin",
+      "nicotinamide",
+      "niacinamide",
+      "acido nicotinico",
+      "nicotinic acid",
+      "nicotinamide riboside",
+      "inositolo esanicotinato"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 18,
+      "unit": "mg",
+      "label": "≈ fabbisogno di un adulto attivo, come nicotinamide (PRI 1,6 mg NE/MJ)"
+    },
+    "doseOptions": [
+      {
+        "amount": 18,
+        "unit": "mg",
+        "label": "≈ fabbisogno, come nicotinamide"
+      },
+      {
+        "amount": 54,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia (forma non specificata)"
+      }
+    ],
+    "upperLimit": {
+      "amount": 900,
+      "unit": "mg",
+      "source": "SCF 2002 (nicotinamide, 12,5 mg/kg)",
+      "kind": "UL",
+      "scope": "forme-aggiunte"
+    },
+    "formLimits": [
+      {
+        "form": "acido nicotinico",
+        "amount": 10,
+        "unit": "mg",
+        "source": "SCF 2002 (flushing già a 30 mg/die, fattore di incertezza 3)"
+      }
+    ],
+    "itMax": {
+      "amount": 54,
+      "unit": "mg",
+      "source": "Ministero della Salute",
+      "note": "forma non specificata"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Con il pasto: il flushing dell’acido nicotinico è più marcato a stomaco vuoto (SCF).",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna indicazione nelle persone sane. Gli UL dipendono dalla forma: acido nicotinico 10 mg/die, nicotinamide 900 mg/die."
+    },
+    "whenUseful": "Carenza accertata. Con una dieta varia non serve.",
+    "cautions": [
+      "Acido nicotinico: flushing già a 30 mg/die; epatotossicità grave con 3–9 g/die per mesi o anni, spesso a rilascio prolungato, e solo casi isolati a 0,5–0,75 g/die (SCF).",
+      "Un prodotto italiano può avere fino a 54 mg di niacina: se è acido nicotinico supera l’UL di 5 volte. La forma si legge in etichetta.",
+      "L’UL della nicotinamide non vale in gravidanza e allattamento."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "Nicotinamide 500 mg due volte al giorno per 12 mesi: −23% di nuovi tumori cutanei non melanoma (IC 4–38%) in persone con almeno 2 tumori precedenti (ONTRAC 2015), nessun beneficio dopo la sospensione e nessun beneficio nei trapiantati (ONTRANS 2023). Non è un’indicazione per la popolazione generale, e 1000 mg/die superano l’UL.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Chen et al., ONTRAC, NEJM 2015",
+        "url": "https://doi.org/10.1056/NEJMoa1506197"
+      },
+      {
+        "label": "ONTRANS, NEJM 2023",
+        "url": "https://doi.org/10.1056/NEJMoa2203086"
+      }
+    ]
+  },
+  {
+    "id": "acido-pantotenico",
+    "name": "Acido pantotenico (vitamina B5)",
+    "aliases": [
+      "vitamina B5",
+      "B5",
+      "pantotenato di calcio",
+      "calcium pantothenate",
+      "pantothenic acid",
+      "pantenolo",
+      "D-pantotenato"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 5,
+      "unit": "mg",
+      "label": "fabbisogno (AI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 5,
+        "unit": "mg",
+        "label": "fabbisogno (AI)"
+      },
+      {
+        "amount": 18,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 18,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun UL: diarrea solo a 10–20 g/die (SCF)."
+    },
+    "whenUseful": "Con una dieta varia non serve.",
+    "cautions": [],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-b6",
+    "name": "Vitamina B6",
+    "aliases": [
+      "B6",
+      "vitamin B6",
+      "piridossina",
+      "piridossina cloridrato",
+      "pyridoxine",
+      "pyridoxine HCl",
+      "piridossal-5'-fosfato",
+      "piridossal fosfato",
+      "P5P",
+      "PLP",
+      "piridossamina"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1.7,
+      "unit": "mg",
+      "label": "fabbisogno dell’uomo (PRI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 1.7,
+        "unit": "mg",
+        "label": "fabbisogno dell’uomo (PRI)"
+      },
+      {
+        "amount": 10,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 12,
+      "unit": "mg",
+      "source": "EFSA 2023 (50 mg/die da studio caso-controllo con fattore 4; 11,7 mg dal cane)",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 10,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "piridossal-5'-fosfato (PLP) plasmatico"
+      ],
+      "when": "Solo con formicolii o intorpidimento, o dopo dosi alte prolungate. EFSA usa 30 nmol/L come soglia di adeguatezza."
+    },
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna indicazione nelle persone sane; il rischio è superare l’UL sommando più prodotti."
+    },
+    "whenUseful": "Carenza accertata. Con una dieta varia non serve.",
+    "cautions": [
+      "Neuropatia periferica: relazione «ben consolidata»; l’UL si supera solo con l’uso regolare di integratori ad alte dosi (EFSA 2023).",
+      "I complessi «B-50» e «B-100» venduti all’estero hanno 50–100 mg di B6 per compressa: 4–8 volte l’UL.",
+      "La B6 c’è anche in elettroliti, ZMA e multivitaminici: l’app somma tutti i prodotti. AIS: la neuropatia può comparire anche sotto i 50 mg/die.",
+      "Alcune fonti (LPI) riportano ancora il vecchio UL EFSA di 25 mg, superato dal 2023.",
+      "Australia (TGA, 2025): oltre 50 mg/die solo in farmacia dal 1/6/2027, oltre 200 mg con ricetta; 250 segnalazioni di effetti avversi."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "Negli uomini, B6 da integratori singoli oltre 20 mg/die per 10 anni: cancro del polmone HR 1,82 (1,25–2,65), più marcato nei fumatori; nessuna associazione nelle donne né con i multivitaminici (coorte VITAL, Brasky 2017; solo osservazionale).",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL della vitamina B6",
+        "url": "https://doi.org/10.2903/j.efsa.2023.8006"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Linus Pauling Institute, vitamina B6",
+        "url": "https://lpi.oregonstate.edu/mic/vitamins/vitamin-B6"
+      },
+      {
+        "label": "TGA, decisione finale sulla vitamina B6 (2025)",
+        "url": "https://www.tga.gov.au/news/safety-updates/medicines-containing-vitamin-b6-pyridoxine-pyridoxal-or-pyridoxamine"
+      },
+      {
+        "label": "Brasky et al., J Clin Oncol 2017",
+        "url": "https://doi.org/10.1200/JCO.2017.72.7735"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      }
+    ]
+  },
+  {
+    "id": "biotina",
+    "name": "Biotina (vitamina B7, H o B8)",
+    "aliases": [
+      "vitamina H",
+      "vitamina B7",
+      "vitamina B8",
+      "B7",
+      "B8",
+      "biotin",
+      "D-biotina"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 40,
+      "unit": "µg",
+      "label": "fabbisogno (AI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 40,
+        "unit": "µg",
+        "label": "fabbisogno (AI)"
+      },
+      {
+        "amount": 450,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 450,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [],
+      "when": "Nessun esame da fare per la biotina.",
+      "interference": "Ad alte dosi falsa gli immunodosaggi streptavidina-biotina (ormoni tiroidei e riproduttivi, troponina), verso l’alto o verso il basso (FDA 2017 e 2019): dillo al medico e al laboratorio prima degli esami."
+    },
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun UL per mancanza di dati."
+    },
+    "whenUseful": "Con una dieta varia non serve.",
+    "cautions": [
+      "Il problema delle dosi alte, molto sopra quelle dei multivitaminici, sono gli esami del sangue falsati."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "Linus Pauling Institute, biotina",
+        "url": "https://lpi.oregonstate.edu/mic/vitamins/biotin"
+      },
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "acido-folico",
+    "name": "Acido folico (folati)",
+    "aliases": [
+      "folati",
+      "folato",
+      "vitamina B9",
+      "B9",
+      "folic acid",
+      "acido pteroilmonoglutammico",
+      "metilfolato",
+      "L-metilfolato",
+      "5-MTHF",
+      "5-metiltetraidrofolato",
+      "metiltetraidrofolato di calcio"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 200,
+      "unit": "µg",
+      "label": "≈ fabbisogno: 200 µg con il cibo valgono circa 340 µg DFE (PRI 330)"
+    },
+    "doseOptions": [
+      {
+        "amount": 200,
+        "unit": "µg",
+        "label": "≈ fabbisogno (PRI 330 µg DFE)"
+      },
+      {
+        "amount": 400,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 1000,
+      "unit": "µg",
+      "source": "EFSA 2023",
+      "kind": "UL",
+      "scope": "forme-aggiunte",
+      "note": "Solo acido folico e sali di 5-MTHF; il folato degli alimenti non conta."
+    },
+    "itMax": {
+      "amount": 400,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "B12 sierica o olotranscobalamina"
+      ],
+      "when": "Prima di un uso prolungato, per non mascherare una carenza di B12 (inferenza dall’effetto critico dell’UL)."
+    },
+    "evidence": {
+      "level": "forte",
+      "ais": "A",
+      "summary": "Corregge la carenza di folati (AIS gruppo A tra i supplementi medici). Nessuna indicazione nelle persone sane."
+    },
+    "whenUseful": "Gravidanza o sua programmazione, anemia da carenza di folati, su indicazione medica. Un uomo che mangia verdura, legumi e cereali integrali di solito non ne ha bisogno.",
+    "cautions": [
+      "Effetto critico dell’UL: può mascherare l’anemia da carenza di B12 mentre i sintomi neurologici progrediscono (EFSA 2023)."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "EFSA 2023: prove insufficienti per un nesso causale con cancro del colon-retto o della prostata, in un senso o nell’altro. RCT norvegesi con 0,8 mg di acido folico + 0,4 mg di B12: cancro HR 1,21, mortalità per cancro HR 1,38, mortalità totale HR 1,18 (Ebbing 2009).",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL dei folati",
+        "url": "https://doi.org/10.2903/j.efsa.2023.8353"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Ebbing et al., JAMA 2009",
+        "url": "https://doi.org/10.1001/jama.2009.1622"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-b12",
+    "name": "Vitamina B12",
+    "aliases": [
+      "B12",
+      "vitamin B12",
+      "cobalamina",
+      "cianocobalamina",
+      "cyanocobalamin",
+      "metilcobalamina",
+      "methylcobalamin",
+      "mecobalamina",
+      "adenosilcobalamina",
+      "cobamamide",
+      "idrossocobalamina",
+      "hydroxocobalamin"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 4,
+      "unit": "µg",
+      "label": "fabbisogno (AI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 4,
+        "unit": "µg",
+        "label": "fabbisogno (AI)"
+      },
+      {
+        "amount": 50,
+        "unit": "µg",
+        "label": "sotto i 55 µg del segnale osservazionale negli uomini"
+      },
+      {
+        "amount": 1000,
+        "unit": "µg",
+        "label": "dose per correggere una carenza (Cochrane 2018); massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 1000,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "B12 sierica",
+        "olotranscobalamina (holoTC)",
+        "acido metilmalonico (MMA)",
+        "omocisteina"
+      ],
+      "when": "Con un’indicazione (dieta, farmaci, sintomi) o per decidere se continuare. EFSA valuta lo stato con holoTC, MMA e omocisteina insieme."
+    },
+    "evidence": {
+      "level": "forte",
+      "ais": null,
+      "summary": "Per bocca, 1000–2000 µg/die correggono i livelli come l’intramuscolo, senza differenze clinicamente rilevanti (Cochrane 2018, qualità «low»). Nessuna indicazione in chi non è carente."
+    },
+    "whenUseful": "Dieta vegana o vegetariana stretta, malassorbimento, farmaci che riducono l’assorbimento, età avanzata, carenza accertata. Un onnivoro che mangia carne, pesce, uova e latticini di solito raggiunge il fabbisogno con la dieta (inferenza; assunzioni osservate negli adulti UE 4,2–8,6 µg/die).",
+    "cautions": [
+      "Nessun UL («No defined adverse effects»): 1–5 mg ogni due settimane o al mese per anni senza effetti avversi, in studi non disegnati per cercarli (SCF).",
+      "Con 1000 µg per bocca se ne assorbe circa l’1% (≈10 µg) per diffusione passiva (LPI).",
+      "Le forme «attive» (metil-, adenosil-) non hanno prove di superiorità nelle persone sane: la cianocobalamina viene convertita (LPI)."
+    ],
+    "interactions": [
+      "Inibitori di pompa a lungo termine: riducono il rilascio della B12 dal cibo, non dagli integratori (LPI).",
+      "Metformina: riduce l’assorbimento, con rilevanza clinica non chiara (LPI)."
+    ],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "Negli uomini, B12 da integratori singoli oltre 55 µg/die per 10 anni: cancro del polmone HR 1,98 (1,32–2,97), più marcato nei fumatori; nessuna associazione nelle donne né con i multivitaminici (VITAL, Brasky 2017; osservazionale, possibile confondimento). WCRF: eccezione solo oltre i 50 anni con malassorbimento.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA, Overview on Tolerable Upper Intake Levels, versione 11 (2025)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2024-05/ul-summary-report.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Wang et al., Cochrane 2018 (B12 per bocca o intramuscolo)",
+        "url": "https://doi.org/10.1002/14651858.CD004655.pub3"
+      },
+      {
+        "label": "Linus Pauling Institute, vitamina B12",
+        "url": "https://lpi.oregonstate.edu/mic/vitamins/vitamin-B12"
+      },
+      {
+        "label": "Brasky et al., J Clin Oncol 2017",
+        "url": "https://doi.org/10.1200/JCO.2017.72.7735"
+      },
+      {
+        "label": "WCRF/AICR, raccomandazione sugli integratori",
+        "url": "https://www.wcrf.org/research-policy/evidence-for-our-recommendations/do-not-use-supplements-for-cancer-prevention/"
+      }
+    ]
+  },
+  {
+    "id": "complesso-b",
+    "name": "Complesso B",
+    "aliases": [
+      "vitamina B",
+      "vitamine B",
+      "vitamine del gruppo B",
+      "complesso vitaminico B",
+      "B complex",
+      "B-complex",
+      "vitamin B complex",
+      "multi B",
+      "B-50",
+      "B-100"
+    ],
+    "category": "vitamina",
+    "unit": "compressa",
+    "contains": [
+      "vitamina-b1",
+      "vitamina-b2",
+      "niacina",
+      "acido-pantotenico",
+      "vitamina-b6",
+      "biotina",
+      "acido-folico",
+      "vitamina-b12"
+    ],
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "compressa",
+      "label": "la dose giornaliera in etichetta"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "compressa"
+      },
+      {
+        "amount": 2,
+        "unit": "compressa"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Nessuna prova su orari specifici; che le vitamine B di sera tolgano il sonno è un’ipotesi aneddotica.",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [],
+      "when": "Nessun esame di routine.",
+      "interference": "Se contiene biotina ad alte dosi può falsare alcuni esami del sangue (vedi biotina)."
+    },
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina."
+    },
+    "whenUseful": "Nessuna indicazione di routine in chi mangia vario. Per valutarlo serve sapere che cosa contiene: si legge l’etichetta.",
+    "cautions": [
+      "Le dosi cambiano moltissimo tra prodotti: da controllare B6 (UL 12 mg), forma della niacina (acido nicotinico: UL 10 mg), acido folico (UL 1000 µg) e biotina (esami del sangue).",
+      "Un prodotto italiano rispetta i massimi ministeriali (B6 fino a 10 mg); quelli esteri («B-50», «B-100») superano spesso l’UL della B6."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "Il segnale osservazionale su B6 e B12 riguarda integratori singoli ad alte dosi negli uomini, non i multivitaminici (Brasky 2017).",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL della vitamina B6",
+        "url": "https://doi.org/10.2903/j.efsa.2023.8006"
+      },
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Linus Pauling Institute, vitamina B6",
+        "url": "https://lpi.oregonstate.edu/mic/vitamins/vitamin-B6"
+      },
+      {
+        "label": "Brasky et al., J Clin Oncol 2017",
+        "url": "https://doi.org/10.1200/JCO.2017.72.7735"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-c",
+    "name": "Vitamina C",
+    "aliases": [
+      "acido ascorbico",
+      "acido L-ascorbico",
+      "ascorbic acid",
+      "vitamin C",
+      "E300",
+      "ascorbato di sodio",
+      "E301",
+      "ascorbato di calcio",
+      "E302",
+      "ascorbil palmitato",
+      "E304",
+      "Ester-C",
+      "vitamina C tamponata",
+      "vitamina C liposomiale"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 200,
+      "unit": "mg",
+      "label": "copre il fabbisogno con margine, lontano da 1 g"
+    },
+    "doseOptions": [
+      {
+        "amount": 100,
+        "unit": "mg",
+        "label": "≈ fabbisogno dell’uomo (PRI 110 mg)"
+      },
+      {
+        "amount": 200,
+        "unit": "mg",
+        "label": "copre il fabbisogno con margine"
+      },
+      {
+        "amount": 500,
+        "unit": "mg",
+        "label": "dentro gli 0,25–1 g dell’IOC per sforzi estremi"
+      },
+      {
+        "amount": 1000,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia; dose che negli studi attenua gli adattamenti"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 1000,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "B",
+      "summary": "Raffreddori: nessuna prevenzione nella popolazione generale (10.708 persone, RR 0,97, 0,94–1,00), durata −8% negli adulti; dimezzati in chi fa sforzi fisici estremi (5 RCT, 598 maratoneti, sciatori e soldati, RR 0,48, 0,35–0,64). Iniziarla dopo i sintomi non serve (Cochrane 2013)."
+    },
+    "whenUseful": "Assunzione bassa di frutta e verdura, ma meglio correggere la dieta: 1–2 porzioni ricche di vitamina C bastano per il fabbisogno. Periodi di sforzi fisici estremi (IOC 0,25–1 g/die). Con il collagene bastano 50 mg (AIS).",
+    "cautions": [
+      "Nessun UL (EFSA 2004): fino a circa 1 g/die in aggiunta alla dieta senza disturbi intestinali, 3–4 g/die danno effetti gastrointestinali acuti; sopra 1 g/die l’assorbimento in più è trascurabile.",
+      "1 g/die attenua alcuni adattamenti all’allenamento: con 235 mg di vitamina E, VO2max uguale al placebo ma marcatori mitocondriali (COX4, PGC-1α) aumentati solo con placebo (Paulsen 2014); nella forza, massa invariata e alcuni guadagni ridotti. AIS: l’uso cronico «may impair physiological adaptation».",
+      "Calcoli renali: negli uomini le compresse da circa 1000 mg si associano a circa il doppio di calcoli (Thomas 2013) e l’associazione si ritrova in una seconda coorte (Ferraro 2016). Prove osservazionali."
+    ],
+    "interactions": [
+      "Aumenta molto l’assorbimento del ferro non eme (LPI): utile con il ferro prescritto, da evitare ad alte dosi nell’emocromatosi."
+    ],
+    "sportNotes": "AIS gruppo B. IOC: alte dosi di singoli antiossidanti, soprattutto C ed E, possono attenuare gli adattamenti; non è chiaro negli atleti molto allenati. UEFA: sconsiglia dosi alte di vitamine C ed E. Lo studio su gelatina e vitamina C (Shaw 2017) non valuta la vitamina C, presente anche nel placebo.",
+    "cancerNotes": "WCRF: integratori ad alte dosi non raccomandati per prevenire il cancro; la vitamina C non è tra le eccezioni.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Hemilä e Chalker, Cochrane 2013 (vitamina C e raffreddore)",
+        "url": "https://doi.org/10.1002/14651858.CD000980.pub4"
+      },
+      {
+        "label": "Paulsen et al., J Physiol 2014 (endurance)",
+        "url": "https://doi.org/10.1113/jphysiol.2013.267419"
+      },
+      {
+        "label": "Paulsen et al., J Physiol 2014 (forza)",
+        "url": "https://doi.org/10.1113/jphysiol.2014.279950"
+      },
+      {
+        "label": "Thomas et al., JAMA Intern Med 2013",
+        "url": "https://doi.org/10.1001/jamainternmed.2013.2296"
+      },
+      {
+        "label": "Ferraro et al., Am J Kidney Dis 2016",
+        "url": "https://doi.org/10.1053/j.ajkd.2015.09.005"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "WCRF/AICR, raccomandazione sugli integratori",
+        "url": "https://www.wcrf.org/research-policy/evidence-for-our-recommendations/do-not-use-supplements-for-cancer-prevention/"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-e",
+    "name": "Vitamina E",
+    "aliases": [
+      "vitamin E",
+      "alfa-tocoferolo",
+      "α-tocoferolo",
+      "alpha-tocopherol",
+      "tocoferolo",
+      "d-alfa-tocoferolo",
+      "RRR-alfa-tocoferolo",
+      "dl-alfa-tocoferolo",
+      "all-rac-alfa-tocoferolo",
+      "tocoferil acetato",
+      "tocoferile acetato",
+      "tocoferil succinato",
+      "tocoferoli misti",
+      "tocotrienoli",
+      "E306",
+      "E307",
+      "E308",
+      "E309"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "conversions": {
+      "UI-naturale": 0.67,
+      "UI-sintetica": 0.45
+    },
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 13,
+      "unit": "mg",
+      "label": "fabbisogno dell’uomo (AI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 13,
+        "unit": "mg",
+        "label": "fabbisogno dell’uomo (AI)"
+      },
+      {
+        "amount": 60,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 300,
+      "unit": "mg",
+      "source": "EFSA 2024 (conferma il valore SCF)",
+      "kind": "UL",
+      "scope": "totale",
+      "note": "Non si applica a chi prende anticoagulanti o antiaggreganti, aspirina compresa, né in prevenzione secondaria cardiovascolare."
+    },
+    "itMax": {
+      "amount": 60,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": null,
+    "evidence": {
+      "level": "sfavorevole",
+      "ais": "C",
+      "summary": "USPSTF 2022: raccomandazione D contro la vitamina E per prevenire malattie cardiovascolari e cancro («moderate certainty» di nessun beneficio netto). SELECT: più cancro della prostata."
+    },
+    "whenUseful": "Quasi mai nelle persone sane: la carenza è rara.",
+    "cautions": [
+      "Effetto critico dell’UL: coagulazione alterata e rischio di sanguinamento (EFSA 2024).",
+      "Ictus emorragico: RR 1,22 (1,00–1,48), un caso in più ogni 1250 persone trattate (meta-analisi di RCT, Schürks 2010)."
+    ],
+    "interactions": [
+      "Anticoagulanti e antiaggreganti, aspirina compresa: rischio di sanguinamento."
+    ],
+    "sportNotes": "AIS gruppo C. Con la vitamina C attenua gli adattamenti (Paulsen 2014). IOC: «no support» per l’immunità.",
+    "cancerNotes": "SELECT (34.887 uomini, 400 UI/die di all-rac-α-tocoferil acetato): cancro della prostata HR 1,17 (IC 99% 1,004–1,36), +1,6 casi ogni 1000 anni-persona.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2024, UL della vitamina E",
+        "url": "https://doi.org/10.2903/j.efsa.2024.8953"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Klein et al., SELECT, JAMA 2011",
+        "url": "https://doi.org/10.1001/jama.2011.1437"
+      },
+      {
+        "label": "USPSTF 2022, JAMA",
+        "url": "https://doi.org/10.1001/jama.2022.8970"
+      },
+      {
+        "label": "Schürks et al., BMJ 2010",
+        "url": "https://doi.org/10.1136/bmj.c5702"
+      },
+      {
+        "label": "Paulsen et al., J Physiol 2014 (endurance)",
+        "url": "https://doi.org/10.1113/jphysiol.2013.267419"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo C",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_c"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-a",
+    "name": "Vitamina A",
+    "aliases": [
+      "vitamin A",
+      "retinolo",
+      "retinil acetato",
+      "retinil palmitato",
+      "retinyl palmitate",
+      "vitamina A preformata"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 750,
+      "unit": "µg",
+      "label": "fabbisogno dell’uomo (PRI, µg RE)"
+    },
+    "doseOptions": [
+      {
+        "amount": 750,
+        "unit": "µg",
+        "label": "fabbisogno dell’uomo (PRI)"
+      },
+      {
+        "amount": 1200,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 3000,
+      "unit": "µg",
+      "source": "EFSA 2024",
+      "kind": "UL",
+      "scope": "preformata",
+      "note": "Solo vitamina A preformata (retinolo ed esteri); vale per tutti gli adulti."
+    },
+    "itMax": {
+      "amount": 1200,
+      "unit": "µg",
+      "source": "Ministero della Salute",
+      "note": "µg RE totali"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna indicazione nelle persone sane che mangiano vario."
+    },
+    "whenUseful": "Carenza accertata.",
+    "cautions": [
+      "Effetto critico dell’UL: teratogenicità; il limite vale anche per uomini e donne in post-menopausa (EFSA 2024).",
+      "Il fegato al massimo una volta al mese, per non superare l’UL con la dieta (EFSA 2024).",
+      "1 µg RE = 1 µg di retinolo = 6 µg di β-carotene (EFSA)."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": "CARET: 30 mg di β-carotene + 25.000 UI di retinil palmitato in fumatori ed esposti all’amianto, cancro del polmone RR 1,28 (1,04–1,57), studio interrotto in anticipo.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2024, UL della vitamina A e del β-carotene",
+        "url": "https://doi.org/10.2903/j.efsa.2024.8814"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Omenn et al., CARET, NEJM 1996",
+        "url": "https://doi.org/10.1056/NEJM199605023341802"
+      }
+    ]
+  },
+  {
+    "id": "beta-carotene",
+    "name": "Beta-carotene",
+    "aliases": [
+      "β-carotene",
+      "beta carotene",
+      "betacarotene",
+      "E160a",
+      "provitamina A",
+      "carotenoidi",
+      "integratore abbronzante",
+      "abbronzante"
+    ],
+    "category": "vitamina",
+    "unit": "mg",
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 4.5,
+      "unit": "mg",
+      "label": "copre da solo il fabbisogno di vitamina A (750 µg RE)"
+    },
+    "doseOptions": [
+      {
+        "amount": 4.5,
+        "unit": "mg",
+        "label": "copre il fabbisogno di vitamina A"
+      },
+      {
+        "amount": 7.5,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia come unica fonte di vitamina A"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 7.5,
+      "unit": "mg",
+      "source": "Ministero della Salute",
+      "note": "come unica fonte di vitamina A (1250 µg RE)"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": null,
+    "evidence": {
+      "level": "sfavorevole",
+      "ais": null,
+      "summary": "WCRF: «convincing» che il β-carotene ad alte dosi in integratore aumenta il cancro del polmone in fumatori ed ex fumatori. USPSTF 2022: raccomandazione D, i danni superano i benefici."
+    },
+    "whenUseful": "Solo per coprire il fabbisogno di vitamina A (EFSA). Il β-carotene degli alimenti non si associa a danni.",
+    "cautions": [
+      "EFSA 2024: nessun UL, ma «i fumatori devono evitare» gli integratori con β-carotene.",
+      "C’è in molti multivitaminici e negli integratori «abbronzanti»: l’app lo cerca anche lì.",
+      "ATBC (29.133 fumatori, 20 mg/die): cancro del polmone +18% (IC 3–36%), mortalità totale +8%. CARET: RR 1,28 e mortalità totale RR 1,17, studio interrotto."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessun ruolo nella prestazione.",
+    "cancerNotes": "WCRF «convincing»: aumenta il cancro del polmone nei fumatori ed ex fumatori; «convincing» anche che non ha effetti sostanziali su prostata e tumori cutanei non melanoma.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2024, UL della vitamina A e del β-carotene",
+        "url": "https://doi.org/10.2903/j.efsa.2024.8814"
+      },
+      {
+        "label": "ATBC, NEJM 1994",
+        "url": "https://doi.org/10.1056/NEJM199404143301501"
+      },
+      {
+        "label": "Omenn et al., CARET, NEJM 1996",
+        "url": "https://doi.org/10.1056/NEJM199605023341802"
+      },
+      {
+        "label": "WCRF/AICR, raccomandazione sugli integratori",
+        "url": "https://www.wcrf.org/research-policy/evidence-for-our-recommendations/do-not-use-supplements-for-cancer-prevention/"
+      },
+      {
+        "label": "USPSTF 2022, JAMA",
+        "url": "https://doi.org/10.1001/jama.2022.8970"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "vitamina-k",
+    "name": "Vitamina K",
+    "aliases": [
+      "vitamin K",
+      "vitamina K1",
+      "K1",
+      "fillochinone",
+      "phylloquinone",
+      "fitomenadione",
+      "vitamina K2",
+      "K2",
+      "menachinone",
+      "MK-4",
+      "menatetrenone",
+      "MK-7",
+      "menachinone-7"
+    ],
+    "category": "vitamina",
+    "unit": "µg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 70,
+      "unit": "µg",
+      "label": "fabbisogno (AI, fillochinone)"
+    },
+    "doseOptions": [
+      {
+        "amount": 70,
+        "unit": "µg",
+        "label": "fabbisogno (AI)"
+      },
+      {
+        "amount": 200,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 200,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "In donne in post-menopausa con osteopenia, 375 µg/die di MK-7 aggiunti a calcio e vitamina D non hanno cambiato la densità ossea (LPI). L’utilità delle associazioni «D3 + K2» nelle persone sane non è dimostrata. Nessun UL: nessun effetto avverso fino a 10 mg/die di fillochinone in studi piccoli (SCF)."
+    },
+    "whenUseful": "Nessuna indicazione di routine.",
+    "cautions": [],
+    "interactions": [
+      "Anticoagulanti cumarinici (warfarin, acenocumarolo): non aumentare la vitamina K, con il cibo o con integratori, senza il medico (SCF). Già 10–20 µg/die di MK-7 abbassano l’INR in modo clinicamente rilevante (Theuwissen 2013)."
+    ],
+    "sportNotes": "Nessuna prova di benefici sulla prestazione in chi non è carente. IOC 2018: prove buone per la prestazione solo per caffeina, creatina, nitrati, bicarbonato e forse β-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Theuwissen et al., J Thromb Haemost 2013",
+        "url": "https://doi.org/10.1111/jth.12203"
+      }
+    ]
+  },
+  {
+    "id": "multivitaminico",
+    "name": "Multivitaminico",
+    "aliases": [
+      "multivitamine",
+      "multivitaminico e multiminerale",
+      "multivitamin",
+      "polivitaminico",
+      "multivitaminico sportivo",
+      "A-Z"
+    ],
+    "category": "vitamina",
+    "unit": "compressa",
+    "contains": [
+      "vitamina-a",
+      "beta-carotene",
+      "vitamina-d",
+      "vitamina-e",
+      "vitamina-k",
+      "vitamina-c",
+      "vitamina-b1",
+      "vitamina-b2",
+      "niacina",
+      "acido-pantotenico",
+      "vitamina-b6",
+      "biotina",
+      "acido-folico",
+      "vitamina-b12",
+      "calcio",
+      "magnesio",
+      "ferro",
+      "zinco",
+      "rame",
+      "selenio",
+      "iodio"
+    ],
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "compressa",
+      "label": "la dose giornaliera in etichetta"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "compressa"
+      },
+      {
+        "amount": 2,
+        "unit": "compressa"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": true,
+    "withFat": true,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": "B",
+      "summary": "USPSTF 2022: prove insufficienti (I) per prevenire malattie cardiovascolari e cancro. PHS II (14.641 medici uomini, 11,2 anni): cancro totale HR 0,92 (0,86–0,998), nessun effetto su mortalità per cancro, prostata e colon-retto. COSMOS 2022: cancro invasivo HR 0,97 (0,86–1,09). Coorti (Loftfield 2024): nessun beneficio sulla mortalità."
+    },
+    "whenUseful": "Nessuna indicazione di routine in chi mangia vario. Per valutarlo si legge l’etichetta.",
+    "cautions": [
+      "In etichetta da controllare: β-carotene (fumatori), vitamina A preformata, ferro (uomini senza carenza), B6 sommata ad altri prodotti, acido folico."
+    ],
+    "interactions": [],
+    "sportNotes": "AIS gruppo B.",
+    "cancerNotes": "WCRF: non usare integratori per prevenire il cancro. Effetto modesto sul cancro totale nel PHS II, non confermato nel COSMOS.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "USPSTF 2022, JAMA",
+        "url": "https://doi.org/10.1001/jama.2022.8970"
+      },
+      {
+        "label": "Gaziano et al., PHS II, JAMA 2012",
+        "url": "https://doi.org/10.1001/jama.2012.14641"
+      },
+      {
+        "label": "COSMOS, Am J Clin Nutr 2022",
+        "url": "https://doi.org/10.1093/ajcn/nqac056"
+      },
+      {
+        "label": "Loftfield et al., JAMA Netw Open 2024",
+        "url": "https://doi.org/10.1001/jamanetworkopen.2024.18729"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "WCRF/AICR, raccomandazione sugli integratori",
+        "url": "https://www.wcrf.org/research-policy/evidence-for-our-recommendations/do-not-use-supplements-for-cancer-prevention/"
+      }
+    ]
+  },
+  {
+    "id": "magnesio",
+    "name": "Magnesio",
+    "aliases": [
+      "Mg",
+      "magnesium",
+      "ossido di magnesio",
+      "MgO",
+      "idrossido di magnesio",
+      "carbonato di magnesio",
+      "citrato di magnesio",
+      "cloruro di magnesio",
+      "lattato di magnesio",
+      "gluconato di magnesio",
+      "aspartato di magnesio",
+      "pidolato di magnesio",
+      "bisglicinato di magnesio",
+      "glicinato di magnesio",
+      "magnesio L-treonato",
+      "solfato di magnesio",
+      "sale di Epsom"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 200,
+      "unit": "mg"
+    },
+    "doseOptions": [
+      {
+        "amount": 100,
+        "unit": "mg"
+      },
+      {
+        "amount": 200,
+        "unit": "mg"
+      },
+      {
+        "amount": 250,
+        "unit": "mg",
+        "label": "UL EFSA da integratori"
+      }
+    ],
+    "upperLimit": {
+      "amount": 250,
+      "unit": "mg",
+      "source": "SCF 2001 (NOAEL 250 mg per diarrea lieve, fattore 1)",
+      "kind": "UL",
+      "scope": "integratori",
+      "note": "Conta solo integratori, acqua e alimenti addizionati: il magnesio dei cibi è escluso."
+    },
+    "itMax": {
+      "amount": 450,
+      "unit": "mg",
+      "source": "Ministero della Salute",
+      "note": "sopra l’UL EFSA: anche un prodotto italiano può superarlo"
+    },
+    "schedule": "giornaliero",
+    "timing": "sera",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": "C",
+      "summary": "AIS gruppo C: nessun beneficio sulla prestazione negli atleti con apporto adeguato. Crampi: «improbabile» una profilassi utile negli anziani (Cochrane 2020, 11 RCT, 735 persone); nessun RCT sui crampi da esercizio. Sonno: benefici solo in anziani e in gravidanza, con prove di qualità bassa o molto bassa (Mah 2021)."
+    },
+    "whenUseful": "Assunzione bassa documentata o carenza; nel «bone pack» con calcio e vitamina D in caso di fratture da stress (AIS). Prima la dieta: cereali integrali, legumi, frutta secca, cacao.",
+    "cautions": [
+      "Diarrea: negli studi sui crampi effetti avversi soprattutto gastrointestinali nell’11% dei trattati (10% nei controlli) fino al 37% (14% nei controlli). La dose divisa in più prese è meglio tollerata (SCF).",
+      "Insufficienza renale: rischio serio di ipermagnesiemia.",
+      "Le differenze di assorbimento tra le forme (citrato, cloruro e lattato meglio dell’ossido) vengono da studi piccoli.",
+      "Il magnesio sierico è circa l’1% delle riserve e non riflette bene lo stato (LPI)."
+    ],
+    "interactions": [
+      "Bisfosfonati: a 2 ore di distanza.",
+      "Antibiotici chinolonici e tetracicline: ne riduce l’efficacia.",
+      "Inibitori di pompa per almeno 3 mesi: possono causare ipomagnesemia.",
+      "Diuretici dell’ansa e tiazidici; digossina (LPI)."
+    ],
+    "sportNotes": "Le perdite con il sudore sono «modeste e molto variabili» (EFSA).",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Garrison et al., Cochrane 2020 (magnesio e crampi)",
+        "url": "https://doi.org/10.1002/14651858.CD009402.pub3"
+      },
+      {
+        "label": "Mah e Pitre, BMC Complement Med Ther 2021",
+        "url": "https://doi.org/10.1186/s12906-021-03297-z"
+      },
+      {
+        "label": "Linus Pauling Institute, magnesio",
+        "url": "https://lpi.oregonstate.edu/mic/minerals/magnesium"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo C",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_c"
+      }
+    ]
+  },
+  {
+    "id": "zinco",
+    "name": "Zinco",
+    "aliases": [
+      "Zn",
+      "zinc",
+      "gluconato di zinco",
+      "zinco gluconato",
+      "acetato di zinco",
+      "solfato di zinco",
+      "citrato di zinco",
+      "picolinato di zinco",
+      "bisglicinato di zinco",
+      "ossido di zinco",
+      "pastiglie di zinco"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 10,
+      "unit": "mg"
+    },
+    "doseOptions": [
+      {
+        "amount": 10,
+        "unit": "mg"
+      },
+      {
+        "amount": 15,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 25,
+      "unit": "mg",
+      "source": "SCF 2002 (NOAEL 50 mg/die sugli indici del rame, fattore 2)",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 15,
+      "unit": "mg",
+      "source": "Ministero della Salute",
+      "note": "adulti"
+    },
+    "schedule": "giornaliero",
+    "timing": "cena",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "zinco plasmatico (poco sensibile)",
+        "rame e ceruloplasmina con dosi alte e prolungate"
+      ],
+      "when": "Per decidere se serve; con dosi alte, per controllare il rame."
+    },
+    "evidence": {
+      "level": "limitata",
+      "ais": "A",
+      "summary": "AIS gruppo A tra i supplementi medici, cioè per correggere una carenza. Raffreddore: prevenzione «little or no effect»; come trattamento forse −2,37 giorni (certezza bassa), con più effetti avversi non gravi (RR 1,34, certezza moderata; Cochrane 2024)."
+    },
+    "whenUseful": "Carenza accertata. Una dieta ricca di legumi e cereali integrali (fitati) richiede più zinco dal cibo, non un integratore (EFSA: PRI da 9,4 a 16,3 mg secondo i fitati).",
+    "cautions": [
+      "Carenza di rame con dosi alte: segni già con 60 mg/die totali per 10 settimane (LPI).",
+      "Le pastiglie per il raffreddore portano spesso oltre l’UL per qualche giorno.",
+      "IOC: dosi alte di zinco possono ridurre la funzione immunitaria.",
+      "Nausea e gusto metallico."
+    ],
+    "interactions": [
+      "Ferro ad alte dosi a stomaco vuoto ne riduce l’assorbimento, con il cibo no; 600 mg di calcio con un pasto lo hanno dimezzato in un piccolo studio (LPI).",
+      "Tetracicline e chinoloni: a 2 ore di distanza (LPI)."
+    ],
+    "sportNotes": "IOC: lo zinco ad alte dosi è sconsigliato.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Nault et al., Cochrane 2024 (zinco e raffreddore)",
+        "url": "https://doi.org/10.1002/14651858.CD014914.pub2"
+      },
+      {
+        "label": "Linus Pauling Institute, zinco",
+        "url": "https://lpi.oregonstate.edu/mic/minerals/zinc"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      }
+    ]
+  },
+  {
+    "id": "rame",
+    "name": "Rame",
+    "aliases": [
+      "Cu",
+      "copper",
+      "gluconato di rame",
+      "solfato di rame",
+      "bisglicinato di rame",
+      "ossido di rame"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "mg"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "mg"
+      },
+      {
+        "amount": 2,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 5,
+      "unit": "mg",
+      "source": "SCF 2003 (NOAEL 10 mg/die sulla funzione epatica, fattore 2)",
+      "kind": "UL",
+      "scope": "totale",
+      "note": "EFSA 2023: dose giornaliera accettabile di 0,07 mg/kg di peso."
+    },
+    "itMax": {
+      "amount": 2,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "cena",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": {
+      "required": true,
+      "exams": [
+        "rame",
+        "ceruloplasmina"
+      ],
+      "when": "Prima di cominciare: serve quasi solo nella carenza da zinco o nel malassorbimento."
+    },
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna indicazione nelle persone sane (inferenza da EFSA e LPI)."
+    },
+    "whenUseful": "Carenza da eccesso di zinco o malassorbimento, su indicazione medica.",
+    "cautions": [],
+    "interactions": [],
+    "sportNotes": "Nessun ruolo nella prestazione.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA, Overview on Tolerable Upper Intake Levels, versione 11 (2025)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2024-05/ul-summary-report.pdf"
+      },
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "ferro",
+    "name": "Ferro",
+    "aliases": [
+      "Fe",
+      "iron",
+      "solfato ferroso",
+      "ferroso solfato",
+      "ferrous sulfate",
+      "gluconato ferroso",
+      "fumarato ferroso",
+      "bisglicinato di ferro",
+      "ferro bisglicinato",
+      "pirofosfato ferrico",
+      "ferro sucrosomiale",
+      "ferro liposomiale",
+      "ferro eme"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "su-indicazione",
+    "defaultDose": {
+      "amount": 30,
+      "unit": "mg",
+      "label": "massimo per un integratore in Italia, a giorni alterni"
+    },
+    "doseOptions": [
+      {
+        "amount": 11,
+        "unit": "mg",
+        "label": "fabbisogno dell’uomo (PRI)"
+      },
+      {
+        "amount": 30,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      },
+      {
+        "amount": 60,
+        "unit": "mg",
+        "label": "dose degli studi a giorni alterni: solo su prescrizione"
+      }
+    ],
+    "upperLimit": {
+      "amount": 40,
+      "unit": "mg",
+      "source": "EFSA 2024 (safe level, non UL)",
+      "kind": "safe-level",
+      "scope": "totale",
+      "note": "Non si applica a chi prende ferro sotto controllo medico per un’anemia."
+    },
+    "itMax": {
+      "amount": 30,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giorni-alterni",
+    "timing": "colazione",
+    "slot": "spuntino",
+    "timingNote": "Lontano da caffè, tè e latticini (2 ore), con un frutto ricco di vitamina C: nello spuntino del mattino più che a colazione (inferenza dalle interazioni e da McCormick 2019).",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": true,
+      "exams": [
+        "ferritina",
+        "saturazione della transferrina",
+        "sideremia",
+        "recettore solubile della transferrina",
+        "emoglobina",
+        "MCV",
+        "PCR (la ferritina sale con l’infiammazione)"
+      ],
+      "when": "Prima di cominciare e per decidere quanto continuare."
+    },
+    "evidence": {
+      "level": "forte",
+      "ais": "A",
+      "summary": "Corregge la carenza (AIS gruppo A tra i supplementi medici). IOC: «gli integratori di ferro ad alte dosi non dovrebbero essere assunti se non c’è carenza». A giorni alterni l’assorbimento frazionato è più alto (21,8% contro 16,3%, Stoffel 2017; +40–50% nelle anemiche, Stoffel 2020)."
+    },
+    "whenUseful": "Solo con carenza accertata dagli esami. LPI: gli uomini adulti non dovrebbero prenderlo senza valutazione medica, anche per il rischio di emocromatosi ereditaria. Negli atleti la carenza riguarda circa il 5–11% degli uomini (Sim 2019).",
+    "cautions": [
+      "In etichetta conta il ferro elementare: il solfato ferroso eptaidrato ne contiene il 20%, il monoidrato il 33%, il gluconato il 12%, il fumarato il 33% (LPI).",
+      "A giorni alterni si danno 14 dosi in 28 giorni: per giorno si assorbe meno ferro, ma con più efficienza. Dividere la dose non serve.",
+      "Feci nere: sono l’endpoint del safe level, non un effetto avverso di per sé."
+    ],
+    "interactions": [
+      "Caffè e tè ne riducono «marcatamente» l’assorbimento; calcio e latticini a 2 ore di distanza; la vitamina C lo aumenta molto (LPI).",
+      "Ad alte dosi a stomaco vuoto riduce l’assorbimento dello zinco (LPI)."
+    ],
+    "sportNotes": "L’esercizio alza l’epcidina, circa 3 ore dopo la seduta: il ferro si assorbe meglio al mattino (McCormick 2019, 16 runner).",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2024, safe level del ferro",
+        "url": "https://doi.org/10.2903/j.efsa.2024.8819"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Stoffel et al., Lancet Haematol 2017",
+        "url": "https://doi.org/10.1016/S2352-3026(17)30182-5"
+      },
+      {
+        "label": "Stoffel et al., Haematologica 2020",
+        "url": "https://doi.org/10.3324/haematol.2019.220830"
+      },
+      {
+        "label": "Linus Pauling Institute, ferro",
+        "url": "https://lpi.oregonstate.edu/mic/minerals/iron"
+      },
+      {
+        "label": "McCormick et al., Med Sci Sports Exerc 2019",
+        "url": "https://doi.org/10.1249/MSS.0000000000002026"
+      },
+      {
+        "label": "Sim et al., Eur J Appl Physiol 2019",
+        "url": "https://doi.org/10.1007/s00421-019-04157-y"
+      }
+    ]
+  },
+  {
+    "id": "calcio",
+    "name": "Calcio",
+    "aliases": [
+      "Ca",
+      "calcium",
+      "carbonato di calcio",
+      "calcio carbonato",
+      "citrato di calcio",
+      "calcio citrato",
+      "citrato malato di calcio",
+      "lattato di calcio",
+      "gluconato di calcio",
+      "fosfato di calcio",
+      "alga calcarea",
+      "Lithothamnion"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 500,
+      "unit": "mg",
+      "label": "una presa"
+    },
+    "doseOptions": [
+      {
+        "amount": 500,
+        "unit": "mg",
+        "label": "una presa (fino a 500 mg per presa)"
+      },
+      {
+        "amount": 1000,
+        "unit": "mg",
+        "label": "2 × 500 mg, con il medico"
+      }
+    ],
+    "upperLimit": {
+      "amount": 2500,
+      "unit": "mg",
+      "source": "EFSA 2012",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 1200,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "perIntakeMax": {
+      "amount": 500,
+      "unit": "mg"
+    },
+    "schedule": "giornaliero",
+    "timing": "cena",
+    "timingNote": "Il carbonato va preso ai pasti; il citrato anche lontano dai pasti (preferibile con gli inibitori di pompa). Lontano dal ferro (LPI).",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "A",
+      "summary": "AIS gruppo A tra i supplementi medici. Calcio 2000 mg + vitamina D 800 UI per 8 settimane: fratture da stress −20% in reclute donne (Lappe 2008). Con bassa disponibilità energetica l’IOC indica 1500 mg/die con 1500–2000 UI di vitamina D."
+    },
+    "whenUseful": "Quando la dieta non arriva al fabbisogno (PRI 950 mg dai 25 anni, 1000 mg tra 18 e 24): prima i latticini, poi l’integratore per la differenza. Fratture da stress o bassa disponibilità energetica, con il medico.",
+    "cautions": [
+      "Calcoli renali: HR 1,17 (1,02–1,34) con 1000 mg di carbonato + 400 UI di D3 (WHI, donne in post-menopausa).",
+      "Infarto: segnale da una meta-analisi con calcio senza vitamina D (Bolland 2010, HR 1,31, 1,02–1,67) non confermato; la linea guida NOF/ASPC 2016 giudica, con evidenza di qualità moderata, che entro l’UL non ci sia relazione con il rischio cardiovascolare.",
+      "Non esiste un esame dello stato del calcio: la calcemia è regolata e non riflette l’apporto (IOC).",
+      "Sindrome latte-alcali con dosi alte e antiacidi."
+    ],
+    "interactions": [
+      "Ferro e zinco: ne riduce l’assorbimento (il ferro a 2 ore di distanza).",
+      "Levotiroxina, tetracicline, chinoloni, bisfosfonati, sotalolo: ne riduce l’assorbimento.",
+      "Diuretici tiazidici: rischio di ipercalcemia; digossina (LPI)."
+    ],
+    "sportNotes": "Lappe 2008 è su reclute donne: la trasferibilità a un calciatore uomo non è dimostrata.",
+    "cancerNotes": "WCRF: gli integratori di calcio riducono il rischio di cancro del colon-retto, grado «probable», l’unica eccezione alla regola. Per la prostata le diete ricche di calcio sono «limited-suggestive» per un aumento del rischio (fonte secondaria).",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "EFSA, Overview on Tolerable Upper Intake Levels, versione 11 (2025)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2024-05/ul-summary-report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Linus Pauling Institute, calcio",
+        "url": "https://lpi.oregonstate.edu/mic/minerals/calcium"
+      },
+      {
+        "label": "Jackson et al., WHI, NEJM 2006",
+        "url": "https://doi.org/10.1056/NEJMoa055218"
+      },
+      {
+        "label": "Bolland et al., BMJ 2010",
+        "url": "https://doi.org/10.1136/bmj.c3691"
+      },
+      {
+        "label": "Kopecky et al., NOF/ASPC, Ann Intern Med 2016",
+        "url": "https://doi.org/10.7326/M16-1743"
+      },
+      {
+        "label": "Lappe et al., J Bone Miner Res 2008",
+        "url": "https://doi.org/10.1359/jbmr.080102"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "WCRF/AICR, raccomandazione sugli integratori",
+        "url": "https://www.wcrf.org/research-policy/evidence-for-our-recommendations/do-not-use-supplements-for-cancer-prevention/"
+      }
+    ]
+  },
+  {
+    "id": "selenio",
+    "name": "Selenio",
+    "aliases": [
+      "Se",
+      "selenium",
+      "selenometionina",
+      "L-selenometionina",
+      "lievito al selenio",
+      "lievito arricchito di selenio",
+      "selenito di sodio",
+      "selenato di sodio"
+    ],
+    "category": "minerale",
+    "unit": "µg",
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 50,
+      "unit": "µg",
+      "label": "sotto il fabbisogno (AI 70 µg), che la dieta copre in parte"
+    },
+    "doseOptions": [
+      {
+        "amount": 50,
+        "unit": "µg"
+      },
+      {
+        "amount": 100,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 255,
+      "unit": "µg",
+      "source": "EFSA 2023 (LOAEL 330 µg/die da SELECT, fattore 1,3)",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 100,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "sfavorevole",
+      "ais": null,
+      "summary": "Cochrane 2018, certezza «high»: nessun beneficio sul cancro; alcuni danni (vedi sotto)."
+    },
+    "whenUseful": "Nessuna indicazione nelle persone sane (inferenza dalle prove).",
+    "cautions": [
+      "Effetto critico dell’UL: alopecia (EFSA 2023).",
+      "Le noci del Brasile sono molto ricche di selenio: mangiarle ogni giorno può portare oltre l’UL (EFSA 2023)."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessun ruolo nella prestazione.",
+    "cancerNotes": "Cochrane 2018 (certezza «high»): incidenza di cancro RR 1,01 (0,93–1,10). Più tumori della prostata di alto grado solo in chi partiva con più selenio; diabete di tipo 2 «slightly increased»; più alopecia e dermatite. SELECT (200 µg/die): prostata HR 1,09, non significativo.",
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA NDA Panel 2023, UL del selenio",
+        "url": "https://doi.org/10.2903/j.efsa.2023.7704"
+      },
+      {
+        "label": "Vinceti et al., Cochrane 2018 (selenio e cancro)",
+        "url": "https://doi.org/10.1002/14651858.CD005195.pub4"
+      },
+      {
+        "label": "Klein et al., SELECT, JAMA 2011",
+        "url": "https://doi.org/10.1001/jama.2011.1437"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "iodio",
+    "name": "Iodio",
+    "aliases": [
+      "iodine",
+      "ioduro di potassio",
+      "iodato di potassio",
+      "alghe",
+      "kelp",
+      "alga kelp",
+      "fucus"
+    ],
+    "category": "minerale",
+    "unit": "µg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 150,
+      "unit": "µg",
+      "label": "fabbisogno (AI)"
+    },
+    "doseOptions": [
+      {
+        "amount": 150,
+        "unit": "µg",
+        "label": "fabbisogno (AI)"
+      },
+      {
+        "amount": 225,
+        "unit": "µg",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 600,
+      "unit": "µg",
+      "source": "SCF 2002 (lievi variazioni del TSH a 1700–1800 µg/die, fattore 3)",
+      "kind": "UL",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 225,
+      "unit": "µg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "TSH"
+      ],
+      "when": "Solo con un problema alla tiroide."
+    },
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "L’Italia è iodosufficiente grazie al sale iodato, usato dal 71,5% degli adulti (OSNAMI-ISS 2024, fonte secondaria)."
+    },
+    "whenUseful": "Con il sale iodato, nei limiti del sale, l’integratore non serve (inferenza).",
+    "cautions": [
+      "Gli integratori di alghe (kelp, fucus) hanno un contenuto di iodio variabile e rischio di eccesso."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessun ruolo nella prestazione.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      },
+      {
+        "label": "Quotidiano Sanità sullo studio OSNAMI-ISS (2024, fonte secondaria)",
+        "url": "https://www.quotidianosanita.it/scienza-e-farmaci/l-italia-iodosufficiente-grazie-alla-promozione-del-sale-iodato-lo-studio-dell-iss/"
+      }
+    ]
+  },
+  {
+    "id": "potassio",
+    "name": "Potassio",
+    "aliases": [
+      "potassium",
+      "cloruro di potassio",
+      "citrato di potassio",
+      "gluconato di potassio",
+      "bicarbonato di potassio"
+    ],
+    "category": "minerale",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 500,
+      "unit": "mg"
+    },
+    "doseOptions": [
+      {
+        "amount": 500,
+        "unit": "mg"
+      },
+      {
+        "amount": 1000,
+        "unit": "mg"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "pranzo",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun UL (EFSA 2005). Il fabbisogno (AI 3500 mg) si raggiunge con frutta, verdura, legumi e patate."
+    },
+    "whenUseful": "Chi mangia poca frutta e verdura deve partire dal cibo, non dall’integratore.",
+    "cautions": [
+      "Circa 3 g/die di cloruro di potassio oltre alla dieta non hanno dato effetti avversi negli adulti sani; disturbi gastrointestinali tra 1 e 5 g/die con alcune forme; casi di effetti cardiaci con 5–7 g/die (EFSA 2005).",
+      "Rischio con funzione renale ridotta o farmaci che trattengono il potassio (ACE-inibitori, sartani, diuretici risparmiatori di potassio).",
+      "Il Ministero non fissa un massimo («non definito»)."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi elettroliti.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "EFSA/SCF, Tolerable Upper Intake Levels for Vitamins and Minerals (2006)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/efsa_rep/blobserver_assets/ndatolerableuil.pdf"
+      },
+      {
+        "label": "EFSA, Dietary Reference Values, summary report (2017)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf"
+      },
+      {
+        "label": "Ministero della Salute, apporti massimi di vitamine e minerali negli integratori, revisione 2018",
+        "url": "https://www.nutrientiesupplementi.it/norme-sicurezza/item/download/6_80fbdef7198cd2089c022e48d2ce2249"
+      }
+    ]
+  },
+  {
+    "id": "omega-3",
+    "name": "Omega-3 (EPA e DHA)",
+    "aliases": [
+      "omega 3",
+      "omega3",
+      "ω-3",
+      "olio di pesce",
+      "fish oil",
+      "EPA",
+      "DHA",
+      "EPA+DHA",
+      "EPA e DHA",
+      "acido eicosapentaenoico",
+      "acido docosaesaenoico",
+      "olio di krill",
+      "krill oil",
+      "olio algale",
+      "olio di alghe",
+      "trigliceridi riesterificati",
+      "rTG",
+      "etil esteri"
+    ],
+    "category": "acidi-grassi",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 600,
+      "unit": "mg",
+      "label": "2 capsule standard · mantenimento AIS (500–600 mg/die)"
+    },
+    "doseOptions": [
+      {
+        "amount": 300,
+        "unit": "mg",
+        "label": "1 capsula standard (180 mg EPA + 120 mg DHA)"
+      },
+      {
+        "amount": 600,
+        "unit": "mg",
+        "label": "mantenimento AIS (500–600 mg/die)"
+      },
+      {
+        "amount": 1000,
+        "unit": "mg",
+        "label": "stato basso o periodo di infortunio (AIS)"
+      },
+      {
+        "amount": 2000,
+        "unit": "mg",
+        "label": "breve termine con carichi alti (AIS); IOC circa 2 g/die"
+      }
+    ],
+    "upperLimit": {
+      "amount": 5000,
+      "unit": "mg",
+      "source": "EFSA 2012: fino a 5 g/die di EPA+DHA da integratori senza problemi di sicurezza (non è un UL)",
+      "kind": "senza-rischi-fino-a",
+      "scope": "integratori"
+    },
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Con un pasto (AIS). Dopo la saturazione, saltare qualche giorno cambia poco: le membrane mantengono gli acidi grassi in media 2 settimane.",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [
+        "Omega-3 Index"
+      ],
+      "when": "Facoltativo. AIS: obiettivo sopra l’8%; sotto il 5% servono almeno 1000 mg/die, con effetto in 4–6 settimane; ricontrollare dopo almeno 12 settimane."
+    },
+    "evidence": {
+      "level": "limitata",
+      "ais": "B",
+      "summary": "AIS gruppo B. IOC: «limited support» contro l’infiammazione e nessuna prova sulle infezioni respiratorie; per il recupero circa 2 g/die, «low risk but unclear» se preferirlo al pesce grasso."
+    },
+    "whenUseful": "Meno di 2 porzioni di pesce grasso a settimana: l’AIS indica 500–600 mg/die di EPA+DHA tra cibo e integratore. Periodi di carico alto o di infortunio: 1000–2000 mg/die per poco tempo.",
+    "cautions": [
+      "In etichetta conta l’EPA+DHA, non i «1000 mg di olio» della capsula: una capsula standard ne ha 300 mg.",
+      "Fibrillazione atriale in pazienti cardiovascolari con età media di 65 anni: HR 1,25 (1,07–1,46) nel complesso e 1,12 (1,03–1,22) anche con dosi fino a 1 g/die; +11% per ogni grammo in più (Gencer 2021). Il gruppo oltre 1 g/die comprende solo trial con 1,8–4 g/die. Non si sa se valga per un adulto giovane sano.",
+      "IOC: metalli pesanti, sanguinamento, disturbi digestivi, aumento dell’LDL. Gli etil esteri sono la forma meno biodisponibile (AIS)."
+    ],
+    "interactions": [
+      "Il sanguinamento è tra i rischi segnalati dall’IOC: con anticoagulanti o antiaggreganti decide il medico (inferenza)."
+    ],
+    "sportNotes": "AIS per gli infortuni: oltre 1000 mg/die. Oli ricchi di EPA: 200–500 mg di EPA per grammo; ricchi di DHA: 500–750 mg di DHA per grammo.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Rischio doping basso; conta la purezza (ossidazione, metalli)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "EFSA, comunicato su EPA e DHA (27/7/2012)",
+        "url": "https://www.efsa.europa.eu/en/press/news/120727"
+      },
+      {
+        "label": "Gencer et al., Circulation 2021",
+        "url": "https://doi.org/10.1161/circulationaha.121.055654"
+      },
+      {
+        "label": "VITAL Rhythm, JAMA 2021",
+        "url": "https://doi.org/10.1001/jama.2021.1489"
+      }
+    ]
+  },
+  {
+    "id": "proteine-siero",
+    "name": "Proteine del siero del latte (whey)",
+    "aliases": [
+      "whey",
+      "whey protein",
+      "proteine whey",
+      "sieroproteine",
+      "sieroproteine del latte",
+      "WPC",
+      "WPI",
+      "WPH",
+      "concentrato di siero",
+      "isolato di siero",
+      "idrolizzato di siero",
+      "proteine in polvere",
+      "protein powder"
+    ],
+    "category": "proteine",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 25,
+      "unit": "g",
+      "label": "g di proteine, circa 30 g di polvere"
+    },
+    "doseOptions": [
+      {
+        "amount": 20,
+        "unit": "g"
+      },
+      {
+        "amount": 25,
+        "unit": "g"
+      },
+      {
+        "amount": 30,
+        "unit": "g"
+      },
+      {
+        "amount": 40,
+        "unit": "g",
+        "label": "massimo per porzione (AIS)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "perIntakeMax": {
+      "amount": 40,
+      "unit": "g"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "workout": {
+      "when": "dopo",
+      "minutes": 0
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A (integratore proteico isolato). Con un apporto proteico adeguato non aggiungono benefici: i guadagni di massa magra si appiattiscono intorno a 1,62 g/kg/die (IC 1,03–2,20), e gli autori suggeriscono circa 2,2 g/kg per chi vuole il massimo (Morton 2018, 49 RCT)."
+    },
+    "whenUseful": "Food first (AIS): dopo l’allenamento, per arricchire un pasto povero di proteine, con poco appetito o in viaggio; 1–2 porzioni al giorno.",
+    "cautions": [
+      "30 g di polvere danno circa 21–27 g di proteine: la dose dell’app è in grammi di proteine.",
+      "WPC 70–80% di proteine con un po’ di lattosio; WPI circa 90%; l’idrolizzato costa di più con vantaggi minimi (AIS).",
+      "Allergeni del latte."
+    ],
+    "interactions": [],
+    "sportNotes": "AIS: 0,3–0,4 g/kg per pasto (15–30 g) in 3–5 occasioni; 1,2–1,6 g/kg/die per chi si allena molto, 1,6–2,4 g/kg in dimagrimento.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "I prodotti multi-ingrediente possono contenere ingredienti vietati. AIS: il test sui lotti esclude le sostanze WADA, non i metalli pesanti."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Morton et al., BJSM 2018",
+        "url": "https://doi.org/10.1136/bjsports-2017-097608"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      }
+    ]
+  },
+  {
+    "id": "caseina",
+    "name": "Caseina",
+    "aliases": [
+      "casein",
+      "caseina micellare",
+      "caseinato di calcio",
+      "idrolizzato di caseina"
+    ],
+    "category": "proteine",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 30,
+      "unit": "g",
+      "label": "g di proteine"
+    },
+    "doseOptions": [
+      {
+        "amount": 20,
+        "unit": "g"
+      },
+      {
+        "amount": 30,
+        "unit": "g"
+      },
+      {
+        "amount": 40,
+        "unit": "g",
+        "label": "massimo per porzione (AIS)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "perIntakeMax": {
+      "amount": 40,
+      "unit": "g"
+    },
+    "schedule": "giornaliero",
+    "timing": "sera",
+    "timingNote": "Circa 30 minuti prima di dormire (Reis 2021).",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "A",
+      "summary": "20–40 g circa 30 minuti prima di dormire aumentano la sintesi proteica notturna nei giovani (Reis 2021, 9 studi), ma negli studi l’apporto proteico totale non era bilanciato. AIS: manca la prova di un valore specifico della caseina a cena."
+    },
+    "whenUseful": "Quando le proteine della giornata sono basse. Uno yogurt greco o uno skyr la sera fanno la stessa cosa con il cibo (inferenza).",
+    "cautions": [
+      "Allergeni del latte."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi proteine del siero.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "I prodotti multi-ingrediente possono contenere ingredienti vietati. AIS: il test sui lotti esclude le sostanze WADA, non i metalli pesanti."
+    },
+    "sources": [
+      {
+        "label": "Reis et al., J Sci Med Sport 2021",
+        "url": "https://doi.org/10.1016/j.jsams.2020.07.016"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      }
+    ]
+  },
+  {
+    "id": "proteine-vegetali",
+    "name": "Proteine vegetali in polvere",
+    "aliases": [
+      "proteine del pisello",
+      "pea protein",
+      "proteine di soia",
+      "soy protein",
+      "isolato di soia",
+      "proteine del riso",
+      "rice protein",
+      "proteine della canapa",
+      "proteine di fava",
+      "blend vegetale",
+      "proteine vegane"
+    ],
+    "category": "proteine",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 25,
+      "unit": "g",
+      "label": "g di proteine"
+    },
+    "doseOptions": [
+      {
+        "amount": 20,
+        "unit": "g"
+      },
+      {
+        "amount": 25,
+        "unit": "g"
+      },
+      {
+        "amount": 30,
+        "unit": "g"
+      },
+      {
+        "amount": 40,
+        "unit": "g",
+        "label": "massimo per porzione (AIS)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "perIntakeMax": {
+      "amount": 40,
+      "unit": "g"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "workout": {
+      "when": "dopo",
+      "minutes": 0
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "Simili alle proteine animali su forza e massa magra assoluta (Lim 2021, 16 RCT); sotto i 50 anni le animali danno un po’ più di massa magra (WMD 0,41 kg, 0,08–0,74)."
+    },
+    "whenUseful": "Dieta vegetariana o vegana, intolleranza al latte. Per chi mangia carne e latticini non servono (inferenza).",
+    "cautions": [
+      "Valore biologico più basso (pisello, riso, canapa, ceci): si compensa mescolando fonti, aggiungendo leucina o aumentando la porzione. La soia ha alto valore biologico ma meno leucina del siero (AIS).",
+      "Piombo: in test statunitensi su 23 prodotti, in media circa 9 volte quello delle proteine del latte (Consumer Reports 2025, fonte secondaria, soglie molto prudenti)."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi proteine del siero.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "I prodotti multi-ingrediente possono contenere ingredienti vietati. AIS: il test sui lotti esclude le sostanze WADA, non i metalli pesanti."
+    },
+    "sources": [
+      {
+        "label": "Lim et al., Nutrients 2021",
+        "url": "https://doi.org/10.3390/nu13020661"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "NutritionInsight su Consumer Reports 2025 (fonte secondaria)",
+        "url": "https://www.nutritioninsight.com/news/protein-powders-heavy-metals-lead-consumer-reports-2025.html"
+      }
+    ]
+  },
+  {
+    "id": "bcaa",
+    "name": "Aminoacidi ramificati (BCAA)",
+    "aliases": [
+      "BCAA",
+      "aminoacidi ramificati",
+      "amminoacidi ramificati",
+      "branched-chain amino acids",
+      "leucina",
+      "isoleucina",
+      "valina",
+      "leucina isoleucina valina"
+    ],
+    "category": "proteine",
+    "unit": "g",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 5,
+      "unit": "g",
+      "label": "massimo per un integratore in Italia"
+    },
+    "doseOptions": [
+      {
+        "amount": 2.5,
+        "unit": "g"
+      },
+      {
+        "amount": 5,
+        "unit": "g",
+        "label": "massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 5,
+      "unit": "g",
+      "source": "Ministero della Salute",
+      "note": "somma di leucina, isoleucina e valina"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "workout": {
+      "when": "dopo",
+      "minutes": 0
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": "C",
+      "summary": "AIS (dal gruppo B al C nel 2025): 5,6 g dopo i pesi aumentano la sintesi proteica «only 22%», meno della metà di quanto ci si aspetta dalle proteine intere; l’effetto sull’indolenzimento richiede circa 16 g/die per almeno 7 giorni contro un placebo senza proteine. IOC sulla leucina: nessun trial a lungo termine."
+    },
+    "whenUseful": "Con 20–30 g di proteine di qualità a pasto sono superflui. Unico uso indicato dall’AIS: aggiungere 2,5–3 g di leucina a un pasto povero di proteine.",
+    "cautions": [
+      "Possono derivare da piume e peli animali trattati (AIS).",
+      "Avvertenza ministeriale: non in gravidanza, nei bambini o per periodi prolungati senza sentire il medico."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi proteine del siero: le proteine intere fanno di più.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "I prodotti multi-ingrediente possono contenere ingredienti vietati. AIS: il test sui lotti esclude le sostanze WADA, non i metalli pesanti."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo C",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_c"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      }
+    ]
+  },
+  {
+    "id": "creatina",
+    "name": "Creatina monoidrato",
+    "aliases": [
+      "creatina",
+      "creatine",
+      "creatine monohydrate",
+      "Creapure",
+      "creatina micronizzata",
+      "creatina etil estere",
+      "kre-alkalyn",
+      "creatina HCl",
+      "creatina cloridrato",
+      "creatina in gommose"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "utile",
+    "defaultDose": {
+      "amount": 3,
+      "unit": "g",
+      "label": "etichetta italiana e claim UE (3 g/die)"
+    },
+    "doseOptions": [
+      {
+        "amount": 3,
+        "unit": "g",
+        "label": "etichetta italiana e claim UE (3 g/die)"
+      },
+      {
+        "amount": 5,
+        "unit": "g",
+        "label": "AIS 3–5 g/die; sopra l’etichetta italiana"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 3,
+      "unit": "g",
+      "source": "Ministero della Salute",
+      "note": "per gli sportivi fino a 6 g/die per non più di un mese"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Con un pasto ricco di carboidrati (AIS). Dopo l’allenamento è un consiglio «prudente» con pochi dati di superiorità: conta prenderla ogni giorno. Sciolta in un liquido si degrada in creatinina: va bevuta subito.",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": {
+      "required": false,
+      "exams": [],
+      "when": "Nessun esame necessario.",
+      "interference": "La creatinina del sangue aumenta davvero, perché la creatina si degrada in creatinina, e può far sottostimare il filtrato renale (eGFR) senza indicare un danno (Antonio 2021): dillo al medico prima degli esami."
+    },
+    "evidence": {
+      "level": "forte",
+      "ais": "A",
+      "summary": "AIS gruppo A; IOC «good to strong evidence»; UEFA tra le prove più solide. Migliora gli sforzi brevi e intensi ripetuti e gli adattamenti all’allenamento di forza."
+    },
+    "whenUseful": "Sport con sprint ripetuti e allenamento di forza. Senza carico, 3–5 g/die saturano il muscolo in circa 4 settimane.",
+    "cautions": [
+      "Peso: +1–2 kg di acqua, che si perdono in 4–6 settimane dopo la sospensione. UEFA: con dosi basse (2–5 g/die per 28 giorni) l’aumento si può evitare.",
+      "Solo il monoidrato ha dati: circa il 99% delle prove di sicurezza ed efficacia riguarda questa forma; per le altre «no scientific reason» (AIS).",
+      "Rene, crampi e termoregolazione: preoccupazioni «not supported» (AIS). IOC: nessun effetto negativo sulla salute fino a 4 anni di uso.",
+      "Capelli: nessuna differenza su DHT, rapporto DHT/testosterone e capello in un RCT di 12 settimane con 5 g/die (38 uomini allenati); un solo studio, breve."
+    ],
+    "interactions": [
+      "Non insieme a molte fibre o al bicarbonato (AIS)."
+    ],
+    "sportNotes": "Carico facoltativo: 4 × 5 g/die per 5 giorni, poi 3–5 g/die (AIS; IOC circa 20 g/die per 5–7 giorni); il carico porta prima il peso in più e qualche disturbo intestinale. AIS: qualche indicazione di recupero migliore dopo un’immobilizzazione e benefici cognitivi con poco sonno.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Non vietata. Il rischio sta nei prodotti multi-ingrediente: meglio monoidrato puro con lotto certificato."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      },
+      {
+        "label": "EFSA 2011, claim sulla creatina",
+        "url": "https://doi.org/10.2903/j.efsa.2011.2303"
+      },
+      {
+        "label": "Antonio et al., JISSN 2021",
+        "url": "https://doi.org/10.1186/s12970-021-00412-w"
+      },
+      {
+        "label": "RCT su creatina e capelli, JISSN 2025",
+        "url": "https://doi.org/10.1080/15502783.2025.2495229"
+      }
+    ]
+  },
+  {
+    "id": "caffeina",
+    "name": "Caffeina",
+    "aliases": [
+      "caffeine",
+      "caffeina anidra",
+      "compresse di caffeina",
+      "1,3,7-trimetilxantina",
+      "guaranà",
+      "guarana",
+      "Paullinia cupana",
+      "estratto di tè verde",
+      "estratto di caffè verde",
+      "mate",
+      "yerba mate",
+      "cola"
+    ],
+    "category": "sport",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 200,
+      "unit": "mg",
+      "label": "plateau AIS (~3 mg/kg)"
+    },
+    "doseOptions": [
+      {
+        "amount": 100,
+        "unit": "mg",
+        "label": "1 compressa: l’AIS la preferisce ai pre-workout"
+      },
+      {
+        "amount": 200,
+        "unit": "mg",
+        "label": "plateau AIS (~3 mg/kg); massimo per una dose singola (EFSA) e per un integratore in Italia"
+      }
+    ],
+    "upperLimit": {
+      "amount": 400,
+      "unit": "mg",
+      "source": "EFSA 2015 (adulto sano, da tutte le fonti)",
+      "kind": "senza-rischi-fino-a",
+      "scope": "totale"
+    },
+    "itMax": {
+      "amount": 200,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "perIntakeMax": {
+      "amount": 200,
+      "unit": "mg"
+    },
+    "schedule": "con-la-seduta",
+    "timing": "colazione",
+    "workout": {
+      "when": "prima",
+      "minutes": 60
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "forte",
+      "ais": "A",
+      "summary": "AIS gruppo A; IOC: +1–8% su lavoro totale e sprint ripetuti nelle prove intermittenti; UEFA tra le prove più solide. Sospenderla prima della gara non aumenta il beneficio (AIS)."
+    },
+    "whenUseful": "Partite e allenamenti importanti, scegliendo tra prestazione e sonno.",
+    "cautions": [
+      "Sonno: in media −45 minuti di sonno totale; un caffè filtro da 107 mg va preso almeno 8,8 h prima di andare a letto, un pre-workout da 217,5 mg almeno 13,2 h prima (Gardiner 2023; soglie da un modello con IC ampi). EFSA: già 100 mg vicino all’ora di dormire possono disturbare il sonno.",
+      "I caffè della giornata si sommano: fino a 400 mg/die da tutte le fonti (EFSA).",
+      "I 200 mg meno di 2 h prima di uno sforzo intenso non pongono problemi in condizioni ambientali normali, non con il caldo (EFSA). Emivita media di circa 4 h (da 2 a 8).",
+      "Risposta individuale molto variabile: alcuni non rispondono e altri peggiorano (AIS). Dosi da 9 mg/kg in su non aumentano il beneficio (IOC)."
+    ],
+    "interactions": [],
+    "sportNotes": "Fino a 3 mg/kg, in una volta o divisa, fino a un’ora prima o in momenti strategici (AIS). IOC e UEFA: 3–6 mg/kg circa 60 minuti prima, oppure meno di 3 mg/kg prima e durante, all’intervallo, con i carboidrati.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Non vietata: nel programma di monitoraggio WADA 2026 solo in gara. Come compressa a dose nota il rischio è basso; nei pre-workout no."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "EFSA explains risk assessment: Caffeine (2015)",
+        "url": "https://www.efsa.europa.eu/sites/default/files/corporate_publications/files/efsaexplainscaffeine150527.pdf"
+      },
+      {
+        "label": "Gardiner et al., Sleep Med Rev 2023",
+        "url": "https://doi.org/10.1016/j.smrv.2023.101764"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      },
+      {
+        "label": "WADA, programma di monitoraggio 2026 (traduzione ufficiale ABCD)",
+        "url": "https://www.gov.br/abcd/pt-br/composicao/atletas/substancias-e-metodos-proibidos/2026ProgramadeMonitoramento.pdf"
+      }
+    ]
+  },
+  {
+    "id": "beta-alanina",
+    "name": "Beta-alanina",
+    "aliases": [
+      "β-alanina",
+      "beta alanina",
+      "beta-alanine",
+      "beta alanine",
+      "CarnoSyn"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 6.4,
+      "unit": "g",
+      "label": "4 × 1,6 g con i pasti per almeno 4 settimane (AIS)"
+    },
+    "doseOptions": [
+      {
+        "amount": 1.2,
+        "unit": "g",
+        "label": "mantenimento (AIS)"
+      },
+      {
+        "amount": 6.4,
+        "unit": "g",
+        "label": "4 × 1,6 g con i pasti per almeno 4 settimane (AIS)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "perIntakeMax": {
+      "amount": 1.6,
+      "unit": "g"
+    },
+    "dosesPerDay": 4,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "timingNote": "Divisa sui pasti principali e lo spuntino più grande: con il pasto carica di più la carnosina (+64% contro +41%).",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A; IOC «possibly», beneficio di circa 0,2–3% negli sforzi da 30 s a 10 min, più difficile da ottenere negli atleti molto allenati; UEFA: «evidence is contradictory»."
+    },
+    "whenUseful": "Sforzi intensi ripetuti da 30 secondi a 10 minuti. Per un amatore il rapporto costo/beneficio è basso (inferenza).",
+    "cautions": [
+      "Formicolio (parestesia) con dosi a rilascio immediato oltre 800–1600 mg, fino a un’ora; la forma a rilascio prolungato lo riduce. IOC: anche eruzioni cutanee.",
+      "Presa in acuto, come nei pre-workout, non ha prove.",
+      "La carnosina per bocca non la sostituisce.",
+      "Scheda AIS incoerente: 6,4 g/die nel testo e nell’esempio, 6,8 g/die nel riquadro di prescrizione (probabile refuso)."
+    ],
+    "interactions": [],
+    "sportNotes": "La carnosina muscolare si perde lentamente, circa 2% a settimana. IOC: circa 65 mg/kg/die in dosi da 0,8–1,6 g ogni 3–4 ore per 10–12 settimane.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Spesso dentro i pre-workout: meglio il prodotto singolo con lotto certificato."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "nitrati",
+    "name": "Nitrati (succo di barbabietola)",
+    "aliases": [
+      "succo di barbabietola",
+      "barbabietola",
+      "beetroot juice",
+      "beet juice",
+      "beet shot",
+      "shot di barbabietola",
+      "nitrato",
+      "nitrato inorganico",
+      "nitrati alimentari",
+      "NO3"
+    ],
+    "category": "sport",
+    "unit": "mg",
+    "conversions": {
+      "mmol": 62
+    },
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 500,
+      "unit": "mg",
+      "label": "≈ 8 mmol"
+    },
+    "doseOptions": [
+      {
+        "amount": 350,
+        "unit": "mg",
+        "label": "≈ 6 mmol: minimo efficace (AIS: almeno 5–6 mmol)"
+      },
+      {
+        "amount": 500,
+        "unit": "mg",
+        "label": "≈ 8 mmol"
+      },
+      {
+        "amount": 650,
+        "unit": "mg",
+        "label": "≈ 10 mmol; oltre 12 mmol nessun vantaggio rispetto a 8"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "pranzo",
+    "workout": {
+      "when": "prima",
+      "minutes": 150
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A; IOC: +3–5% nelle prove intermittenti da squadra di 12–40 minuti, più difficile negli atleti molto allenati; UEFA: prove limitate nel calcio, benefici negli amatori."
+    },
+    "whenUseful": "Prima di partite o sedute intense, 2–3 ore prima, oppure ogni giorno per alcuni giorni. Il cibo può bastare: rucola, spinaci, lattuga, sedano e barbabietola sono nella fascia più alta (oltre 2500 mg/kg), ma le preparazioni casalinghe non garantiscono la dose.",
+    "cautions": [
+      "Il colluttorio antibatterico blocca la conversione in nitrito: niente colluttorio nei giorni in cui lo usi (AIS).",
+      "Urine e feci rosa: innocue.",
+      "I sali di nitrato e soprattutto i nitriti sono pericolosi (metaemoglobinemia): solo cibo o succo.",
+      "Disturbi intestinali possibili."
+    ],
+    "interactions": [],
+    "sportNotes": "IOC: 5–9 mmol (310–560 mg) entro 2–3 ore. Oltre circa 12 mmol non fa più di circa 8 mmol (AIS).",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "bicarbonato",
+    "name": "Bicarbonato di sodio",
+    "aliases": [
+      "bicarbonato",
+      "sodium bicarbonate",
+      "NaHCO3",
+      "bicarbonato di sodio in capsule"
+    ],
+    "category": "sport",
+    "unit": "mg/kg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 200,
+      "unit": "mg/kg"
+    },
+    "doseOptions": [
+      {
+        "amount": 200,
+        "unit": "mg/kg"
+      },
+      {
+        "amount": 300,
+        "unit": "mg/kg"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "pranzo",
+    "workout": {
+      "when": "prima",
+      "minutes": 135
+    },
+    "timingNote": "Con un pasto piccolo ricco di carboidrati (circa 1,5 g/kg) 120–150 minuti prima (AIS).",
+    "withFood": true,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A: efficace negli sforzi da 30 s a 10 minuti, con pochi studi favorevoli negli sport di squadra; IOC: circa 2% negli sprint di circa 60 s. L’UEFA l’ha tolto dall’elenco perché non si usa nel calcio d’élite, non per prove negative."
+    },
+    "whenUseful": "Da provare prima in allenamento, mai la prima volta in partita.",
+    "cautions": [
+      "Nausea, mal di stomaco, diarrea e vomito sono frequenti (AIS).",
+      "La dose dipende dal peso: l’app la calcola dal peso del controllo del mattino."
+    ],
+    "interactions": [],
+    "sportNotes": "AIS: 200–400 mg/kg; IOC 0,2–0,4 g/kg 60–150 minuti prima.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "elettroliti",
+    "name": "Elettroliti (sali minerali)",
+    "aliases": [
+      "sali minerali",
+      "electrolytes",
+      "ORS",
+      "soluzione di reidratazione orale",
+      "reidratante",
+      "integratore salino",
+      "bustine di sali"
+    ],
+    "category": "sport",
+    "unit": "bustina",
+    "contains": [
+      "potassio",
+      "magnesio",
+      "vitamina-b6"
+    ],
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "bustina"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "bustina"
+      },
+      {
+        "amount": 2,
+        "unit": "bustina"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "cena",
+    "workout": {
+      "when": "dopo",
+      "minutes": 0
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "moderata",
+      "ais": "A",
+      "summary": "AIS gruppo A, in situazioni specifiche."
+    },
+    "whenUseful": "Caldo e grandi perdite di sudore salato, diarrea o gastroenterite (ORS), recupero di un deficit di liquidi: 1,2–1,5 volte il deficit stimato entro 2–4 ore, con sodio (AIS).",
+    "cautions": [
+      "Nessun consenso sul valore del sodio durante l’esercizio; l’iponatriemia viene soprattutto dal bere troppo e il sale «may provide a false sense of security» (AIS).",
+      "Molti contengono vitamina B6: la neuropatia periferica può comparire anche sotto i 50 mg/die (AIS). L’app la somma agli altri prodotti."
+    ],
+    "interactions": [],
+    "sportNotes": "UEFA: bere 5–7 mL/kg nelle 2–4 ore prima del calcio d’inizio.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "carboidrati-sport",
+    "name": "Carboidrati per lo sport",
+    "aliases": [
+      "bevanda sportiva",
+      "sport drink",
+      "bevanda isotonica",
+      "gel energetico",
+      "gel",
+      "barretta energetica",
+      "maltodestrine",
+      "maltodestrina",
+      "ciclodestrina",
+      "ciclodestrina ramificata",
+      "destrosio",
+      "glucosio",
+      "fruttosio",
+      "isomaltulosio"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 30,
+      "unit": "g",
+      "label": "≈ 500 mL di bevanda sportiva in una partita (AIS)"
+    },
+    "doseOptions": [
+      {
+        "amount": 30,
+        "unit": "g",
+        "label": "≈ 500 mL di bevanda sportiva (AIS)"
+      },
+      {
+        "amount": 60,
+        "unit": "g",
+        "label": "30 g dopo il riscaldamento e 30 g all’intervallo (UEFA)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "cena",
+    "workout": {
+      "when": "durante",
+      "minutes": 0
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "forte",
+      "ais": "A",
+      "summary": "AIS gruppo A: migliorano la prestazione negli sforzi oltre 45–60 minuti, anche con pause; raccomandati dall’UEFA."
+    },
+    "whenUseful": "Partite e sedute di 60–90 minuti o più: 30–60 g/h per 1–2,5 ore (AIS). Sotto i 45 minuti non servono.",
+    "cautions": [
+      "Oltre circa 60 g/h di solo glucosio non c’è beneficio, perché il trasportatore SGLT1 è saturo (AIS).",
+      "Erosione dentale con i gel: sciacquare e non lavare i denti per 30 minuti; l’intestino va allenato (AIS).",
+      "Sono energia: l’app li conta nei valori del giorno."
+    ],
+    "interactions": [],
+    "sportNotes": "UEFA: 6–8 g/kg di carboidrati il giorno prima, 1–3 g/kg nel pasto 3–4 ore prima del calcio d’inizio, 30–60 g dopo il riscaldamento e di nuovo all’intervallo. Sul risciacquo della bocca le implicazioni per il calcio sono «still unclear».",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "collagene",
+    "name": "Collagene o gelatina",
+    "aliases": [
+      "collagen",
+      "collagene idrolizzato",
+      "hydrolyzed collagen",
+      "peptidi di collagene",
+      "collagen peptides",
+      "peptidi bioattivi di collagene",
+      "gelatina",
+      "gelatina alimentare",
+      "colla di pesce",
+      "gelatin",
+      "collagene tipo I",
+      "collagene marino"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 20,
+      "unit": "g",
+      "label": "minimo probabilmente ottimale (AIS)"
+    },
+    "doseOptions": [
+      {
+        "amount": 10,
+        "unit": "g",
+        "label": "collagene idrolizzato (IOC: circa 10 g/die)"
+      },
+      {
+        "amount": 15,
+        "unit": "g",
+        "label": "gelatina (Shaw 2017; IOC 5–15 g)"
+      },
+      {
+        "amount": 20,
+        "unit": "g",
+        "label": "minimo probabilmente ottimale (AIS)"
+      },
+      {
+        "amount": 30,
+        "unit": "g",
+        "label": "massimo della dose AIS (20–30 g/die)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "pranzo",
+    "slot": "merenda",
+    "workout": {
+      "when": "prima",
+      "minutes": 60
+    },
+    "timingNote": "Un’ora prima della seduta di riabilitazione o dell’allenamento; nei giorni senza seduta alla stessa ora (AIS). Il picco degli aminoacidi nel sangue è a 40–60 minuti.",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "B",
+      "summary": "AIS gruppo B; IOC: «few data», più produzione di collagene e meno dolore «seem possible», benefici funzionali sconosciuti; UEFA: «novel strategy to support tendon repair». Studi piccoli, spesso finanziati dai produttori, con esiti surrogati (PINP, sezione del tendine)."
+    },
+    "whenUseful": "Riabilitazione di tendini e legamenti, insieme agli esercizi, per tutta la durata della riabilitazione (AIS). Va seguito con il diario del dolore.",
+    "cautions": [
+      "Con circa 50 mg di vitamina C (AIS: non più di 50 mg/die insieme al collagene); basta un frutto ricco di vitamina C, per esempio un kiwi (inferenza).",
+      "Gelatina con vitamina C (Shaw 2017, 8 uomini, 3 volte al giorno per 3 giorni): PINP raddoppiato; anche il placebo aveva la vitamina C, quindi l’effetto è della gelatina.",
+      "Tendinopatia achillea: peptidi 2 × 2,5 g/die con esercizi per il polpaccio per 3 mesi, VISA-A +12,6 contro +5,3 (Praet 2019, pilota con 20 pazienti, finanziato dal produttore).",
+      "Epicondilite laterale: un solo RCT con un multi-ingrediente (5 g di collagene) e senza placebo, 15 pazienti per braccio (Scaturro 2025): prova molto debole. Per il dolore tibiale mediale nessun RCT trovato."
+    ],
+    "interactions": [],
+    "sportNotes": "Revisione 2026 su 8 RCT con 257 adulti sani allenati: sezione del tendine aumentata di più in 3 studi su 4, rigidità migliore solo con 15–30 g/die, nessun effetto sulla forza. Non riguarda la tendinopatia.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "La gelatina è un alimento e non richiede test sui lotti (AIS)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "Shaw et al., Am J Clin Nutr 2017",
+        "url": "https://doi.org/10.3945/ajcn.116.138594"
+      },
+      {
+        "label": "Praet et al., Nutrients 2019",
+        "url": "https://doi.org/10.3390/nu11010076"
+      },
+      {
+        "label": "Revisione sistematica, J Funct Morphol Kinesiol 2026",
+        "url": "https://doi.org/10.3390/jfmk11010130"
+      },
+      {
+        "label": "Scaturro et al., Front Rehabil Sci 2025",
+        "url": "https://doi.org/10.3389/fresc.2025.1593909"
+      }
+    ]
+  },
+  {
+    "id": "citrullina",
+    "name": "Citrullina",
+    "aliases": [
+      "L-citrullina",
+      "citrullina malato",
+      "citrulline",
+      "citrulline malate"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 3,
+      "unit": "g",
+      "label": "dose minima negli studi"
+    },
+    "doseOptions": [
+      {
+        "amount": 3,
+        "unit": "g",
+        "label": "dose minima negli studi"
+      },
+      {
+        "amount": 6,
+        "unit": "g",
+        "label": "nessuna prova di un effetto maggiore"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "pranzo",
+    "workout": {
+      "when": "prima",
+      "minutes": 60
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Effetto piccolo su forza e potenza, SMD 0,20 (0,01–0,39), con gli IC di ogni singolo studio che includono l’effetto nullo (Trexler 2019, 12 studi, 198 persone, almeno 3 g almeno 30 minuti prima). L’AIS non la classifica."
+    },
+    "whenUseful": "Nessuna indicazione: effetto piccolo e incerto.",
+    "cautions": [
+      "Non compare nell’elenco ministeriale 2019, che però non è esaustivo."
+    ],
+    "interactions": [],
+    "sportNotes": "Studi brevi in laboratorio.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Spesso dentro i pre-workout."
+    },
+    "sources": [
+      {
+        "label": "Trexler et al., Sports Med 2019",
+        "url": "https://doi.org/10.1007/s40279-019-01091-z"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      }
+    ]
+  },
+  {
+    "id": "hmb",
+    "name": "HMB",
+    "aliases": [
+      "beta-idrossi-beta-metilbutirrato",
+      "β-idrossi-β-metilbutirrato",
+      "HMB-Ca",
+      "HMB calcio",
+      "HMB-FA",
+      "HMB acido libero"
+    ],
+    "category": "sport",
+    "unit": "g",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 3,
+      "unit": "g",
+      "label": "protocollo AIS in due prese"
+    },
+    "doseOptions": [
+      {
+        "amount": 1.5,
+        "unit": "g"
+      },
+      {
+        "amount": 3,
+        "unit": "g",
+        "label": "protocollo AIS in due prese; massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 3,
+      "unit": "g",
+      "source": "Ministero della Salute"
+    },
+    "dosesPerDay": 2,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": "C",
+      "summary": "AIS (dal gruppo B al C): effetto «less than leucine ingestion alone and significantly less than acute whey protein». IOC: effetti piccoli su forza e massa magra; i guadagni «steroid like» non sono stati riprodotti; benefici solo in anziani a letto per 10 giorni."
+    },
+    "whenUseful": "Nessuna indicazione in chi si allena e mangia abbastanza proteine.",
+    "cautions": [
+      "Sicuro nel breve termine fino a circa 6 g/die (AIS).",
+      "L’AIS segnala dubbi sull’integrità dei dati di uno studio di 12 settimane sulla forma acida libera."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi proteine del siero.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Prodotti per la massa: rischio di contaminazione."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo C",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_c"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      }
+    ]
+  },
+  {
+    "id": "zma",
+    "name": "ZMA",
+    "aliases": [
+      "zinco magnesio aspartato",
+      "zinc magnesium aspartate",
+      "zinco magnesio B6"
+    ],
+    "category": "sport",
+    "unit": "dose",
+    "contains": [
+      "zinco",
+      "magnesio",
+      "vitamina-b6"
+    ],
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "dose",
+      "label": "la dose giornaliera in etichetta"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "dose"
+      },
+      {
+        "amount": 2,
+        "unit": "dose"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "sera",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessun aumento del testosterone in uomini con zinco adeguato (Koehler 2009). Nessun effetto su sonno o prestazione dopo una deprivazione parziale (Nutrients 2024); in un altro studio con 69 uomini, meno sonno nel gruppo che dormiva 8 ore (Behav Sci 2024)."
+    },
+    "whenUseful": "Nessuna indicazione.",
+    "cautions": [
+      "Zinco e B6 delle formule commerciali possono superare gli UL: l’app li somma dall’etichetta.",
+      "IOC: dosi alte di zinco possono ridurre la funzione immunitaria."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessun effetto dimostrato.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Prodotto da integratori per la massa: meglio un lotto certificato."
+    },
+    "sources": [
+      {
+        "label": "Koehler et al., Eur J Clin Nutr 2009",
+        "url": "https://doi.org/10.1038/sj.ejcn.1602899"
+      },
+      {
+        "label": "ZMA e sonno, Nutrients 2024",
+        "url": "https://doi.org/10.3390/nu16020251"
+      },
+      {
+        "label": "ZMA e sonno, Behav Sci 2024",
+        "url": "https://doi.org/10.3390/bs14070622"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      }
+    ]
+  },
+  {
+    "id": "amarena",
+    "name": "Amarena (tart cherry)",
+    "aliases": [
+      "tart cherry",
+      "sour cherry",
+      "ciliegia acida",
+      "visciola",
+      "Montmorency",
+      "Prunus cerasus",
+      "succo di amarena",
+      "concentrato di ciliegia",
+      "cherry juice"
+    ],
+    "category": "sport",
+    "unit": "mL",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 60,
+      "unit": "mL",
+      "label": "concentrato: 2 × 30 mL"
+    },
+    "doseOptions": [
+      {
+        "amount": 60,
+        "unit": "mL",
+        "label": "concentrato: 2 × 30 mL (AIS, IOC)"
+      },
+      {
+        "amount": 500,
+        "unit": "mL",
+        "label": "succo: 2 × 250 mL (IOC: 250–350 mL due volte)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "dosesPerDay": 2,
+    "schedule": "periodi",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": "B",
+      "summary": "AIS gruppo B (polifenoli della frutta). UEFA: le prove non ne sostengono l’uso specifico nel calcio. Nell’unico crossover nel calcio (10 giocatori di 19 anni) nessuna differenza su salto, RSI e indolenzimento (Abbott 2020): assenza di prove, non prova di assenza."
+    },
+    "whenUseful": "Gare ravvicinate, 4–7 giorni prima e 2–4 dopo (AIS). Nel calcio nessun beneficio dimostrato.",
+    "cautions": [
+      "Effetto lassativo (AIS).",
+      "Gli studi usano le cultivar Montmorency e Balaton: le amarene sciroppate non sono equivalenti (inferenza: zuccheri).",
+      "Sonno: solo prove preliminari (AIS)."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi la sintesi delle prove.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "Abbott et al., IJSPP 2020",
+        "url": "https://doi.org/10.1123/ijspp.2019-0221"
+      }
+    ]
+  },
+  {
+    "id": "pre-workout",
+    "name": "Pre-workout",
+    "aliases": [
+      "preworkout",
+      "pre workout",
+      "booster",
+      "pre-allenamento",
+      "pre allenamento",
+      "pump",
+      "NO booster"
+    ],
+    "category": "sport",
+    "unit": "dose",
+    "contains": [
+      "caffeina",
+      "beta-alanina",
+      "citrullina"
+    ],
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "dose",
+      "label": "la dose in etichetta"
+    },
+    "doseOptions": [
+      {
+        "amount": 0.5,
+        "unit": "dose",
+        "label": "mezza dose"
+      },
+      {
+        "amount": 1,
+        "unit": "dose"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "con-la-seduta",
+    "timing": "pranzo",
+    "workout": {
+      "when": "prima",
+      "minutes": 30
+    },
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Nessuna prova per la miscela. Nei prodotti australiani esaminati dall’AIS la caffeina va da 91 a 387 mg per porzione."
+    },
+    "whenUseful": "Mai: meglio una compressa di caffeina a dose nota (AIS).",
+    "cautions": [
+      "Stimolanti vietati trovati nei pre-workout (UEFA); dosi di caffeina variabili e rischio di sostanze vietate (AIS).",
+      "Sonno: un pre-workout da 217,5 mg di caffeina va preso almeno 13,2 ore prima di andare a letto (Gardiner 2023).",
+      "Molti ingredienti tipici sono nel gruppo D dell’AIS (DMAA, DMBA, sinefrina, higenamina)."
+    ],
+    "interactions": [],
+    "sportNotes": "Vedi caffeina e beta-alanina.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "alto",
+      "note": "Il prodotto più a rischio insieme a «brucia grassi» e prodotti per la massa (UEFA, AIS)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo A",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_a"
+      },
+      {
+        "label": "AIS Sports Supplement Framework, gruppo D",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_d"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "Gardiner et al., Sleep Med Rev 2023",
+        "url": "https://doi.org/10.1016/j.smrv.2023.101764"
+      }
+    ]
+  },
+  {
+    "id": "melatonina",
+    "name": "Melatonina",
+    "aliases": [
+      "melatonin",
+      "N-acetil-5-metossitriptamina",
+      "melatonina a rilascio prolungato",
+      "melatonina retard"
+    ],
+    "category": "sonno",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "mg",
+      "label": "addormentamento: 1 mg poco prima di coricarsi (claim UE)"
+    },
+    "doseOptions": [
+      {
+        "amount": 0.5,
+        "unit": "mg",
+        "label": "jet lag: almeno 0,5 mg prima di coricarsi dal primo giorno di viaggio (claim UE)"
+      },
+      {
+        "amount": 1,
+        "unit": "mg",
+        "label": "addormentamento; massimo per un integratore in Italia"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 1,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "sera",
+    "timingNote": "Poco prima di coricarsi: in Ritmo insieme al coprifuoco del telefono.",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": null,
+      "summary": "Riduce di poco il tempo per addormentarsi: −7,06 minuti (IC 4,37–9,75) in persone con disturbi primari del sonno (Ferracioli-Oda 2013, 19 studi, 1683 persone). L’AIS non la classifica."
+    },
+    "whenUseful": "Jet lag. Se si va a letto tardi per il telefono non tocca la causa (inferenza).",
+    "cautions": [
+      "Oltre 1 mg/die in Italia non è un integratore: i medicinali UE ne contengono 2 mg; i prodotti esteri da 1,9 mg superano il limite italiano.",
+      "UEFA: ogni intervento farmacologico sul sonno va seguito da un medico."
+    ],
+    "interactions": [],
+    "sportNotes": "UEFA: utile per il jet lag.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "Ferracioli-Oda et al., PLoS One 2013",
+        "url": "https://doi.org/10.1371/journal.pone.0063773"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      },
+      {
+        "label": "Quotidiano Sanità, nota del Ministero sulla melatonina (2013, fonte secondaria)",
+        "url": "https://www.quotidianosanita.it/?p=17714"
+      },
+      {
+        "label": "NutraIngredients, 26/6/2013 (fonte secondaria)",
+        "url": "https://www.nutraingredients.com/Article/2013/06/26/Italy-slashes-maximum-melatonin-levels-from-5mg-per-day-to-1mg"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "ashwagandha",
+    "name": "Ashwagandha",
+    "aliases": [
+      "Withania somnifera",
+      "withania",
+      "ginseng indiano",
+      "withanolidi"
+    ],
+    "category": "sonno",
+    "unit": "mg",
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 600,
+      "unit": "mg",
+      "label": "estratto: dose con l’effetto maggiore negli studi"
+    },
+    "doseOptions": [
+      {
+        "amount": 300,
+        "unit": "mg",
+        "label": "estratto"
+      },
+      {
+        "amount": 600,
+        "unit": "mg",
+        "label": "estratto: effetto maggiore da 600 mg/die"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "sera",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": null,
+      "summary": "Sonno: SMD −0,59 (da −0,75 a −0,42), certezza moderata, effetto maggiore negli insonni e con almeno 600 mg/die (Cheah 2021, 5 RCT, tutti indiani, numeri dei partecipanti incoerenti tra abstract e meta-analisi). L’AIS non la classifica."
+    },
+    "whenUseful": "Nessuna indicazione nell’app, per i dubbi sulla sicurezza.",
+    "cautions": [
+      "Danno epatico: casi con causalità «probable», uno finito con un trapianto (Pharmaceuticals 2023).",
+      "Danimarca: vietata nel 2023; RIVM la sconsiglia; ANSES: da evitare con malattie di tiroide, fegato o cuore e in gravidanza. Capi delle agenzie UE (2024): dati di tossicità insufficienti per una dose sicura (fonti secondarie).",
+      "Se compaiono segni di problemi al fegato, sospenderla e sentire il medico."
+    ],
+    "interactions": [
+      "Sedativi: da evitare insieme (ANSES, fonte secondaria)."
+    ],
+    "sportNotes": "Nessun dato utile in questa ricerca.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Non vietata; il rischio sta nelle miscele."
+    },
+    "sources": [
+      {
+        "label": "Cheah et al., PLoS One 2021",
+        "url": "https://doi.org/10.1371/journal.pone.0257843"
+      },
+      {
+        "label": "Danno epatico da ashwagandha, Pharmaceuticals 2023",
+        "url": "https://doi.org/10.3390/ph16081129"
+      },
+      {
+        "label": "NutritionInsight, regolatori sull’ashwagandha (2024, fonte secondaria)",
+        "url": "https://nutritioninsight.com/news/regulatory-update-spotlight-on-international-authorities-response-to-ashwagandha-safety-concerns.html"
+      },
+      {
+        "label": "Nutraceuticals World, 14/5/2026 (fonte secondaria)",
+        "url": "https://www.nutraceuticalsworld.com/ashwagandha-safety-questioned-in-europe-and-india/"
+      }
+    ]
+  },
+  {
+    "id": "curcumina",
+    "name": "Curcuma (curcumina)",
+    "aliases": [
+      "curcumina",
+      "Curcuma longa",
+      "turmeric",
+      "curcumin",
+      "curcuminoidi",
+      "curcuminoids",
+      "diferuloilmetano",
+      "curcuma e piperina",
+      "curcumina fitosoma"
+    ],
+    "category": "altro",
+    "unit": "mg",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 1000,
+      "unit": "mg",
+      "label": "2 × 500 mg per 2–5 giorni"
+    },
+    "doseOptions": [
+      {
+        "amount": 500,
+        "unit": "mg",
+        "label": "una presa"
+      },
+      {
+        "amount": 1000,
+        "unit": "mg",
+        "label": "2 × 500 mg"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "dosesPerDay": 2,
+    "schedule": "periodi",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "B",
+      "summary": "AIS gruppo B: in una meta-analisi creatinchinasi −48,5 UI/L e indolenzimento −0,5; trasferibilità al campo non chiara; effetti sugli adattamenti all’allenamento «unknown». IOC: «more research is needed»."
+    },
+    "whenUseful": "Al massimo in finestre brevi, per 2–5 giorni dopo una partita molto dura, non come abitudine (inferenza dall’AIS).",
+    "cautions": [
+      "Italia: avvertenza obbligatoria in etichetta, sconsigliata con alterazioni della funzione epato-biliare o calcoli delle vie biliari; con farmaci, sentire il medico (Ministero 2019, dopo casi di epatite colestatica).",
+      "La piperina ne aumenta la biodisponibilità fino al 2000%; con le formulazioni avanzate aumenta il rischio di doping involontario (AIS). L’AIS segnala problemi di sicurezza oltre 2 g/die.",
+      "EFSA: dose giornaliera accettabile di 3 mg/kg per il colorante E 100 (per 70 kg circa 210 mg): le dosi dell’AIS la superano di molte volte."
+    ],
+    "interactions": [],
+    "sportNotes": "AIS: 500–2500 mg di curcumina o 200–1000 mg di curcuminoidi per dose, due volte al giorno per 2–5 giorni.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "medio",
+      "note": "Formulazioni avanzate: rischio di contaminazione (AIS)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Quotidiano Sanità, avvertenza del Ministero sulla curcuma (2019, fonte secondaria)",
+        "url": "https://www.quotidianosanita.it/governo-e-parlamento/integratori-alla-curcuma-ed-epatite-ministero-uso-sconsigliato-a-chi-ha-problemi-a-fegato-o-vie-biliari-presto-avvertenze-su-etichette/"
+      },
+      {
+        "label": "EFSA 2010, rivalutazione della curcumina (E 100)",
+        "url": "https://doi.org/10.2903/j.efsa.2010.1679"
+      }
+    ]
+  },
+  {
+    "id": "glucosammina",
+    "name": "Glucosammina",
+    "aliases": [
+      "glucosamina",
+      "glucosamine",
+      "glucosammina solfato",
+      "glucosammina cloridrato",
+      "N-acetilglucosammina"
+    ],
+    "category": "altro",
+    "unit": "mg",
+    "stance": "non-serve",
+    "defaultDose": {
+      "amount": 500,
+      "unit": "mg",
+      "label": "massimo per un integratore in Italia"
+    },
+    "doseOptions": [
+      {
+        "amount": 500,
+        "unit": "mg",
+        "label": "massimo per un integratore in Italia"
+      },
+      {
+        "amount": 1500,
+        "unit": "mg",
+        "label": "dose dei trial: in Italia è un farmaco con ricetta"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": {
+      "amount": 500,
+      "unit": "mg",
+      "source": "Ministero della Salute"
+    },
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "insufficiente",
+      "ais": null,
+      "summary": "Artrosi: negli 8 studi con randomizzazione ben nascosta nessun beneficio su dolore e funzione (Cochrane 2005); il beneficio compare solo con la preparazione Rotta. L’AIS non la classifica."
+    },
+    "whenUseful": "Nessun razionale per tendini, tibia o gomito (inferenza).",
+    "cautions": [
+      "La dose degli integratori italiani è un terzo di quella dei trial."
+    ],
+    "interactions": [],
+    "sportNotes": "Gli studi riguardano l’artrosi, non gli sportivi giovani.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "Towheed et al., Cochrane 2005 (glucosammina)",
+        "url": "https://doi.org/10.1002/14651858.CD002946.pub2"
+      },
+      {
+        "label": "Ministero della Salute, Altri nutrienti e altre sostanze a effetto nutritivo o fisiologico, revisione 9/2019",
+        "url": "https://aeaconsulenzealimentari.it/wp-content/uploads/2021/04/integratori-ad-effetto-nutritivo-e-fisiologico-aggiornamento-settembre-2019.pdf"
+      }
+    ]
+  },
+  {
+    "id": "probiotici",
+    "name": "Probiotici (fermenti lattici)",
+    "aliases": [
+      "fermenti lattici",
+      "fermenti lattici vivi",
+      "probiotics",
+      "probiotico",
+      "Lactobacillus",
+      "Lacticaseibacillus rhamnosus",
+      "Lactobacillus rhamnosus",
+      "Lactiplantibacillus plantarum",
+      "Lactobacillus plantarum",
+      "Lacticaseibacillus paracasei",
+      "Bifidobacterium",
+      "bifidobatteri",
+      "Saccharomyces boulardii"
+    ],
+    "category": "altro",
+    "unit": "UFC",
+    "stance": "situazionale",
+    "defaultDose": {
+      "amount": 10000000000,
+      "unit": "UFC",
+      "label": "10 miliardi (IOC e UEFA)"
+    },
+    "doseOptions": [
+      {
+        "amount": 1000000000,
+        "unit": "UFC",
+        "label": "1 miliardo"
+      },
+      {
+        "amount": 10000000000,
+        "unit": "UFC",
+        "label": "10 miliardi (IOC e UEFA)"
+      },
+      {
+        "amount": 40000000000,
+        "unit": "UFC",
+        "label": "con antibiotici: 5–40 miliardi di L. rhamnosus o S. boulardii (AIS)"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "periodi",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "limitata",
+      "ais": "B",
+      "summary": "Cochrane 2022 (23 RCT, 6950 persone di tutte le età, non atleti): almeno un’infezione delle alte vie respiratorie RR 0,76 (certezza bassa), durata −1,22 giorni (bassa), uso di antibiotici RR 0,58 (moderata), eventi avversi RR 1,02. Negli atleti l’AIS non trova prove di meno infezioni confermate: i benefici sono sui sintomi riferiti."
+    },
+    "whenUseful": "Viaggi o periodi con infezioni ricorrenti, iniziando circa 14 giorni prima; antibiotici. Yogurt e kefir sono il primo passo (AIS).",
+    "cautions": [
+      "Gli effetti dipendono dal ceppo: conta il ceppo in etichetta, non il genere.",
+      "Da evitare con disturbi gastrointestinali ricorrenti (AIS); nessun beneficio sostanziale sui marcatori intestinali da esercizio.",
+      "Dal 2020 diversi Lactobacillus hanno nomi nuovi (es. Lacticaseibacillus rhamnosus): l’app riconosce entrambi."
+    ],
+    "interactions": [],
+    "sportNotes": "AIS: dosi studiate da 10⁸ a 10¹⁰ UFC/die per 1–16 settimane.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "basso",
+      "note": "Ingrediente singolo. Come per ogni integratore, meglio un prodotto con lotto certificato (IOC 2018: contaminazioni anche nei prodotti vitaminici)."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo B",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_b"
+      },
+      {
+        "label": "Cochrane 2022 (probiotici e infezioni respiratorie)",
+        "url": "https://doi.org/10.1002/14651858.CD006895.pub4"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      }
+    ]
+  },
+  {
+    "id": "gruppo-d-ais",
+    "name": "Booster, brucia grassi e sostanze a rischio doping",
+    "aliases": [
+      "brucia grassi",
+      "fat burner",
+      "termogenico",
+      "booster del testosterone",
+      "testosterone booster",
+      "Tribulus",
+      "Tribulus terrestris",
+      "maca",
+      "DHEA",
+      "androstenedione",
+      "DMAA",
+      "DMBA",
+      "efedrina",
+      "sinefrina",
+      "arancio amaro",
+      "Citrus aurantium",
+      "higenamina",
+      "SARMs",
+      "ostarina",
+      "ligandrolo",
+      "andarina",
+      "GW1516",
+      "cardarine",
+      "ecdisterone",
+      "colostro"
+    ],
+    "category": "altro",
+    "unit": "dose",
+    "stance": "sconsigliato",
+    "defaultDose": {
+      "amount": 1,
+      "unit": "dose",
+      "label": "la dose in etichetta"
+    },
+    "doseOptions": [
+      {
+        "amount": 1,
+        "unit": "dose"
+      },
+      {
+        "amount": 2,
+        "unit": "dose"
+      }
+    ],
+    "upperLimit": null,
+    "itMax": null,
+    "schedule": "giornaliero",
+    "timing": "colazione",
+    "withFood": null,
+    "withFat": false,
+    "needsTest": null,
+    "evidence": {
+      "level": "sfavorevole",
+      "ais": "D",
+      "summary": "AIS gruppo D: vietati o ad alto rischio di contaminazione con sostanze che portano a un controllo positivo. Tribulus, maca e sinefrina non sono nella lista WADA ma compaiono spesso in prodotti multi-ingrediente con ingredienti vietati."
+    },
+    "whenUseful": "Mai.",
+    "cautions": [
+      "Circa il 15% di 634 prodotti di 215 fornitori in 13 paesi conteneva proormoni non dichiarati; bastano quantità minime per un controllo positivo (IOC, UEFA).",
+      "L’ecdisterone è nel programma di monitoraggio WADA dal 2026."
+    ],
+    "interactions": [],
+    "sportNotes": "Nessun beneficio dimostrato che giustifichi il rischio.",
+    "cancerNotes": null,
+    "antidoping": {
+      "risk": "alto",
+      "note": "Controlli anche nello sport amatoriale: il 24,1% dei controlli ministeriali del 2023 era su eventi degli Enti di Promozione Sportiva, e il 56,9% degli atleti controllati dichiarava di usare integratori."
+    },
+    "sources": [
+      {
+        "label": "AIS Sports Supplement Framework, gruppo D",
+        "url": "https://www.ausport.gov.au/ais/nutrition/supplements/group_d"
+      },
+      {
+        "label": "Maughan et al., consensus IOC, BJSM 2018",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5867441/"
+      },
+      {
+        "label": "Collins et al., UEFA expert group statement, BJSM 2021",
+        "url": "https://doi.org/10.1136/bjsports-2019-101961"
+      },
+      {
+        "label": "WADA, programma di monitoraggio 2026 (traduzione ufficiale ABCD)",
+        "url": "https://www.gov.br/abcd/pt-br/composicao/atletas/substancias-e-metodos-proibidos/2026ProgramadeMonitoramento.pdf"
+      },
+      {
+        "label": "Relazione al Parlamento sulla legge 376/2000, anno 2023",
+        "url": "https://www.camera.it/temiap/2025/01/20/OCD177-7806.pdf"
+      },
+      {
+        "label": "Informed Sport, FAQ",
+        "url": "https://sport.wetestyoutrust.com/about/frequently-asked-questions"
+      }
+    ]
+  }
+]
