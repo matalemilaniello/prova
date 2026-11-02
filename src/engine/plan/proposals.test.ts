@@ -4,7 +4,21 @@ import { describe, expect, it } from 'vitest';
 import type { MenuWeek, PlanPatch, PlanProposal, Program, ScheduleDay, TrainingGoal } from '../../domain/types';
 import { DEFAULT_TARGETS, defaultAppData } from '../../data/defaults';
 import { SESSIONS } from '../../data/sessions';
-import { applyPatch, beforeOf, isSuperseded, planBasis, proposalId, stableStringify, type ProposalState } from './proposals';
+import {
+  applyPatch,
+  beforeOf,
+  dueApprovals,
+  entersPlanAtApproval,
+  isPendingApproval,
+  isSuperseded,
+  patchFields,
+  pendingApprovals,
+  planBasis,
+  projectedState,
+  proposalId,
+  stableStringify,
+  type ProposalState,
+} from './proposals';
 
 const MON = '2026-11-09';
 const SUN = '2026-11-08';
@@ -223,6 +237,68 @@ describe('isSuperseded', () => {
     expect(isSuperseded(p, s, SUN)).toBe(false);
     const moved: ProposalState = { ...s, plan: { ...s.plan, training: { ...training, primary: 'potenza' } } };
     expect(isSuperseded(p, moved, SUN)).toBe(true);
+  });
+});
+
+describe('decorrenza (§ 5.4: oggi e i giorni passati non cambiano)', () => {
+  const approved = (over: Partial<PlanProposal> & Pick<PlanProposal, 'kind'>): PlanProposal =>
+    proposal({ basis: 'x', status: 'approvata', decidedAt: '2026-11-08T10:00:00.000Z', ...over });
+
+  it('campi di una toppa: i menù uno per lunedì', () => {
+    expect(patchFields({ program, training, menus: { [NEXT_MON]: menuWeek, [MON]: null } })).toEqual(['program', 'menus:2026-11-09', 'menus:2026-11-16', 'training']);
+    expect(patchFields({ goalDeltaKcal: null })).toEqual(['goalDeltaKcal']);
+    expect(patchFields({})).toEqual([]);
+  });
+
+  it('entra subito solo ciò che non cambia oggi né i giorni passati', () => {
+    // Domenica: un blocco, degli obiettivi o una settimana tipo da lunedì aspettano lunedì.
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { program } }, SUN)).toBe(false);
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { targets: DEFAULT_TARGETS, goal: 'dimagrimento' } }, SUN)).toBe(false);
+    // Un menù della settimana dopo entra subito (vale per date); uno della settimana in corso no.
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { menus: { [MON]: menuWeek } } }, SUN)).toBe(true);
+    expect(entersPlanAtApproval({ effectiveFrom: NEXT_MON, patch: { menus: { [MON]: menuWeek } } }, '2026-11-10')).toBe(false);
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { menus: { [MON]: menuWeek }, goalDeltaKcal: -200 } }, SUN)).toBe(false);
+    // Approvata il giorno da cui vale (entro approvableUntil): entra subito.
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { program } }, MON)).toBe(true);
+    // Ma aspetta un'approvata in attesa che tocca gli stessi campi.
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { program, training } }, MON, [{ patch: { training } }])).toBe(false);
+    expect(entersPlanAtApproval({ effectiveFrom: MON, patch: { program } }, MON, [{ patch: { training } }])).toBe(true);
+    expect(entersPlanAtApproval({ effectiveFrom: NEXT_MON, patch: {} }, SUN)).toBe(true);
+  });
+
+  it('approvate in attesa: senza before, in ordine di decisione; entrano dal loro giorno, dopo chi tocca gli stessi campi', () => {
+    const a = approved({ kind: 'obiettivi', effectiveFrom: '2026-11-10', patch: { training }, decidedAt: '2026-11-08T10:00:00.000Z' });
+    const b = approved({ kind: 'blocco', effectiveFrom: MON, patch: { program, training: { ...training, primary: 'forza' } }, decidedAt: '2026-11-08T11:00:00.000Z' });
+    const c = approved({ kind: 'blocco', effectiveFrom: MON, patch: { week: baseState().plan.week }, decidedAt: '2026-11-08T09:00:00.000Z', attempt: 3 });
+    const done = approved({ kind: 'obiettivi', patch: { training }, before: { training: null }, attempt: 4 });
+    const open = proposal({ kind: 'menu', basis: 'x', patch: { menus: { [MON]: menuWeek } } });
+    expect(isPendingApproval(a)).toBe(true);
+    expect(isPendingApproval(done)).toBe(false);
+    expect(isPendingApproval(open)).toBe(false);
+    const list = [b, done, a, open, c];
+    expect(pendingApprovals(list).map((p) => p.id)).toEqual([c.id, a.id, b.id]);
+    expect(dueApprovals(list, SUN)).toEqual([]);
+    // Lunedì entra c; b vale da lunedì ma tocca `training` come a, approvata prima e ancora in attesa: aspetta martedì.
+    expect(dueApprovals(list, MON).map((p) => p.id)).toEqual([c.id]);
+    expect(dueApprovals(list, '2026-11-10').map((p) => p.id)).toEqual([c.id, a.id, b.id]);
+  });
+
+  it('piano proiettato: le toppe in attesa nell’ordine delle decisioni; senza, lo stesso oggetto; due volte non cambia', () => {
+    const s = baseState();
+    expect(projectedState(s, [])).toBe(s);
+    expect(projectedState(s, undefined)).toBe(s);
+    const a = approved({ kind: 'obiettivi', patch: { training, goal: 'dimagrimento' }, decidedAt: '2026-11-08T10:00:00.000Z' });
+    const b = approved({ kind: 'obiettivi', patch: { training: { ...training, primary: 'forza' } }, decidedAt: '2026-11-08T11:00:00.000Z', attempt: 1 });
+    const p = projectedState(s, [b, a]);
+    expect(p.plan.training?.primary).toBe('forza');
+    expect(p.profile.goal).toBe('dimagrimento');
+    expect(p.physio).toBe(s.physio);
+    expect(s.plan.training).toBeUndefined();
+    expect(projectedState(p, [b, a])).toEqual(p);
+    // Una proposta nata sul piano proiettato non è superata finché le approvate in attesa restano quelle.
+    const menu = proposal({ kind: 'menu', basis: planBasis('menu', p), effectiveFrom: NEXT_MON });
+    expect(isSuperseded(menu, projectedState(s, [a, b]), SUN)).toBe(false);
+    expect(isSuperseded(menu, s, SUN)).toBe(false);
   });
 });
 

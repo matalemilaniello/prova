@@ -3,12 +3,16 @@
  * ?today=YYYY-MM-DD e ?now=HH:MM fissano l'orologio; ?demo=1 carica i dati di esempio;
  * ?onboarding=1 mostra il benvenuto; ?theme=scuro|chiaro (o dark|light) forza il tema; ?overlay=… apre un pannello
  * (anche quelli della fase 2: mealLog, planProposal, supplement).
+ * Le proposte del piano approvate in attesa entrano nel piano il loro primo giorno (docs/FASE2.md § 5.4): all'avvio,
+ * al ritorno in primo piano, ogni minuto (cambio di giornata) e quando cambiano le proposte.
  */
 import type { AppData, FootballKind, ISODate, Overlay, TimelineItem } from '../domain/types';
 import { RECIPES } from '../data/recipes';
 import { SESSIONS } from '../data/sessions';
 import { addDays, isHHMM, isISODate, setNowProvider, todayISO, weekdayOf } from '../engine/dates';
 import { mealsForDate } from '../engine/menu';
+import { isPendingApproval } from '../engine/plan/proposals';
+import { planTodayISO } from '../engine/sleep';
 import { useApp, useUi } from '../state/store';
 import { isStandalone, requestPersistentStorage } from './env';
 import { applyTheme, resolveTheme, setThemeOverride } from './theme';
@@ -107,6 +111,26 @@ export function sampleOverlay(type: string, state: AppData = useApp.getState()):
   }
 }
 
+/** Giornata del piano: le approvate in attesa con `effectiveFrom` fino a oggi entrano nel piano. */
+export function applyDueApprovals(): number {
+  const s = useApp.getState();
+  if (!s.planner?.proposals.some(isPendingApproval)) return 0;
+  return s.applyDueProposals(planTodayISO(s.plan));
+}
+
+function setupPendingApprovals() {
+  applyDueApprovals();
+  window.setInterval(applyDueApprovals, 60_000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyDueApprovals();
+  });
+  // Un backup importato o i dati di esempio possono portare approvate già dovute: quando non c'è niente da far entrare
+  // l'azione non scrive, quindi il giro si ferma.
+  useApp.subscribe((s, prev) => {
+    if (s.planner !== prev.planner) applyDueApprovals();
+  });
+}
+
 let booted = false;
 
 /** Da chiamare una volta prima di render. */
@@ -124,6 +148,7 @@ export function boot() {
 
   if (getUrlParam('demo') === '1') useApp.getState().loadDemo(todayISO());
   if (getUrlParam('onboarding') === '1') useApp.setState({ onboarded: false });
+  setupPendingApprovals();
 
   // Dati protetti dal browser (non si cancellano da soli quando serve spazio), dopo il benvenuto.
   if (useApp.getState().onboarded) void requestPersistentStorage();

@@ -19,6 +19,9 @@ import {
   diffWeeks,
   editLabel,
   fromDayLabel,
+  mondayOnOrAfter,
+  restoredPatch,
+  restoreStart,
   restoreTo,
   sortDiff,
   topDiff,
@@ -271,6 +274,30 @@ describe('ritorno a una versione (§ 5.5, test 9)', () => {
     // Le parti che A non toccava restano quelle di B.
     expect(r.profile.goal).toBe('dimagrimento');
     expect(r.plan.goalDeltaKcal).toBe(-350);
+  });
+
+  it('un blocco riparte dal primo lunedì da domani, con un id nuovo: quello in vigore resta fino a quel giorno', () => {
+    const s = baseState();
+    const thu = '2026-11-12';
+    expect(mondayOnOrAfter('2026-11-16')).toBe('2026-11-16');
+    expect(mondayOnOrAfter('2026-11-13')).toBe('2026-11-16');
+    // Senza blocco nella toppa vale da domani; con un blocco (anche le sedute fisse, null) dal lunedì.
+    expect(restoreStart({ training: { primary: 'forza' } }, thu)).toBe('2026-11-13');
+    expect(restoreStart({ program: null }, thu)).toBe('2026-11-16');
+    expect(restoreStart({ program: program({ start: '2026-10-12' }) }, '2026-11-15')).toBe('2026-11-16');
+    const old = program({ blockId: 'b0', start: '2026-10-12' });
+    const v: PlanVersion = { id: 'v0', at: '2026-10-11T10:00:00.000Z', effectiveFrom: '2026-10-12', kind: 'blocco', title: 'Blocco di ottobre', before: { program: null }, after: { program: old, training: { primary: 'forza', secondary: 'potenza' } } };
+    const current = applyPatch(s.plan, s.profile, { program: program({ blockId: 'b1', start: '2026-11-09', primary: 'potenza', secondary: 'forza' }) });
+    const p = restoreTo(v, { ...s, plan: current.plan, profile: current.profile }, thu);
+    expect(p.effectiveFrom).toBe('2026-11-16');
+    expect(p.patch.program).toEqual({ ...old, start: '2026-11-16', blockId: 'b0@2026-11-16' });
+    expect(p.patch.training).toEqual(v.after.training);
+    expect(p.subtitle).toMatch(/^Blocco di ottobre · da lunedì cambiano \d+ voci$/);
+    // La versione resta com'era; rifare il ritorno di un ritorno non allunga l'id.
+    expect(v.after.program?.start).toBe('2026-10-12');
+    expect(restoredPatch(p.patch, '2026-11-23').program?.blockId).toBe('b0@2026-11-23');
+    expect(isSuperseded(p, { ...s, plan: current.plan, profile: current.profile }, '2026-11-15')).toBe(false);
+    expect(isSuperseded(p, { ...s, plan: current.plan, profile: current.profile }, '2026-11-16')).toBe(true);
   });
 
   it('stessa versione e stesso piano, stessa proposta; con il piano già uguale nessuna differenza', () => {

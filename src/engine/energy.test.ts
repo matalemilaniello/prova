@@ -14,7 +14,7 @@ import {
   type EnergyState,
 } from './energy';
 import { effectiveDayType } from './menu';
-import { dayCarbScale, dayTargetFor, matchCarbs } from './nutrition';
+import { dayCarbScale, dayTargetFor, matchCarbs, nutritionStateOf } from './nutrition';
 import { GOAL_DELTA_KCAL } from './targets';
 
 // Settimana predefinita: partita il lunedì, quindi la domenica è la vigilia.
@@ -151,6 +151,26 @@ describe('chi è già in dimagrimento senza goalDeltaKcal (i piani di oggi)', ()
     expect(dayAllowedDeficitKcal(SUN, noMatch)).toBe(400);
     expect(dayEnergyDelta(SUN, noMatch)).toBe(100);
     expect(maxDeficitKcal(s.plan, -500)).toBe(400);
+  });
+});
+
+describe('lo stato delle schermate comprende le revisioni (nutritionStateOf)', () => {
+  it('dimagrimento senza goalDeltaKcal, −150 accettata e tibia sopra soglia: deficit ammesso 250 come nello stato completo', () => {
+    // Piano di oggi: le −350 dell'obiettivo e la correzione da −150 già dentro i targets, il campo non scritto.
+    const checkIns = { [addDays(TUE, -13)]: { date: addDays(TUE, -13), pain: { Tibia: 3 } } };
+    const app = { ...cutState({ reviews: [review('2026-11-02', -150)] }, { targets: cutTargets(-500) }), checkIns, dayLogs: {} };
+    const screen = nutritionStateOf(app);
+    // Senza le revisioni il deficit ricavato resta −350 e il limite di 250 rimette solo 100 kcal invece di 250.
+    const withoutReviews = { plan: app.plan, dayLogs: app.dayLogs, checkIns: app.checkIns, profile: app.profile };
+    expect(goalDeltaOf(app.plan, app.profile, app.reviews)).toBe(-500);
+    expect(dayEnergyDelta(TUE, screen)).toBe(250);
+    expect(dayEnergyDelta(TUE, withoutReviews)).toBe(100);
+    for (const d of days(MON, 7)) {
+      expect(dayTargetFor(d, screen), d).toEqual(dayTargetFor(d, app));
+      expect(dayCarbScale(d, screen), d).toBe(dayCarbScale(d, app));
+    }
+    expect(dayTargetFor(TUE, screen).kcal).toBe(app.plan.targets.palestra.kcal + 250);
+    expect(dayTargetFor(TUE, withoutReviews).kcal).toBe(app.plan.targets.palestra.kcal + 100);
   });
 });
 

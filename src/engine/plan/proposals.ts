@@ -14,6 +14,14 @@
  * Il lunedì e il mese di un menù non entrano nella base: stanno già nell'id, attraverso `effectiveFrom`.
  * Per una proposta di `ritorno` la base comprende la toppa della versione di partenza e i valori attuali dei campi
  * che tocca: chi la crea passa la toppa in `state.patch` (è la stessa che finisce in `PlanProposal.patch`).
+ *
+ * **Decorrenza (§ 5.4: oggi e i giorni passati non cambiano mai).** Approvare non mette sempre la toppa nel piano: il
+ * piano contiene ciò che vale oggi (P3). La toppa entra subito solo se non può cambiare oggi né i giorni passati
+ * (`entersPlanAtApproval`: la proposta vale già, oppure tocca solo menù di settimane che iniziano dopo oggi); altrimenti
+ * la proposta resta approvata «in attesa» (`isPendingApproval`: senza `before`) ed entra il primo giorno del piano a
+ * partire da `effectiveFrom` (`dueApprovals`). Le basi delle proposte nuove e i controlli di superamento guardano il
+ * piano proiettato (`projectedState`: il piano con le approvate in attesa), così un menù aperto diventa superato
+ * quando si approva un blocco che cambia i tipi di giorno, anche se il blocco entra solo lunedì.
  */
 import type {
   AppData,
@@ -194,4 +202,81 @@ export function isSuperseded(p: PlanProposal, state: ProposalState, today: ISODa
   if (today > lastApprovableDay(p)) return true;
   const basis = planBasis(p.kind, p.kind === 'ritorno' ? { ...state, patch: p.patch } : state);
   return basis !== p.basis;
+}
+
+// ───────────────────────── Decorrenza ─────────────────────────
+
+/** Approvata con la toppa non ancora entrata nel piano: `before` si scrive quando entra. */
+export function isPendingApproval(p: Pick<PlanProposal, 'status' | 'before'>): boolean {
+  return p.status === 'approvata' && p.before === undefined;
+}
+
+/** Campi che una toppa tocca; i menù uno per lunedì ('menus:2026-11-16'). */
+export function patchFields(patch: PlanPatch): string[] {
+  const out: string[] = [];
+  for (const k of PATCH_KEYS) {
+    if (!(k in patch) || patch[k] === undefined) continue;
+    if (k === 'menus') {
+      if (isObj(patch.menus)) for (const day of Object.keys(patch.menus).sort()) out.push(`menus:${day}`);
+    } else out.push(k);
+  }
+  return out;
+}
+
+const decisionOrder = (a: PlanProposal, b: PlanProposal): number => {
+  const da = a.decidedAt ?? a.createdAt;
+  const db = b.decidedAt ?? b.createdAt;
+  return da < db ? -1 : da > db ? 1 : 0;
+};
+
+/** Approvate in attesa, nell'ordine in cui entrano nel piano: l'ordine delle decisioni (a pari ora, quello dell'elenco). */
+export function pendingApprovals(proposals: readonly PlanProposal[]): PlanProposal[] {
+  return proposals.filter(isPendingApproval).sort(decisionOrder);
+}
+
+/**
+ * La toppa entra nel piano già all'approvazione: la proposta vale già (`effectiveFrom` ≤ oggi, approvata entro
+ * `approvableUntil`, che chi la crea mette prima del primo giorno che cambierebbe) oppure tocca solo menù di settimane
+ * che iniziano dopo oggi. In più nessuna approvata in attesa tocca gli stessi campi: altrimenti entra dopo di lei.
+ * Tutto il resto (settimana tipo, blocco, obiettivi, calorie) aspetta il suo primo giorno.
+ */
+export function entersPlanAtApproval(
+  p: Pick<PlanProposal, 'patch' | 'effectiveFrom'>,
+  today: ISODate,
+  pending: readonly Pick<PlanProposal, 'patch'>[] = [],
+): boolean {
+  const fields = patchFields(p.patch);
+  const busy = new Set(pending.flatMap((x) => patchFields(x.patch)));
+  if (fields.some((f) => busy.has(f))) return false;
+  if (p.effectiveFrom <= today) return true;
+  return fields.every((f) => f.startsWith('menus:') && f.slice('menus:'.length) > today);
+}
+
+/**
+ * Approvate in attesa che entrano nel piano nella giornata `today`, nell'ordine: quelle con `effectiveFrom` ≤ oggi,
+ * tranne chi tocca un campo di un'approvata prima di lei ancora in attesa (aspetta che entri quella).
+ */
+export function dueApprovals(proposals: readonly PlanProposal[], today: ISODate): PlanProposal[] {
+  const busy = new Set<string>();
+  const out: PlanProposal[] = [];
+  for (const p of pendingApprovals(proposals)) {
+    const fields = patchFields(p.patch);
+    if (p.effectiveFrom <= today && !fields.some((f) => busy.has(f))) out.push(p);
+    else for (const f of fields) busy.add(f);
+  }
+  return out;
+}
+
+/**
+ * Piano proiettato: piano e profilo con le toppe delle approvate in attesa, nell'ordine in cui entreranno. È la base
+ * delle proposte nuove e dei controlli di superamento; senza approvate in attesa è lo stato com'è (stesso oggetto).
+ * Riapplicare le stesse toppe non cambia niente, quindi passare uno stato già proiettato è innocuo.
+ */
+export function projectedState<S extends Pick<ProposalState, 'plan' | 'profile'>>(state: S, proposals: readonly PlanProposal[] | undefined): S {
+  const pending = pendingApprovals(proposals ?? []);
+  if (!pending.length) return state;
+  let plan = state.plan;
+  let profile = state.profile;
+  for (const p of pending) ({ plan, profile } = applyPatch(plan, profile, p.patch));
+  return { ...state, plan, profile };
 }

@@ -188,15 +188,18 @@ describe('superamento e ricalcolo (§ 5.2)', () => {
 });
 
 describe('decisioni (§ 5.4)', () => {
-  it('«Approva» applica la toppa e crea la versione; l’avviso ha «Annulla», che rimette tutto', () => {
+  it('«Approva» crea la versione e la toppa entra il suo primo giorno; l’avviso ha «Annulla», che rimette tutto', () => {
     const planBefore = useApp.getState().plan;
     const p = fakeBlockBuilder({ state: useApp.getState(), today: SUN, attempt: 0 })!;
     submitProposal(p);
     const out = approveProposal(p.id, SUN);
     expect(out).toEqual({ status: 'approvata', versionId: `v-${p.id}` });
     const s = useApp.getState();
-    expect(s.plan.program?.blockId).toBe(`blocco-${MON}-0`);
+    // Domenica il piano non cambia (§ 5.4): il blocco è approvato in attesa e lo storico lo dà «in arrivo».
+    expect(s.plan).toBe(planBefore);
+    expect(findProposal(p.id)?.status).toBe('approvata');
     expect(s.planVersions?.map((v) => v.proposalId)).toEqual([p.id]);
+    expect(planHistory(s, SUN)[0].status).toBe('in-arrivo');
     const t = lastToast()!;
     expect(t).toMatchObject({ message: 'Nuovo blocco da domani', tone: 'good', actionLabel: 'Annulla', durationMs: 5000 });
     t.onAction?.();
@@ -205,6 +208,29 @@ describe('decisioni (§ 5.4)', () => {
     expect(u.planVersions).toBeUndefined();
     expect(findProposal(p.id)?.status).toBe('aperta');
     expect(lastToast()?.message).toBe('Torna il piano di prima');
+
+    // Approvata di nuovo: lunedì entra nel piano e lo storico la dà in vigore.
+    expect(approveProposal(p.id, SUN).status).toBe('approvata');
+    expect(useApp.getState().applyDueProposals(MON)).toBe(1);
+    const m = useApp.getState();
+    expect(m.plan.program?.blockId).toBe(`blocco-${MON}-0`);
+    expect(planHistory(m, MON)[0].status).toBe('in-vigore');
+    // «Annulla» dopo l'ingresso rimette i valori di prima.
+    lastToast()?.onAction?.();
+    expect(useApp.getState().plan).toEqual(planBefore);
+  });
+
+  it('i generatori lavorano sul piano proiettato: un blocco nuovo dopo uno in attesa parte da quello', () => {
+    const p = fakeBlockBuilder({ state: useApp.getState(), today: SUN, attempt: 0 })!;
+    submitProposal(p);
+    approveProposal(p.id, SUN);
+    // Una proposta di obiettivi nata adesso ha la base del piano con il blocco in attesa: si approva.
+    const g = obiettivi({ training: { primary: 'potenza', secondary: 'forza' } }, TUE);
+    expect(g.basis).toBe(planBasis('obiettivi', proposalStateOf(useApp.getState())));
+    submitProposal(g);
+    expect(approveProposal(g.id, SUN).status).toBe('approvata');
+    expect(proposalStateOf(useApp.getState()).plan.program?.blockId).toBe(`blocco-${MON}-0`);
+    expect(useApp.getState().plan.program).toBeUndefined();
   });
 
   it('approvare una proposta superata non cambia il piano: si mostra quella ricalcolata', () => {
@@ -303,16 +329,20 @@ describe('storico e ritorno (§ 5.5, test 9)', () => {
     expect(refreshProposal(r.id, SUN)).toEqual({ id: r.id, refreshed: false });
 
     expect(approveProposal(r.id, SUN).status).toBe('approvata');
-    const s = useApp.getState();
-    expect(s.plan.training?.presetId).toBe('calcio');
-    expect(s.profile.goal).toBe('dimagrimento');
-    expect(s.plan.goalDeltaKcal).toBe(-350);
+    let s = useApp.getState();
     expect(s.planVersions?.map((v) => v.kind)).toEqual(['obiettivi', 'obiettivi', 'ritorno']);
     hist = planHistory(s, SUN);
     // I campi di A valgono di nuovo come li aveva messi A (da domani: «in arrivo»), quelli di B no.
     expect(hist.find((h) => h.version?.id === vA.id)?.status).toBe('in-arrivo');
     expect(hist.find((h) => h.version?.proposalId === b.id)?.status).toBe('passata');
     expect(hist.find((h) => h.version?.kind === 'ritorno')?.status).toBe('in-arrivo');
+    // Entrano nell'ordine delle decisioni: A lunedì; il ritorno tocca il campo di B, quindi entra dopo di lei, martedì.
+    expect(useApp.getState().applyDueProposals(MON)).toBe(1);
+    expect(useApp.getState().applyDueProposals(TUE)).toBe(2);
+    s = useApp.getState();
+    expect(s.plan.training?.presetId).toBe('calcio');
+    expect(s.profile.goal).toBe('dimagrimento');
+    expect(s.plan.goalDeltaKcal).toBe(-350);
     expect(planHistory(s, '2026-11-20').find((h) => h.version?.id === vA.id)?.status).toBe('in-vigore');
 
     // Tornare a una versione già in vigore non crea niente.

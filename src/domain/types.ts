@@ -782,7 +782,10 @@ export interface PlanProposal {
   warnings?: string[];
   source: 'motore' | 'motore+coach';
   coach?: CoachPass;
-  /** Valori di prima, scritti all'approvazione: servono ad «Annulla». */
+  /**
+   * Valori di prima, scritti quando la toppa entra nel piano (all'approvazione o il suo primo giorno, § 5.4): servono ad
+   * «Annulla». In una proposta approvata, assente = in attesa di entrare.
+   */
   before?: PlanPatch;
 }
 
@@ -792,9 +795,9 @@ export interface PlanVersion {
   effectiveFrom: ISODate;
   kind: Exclude<PlanChangeKind, 'menu'>;
   title: string;
-  /** Valori dei campi toccati prima dell'approvazione: li usa «Annulla». */
+  /** Valori dei campi toccati prima che la toppa entrasse nel piano (fino ad allora quelli del piano proiettato). */
   before: PlanPatch;
-  /** La toppa applicata, con i soli campi toccati: «Torna a questa versione» la ripropone (restoreTo, § 5.5). */
+  /** La toppa applicata, con i soli campi toccati: «Torna a questa versione» la ripropone (restoreTo, § 5.5; un blocco riparte di lunedì). */
   after: PlanPatch;
   proposalId?: string;
 }

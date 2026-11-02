@@ -8,7 +8,8 @@
  * - `diffMenus`, `diffPrograms`, `diffWeeks`, `diffTargets`: una parte del piano alla volta;
  * - `diffPatch(plan, profile, patch)`: tutte le parti che una toppa tocca, confrontate con i valori di oggi;
  * - `restoreTo(version, state, today)`: la proposta `ritorno` di «Torna a questa versione» (§ 5.5), con la toppa
- *   della versione (`after`) e le differenze rispetto al piano di oggi.
+ *   della versione (`after`) e le differenze rispetto al piano di oggi; un blocco riparte da un lunedì
+ *   (`restoredPatch`).
  *
  * Senza blocco le sedute sono quelle fisse (`SESSIONS`); il menù di partenza è quello in vigore (`menuWeekInForce`), a
  * meno che chi chiama non ne passi un altro in `DiffOptions.menuInForce`.
@@ -39,7 +40,7 @@ import { EXERCISES } from '../../data/exercises';
 import { RECIPES } from '../../data/recipes';
 import { SESSIONS } from '../../data/sessions';
 import { DAY_TYPES, FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, capitalize, fmtNumber, listIt, plural } from '../../lib/format';
-import { addDays, dayOfMonthLabel, formatMonth, formatWeekRange, fromISO } from '../dates';
+import { addDays, dayOfMonthLabel, daysBetween, formatMonth, formatWeekRange, fromISO, weekStart, weekdayOf } from '../dates';
 import { MEAL_SLOTS, menuWeekInForce } from '../menu';
 import { planBasis, proposalId, stableStringify, type ProposalState } from './proposals';
 
@@ -462,18 +463,57 @@ export function editLabel(edit: PlanEdit | MenuEdit, opts: ProgramDiffOptions = 
 
 // ───────────────────────── Ritorno a una versione ─────────────────────────
 
+/** Primo lunedì da `iso` compreso. */
+export function mondayOnOrAfter(iso: ISODate): ISODate {
+  const monday = weekStart(iso);
+  return monday === iso ? iso : addDays(monday, 7);
+}
+
 /**
- * «Torna a questa versione» (§ 5.5): una proposta `ritorno` da domani con la toppa della versione (`after`), da
- * approvare come le altre. Le differenze sono calcolate sul piano di oggi: tornano solo i campi che quella versione
- * aveva toccato, il resto resta com'è. La base comprende la toppa (`planBasis('ritorno', { ...state, patch })`), così la
- * proposta non risulta superata appena nata. `createdAt` è la data di oggi: chi la salva può mettere l'ora vera.
+ * Giorno da cui vale un ritorno: domani; con un blocco nella toppa (anche `null`, le sedute fisse) il primo lunedì da
+ * domani, perché i blocchi cambiano di lunedì e quello in vigore resta fino a quel giorno (§ 3.1, § 5.4).
+ */
+export function restoreStart(after: PlanPatch, today: ISODate): ISODate {
+  const tomorrow = addDays(today, 1);
+  return after.program !== undefined ? mondayOnOrAfter(tomorrow) : tomorrow;
+}
+
+/**
+ * Toppa di un ritorno: quella della versione (`after`), copiata; un blocco riparte da `effectiveFrom` (il suo lunedì)
+ * con un id nuovo (`<id di partenza>@<lunedì>`), così le sedute registrate e il riepilogo del blocco di allora restano
+ * suoi. Con un inizio rimasto nel passato il blocco tornerebbe subito, a metà, e cambierebbe le sedute di oggi.
+ */
+export function restoredPatch(after: PlanPatch, effectiveFrom: ISODate): PlanPatch {
+  const patch = JSON.parse(JSON.stringify(after ?? {})) as PlanPatch;
+  if (patch.program) {
+    const base = patch.program.blockId.split('@')[0] || patch.program.blockId;
+    patch.program = { ...patch.program, start: effectiveFrom, blockId: `${base}@${effectiveFrom}` };
+  }
+  return patch;
+}
+
+/** "da domani", "da lunedì", "dal 16 novembre". */
+function startWords(effectiveFrom: ISODate, today: ISODate): string {
+  const days = daysBetween(today, effectiveFrom);
+  if (days === 1) return 'da domani';
+  if (days > 1 && days < 7) return `da ${WEEKDAY_LONG[weekdayOf(effectiveFrom)]}`;
+  return fromDayLabel(effectiveFrom);
+}
+
+/**
+ * «Torna a questa versione» (§ 5.5): una proposta `ritorno` da domani (con un blocco, dal primo lunedì: `restoreStart`)
+ * con la toppa della versione (`restoredPatch`), da approvare come le altre. Le differenze sono calcolate sul piano di
+ * oggi: tornano solo i campi che quella versione aveva toccato, il resto resta com'è. La base comprende la toppa
+ * (`planBasis('ritorno', { ...state, patch })`), così la proposta non risulta superata appena nata. `createdAt` è la
+ * data di oggi: chi la salva può mettere l'ora vera.
  */
 export function restoreTo(version: PlanVersion, state: ProposalState, today: ISODate, opts: DiffOptions = {}): PlanProposal {
-  const patch = JSON.parse(JSON.stringify(version.after ?? {})) as PlanPatch;
-  const effectiveFrom = addDays(today, 1);
+  const effectiveFrom = restoreStart(version.after ?? {}, today);
+  const patch = restoredPatch(version.after ?? {}, effectiveFrom);
   const basis = planBasis('ritorno', { ...state, patch });
   const diff = sortDiff(diffPatch(state.plan, state.profile, patch, opts));
-  const changes = diff.length ? `da domani ${diff.length === 1 ? 'cambia una voce' : `cambiano ${fmtNumber(diff.length)} voci`}` : 'nessuna differenza con il piano di oggi';
+  const from = startWords(effectiveFrom, today);
+  const changes = diff.length ? `${from} ${diff.length === 1 ? 'cambia una voce' : `cambiano ${fmtNumber(diff.length)} voci`}` : 'nessuna differenza con il piano di oggi';
   return {
     id: proposalId('ritorno', effectiveFrom, basis, 0),
     kind: 'ritorno',

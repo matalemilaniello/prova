@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DayLog, ISODate } from '../domain/types';
-import type { NutritionState } from '../engine/nutrition';
+import { nutritionStateOf, type NutritionState } from '../engine/nutrition';
 import { currentDate, nowHHMM, toISO } from '../engine/dates';
 import { planDayISO } from '../engine/sleep';
 import { emptyDayLog, useApp } from './store';
@@ -100,5 +100,5 @@ export function useNutritionState(): NutritionState {
   const checkIns = useApp((s) => s.checkIns);
   const profile = useApp((s) => s.profile);
   const reviews = useApp((s) => s.reviews);
-  return useMemo(() => ({ plan, dayLogs, checkIns, profile, reviews }), [plan, dayLogs, checkIns, profile, reviews]);
+  return useMemo(() => nutritionStateOf({ plan, dayLogs, checkIns, profile, reviews }), [plan, dayLogs, checkIns, profile, reviews]);
 }

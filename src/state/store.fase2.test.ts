@@ -3,8 +3,13 @@ import type { AppData, EatenMeal, ItemStatus, MyDish, PlanPatch, PlanProposal, P
 import { DEFAULT_TARGETS, STORAGE_KEY, defaultAppData } from '../data/defaults';
 import { FOODS } from '../data/foods';
 import { SESSIONS } from '../data/sessions';
+import { addDays, weekdayOf } from '../engine/dates';
 import { maxDeficitKcal } from '../engine/energy';
-import { planBasis, proposalId } from '../engine/plan/proposals';
+import { menuWeekInForce } from '../engine/menu';
+import { dayCarbScale, dayTargetFor } from '../engine/nutrition';
+import { restoreTo } from '../engine/plan/diff';
+import { sessionFor } from '../engine/plan/program';
+import { planBasis, projectedState, proposalId } from '../engine/plan/proposals';
 import {
   ARCHIVE_KEY,
   COACH_INTERRUPTED,
@@ -26,6 +31,7 @@ import {
 
 const D = '2026-11-10';
 const MON = '2026-11-16';
+const TUE = '2026-11-17';
 const SUN = '2026-11-15';
 const THUMB = `data:image/jpeg;base64,${'A'.repeat(200)}`;
 
@@ -66,9 +72,10 @@ const program: Program = {
   sessions: { A: SESSIONS.A, B: SESSIONS.B },
 };
 
+/** Proposta nata come la fanno i generatori: base del piano proiettato (con le approvate in attesa). */
 function proposalFor(kind: PlanProposal['kind'], patch: PlanPatch, over: Partial<PlanProposal> = {}): PlanProposal {
   const s = useApp.getState();
-  const state = { plan: s.plan, profile: s.profile, physio: s.physio, patch };
+  const state = projectedState({ plan: s.plan, profile: s.profile, physio: s.physio, patch }, s.planner?.proposals);
   const basis = planBasis(kind, state);
   const effectiveFrom = over.effectiveFrom ?? MON;
   return {
@@ -246,28 +253,56 @@ describe('proposte del piano', () => {
     expect(again?.title).toBe('Proposta');
   });
 
-  it('approvare applica la toppa, salva before e after nella versione; «Annulla» rimette tutto', () => {
+  it('approvare un blocco da lunedì: la toppa entra il suo primo giorno con before; versione con before e after; «Annulla» rimette tutto', () => {
     const a = useApp.getState();
     const planBefore = useApp.getState().plan;
     const p = proposalFor('blocco', { program, training: { primary: 'forza', secondary: 'prevenzione' } });
     a.saveProposal(p);
     const res = a.approveProposal(p.id, SUN);
     expect(res?.versionId).toBe(`v-${p.id}`);
-    const s = useApp.getState();
-    expect(s.plan.program?.blockId).toBe('b1');
-    expect(s.plan.training?.primary).toBe('forza');
-    const approved = s.planner?.proposals.find((x) => x.id === p.id);
+    let s = useApp.getState();
+    // Domenica il piano resta quello di oggi: la proposta è approvata in attesa, senza before.
+    expect(s.plan).toEqual(planBefore);
+    let approved = s.planner?.proposals.find((x) => x.id === p.id);
     expect(approved?.status).toBe('approvata');
-    expect(approved?.before).toEqual({ program: null, training: null });
+    expect(approved?.before).toBeUndefined();
     expect(s.planVersions).toHaveLength(1);
     expect(s.planVersions?.[0]).toMatchObject({ kind: 'blocco', before: { program: null, training: null }, after: p.patch, proposalId: p.id });
-    // Approvare di nuovo non fa niente.
+    // Approvare di nuovo non fa niente; la domenica non entra niente.
     expect(a.approveProposal(p.id, SUN)).toBeNull();
+    expect(a.applyDueProposals(SUN)).toBe(0);
+    expect(useApp.getState().plan).toBe(s.plan);
+    // Lunedì entra.
+    expect(a.applyDueProposals(MON)).toBe(1);
+    s = useApp.getState();
+    expect(s.plan.program?.blockId).toBe('b1');
+    expect(s.plan.training?.primary).toBe('forza');
+    approved = s.planner?.proposals.find((x) => x.id === p.id);
+    expect(approved?.before).toEqual({ program: null, training: null });
+    expect(s.planVersions?.[0].before).toEqual({ program: null, training: null });
+    expect(a.applyDueProposals(MON)).toBe(0);
     a.undoApproval(p.id);
     const u = useApp.getState();
     expect(u.plan).toEqual(planBefore);
     expect(u.planVersions).toBeUndefined();
     expect(u.planner?.proposals.find((x) => x.id === p.id)?.status).toBe('aperta');
+  });
+
+  it('«Annulla» su un’approvata in attesa: il piano non cambia, la versione esce, la proposta torna aperta', () => {
+    const a = useApp.getState();
+    const planBefore = useApp.getState().plan;
+    const p = proposalFor('obiettivi', { goal: 'dimagrimento', goalDeltaKcal: -350 });
+    a.saveProposal(p);
+    a.approveProposal(p.id, SUN);
+    a.undoApproval(p.id);
+    const u = useApp.getState();
+    expect(u.plan).toBe(planBefore);
+    expect(u.profile.goal).toBe('ricomposizione');
+    expect(u.planVersions).toBeUndefined();
+    expect(u.planner?.proposals.find((x) => x.id === p.id)).toMatchObject({ status: 'aperta' });
+    // Lunedì non entra niente.
+    expect(a.applyDueProposals(MON)).toBe(0);
+    expect(useApp.getState().profile.goal).toBe('ricomposizione');
   });
 
   it('una base diversa o il giorno oltre il limite non si approvano; il menù non crea versioni', () => {
@@ -285,8 +320,26 @@ describe('proposte del piano', () => {
     const r = proposalFor('menu', { goalDeltaKcal: -200 }, { attempt: 3 });
     a.saveProposal(r);
     expect(a.approveProposal(r.id, SUN)).toEqual({});
+    // Un campo senza data aspetta il lunedì.
+    expect('goalDeltaKcal' in useApp.getState().plan).toBe(false);
+    a.applyDueProposals(MON);
     expect(useApp.getState().plan.goalDeltaKcal).toBe(-200);
     expect(useApp.getState().planVersions).toBeUndefined();
+  });
+
+  it('un menù della settimana dopo entra subito: la settimana di oggi non cambia, quella dopo sì', () => {
+    const a = useApp.getState();
+    const today = menuWeekInForce(SUN, useApp.getState().plan);
+    const week = JSON.parse(JSON.stringify(menuWeekInForce(MON, useApp.getState().plan))) as NonNullable<typeof today>;
+    week.days[2].meals.cena = week.days[3].meals.cena;
+    const p = proposalFor('menu', { menus: { [MON]: week } });
+    a.saveProposal(p);
+    expect(a.approveProposal(p.id, SUN)).toEqual({});
+    const s = useApp.getState();
+    expect(s.plan.menus?.[MON]).toEqual(week);
+    expect(menuWeekInForce(SUN, s.plan)).toEqual(today);
+    expect(menuWeekInForce(MON, s.plan)).toEqual(week);
+    expect(s.planner?.proposals.find((x) => x.id === p.id)?.before).toEqual({ menus: { [MON]: null } });
   });
 
   it('approvare un blocco che cambia la settimana supera la proposta di menù aperta', () => {
@@ -305,9 +358,12 @@ describe('proposte del piano', () => {
     const pa = proposalFor('obiettivi', { training: { primary: 'potenza', secondary: 'forza', presetId: 'calcio' } });
     a.saveProposal(pa);
     a.approveProposal(pa.id, SUN);
-    const pb = proposalFor('obiettivi', { training: { primary: 'forza', secondary: 'prevenzione', presetId: 'forte' }, goal: 'dimagrimento', goalDeltaKcal: -350 }, { effectiveFrom: '2026-11-17' });
+    a.applyDueProposals(MON);
+    const pb = proposalFor('obiettivi', { training: { primary: 'forza', secondary: 'prevenzione', presetId: 'forte' }, goal: 'dimagrimento', goalDeltaKcal: -350 }, { effectiveFrom: TUE });
     a.saveProposal(pb);
-    a.approveProposal(pb.id, SUN);
+    a.approveProposal(pb.id, MON);
+    expect(useApp.getState().profile.goal).toBe('ricomposizione');
+    a.applyDueProposals(TUE);
     expect(useApp.getState().profile.goal).toBe('dimagrimento');
     expect(useApp.getState().planVersions).toHaveLength(2);
     a.undoApproval(pb.id);
@@ -350,6 +406,122 @@ describe('proposte del piano', () => {
     expect(blocks.filter((b) => b.blockId === 'b14')).toHaveLength(1);
     expect(blocks.find((b) => b.blockId === 'b14')?.verdict).toBe('avanza');
     expect(blocks.every((b, i) => i === 0 || blocks[i - 1].from <= b.from)).toBe(true);
+  });
+});
+
+describe('decorrenza: approvare non cambia oggi né i giorni passati (§ 5.4, § 13.3 test 11)', () => {
+  /** Obiettivo, scala dei carboidrati e seduta prevista di ogni giorno: quello che Oggi, Progressi e la revisione rileggono. */
+  function days(from: string, to: string) {
+    const s = useApp.getState();
+    const out = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      const slot = s.plan.week[weekdayOf(d)]?.gymSessionId;
+      out.push({ d, target: dayTargetFor(d, s), scale: dayCarbScale(d, s), session: slot ? sessionFor(slot, d, s.plan) : null });
+    }
+    return out;
+  }
+  const cut = (delta: number): AppData['plan']['targets'] =>
+    Object.fromEntries(Object.entries(DEFAULT_TARGETS).map(([t, v]) => [t, { ...v, kcal: v.kcal + delta, carbG: v.carbG + delta / 4 }])) as AppData['plan']['targets'];
+
+  it('obiettivi approvati la domenica da lunedì: oggi e i giorni prima restano uguali; lunedì entrano', () => {
+    const a = useApp.getState();
+    const p = proposalFor('obiettivi', { targets: cut(-350), goal: 'dimagrimento', goalDeltaKcal: -350, training: { primary: 'forza', secondary: 'prevenzione' } });
+    a.saveProposal(p);
+    const before = days('2026-11-02', SUN);
+    const tue = dayTargetFor(TUE, useApp.getState());
+    expect(a.approveProposal(p.id, SUN)).toEqual({ versionId: `v-${p.id}` });
+    expect(days('2026-11-02', SUN)).toEqual(before);
+    expect(useApp.getState().profile.goal).toBe('ricomposizione');
+    expect(a.applyDueProposals(SUN)).toBe(0);
+    expect(days('2026-11-02', SUN)).toEqual(before);
+    expect(a.applyDueProposals(MON)).toBe(1);
+    const s = useApp.getState();
+    expect(s.profile.goal).toBe('dimagrimento');
+    expect(s.plan.goalDeltaKcal).toBe(-350);
+    // Da lunedì il deficit vale (martedì, palestra: −350 dentro i limiti).
+    expect(dayTargetFor(TUE, s).kcal).toBe(tue.kcal - 350);
+  });
+
+  it('un blocco nuovo al posto di quello in vigore: fino alla domenica restano le sedute del blocco di prima', () => {
+    const a = useApp.getState();
+    // Blocco in vigore dal 12 ottobre: dalla quinta settimana si ripete senza progressione (dose della settimana 2).
+    a.updatePlan({ program: { ...program, blockId: 'b0', start: '2026-10-12' } });
+    const thu = '2026-11-12';
+    const p = proposalFor('blocco', { program: { ...program, blockId: 'b2' } }, { approvableUntil: MON });
+    a.saveProposal(p);
+    const before = days('2026-10-26', TUE);
+    expect(before.find((x) => x.d === '2026-11-13')?.session).not.toBe(SESSIONS.B);
+    expect(a.approveProposal(p.id, thu)?.versionId).toBe(`v-${p.id}`);
+    // Giovedì: niente cambia, né oggi né prima, e fino a lunedì restano le sedute del blocco in vigore.
+    expect(days('2026-10-26', TUE)).toEqual(before);
+    for (const d of [thu, '2026-11-13', '2026-11-14', SUN]) expect(a.applyDueProposals(d)).toBe(0);
+    expect(days('2026-10-26', TUE)).toEqual(before);
+    expect(a.applyDueProposals(MON)).toBe(1);
+    const s = useApp.getState();
+    expect(s.plan.program?.blockId).toBe('b2');
+    expect(sessionFor('A', TUE, s.plan)).toEqual(SESSIONS.A);
+  });
+
+  it('ritorno a un blocco iniziato il 12 ottobre, approvato il 12 novembre: riparte lunedì, la seduta di oggi non cambia', () => {
+    const a = useApp.getState();
+    a.updatePlan({ program: { ...program, blockId: 'b1', start: '2026-11-09' } });
+    const thu = '2026-11-12';
+    const old: Program = { ...program, blockId: 'b0', start: '2026-10-12', sessions: { A: SESSIONS.B, B: SESSIONS.A } };
+    const version: PlanVersion = { id: 'v-b0', at: '2026-10-11T10:00:00.000Z', effectiveFrom: '2026-10-12', kind: 'blocco', title: 'Blocco di ottobre', before: { program: null }, after: { program: old } };
+    useApp.setState({ planVersions: [version] });
+    const s0 = useApp.getState();
+    const r = restoreTo(version, projectedState({ plan: s0.plan, profile: s0.profile, physio: s0.physio }, s0.planner?.proposals), thu);
+    expect(r.effectiveFrom).toBe(MON);
+    expect(r.patch.program).toMatchObject({ start: MON, blockId: `b0@${MON}` });
+    a.saveProposal(r);
+    const before = days('2026-11-02', SUN);
+    expect(a.approveProposal(r.id, thu)).not.toBeNull();
+    expect(days('2026-11-02', SUN)).toEqual(before);
+    expect(sessionFor('A', thu, useApp.getState().plan)).toBe(before.find((x) => x.d === '2026-11-10')?.session);
+    a.applyDueProposals(MON);
+    // Da martedì la seduta A è quella del blocco di allora, alla sua prima settimana.
+    expect(sessionFor('A', TUE, useApp.getState().plan)).toEqual(SESSIONS.B);
+  });
+
+  it('un blocco approvato il lunedì da cui vale entra subito: il lunedì non cambia niente, il martedì non si approva più', () => {
+    const a = useApp.getState();
+    const p = proposalFor('blocco', { program: { ...program, sessions: { A: SESSIONS.B, B: SESSIONS.B } } }, { approvableUntil: MON });
+    a.saveProposal(p);
+    const monday = days(MON, MON);
+    expect(a.approveProposal(p.id, MON)).not.toBeNull();
+    expect(days(MON, MON)).toEqual(monday);
+    expect(useApp.getState().plan.program?.blockId).toBe('b1');
+    expect(useApp.getState().planner?.proposals.find((x) => x.id === p.id)?.before).toEqual({ program: null });
+    const q = proposalFor('blocco', { program: { ...program, blockId: 'b3' } }, { approvableUntil: MON, attempt: 1 });
+    a.saveProposal(q);
+    expect(a.approveProposal(q.id, TUE)).toBeNull();
+  });
+
+  it('chi tocca gli stessi campi di un’approvata in attesa entra dopo di lei; le approvate in attesa non escono dall’elenco', () => {
+    const a = useApp.getState();
+    const first = proposalFor('obiettivi', { training: { primary: 'potenza', secondary: 'forza' } }, { effectiveFrom: TUE });
+    a.saveProposal(first);
+    a.approveProposal(first.id, SUN);
+    const block = proposalFor('blocco', { program, training: { primary: 'forza', secondary: 'prevenzione' } }, { approvableUntil: MON });
+    a.saveProposal(block);
+    // Approvato il lunedì da cui vale, ma `training` è in attesa: aspetta martedì.
+    a.approveProposal(block.id, MON);
+    expect(useApp.getState().plan.program).toBeUndefined();
+    expect(a.applyDueProposals(MON)).toBe(0);
+    // Tre proposte di obiettivi decise dopo non tolgono quella in attesa.
+    for (let i = 1; i <= 3; i++) {
+      const x = proposalFor('obiettivi', { training: { primary: 'rapidita' } }, { attempt: i, effectiveFrom: '2026-11-20' });
+      a.saveProposal(x);
+      a.rejectProposal(x.id);
+    }
+    const n = normalizeData(pickData(useApp.getState()));
+    expect(n.planner?.proposals.find((x) => x.id === first.id)).toMatchObject({ status: 'approvata' });
+    expect(n.planner?.proposals.find((x) => x.id === first.id)?.before).toBeUndefined();
+    expect(a.applyDueProposals(TUE)).toBe(2);
+    const s = useApp.getState();
+    expect(s.plan.program?.blockId).toBe('b1');
+    expect(s.plan.training?.primary).toBe('forza');
+    expect(s.planner?.proposals.find((x) => x.id === block.id)?.before).toEqual({ program: null, training: { primary: 'potenza', secondary: 'forza' } });
   });
 });
 

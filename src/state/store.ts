@@ -87,7 +87,8 @@ import { buildDemo } from '../demo/seed';
 import { isHHMM, isISODate, nowMinutes, todayISO, weekdayOf } from '../engine/dates';
 import { MAX_SURPLUS_KCAL, MAX_DEFICIT_KCAL, clampKcalCorrection, goalDeltaOf } from '../engine/energy';
 import { roundNutrients } from '../engine/nutrition';
-import { applyPatch, beforeOf, isSuperseded } from '../engine/plan/proposals';
+import { planTodayISO } from '../engine/sleep';
+import { applyPatch, beforeOf, dueApprovals, entersPlanAtApproval, isPendingApproval, isSuperseded, pendingApprovals, projectedState } from '../engine/plan/proposals';
 import { IMPACT_PAIN_THRESHOLD, isLowerLegSite } from '../engine/training';
 import { uid } from '../lib/id';
 
@@ -1378,7 +1379,8 @@ const decidedAt = (p: PlanProposal) => p.decidedAt ?? p.createdAt;
 
 /**
  * Regole dell'elenco delle proposte, uguali per la normalizzazione e per le azioni: una sola aperta per tipo e inizio
- * (vince l'ultima creata, le altre diventano superate) e al massimo 3 decise per tipo (le più recenti). L'ordine resta.
+ * (vince l'ultima creata, le altre diventano superate) e al massimo 3 decise per tipo (le più recenti). Le approvate in
+ * attesa di entrare nel piano restano sempre, fuori dal conto. L'ordine resta.
  */
 function tidyProposals(list: PlanProposal[]): PlanProposal[] {
   const openKey = (p: PlanProposal) => `${p.kind}|${p.effectiveFrom}`;
@@ -1394,7 +1396,7 @@ function tidyProposals(list: PlanProposal[]): PlanProposal[] {
   const keep = new Set<number>();
   const byKind = new Map<string, number[]>();
   fixed.forEach((p, i) => {
-    if (p.status === 'aperta') keep.add(i);
+    if (p.status === 'aperta' || isPendingApproval(p)) keep.add(i);
     else byKind.set(p.kind, [...(byKind.get(p.kind) ?? []), i]);
   });
   for (const idx of byKind.values()) {
@@ -1776,13 +1778,23 @@ export interface AppActions {
   /** Passaggio del coach su una proposta aperta; con `patch` la toppa diventa quella rifinita. */
   updateCoachPass: (id: string, pass: CoachPass, patch?: PlanPatch) => void;
   /**
-   * Approva una proposta aperta: salva `before`, applica la toppa, aggiunge la versione (non per i menù). Null se la
-   * proposta non c'è, non è aperta, è superata o la base del piano è cambiata.
+   * Approva una proposta aperta e aggiunge la versione (non per i menù). La toppa entra subito, con `before` salvato,
+   * solo se non può cambiare oggi né i giorni passati (la proposta vale già, oppure solo menù di settimane dopo oggi);
+   * altrimenti la proposta resta approvata in attesa ed entra con `applyDueProposals` (§ 5.4). Null se la proposta non
+   * c'è, non è aperta, è superata o la base del piano proiettato è cambiata.
    */
   approveProposal: (id: string, today: ISODate) => { versionId?: string } | null;
+  /**
+   * Le approvate in attesa con `effectiveFrom` ≤ `today` (la giornata del piano) entrano nel piano, nell'ordine delle
+   * decisioni, e ricevono `before`. La chiamano l'avvio e il cambio di giornata (`app/boot.ts`). Restituisce quante.
+   */
+  applyDueProposals: (today: ISODate) => number;
   /** «Tieni il piano attuale». */
   rejectProposal: (id: string) => void;
-  /** «Annulla» dopo l'approvazione: riapplica `before`, toglie la versione, la proposta torna aperta. */
+  /**
+   * «Annulla» dopo l'approvazione: se la toppa è già entrata riapplica `before`; toglie la versione e la proposta torna
+   * aperta.
+   */
   undoApproval: (proposalId: string) => void;
   /** Riepilogo di un blocco concluso (uno per blocco, gli ultimi 12). */
   recordBlockSummary: (s: BlockSummary) => void;
@@ -1805,7 +1817,8 @@ export interface AppActions {
   /**
    * Applica una proposta della revisione: 'sleepCurrent'; 'kcalDelta' tagliata ai limiti dell'energia
    * (`clampKcalCorrection`), con `Plan.goalDeltaKcal` scritto; 'planProposal' (= `approveProposal`); 'weekKind'
-   * (`Plan.weekOverrides`). 'none' non cambia il piano. `today` serve solo a 'planProposal' (predefinito: oggi).
+   * (`Plan.weekOverrides`). 'none' non cambia il piano. `today` serve solo a 'planProposal' (predefinito: la giornata
+   * del piano).
    */
   applyProposal: (proposal: Proposal, today?: ISODate) => void;
 
@@ -1873,8 +1886,9 @@ function setNote(d: DayLog, itemId: string, note: string | undefined): void {
 
 const nowIso = () => new Date().toISOString();
 
-/** Stato per le funzioni delle proposte. */
-const proposalStateOf = (s: Pick<AppData, 'plan' | 'profile' | 'physio'>) => ({ plan: s.plan, profile: s.profile, physio: s.physio });
+/** Stato per le funzioni delle proposte: il piano proiettato, con le approvate in attesa (§ 5.4). */
+const proposalStateOf = (s: Pick<AppData, 'plan' | 'profile' | 'physio' | 'planner'>) =>
+  projectedState({ plan: s.plan, profile: s.profile, physio: s.physio }, s.planner?.proposals);
 
 export const useApp = create<AppState>()(
   persist(
@@ -1897,7 +1911,12 @@ export const useApp = create<AppState>()(
         proposals: tidyProposals(proposals),
       });
 
-      /** Approvazione in una sola transazione (§ 5.4). */
+      /**
+       * Approvazione in una sola transazione (§ 5.4). La base si controlla sul piano proiettato. La toppa entra subito
+       * solo se non può cambiare oggi né i giorni passati (`entersPlanAtApproval`): allora `before` si scrive adesso;
+       * altrimenti la proposta resta approvata in attesa ed entra con `applyDueProposals` il suo primo giorno. La
+       * versione si aggiunge in ogni caso (con i valori di prima del piano proiettato, aggiornati quando la toppa entra).
+       */
       const approve = (id: string, today: ISODate): { versionId?: string } | null => {
         const s = get();
         const list = s.planner?.proposals ?? [];
@@ -1909,12 +1928,15 @@ export const useApp = create<AppState>()(
           return null;
         }
         const at = nowIso();
-        const before = beforeOf(s.plan, s.profile, p.patch);
-        const { plan, profile } = applyPatch(s.plan, s.profile, p.patch);
-        const next = { ...state, plan, profile };
-        // Le altre proposte aperte la cui base è cambiata non si possono più approvare (es. il menù dopo un blocco nuovo).
+        const now = entersPlanAtApproval(p, today, pendingApprovals(list));
+        const before = now ? beforeOf(s.plan, s.profile, p.patch) : undefined;
+        const { plan, profile } = now ? applyPatch(s.plan, s.profile, p.patch) : { plan: s.plan, profile: s.profile };
+        // Le altre proposte aperte la cui base cambia con questa non si possono più approvare (es. il menù dopo un blocco
+        // nuovo), anche quando la toppa entra più avanti.
+        const projected = applyPatch(state.plan, state.profile, p.patch);
+        const next = { ...state, plan: projected.plan, profile: projected.profile };
         const proposals = list.map((x): PlanProposal => {
-          if (x.id === id) return { ...x, status: 'approvata', decidedAt: at, before };
+          if (x.id === id) return { ...x, status: 'approvata', decidedAt: at, ...(before ? { before } : {}) };
           if (x.status === 'aperta' && isSuperseded(x, next, today)) return { ...x, status: 'superata', decidedAt: at };
           return x;
         });
@@ -1928,7 +1950,7 @@ export const useApp = create<AppState>()(
             effectiveFrom: p.effectiveFrom,
             kind: p.kind,
             title: p.title,
-            before,
+            before: before ?? beforeOf(state.plan, state.profile, p.patch),
             after: JSON.parse(JSON.stringify(p.patch)) as PlanPatch,
             proposalId: p.id,
           };
@@ -1936,6 +1958,34 @@ export const useApp = create<AppState>()(
         }
         set({ plan, profile, planner: withProposals(s, proposals), planVersions });
         return versionId ? { versionId } : {};
+      };
+
+      /** Le approvate in attesa che valgono da `today` entrano nel piano, nell'ordine delle decisioni (§ 5.4). */
+      const applyDue = (today: ISODate): number => {
+        const s = get();
+        const list = s.planner?.proposals ?? [];
+        const due = dueApprovals(list, today);
+        if (!due.length) return 0;
+        let plan = s.plan;
+        let profile = s.profile;
+        const befores = new Map<string, PlanPatch>();
+        for (const p of due) {
+          befores.set(p.id, beforeOf(plan, profile, p.patch));
+          ({ plan, profile } = applyPatch(plan, profile, p.patch));
+        }
+        const proposals = list.map((x): PlanProposal => {
+          const before = befores.get(x.id);
+          return before ? { ...x, before } : x;
+        });
+        const touched = (s.planVersions ?? []).some((v) => v.proposalId && befores.has(v.proposalId));
+        const planVersions = touched
+          ? (s.planVersions ?? []).map((v) => {
+              const before = v.proposalId ? befores.get(v.proposalId) : undefined;
+              return before ? { ...v, before } : v;
+            })
+          : s.planVersions;
+        set({ plan, profile, planner: withProposals(s, proposals), planVersions });
+        return due.length;
       };
 
       return {
@@ -2168,6 +2218,7 @@ export const useApp = create<AppState>()(
             return { planner: withProposals(s, list.map((x) => (x.id === id ? updated : x))) };
           }),
         approveProposal: (id, today) => approve(id, today),
+        applyDueProposals: (today) => applyDue(today),
         rejectProposal: (id) =>
           set((s) => {
             const list = s.planner?.proposals ?? [];
@@ -2179,8 +2230,9 @@ export const useApp = create<AppState>()(
           const s = get();
           const list = s.planner?.proposals ?? [];
           const p = list.find((x) => x.id === proposalId);
-          if (!p || p.status !== 'approvata' || !p.before) return;
-          const { plan, profile } = applyPatch(s.plan, s.profile, p.before);
+          if (!p || p.status !== 'approvata') return;
+          // Già entrata nel piano: tornano i valori di prima. Ancora in attesa: il piano non è cambiato.
+          const { plan, profile } = p.before ? applyPatch(s.plan, s.profile, p.before) : { plan: s.plan, profile: s.profile };
           const reopened: PlanProposal = { ...p, status: 'aperta' };
           delete reopened.decidedAt;
           delete reopened.before;
@@ -2244,7 +2296,8 @@ export const useApp = create<AppState>()(
           const a = proposal.apply;
           if (!a || a.type === 'none') return;
           if (a.type === 'planProposal') {
-            approve(a.id, today ?? todayISO());
+            // La giornata del piano, la stessa con cui le approvate in attesa entrano (fino a poco prima della sveglia è ieri).
+            approve(a.id, today ?? planTodayISO(get().plan));
             return;
           }
           set((s) => {

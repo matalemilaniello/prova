@@ -11,13 +11,26 @@
  *
  * **Rifinitura del coach.** Chi la lancia registra il suo `AbortController` con `registerCoachRun`: approvare o scartare
  * la proposta prima della risposta la interrompe (niente costi per una risposta che non servirebbe, § 5.6).
+ *
+ * **Piano proiettato.** Una proposta approvata entra nel piano il suo primo giorno (§ 5.4, decorrenza): fino ad allora
+ * è «in attesa». Basi, superamento, differenze e generatori lavorano sul piano proiettato (`proposalStateOf`, con le
+ * approvate in attesa), così una proposta nuova parte da quello che varrà, non da quello di oggi.
  */
 import type { AppData, DiffItem, ISODate, MenuWeek, PlanChangeKind, PlanProposal, PlanVersion } from '../../domain/types';
 import { addDays, daysBetween, formatMonth, formatWeekRange, fromISO, weekdayOf, weekStart } from '../../engine/dates';
 import { goalDeltaOf } from '../../engine/energy';
 import { menuWeekInForce } from '../../engine/menu';
-import { diffMenus, diffPatch, fromDayLabel, restoreTo, sortDiff, type DiffOptions } from '../../engine/plan/diff';
-import { beforeOf, isSuperseded, planBasis, proposalId, stableStringify, type ProposalState } from '../../engine/plan/proposals';
+import { diffMenus, diffPatch, fromDayLabel, restoredPatch, restoreStart, restoreTo, sortDiff, type DiffOptions } from '../../engine/plan/diff';
+import {
+  beforeOf,
+  isPendingApproval,
+  isSuperseded,
+  planBasis,
+  projectedState,
+  proposalId,
+  stableStringify,
+  type ProposalState,
+} from '../../engine/plan/proposals';
 import { capitalize, fmtNumber, WEEKDAY_LONG } from '../../lib/format';
 import { hashString } from '../../lib/id';
 import { useApp, useUi } from '../../state/store';
@@ -26,6 +39,7 @@ import { useApp, useUi } from '../../state/store';
 
 /** Ingressi di un generatore di proposte: lo stato, la giornata del piano e il tentativo. */
 export interface BuildContext {
+  /** Lo stato con il piano e il profilo proiettati (le approvate in attesa già dentro, `projectedAppData`). */
   state: AppData;
   today: ISODate;
   /** 0 alla nascita; «Un’altra proposta» passa quello della proposta + 1; il ricalcolo tiene quello della proposta. */
@@ -79,7 +93,15 @@ export function isCoachRunning(proposalId: string): boolean {
 
 // ───────────────────────── Lettura ─────────────────────────
 
-export const proposalStateOf = (s: Pick<AppData, 'plan' | 'profile' | 'physio'>): ProposalState => ({ plan: s.plan, profile: s.profile, physio: s.physio });
+/** Stato delle funzioni delle proposte: il piano proiettato, con le approvate in attesa (§ 5.4). */
+export const proposalStateOf = (s: Pick<AppData, 'plan' | 'profile' | 'physio'> & Partial<Pick<AppData, 'planner'>>): ProposalState =>
+  projectedState({ plan: s.plan, profile: s.profile, physio: s.physio }, s.planner?.proposals);
+
+/** Lo stato con piano e profilo proiettati: quello che ricevono i generatori. Senza approvate in attesa è lo stesso. */
+export function projectedAppData<S extends Pick<AppData, 'plan' | 'profile' | 'physio'> & Partial<Pick<AppData, 'planner'>>>(s: S): S {
+  const p = proposalStateOf(s);
+  return p.plan === s.plan && p.profile === s.profile ? s : { ...s, plan: p.plan, profile: p.profile };
+}
 
 export function findProposal(id: string, s: Pick<AppData, 'planner'> = useApp.getState()): PlanProposal | undefined {
   return s.planner?.proposals.find((p) => p.id === id);
@@ -135,14 +157,14 @@ function markSuperseded(id: string): void {
   });
 }
 
-/** Versione da cui è nata una proposta di ritorno: quella con la stessa toppa. */
+/** Versione da cui è nata una proposta di ritorno: quella con la stessa toppa (un blocco spostato al suo lunedì). */
 function versionOfReturn(p: PlanProposal, versions: readonly PlanVersion[] | undefined): PlanVersion | undefined {
   const key = stableStringify(p.patch);
-  return [...(versions ?? [])].reverse().find((v) => stableStringify(v.after) === key);
+  return [...(versions ?? [])].reverse().find((v) => stableStringify(restoredPatch(v.after, p.effectiveFrom)) === key);
 }
 
 function rebuild(p: PlanProposal, today: ISODate, attempt: number): PlanProposal | null {
-  const s = useApp.getState();
+  const s = projectedAppData(useApp.getState());
   if (p.kind === 'ritorno') {
     const v = versionOfReturn(p, s.planVersions);
     return v ? restoreTo(v, proposalStateOf(s), today, diffOptionsOf(s)) : null;
@@ -233,7 +255,7 @@ export function approveProposal(id: string, today: ISODate): ApproveOutcome {
   return { status: 'superata', id: r?.id ?? id, refreshed: r?.refreshed ?? false };
 }
 
-/** «Annulla» dell'avviso: rimette i valori di prima e toglie la versione; la proposta torna aperta. */
+/** «Annulla» dell'avviso: rimette i valori di prima (se la toppa era già entrata) e toglie la versione; la proposta torna aperta. */
 export function undoApproval(id: string): void {
   useApp.getState().undoApproval(id);
   useUi.getState().toast('Torna il piano di prima', 'neutral');
@@ -269,13 +291,16 @@ export function anotherProposal(id: string, today: ISODate): string | null {
 
 // ───────────────────────── Storico ─────────────────────────
 
-/** «Torna a questa versione»: nasce una proposta di ritorno da domani e si apre il foglio. */
+/**
+ * «Torna a questa versione»: nasce una proposta di ritorno da domani (con un blocco, dal primo lunedì) e si apre il
+ * foglio. Se il piano proiettato ha già i valori di quella versione, o le differenze sono nessuna, non nasce niente.
+ */
 export function restoreVersion(versionId: string, today: ISODate): { id: string } | 'uguale' | null {
-  const s = useApp.getState();
+  const s = projectedAppData(useApp.getState());
   const v = s.planVersions?.find((x) => x.id === versionId);
   if (!v) return null;
   const p = restoreTo(v, proposalStateOf(s), today, diffOptionsOf(s));
-  if (!p.diff.length) {
+  if (!p.diff.length || stableStringify(beforeOf(s.plan, s.profile, v.after)) === stableStringify(v.after)) {
     useUi.getState().toast('Il piano è già così', 'neutral');
     return 'uguale';
   }
@@ -290,7 +315,11 @@ export const nextMonday = (today: ISODate): ISODate => addDays(weekStart(today),
  * Proposta di menù per il lunedì dopo con un menù approvato in passato (§ 5.5, «Usalo la prossima settimana»). Pura:
  * la base è quella del piano di oggi, il tentativo è fuori dalla serie del generatore, così l'id non si scontra.
  */
-export function reuseMenuProposal(s: Pick<AppData, 'plan' | 'profile' | 'physio'>, sourceMonday: ISODate, today: ISODate): PlanProposal | null {
+export function reuseMenuProposal(
+  s: Pick<AppData, 'plan' | 'profile' | 'physio'> & Partial<Pick<AppData, 'planner'>>,
+  sourceMonday: ISODate,
+  today: ISODate,
+): PlanProposal | null {
   const week = s.plan.menus?.[sourceMonday];
   if (!week) return null;
   const monday = nextMonday(today);
@@ -319,7 +348,7 @@ export function reuseMenuProposal(s: Pick<AppData, 'plan' | 'profile' | 'physio'
 
 /** «Usalo la prossima settimana»: salva la proposta e apre il foglio; 'uguale' se il menù in vigore è già quello. */
 export function reuseMenu(sourceMonday: ISODate, today: ISODate): { id: string } | 'uguale' | null {
-  const p = reuseMenuProposal(useApp.getState(), sourceMonday, today);
+  const p = reuseMenuProposal(projectedAppData(useApp.getState()), sourceMonday, today);
   if (!p) return null;
   if (!p.diff.length) {
     useUi.getState().toast('La prossima settimana ha già questo menù', 'neutral');
@@ -354,12 +383,17 @@ export function monthLabel(iso: ISODate): string {
 
 /**
  * Storico del piano (§ 5.5): versioni e menù approvati, dal più recente. Una versione è «in vigore» quando i campi che
- * aveva toccato valgono ancora come li aveva messi (`after`); un menù quando è quello della settimana di oggi.
+ * aveva toccato valgono come li aveva messi (`after`) nel piano proiettato e la sua toppa è già entrata; «in arrivo»
+ * quando è approvata in attesa (o vale da un giorno dopo oggi); «passata» quando una versione dopo l'ha cambiata. Un menù
+ * è in vigore quando è quello della settimana di oggi.
  */
-export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'>, today: ISODate): HistoryEntry[] {
+export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'> & Partial<Pick<AppData, 'planner'>>, today: ISODate): HistoryEntry[] {
   const out: HistoryEntry[] = [];
+  const projected = projectedState({ plan: s.plan, profile: s.profile }, s.planner?.proposals);
+  const pending = new Set((s.planner?.proposals ?? []).filter(isPendingApproval).map((p) => p.id));
   for (const v of s.planVersions ?? []) {
-    const current = stableStringify(beforeOf(s.plan, s.profile, v.after)) === stableStringify(v.after);
+    const current = stableStringify(beforeOf(projected.plan, projected.profile, v.after)) === stableStringify(v.after);
+    const waiting = Boolean(v.proposalId && pending.has(v.proposalId));
     out.push({
       key: `v:${v.id}`,
       kind: 'versione',
@@ -367,7 +401,7 @@ export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'
       month: monthLabel(v.effectiveFrom),
       title: v.title,
       subtitle: `${KIND_LABEL[v.kind]} · ${fromDayLabel(v.effectiveFrom)}`,
-      status: current ? (v.effectiveFrom > today ? 'in-arrivo' : 'in-vigore') : 'passata',
+      status: current ? (waiting || v.effectiveFrom > today ? 'in-arrivo' : 'in-vigore') : 'passata',
       version: v,
     });
   }
@@ -388,10 +422,21 @@ export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'
   return out.sort((a, b) => (a.effectiveFrom !== b.effectiveFrom ? (a.effectiveFrom < b.effectiveFrom ? 1 : -1) : at(a) < at(b) ? 1 : at(a) > at(b) ? -1 : 0));
 }
 
-/** Differenze di una riga dello storico rispetto al piano di oggi (un menù: rispetto alla settimana dopo). */
-export function historyDiff(entry: HistoryEntry, s: Pick<AppData, 'plan' | 'profile' | 'physio'> & Partial<Pick<AppData, 'reviews'>>, today: ISODate): DiffItem[] {
+/**
+ * Differenze di una riga dello storico rispetto al piano proiettato (un menù: rispetto alla settimana dopo); un blocco
+ * come ripartirebbe con «Torna a questa versione».
+ */
+export function historyDiff(
+  entry: HistoryEntry,
+  state: Pick<AppData, 'plan' | 'profile' | 'physio'> & Partial<Pick<AppData, 'reviews' | 'planner'>>,
+  today: ISODate,
+): DiffItem[] {
+  const s = projectedAppData(state);
   const opts = diffOptionsOf(s);
-  if (entry.version) return sortDiff(diffPatch(s.plan, s.profile, entry.version.after, opts));
+  if (entry.version) {
+    const after = entry.version.after;
+    return sortDiff(diffPatch(s.plan, s.profile, restoredPatch(after, restoreStart(after, today)), opts));
+  }
   const week = entry.monday ? s.plan.menus?.[entry.monday] : undefined;
   if (!week) return [];
   return sortDiff(diffMenus(opts.menuInForce?.(nextMonday(today)), week));

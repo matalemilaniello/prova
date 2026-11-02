@@ -52,7 +52,11 @@ function EntrySheet({ entry, today, onClose }: { entry: HistoryEntry; today: str
   const profile = useApp((s) => s.profile);
   const physio = useApp((s) => s.physio);
   const reviews = useApp((s) => s.reviews);
-  const diff = useMemo<DiffItem[]>(() => historyDiff(entry, { plan, profile, physio, reviews }, today), [entry, plan, profile, physio, reviews, today]);
+  const planner = useApp((s) => s.planner);
+  const diff = useMemo<DiffItem[]>(
+    () => historyDiff(entry, { plan, profile, physio, reviews, planner }, today),
+    [entry, plan, profile, physio, reviews, planner, today],
+  );
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? diff : diff.slice(0, DIFF_SHOWN);
   const isMenu = entry.kind === 'menu';

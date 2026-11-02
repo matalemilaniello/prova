@@ -5,14 +5,15 @@
  * - `useProposal(id)`: una proposta per id;
  * - `useOpenProposal(kind, effectiveFrom?)`: l'ultima aperta di un tipo, per la card di Allenamento o della Spesa;
  * - `useOpenProposals()`: tutte le aperte, dalla più recente;
- * - `useProposalState()`: piano, profilo ed esercizi del fisioterapista, per `planBasis` e `isSuperseded`;
+ * - `useProposalState()`: piano proiettato (con le approvate in attesa), profilo ed esercizi del fisioterapista, per
+ *   `planBasis` e `isSuperseded`;
  * - `usePlanHistory(today)`: le righe dello Storico del piano.
  */
 import { useMemo } from 'react';
 import type { ISODate, PlanChangeKind, PlanProposal } from '../../domain/types';
 import type { ProposalState } from '../../engine/plan/proposals';
 import { useApp } from '../../state/store';
-import { planHistory, type HistoryEntry } from './actions';
+import { planHistory, proposalStateOf, type HistoryEntry } from './actions';
 
 const EMPTY: PlanProposal[] = [];
 
@@ -42,12 +43,14 @@ export function useProposalState(): ProposalState {
   const plan = useApp((s) => s.plan);
   const profile = useApp((s) => s.profile);
   const physio = useApp((s) => s.physio);
-  return useMemo(() => ({ plan, profile, physio }), [plan, profile, physio]);
+  const planner = useApp((s) => s.planner);
+  return useMemo(() => proposalStateOf({ plan, profile, physio, planner }), [plan, profile, physio, planner]);
 }
 
 export function usePlanHistory(today: ISODate): HistoryEntry[] {
   const plan = useApp((s) => s.plan);
   const profile = useApp((s) => s.profile);
   const planVersions = useApp((s) => s.planVersions);
-  return useMemo(() => planHistory({ plan, profile, planVersions }, today), [plan, profile, planVersions, today]);
+  const planner = useApp((s) => s.planner);
+  return useMemo(() => planHistory({ plan, profile, planVersions, planner }, today), [plan, profile, planVersions, planner, today]);
 }

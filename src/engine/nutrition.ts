@@ -57,6 +57,16 @@ import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
  */
 export type NutritionState = MenuState & Partial<Pick<AppData, 'checkIns' | 'profile' | 'reviews'>>;
 
+/**
+ * Stato per i valori dei pasti e gli obiettivi di una data, con tutto quello che serve: piano, diario, controlli,
+ * profilo e revisioni. Senza le revisioni il deficit ricavato (`goalDeltaOf`) non vede le correzioni accettate e, per
+ * chi è in dimagrimento senza `Plan.goalDeltaKcal`, i limiti dell'energia del § 2.1 restano a metà: le schermate lo
+ * costruiscono da qui (o con `useNutritionState()`), così i numeri coincidono ovunque.
+ */
+export function nutritionStateOf(s: Pick<AppData, 'plan' | 'dayLogs' | 'checkIns' | 'profile' | 'reviews'>): NutritionState {
+  return { plan: s.plan, dayLogs: s.dayLogs, checkIns: s.checkIns, profile: s.profile, reviews: s.reviews };
+}
+
 export const CARB_FACTOR: Record<DayType, number> = {
   calcio: 1.25,
   palestra: 1,

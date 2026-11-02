@@ -744,3 +744,58 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   - `engine/compat.test.ts` con `compat.base.json`: l'istantanea del § 13.1, impronte dei valori calcolati sul ramo di
     partenza (2d95033). Cambi dichiarati: integratori predefiniti (anche nei dati di esempio), `DATA_VERSION` 4, `apply`
     di scarico e settimana leggera.
+- Fase 2, onda 0, proposte e coach (0B; firme del § 12.2 e del § 14.3, più queste aggiunte):
+  - `engine/rng.ts`: generatore con seme per i motori senza `Math.random` (P4): `Rng`, `mulberry32`, `seedOf`,
+    `intBelow`, `chance`, `shuffled`, `pick`.
+  - `engine/plan/diff.ts`: oltre a `diffMenus`, `diffPrograms`, `diffWeeks`, `diffTargets`, `topDiff` e `restoreTo`,
+    anche `diffTraining`, `diffPatch` (tutte le parti di una toppa, rispetto al piano dato), `sortDiff`, `changedMeals`,
+    `editLabel` (riga di un ritocco del coach), `describeTraining`, `describeBlock`, `describeDose`, `describeDay`,
+    `dayMonthLabel`, `fromDayLabel`, `QUALITY_LABEL` e i tipi `MenuDiffOptions`, `ProgramDiffOptions`, `DiffOptions`.
+    `restoreTo(version, state, today, opts?)`: il quarto argomento facoltativo (nomi degli esercizi del
+    fisioterapista, menù in vigore, deficit in vigore) non cambia la firma congelata per chi non lo passa.
+  - `lib/claudeTasks.ts`: `runStructuredTask` con la firma del § 14.3. `TaskResult` negativo, rispetto al § 10.1: in
+    più `kind: 'annullata'` (l'ha interrotta chi chiama), `retryable` (ha senso «Riprova») e, quando la risposta è
+    arrivata (rifiuto, incompleta, non valida: i token sono spesi), `model?` e `usage?`. Esportati anche
+    `StructuredTask`, `StructuredClient` (il client finto dei test ha la stessa forma), `TaskOptions` (con `client?`,
+    `timeoutMs?`, `fallback?`, `onPhase?`), `TaskValidation`, `TaskFailureKind`, `TaskEffort`, `TASK_TIMEOUT_MS`,
+    `COACH_REASON_MAX`, `COACH_SUMMARY_MAX`, `schemaProblems`, `coachText`, `structuredRequest`.
+  - `lib/claude.ts`: `ModelSupport.structuredOutputs`, `CoachReply.usage?`, `CoachUsageDelta`, `usageDelta`,
+    `usageMonth`; esportati `imageBlock` e `makeClient`.
+  - `features/piano/**`: `actions.ts` (regia del ciclo di vita: `registerProposalBuilder` con `BuildContext` e
+    `ProposalBuilder`, `submitProposal`, `refreshProposal`, `approveProposal` con «Annulla», `undoApproval`,
+    `keepCurrentPlan`, `anotherProposal`, `canAskAnother`, `restoreVersion`, `reuseMenu`, `reuseMenuProposal`,
+    `REUSE_ATTEMPT`, `planHistory`, `historyDiff`, `registerCoachRun`, `abortCoachRun`, `startLabel`, `approvedText`,
+    `diffOptionsOf`, `proposalStateOf`), `useProposals.ts` (hook di sola lettura), `PlanProposalSheet.tsx` (il pannello
+    `planProposal`), `StoricoPage.tsx` (ancora senza rotta: la collega chi aggiunge le righe in Impostazioni › Obiettivi
+    e in Allenamento).
+- Fase 2, onda 0, correzioni dopo la verifica:
+  - **Decorrenza delle proposte** (§ 5.4 e test 11 del § 13.3; decisa nel contratto prima delle onde 1-2). Il piano
+    contiene ciò che vale oggi (P3): `approveProposal(id, today)` segna la proposta approvata e aggiunge la versione, ma
+    la toppa entra nel piano subito solo se non può cambiare oggi né i giorni passati, cioè se la proposta vale già
+    (`effectiveFrom` ≤ oggi, approvata entro `approvableUntil`) oppure tocca solo menù di settimane che iniziano dopo
+    oggi (`entersPlanAtApproval`). Altrimenti resta approvata «in attesa» (`status: 'approvata'` senza `before`,
+    `isPendingApproval`) ed entra il primo giorno del piano a partire da `effectiveFrom` con l'azione nuova
+    `applyDueProposals(today)`, che `app/boot.ts` chiama all'avvio, al ritorno in primo piano, ogni minuto e quando
+    cambiano le proposte (`applyDueApprovals`). `before` si scrive quando la toppa entra, nella proposta e nella
+    versione. Le approvate in attesa entrano nell'ordine delle decisioni; una che tocca un campo di un'approvata prima
+    di lei ancora in attesa la aspetta (`dueApprovals`). Basi, superamento, differenze e generatori guardano il piano
+    proiettato (`projectedState` in `engine/plan/proposals.ts`, `proposalStateOf` e `projectedAppData` in
+    `features/piano/actions.ts`: il piano con le approvate in attesa), così un menù aperto diventa superato quando si
+    approva un blocco che cambia i tipi di giorno anche se il blocco entra lunedì; `BuildContext.state` è già
+    proiettato. «Annulla» su un'approvata in attesa la riapre e toglie la versione senza toccare il piano. Le approvate
+    in attesa restano sempre nell'elenco, fuori dal conto delle 3 decise per tipo. Lo storico dà «in arrivo» a una
+    versione in attesa. `applyProposal` con `planProposal` e senza `today` usa la giornata del piano (`planTodayISO`),
+    come `applyDueProposals`. Regola per chi crea le proposte (onde 2A e 2B): una toppa con `program` ha `effectiveFrom` =
+    `program.start` (un lunedì), così il blocco in vigore resta fino a quel giorno. Limite dichiarato: quando la toppa
+    entra, i giorni prima di `effectiveFrom` ricalcolati seguono il piano nuovo nei campi senza data (settimana tipo,
+    `targets`, `goal`, `goalDeltaKcal`, `training`) e nelle sedute di un blocco sostituito (il piano tiene solo il blocco
+    in vigore; i blocchi chiusi restano nei riepiloghi, come chiede R10), come già succede con le modifiche fatte a mano
+    e con le correzioni della revisione.
+  - `restoreTo`: con un blocco nella toppa (anche `null`) il ritorno vale dal primo lunedì da domani (`restoreStart`) e
+    il blocco riparte da quel lunedì con un id nuovo, `<id di partenza>@<lunedì>` (`restoredPatch`): con l'inizio
+    lasciato nel passato il blocco di allora tornava subito, a metà, e cambiava le sedute di oggi. Senza blocco vale da
+    domani come prima. Anche `mondayOnOrAfter`. `restoreVersion` non crea niente quando il piano proiettato ha già i
+    valori della versione.
+  - `nutritionStateOf(s)` in `engine/nutrition.ts`: lo stato dei valori e degli obiettivi di una data con piano, diario,
+    controlli, profilo e revisioni; `useNutritionState()` lo usa. Senza le revisioni `goalDeltaOf` non vede le
+    correzioni accettate e i limiti dell'energia restano a metà per chi è in dimagrimento senza `Plan.goalDeltaKcal`.
