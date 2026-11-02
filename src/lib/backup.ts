@@ -6,6 +6,10 @@
  * In importazione si accettano anche i dati nudi (AppData) e il contenuto di localStorage
  * scritto dallo store ({ state: AppData, version }).
  *
+ * Il backup è completo: comprende anche le sezioni della fase 2, piatti e proposte nel blob caldo, miniature e versioni
+ * del piano nell'archivio freddo (`pickData` le prende tutte). Si accettano i backup fino a `DATA_VERSION` (4): un'app
+ * più vecchia rifiuta un backup nuovo invece di perdere in silenzio piatti, proposte e versioni.
+ *
  * La chiave del coach non entra nel backup, salvo richiesta esplicita.
  */
 import type { AppData, ISODate } from '../domain/types';
@@ -38,6 +42,12 @@ export interface BackupSummary {
   reviews: number;
   chat: number;
   physio: number;
+  /** I miei piatti. */
+  dishes: number;
+  /** Versioni del piano nello storico. */
+  versions: number;
+  /** Proposte del piano ancora aperte. */
+  openProposals: number;
   /** Primo e ultimo giorno con dati (diario o controlli). */
   from?: ISODate;
   to?: ISODate;
@@ -99,6 +109,8 @@ export function summarizeData(raw: Partial<AppData> | Record<string, unknown>): 
   const settings = isObj(d.settings) ? d.settings : undefined;
   const profile = isObj(d.profile) ? d.profile : undefined;
   const physio = isObj(d.physio) ? d.physio : undefined;
+  const planner = isObj(d.planner) ? d.planner : undefined;
+  const proposals = Array.isArray(planner?.proposals) ? (planner.proposals as unknown[]) : [];
   return {
     name: typeof profile?.name === 'string' && profile.name.trim() ? profile.name.trim() : undefined,
     onboarded: Boolean(d.onboarded),
@@ -110,6 +122,9 @@ export function summarizeData(raw: Partial<AppData> | Record<string, unknown>): 
     reviews: count(d.reviews),
     chat: count(d.chat),
     physio: count(physio?.prescriptions),
+    dishes: Array.isArray(d.dishes) ? d.dishes.length : 0,
+    versions: Array.isArray(d.planVersions) ? d.planVersions.length : 0,
+    openProposals: proposals.filter((p) => isObj(p) && p.status === 'aperta').length,
     from: dates[0],
     to: dates[dates.length - 1],
     hasCoachKey: typeof settings?.coachApiKey === 'string' && settings.coachApiKey.length > 0,
@@ -211,7 +226,14 @@ export function brokenSection(data: Record<string, unknown>): string | null {
     list('reviews', () => true, () => 'Le revisioni della domenica sono danneggiate') ??
     list('chat', () => true, () => 'La conversazione con il coach è danneggiata') ??
     (data.physio !== undefined && !isObj(data.physio) ? 'Gli esercizi del fisioterapista sono danneggiati' : null) ??
-    (data.settings !== undefined && !isObj(data.settings) ? 'Le impostazioni sono danneggiate' : null)
+    (data.settings !== undefined && !isObj(data.settings) ? 'Le impostazioni sono danneggiate' : null) ??
+    // Fase 2: piatti, proposte e storico del piano.
+    list('dishes', (e) => Array.isArray(e.items), () => 'I miei piatti sono danneggiati') ??
+    (data.dishThumbs !== undefined && !isObj(data.dishThumbs) ? 'Le foto dei piatti sono danneggiate' : null) ??
+    (data.planner !== undefined && (!isObj(data.planner) || !Array.isArray(data.planner.proposals))
+      ? 'Le proposte del piano sono danneggiate'
+      : null) ??
+    list('planVersions', (e) => isObj(e.after), () => 'Lo storico del piano è danneggiato')
   );
 }
 

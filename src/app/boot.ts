@@ -1,7 +1,8 @@
 /**
  * Avvio: legge i parametri dell'URL per anteprime e screenshot (§4) prima del primo disegno.
  * ?today=YYYY-MM-DD e ?now=HH:MM fissano l'orologio; ?demo=1 carica i dati di esempio;
- * ?onboarding=1 mostra il benvenuto; ?theme=scuro|chiaro (o dark|light) forza il tema; ?overlay=… apre un pannello.
+ * ?onboarding=1 mostra il benvenuto; ?theme=scuro|chiaro (o dark|light) forza il tema; ?overlay=… apre un pannello
+ * (anche quelli della fase 2: mealLog, planProposal, supplement).
  */
 import type { AppData, FootballKind, ISODate, Overlay, TimelineItem } from '../domain/types';
 import { RECIPES } from '../data/recipes';
@@ -91,6 +92,16 @@ export function sampleOverlay(type: string, state: AppData = useApp.getState()):
     }
     case 'barPlanB':
       return { type: 'barPlanB' };
+    // Pannelli della fase 2 (docs/FASE2.md § 11.7): per ora mostrano un segnaposto.
+    case 'mealLog':
+      return { type: 'mealLog', date: today, slot: 'pranzo', mode: state.dishes?.length ? 'piatti' : 'foto' };
+    case 'planProposal': {
+      // La proposta aperta più recente dei dati di esempio, se c'è.
+      const open = (state.planner?.proposals ?? []).filter((p) => p.status === 'aperta');
+      return { type: 'planProposal', id: open[open.length - 1]?.id ?? 'esempio' };
+    }
+    case 'supplement':
+      return { type: 'supplement' };
     default:
       return null;
   }

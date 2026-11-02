@@ -89,6 +89,43 @@ describe('backup', () => {
     expect(summarizeData({})).toMatchObject({ dayLogs: 0, workouts: 0, onboarded: false, from: undefined });
   });
 
+  it('accetta i backup dalla versione 1 alla 4, rifiuta la 5', () => {
+    for (const version of [1, 2, 3, 4]) expect(parseBackup(JSON.stringify({ ...sample(), version })).ok).toBe(true);
+    expect(parseBackup(JSON.stringify({ ...sample(), version: 5 }))).toMatchObject({ ok: false, code: 'versione' });
+  });
+
+  it('il backup comprende piatti, proposte e archivio freddo, e li conta', () => {
+    const d = {
+      ...sample(),
+      dishes: [{ id: 'p1', name: 'Pasta', slots: ['pranzo'], items: [{ foodId: 'pasta', grams: 100 }], nutrients: { kcal: 1, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 }, vegPortions: 0, createdAt: '', source: 'foto' as const }],
+      dishThumbs: { p1: 'data:image/jpeg;base64,AAAA' },
+      planner: {
+        proposals: [
+          { id: 'a', kind: 'menu', status: 'aperta', createdAt: '', effectiveFrom: '2026-11-02', basis: 'b', title: 't', patch: {}, diff: [], reasons: [], source: 'motore' },
+          { id: 'b', kind: 'blocco', status: 'scartata', createdAt: '', effectiveFrom: '2026-11-02', basis: 'b', title: 't', patch: {}, diff: [], reasons: [], source: 'motore' },
+        ],
+      },
+      planVersions: [{ id: 'v', at: '', effectiveFrom: '2026-11-02', kind: 'obiettivi', title: 't', before: {}, after: { goal: 'massa' } }],
+    };
+    const text = serializeBackup(createBackup(d as never, { now: NOW }));
+    const res = parseBackup(text);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.summary).toMatchObject({ dishes: 1, versions: 1, openProposals: 1 });
+    expect(res.data.dishThumbs).toEqual(d.dishThumbs);
+    expect(summarizeData({})).toMatchObject({ dishes: 0, versions: 0, openProposals: 0 });
+  });
+
+  it('rifiuta un backup con piatti, proposte o storico rovinati', () => {
+    const broken = (patch: Record<string, unknown>) => parseBackup(JSON.stringify({ ...sample(), ...patch }));
+    expect(broken({ dishes: 'tanti' })).toMatchObject({ ok: false, error: expect.stringContaining('I miei piatti sono danneggiati') });
+    expect(broken({ dishes: [{ id: 'x' }] })).toMatchObject({ ok: false, error: expect.stringContaining('piatti') });
+    expect(broken({ dishThumbs: [] })).toMatchObject({ ok: false, error: expect.stringContaining('foto dei piatti') });
+    expect(broken({ planner: { proposals: 3 } })).toMatchObject({ ok: false, error: expect.stringContaining('proposte del piano') });
+    expect(broken({ planVersions: [{ id: 'v' }] })).toMatchObject({ ok: false, error: expect.stringContaining('storico del piano') });
+    expect(broken({ planner: { proposals: [] }, planVersions: [] }).ok).toBe(true);
+  });
+
   it('nomi dei file e dimensioni in italiano', () => {
     expect(backupFileName('2026-10-31')).toBe('ritmo-backup-2026-10-31.json');
     expect(fmtBytes(950)).toBe('950 byte');
