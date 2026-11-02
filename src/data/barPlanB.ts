@@ -23,7 +23,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'panino-pollo',
     name: 'Panino con pollo, insalata e pomodoro',
     verdict: 'si',
-    why: 'Il panino migliore del banco: carne fresca e non un affettato, tante proteine e pochi grassi. Chiedi un filo d’olio invece delle salse.',
+    why: 'Il panino migliore del banco se il pollo è cotto alla piastra o al forno: la fesa di pollo o di tacchino arrosto a fette è un affettato. Chiedi un filo d’olio invece delle salse.',
     approx: { kcal: 420, proteinG: 32, carbG: 52, fatG: 8, fiberG: 3.5 },
   },
   {
@@ -37,7 +37,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'insalatona',
     name: 'Insalatona con tonno o pollo e uovo',
     verdict: 'si',
-    why: "Verdure e circa 30 g di proteine nello stesso piatto: sazia e resta leggero. Chiedi l’olio a parte, niente salse.",
+    why: "Verdure e circa 30 g di proteine nello stesso piatto: sazia e resta leggero. Con tonno, uovo o pollo cotto, non con affettati; l’olio a parte, niente salse.",
     approx: { kcal: 430, proteinG: 30, carbG: 12, fatG: 28, fiberG: 5 },
   },
   {
@@ -65,7 +65,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'spremuta',
     name: "Spremuta d’arancia",
     verdict: 'si',
-    why: 'Vitamina C e nessuno zucchero aggiunto, ma senza la fibra del frutto: un bicchiere basta, e quando puoi scegli il frutto intero.',
+    why: 'Vitamina C e carboidrati facili prima del calcio, ma i suoi zuccheri sono liberi come quelli aggiunti (OMS) e la fibra resta nel frutto: un bicchiere, e quando puoi il frutto intero.',
     approx: { kcal: 88, proteinG: 1.4, carbG: 19, fatG: 0.4, fiberG: 0.4 },
   },
   {
@@ -95,7 +95,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'toast',
     name: 'Toast al formaggio',
     verdict: 'meglio',
-    why: 'Pane bianco e formaggio fuso saziano poco e danno poche proteine. Uno solo, con uno yogurt alla frutta.',
+    why: 'Pane bianco e formaggio fuso saziano poco e danno poche proteine. Chiedilo solo al formaggio, senza prosciutto cotto, e prendine uno solo, con uno yogurt.',
     approx: { kcal: 260, proteinG: 12, carbG: 26, fatG: 11, fiberG: 1.5 },
   },
   {
@@ -116,7 +116,7 @@ export const BAR_OPTIONS: BarOption[] = [
     id: 'trancio-pizza',
     name: 'Trancio di pizza margherita',
     verdict: 'meglio',
-    why: 'Va bene a pranzo nei giorni di calcio. Un trancio solo, poi un frutto o un’insalata per la fibra.',
+    why: 'Va bene a pranzo nei giorni di calcio: margherita o verdure, non salame o salsiccia. Un trancio solo, poi un frutto o un’insalata per la fibra.',
     approx: { kcal: 440, proteinG: 16, carbG: 62, fatG: 13, fiberG: 3.5 },
   },
   {

@@ -20,6 +20,9 @@
  * (IARC, gruppo 1). La frutta è quella che si trova tutto l'anno (mela, banana, kiwi, frutti di bosco surgelati).
  * Varietà per settimana: pesce 3 volte, legumi 4 volte come piatto principale (nei giorni di calcio solo le lenticchie
  * rosse decorticate, a pranzo; alla vigilia mai a cena), uova 3 volte, carne rossa una volta.
+ * Prevenzione: carne rossa una porzione a settimana (al massimo 150 g cotti: il tetto WCRF di 350-500 g cotti vale anche per
+ * i pasti fuori dal menù), cereali integrali in media almeno 90 g al giorno, riso al massimo 3 volte a settimana e sempre
+ * lessato in molta acqua e scolato (arsenico inorganico: EFSA 2024; circa −45% rispetto alla cottura ad assorbimento).
  *
  * Spesa corta: le due settimane girano sugli stessi 36 prodotti (al massimo 40, spezie e olio a parte), con un
  * solo yogurt, un solo cereale da colazione, un solo pollo e un solo pesce fresco o surgelato per settimana.
@@ -129,14 +132,14 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-riso',
         title: 'Cuoci il riso basmati',
         minutes: 15,
-        yields: "Riso per la vaschetta di lunedì; quello per l’insalata di mercoledì e per il riso saltato di giovedì va in freezer a porzioni",
-        recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
+        yields: "Riso per la vaschetta di lunedì; quello per il riso saltato di giovedì va in freezer",
+        recipeIds: ['box-riso-pollo-zucchine', 'riso-saltato-uova-piselli'],
       },
       {
         id: 's1-pollo',
         title: 'Cuoci il petto di pollo in padella',
         minutes: 20,
-        yields: "Pollo per la vaschetta di lunedì; quello per l’insalata di riso di mercoledì va in freezer",
+        yields: "Pollo per la vaschetta di lunedì; quello per l’insalata di pasta di mercoledì va in freezer",
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate'],
       },
       {
@@ -249,7 +252,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's2-pollo-riso',
         title: 'Cuoci pollo e riso basmati',
         minutes: 25,
-        yields: 'Pollo e riso per la vaschetta di lunedì, l’insalata di riso di mercoledì e il riso saltato di giovedì (in freezer)',
+        yields: 'Pollo e riso per la vaschetta di lunedì, il pollo per l’insalata di pasta di mercoledì e il riso saltato di giovedì (in freezer)',
         recipeIds: ['box-riso-pollo-zucchine', 'riso-pollo-verdure-grigliate', 'riso-saltato-uova-piselli'],
       },
       {
@@ -412,7 +415,7 @@ export const STARTER_PRODUCTS: readonly string[] = [
 export const PREP_GUIDE: Record<string, PrepGuide> = {
   's1-riso': {
     steps: [
-      "Metti sul fuoco una pentola d’acqua salata e cuoci il riso basmati.",
+      "Metti sul fuoco una pentola con molta acqua salata, almeno sei volte il peso del riso, e cuoci il riso basmati.",
       'Scola e allarga il riso su un vassoio: deve raffreddarsi in fretta.',
       "Entro un’ora la porzione di lunedì va in frigo, le altre in freezer in sacchetti piatti.",
     ],
@@ -458,7 +461,7 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
   },
   's2-pollo-riso': {
     steps: [
-      "Riso basmati in acqua salata.",
+      "Riso basmati in molta acqua salata, almeno sei volte il suo peso, poi scolalo.",
       "Intanto il pollo a bocconcini in padella con un filo d’olio, finché dentro non è più rosa.",
       'Raffredda in fretta: pollo e riso per lunedì in frigo, il resto in freezer a porzioni.',
     ],

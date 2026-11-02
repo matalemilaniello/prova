@@ -510,22 +510,22 @@ const RECIPE_LIST: Recipe[] = [
   // ───────────────────────── Pranzi (14:15, a casa) ─────────────────────────
   {
     id: 'riso-pollo-verdure-grigliate',
-    name: 'Insalata di riso con pollo, carote e pomodorini',
+    name: 'Insalata di pasta con pollo, carote e pomodorini',
     slots: ['pranzo'],
     ingredients: [
-      i('riso-basmati', 2, 'pugno', C),
-      i('pollo', 1, 'palmo'),
+      i('pasta', 2, 'pugno', C),
+      i('pollo', 0.5, 'palmo'),
       i('carote', 1, 'pezzo', { note: 'grattugiata' }),
       i('pomodorini', 1.5, 'manciata'),
       i('olio-evo', 1.5, 'cucchiaio'),
       i('limone', 0.5, 'pezzo'),
     ],
     steps: [
-      'Riso e pollo sono pronti dalla domenica, in freezer: la sera prima passali in frigo.',
-      'Grattugia la carota e taglia i pomodorini a metà.',
-      'Unisci riso, pollo a striscioline e verdure; condisci con olio, succo di limone e un pizzico di sale.',
+      'Il pollo è pronto dalla domenica, in freezer: la sera prima passalo in frigo.',
+      'Cuoci la pasta, scolala al dente e raffreddala sotto l’acqua fredda; intanto grattugia la carota e taglia i pomodorini.',
+      'Unisci pasta, pollo a striscioline e verdure; condisci con olio, succo di limone e un pizzico di sale.',
     ],
-    prepMin: 8,
+    prepMin: 15,
     batch: true,
     tags: ['preparazione', 'carne bianca', 'giorno di calcio'],
     swaps: ['riso-pollo-curcuma', 'farro-salmone-zucchine'],
@@ -719,8 +719,8 @@ const RECIPE_LIST: Recipe[] = [
       i('olio-evo', 1.5, 'cucchiaio'),
     ],
     steps: [
-      'Cuoci il riso in acqua salata, 10-11 minuti, oppure usa quello già pronto della preparazione.',
-      "Intanto scalda l’olio con curcuma e pepe (il pepe aiuta ad assorbire la curcuma), poi aggiungi zucchine a cubetti e pollo a pezzi.",
+      'Lessa il riso in molta acqua salata, almeno sei volte il suo peso, per 10-11 minuti e scolalo; oppure usa quello della preparazione.',
+      "Intanto scalda l’olio con curcuma e pepe, poi aggiungi zucchine a cubetti e pollo a pezzi.",
       'Cuoci a fuoco vivace con un pizzico di sale, 6 minuti se il pollo è già cotto e 10 se è crudo, e servi con il riso.',
     ],
     prepMin: 15,
@@ -763,7 +763,7 @@ const RECIPE_LIST: Recipe[] = [
       i('limone', 0.5, 'pezzo'),
     ],
     steps: [
-      'Cuoci il salmone in padella 6 minuti e gli edamame surgelati in acqua bollente per 4.',
+      'Lessa il riso in molta acqua e scolalo; intanto cuoci il salmone in padella 6 minuti e gli edamame in acqua bollente per 4.',
       'Componi la ciotola con il riso, il salmone a pezzi, edamame, carote e cetriolo a fette.',
       "Condisci con l’olio, la salsa di soia e il limone.",
     ],
@@ -829,7 +829,7 @@ const RECIPE_LIST: Recipe[] = [
       i('limone', 0.5, 'pezzo'),
     ],
     steps: [
-      'Cuoci il riso in acqua salata per 10-12 minuti.',
+      'Lessa il riso in molta acqua salata, almeno sei volte il suo peso, per 10-12 minuti, e scolalo.',
       "Intanto taglia il tacchino a bocconcini e rosolalo 4-5 minuti in padella con metà dell’olio, poi sfuma con il succo di limone.",
       "Servi con il riso, la carota grattugiata e l’insalata condite con l’olio rimasto.",
     ],
@@ -941,8 +941,8 @@ const RECIPE_LIST: Recipe[] = [
       i('aceto-balsamico', 1, 'cucchiaino'),
     ],
     steps: [
-      "Patate a cubetti al microonde per 8 minuti, poi 5 minuti in padella con metà dell’olio per dorarle.",
-      'Cuoci gli straccetti in padella rovente per 2 minuti, poi sale e pepe.',
+      "Patate a cubetti al microonde per 8 minuti, poi 5 minuti in padella con metà dell’olio, finché sono dorate e non brune.",
+      'Cuoci gli straccetti in padella ben calda per 2 minuti, senza farli annerire, poi sale e pepe.',
       "Servi su insalata e pomodorini con il balsamico e l’olio rimasto, e il pane per il sugo.",
     ],
     prepMin: 15,
@@ -962,7 +962,7 @@ const RECIPE_LIST: Recipe[] = [
       i('olio-evo', 1.5, 'cucchiaio'),
     ],
     steps: [
-      'Riso già pronto della preparazione, o cotto ora in 10 minuti.',
+      'Riso già pronto della preparazione, oppure lessato ora in molta acqua per 10 minuti e scolato.',
       "Salta peperoni e cipolla a listarelle con l’olio per 6 minuti a fuoco vivace.",
       'Aggiungi il pollo a bocconcini e la paprika, cuoci altri 6-7 minuti con un pizzico di sale e servi con il riso.',
     ],
@@ -1134,7 +1134,7 @@ const RECIPE_LIST: Recipe[] = [
       i('salsa-soia', 1, 'cucchiaino'),
     ],
     steps: [
-      'Domenica: riso, pollo a bocconcini e zucchine saltate in una vaschetta da microonde.',
+      'Domenica: riso lessato in molta acqua e scolato, pollo a bocconcini e zucchine saltate in una vaschetta da microonde.',
       "Il riso va raffreddato in fretta e messo in frigo entro un’ora; se la vaschetta serve dopo il lunedì, va in freezer.",
       'Dopo la partita: 2-3 minuti al microonde, olio e salsa di soia. A tavola in 5 minuti.',
     ],

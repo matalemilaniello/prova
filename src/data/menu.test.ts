@@ -43,7 +43,8 @@ const WEEKDAYS = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
 
 const KCAL_TOLERANCE = 0.08;
 const MIN_PROTEIN = 125;
-const MIN_FIBER = 28;
+/** Fibre: almeno 30 g al giorno da alimenti (WCRF 2018); la settimana di avvio sale per gradi da 22 g. */
+const MIN_FIBER = 30;
 /**
  * Tetti di fibra: chi parte da un consumo basso le aumenta per gradi, e una giornata da 50 g gonfia.
  * Al massimo 45 g al giorno (l'obiettivo è 35 g, il minimo LARN 25 g) e 40 g quando la sera c'è il calcio o il
@@ -82,7 +83,27 @@ const LEGUMES = new Set(['ceci', 'cannellini', 'borlotti', 'lenticchie', 'lentic
 /** Legumi secchi o tostati: per confrontarli con quelli cotti, × 2,4 (resa della cottura). */
 const DRY_LEGUMES = new Set(['ceci-tostati']);
 const DRY_LEGUME_YIELD = 2.4;
-const RED_MEAT = new Set(['manzo']);
+/** Carne rossa (WCRF e IARC): tutta la carne muscolare di mammifero, maiale compreso. */
+const RED_MEAT = new Set(['manzo', 'vitello', 'maiale', 'agnello', 'cavallo']);
+/**
+ * Carne rossa nel menù: una porzione a settimana, al massimo 150 g cotti. Il tetto WCRF (350-500 g cotti a settimana)
+ * vale per tutto quello che si mangia: il resto lo lascia ai pasti fuori dal menù.
+ */
+const MAX_RED_MEAT_G_WEEK = 150;
+/** Riso: al massimo 3 pasti a settimana (arsenico inorganico, EFSA 2024; Livsmedelsverket: non tutti i giorni). */
+const RICE = new Set(['riso-basmati', 'riso-integrale']);
+const MAX_RICE_MEALS = 3;
+/**
+ * Cereali integrali (WCRF, CUP colon-retto 2017: RR 0,83 per 90 g al giorno): grammi del prodotto, pane e fiocchi
+ * come si comprano, pasta, riso e cous cous in equivalente secco. Farro e orzo perlati non sono integrali.
+ */
+const WHOLE_GRAIN_DRY: Record<string, number> = {
+  'pane-integrale': 1, avena: 1, muesli: 1, 'fette-biscottate': 1, 'crackers-integrali': 1, 'piadina-integrale': 1,
+  'pasta-integrale': 0.45, 'riso-integrale': 0.4, 'couscous-integrale': 0.4,
+};
+const MIN_WHOLE_GRAIN_G = 90;
+/** Carni lavorate (IARC gruppo 1) e prodotti di riso soffiato: mai nelle ricette. */
+const BANNED_FOOD = /prosciutt|salam|mortadell|speck|bresaol|pancett|w[uü]rstel|salsicc|cotechin|affettat|in scatola|gallett|soffiat/i;
 /** Grammi di legumi oltre i quali un piatto conta come "piatto di legumi". */
 const LEGUME_MEAL_G = 100;
 /** Grammi di legumi (equivalenti cotti) oltre i quali un pasto qualsiasi conta come porzione di legumi. */
@@ -254,11 +275,10 @@ function checkLegumesAroundFootball(week: MenuWeek, label: string) {
 // ───────────────────────── Spuntini e merende: gallette, varietà, frutta di ogni stagione ─────────────────────────
 
 /**
- * Gallette di riso: carboidrati facili per il pre-calcio, non lo spuntino di tutti i giorni. Saziano poco e il riso
- * soffiato è una fonte nota di arsenico inorganico (l'UE ha un limite apposta per gallette e cracker di riso): al
- * massimo 8 spuntini e merende su 28 nelle due settimane, e mai due volte nello stesso giorno.
+ * Gallette di riso: mai. Saziano poco e i prodotti di riso soffiato hanno più arsenico inorganico del riso (l'UE ammette
+ * 0,30 mg/kg per gallette e cracker di riso contro 0,15 per il riso bianco). Il conteggio resta per il menù di avvio.
  */
-const MAX_GALLETTE_SNACKS = 8;
+const MAX_GALLETTE_SNACKS = 0;
 /** Lo stesso spuntino al massimo 5 volte su 14: chi ha il cibo come punto debole si stanca della monotonia. */
 const MAX_SAME_SNACK = 5;
 /** Agrumi d'inverno: da aprile a ottobre non si trovano, e il menù gira tutto l'anno. */
@@ -553,6 +573,28 @@ describe('ricette', () => {
     }
   });
 
+  it('non usano carni lavorate né prodotti di riso soffiato', () => {
+    for (const r of recipes) for (const l of r.ingredients) {
+      const f = FOODS[l.foodId];
+      expect(BANNED_FOOD.test(`${l.foodId} ${f?.name ?? ''}`), `${r.id}: ${f?.name}`).toBe(false);
+    }
+  });
+
+  it('dicono di lessare il riso in molta acqua e di scolarlo', () => {
+    // Acqua abbondante, almeno 6 parti, e poi scolata: circa −45% di arsenico inorganico (Raab 2009); per assorbimento, nessun calo.
+    for (const r of recipes) {
+      if (!r.ingredients.some((l) => RICE.has(l.foodId))) continue;
+      const text = r.steps.join(' ');
+      const fromPrep = /dalla domenica|della preparazione/i.test(text);
+      expect(fromPrep || (/molta acqua/i.test(text) && /scol/i.test(text)), r.id).toBe(true);
+    }
+    for (const [id, guide] of Object.entries(PREP_GUIDE)) {
+      if (!guide.timers?.some((t) => /riso/i.test(t.label))) continue;
+      const text = guide.steps.join(' ');
+      expect(/molta acqua/i.test(text) && /scol/i.test(text), id).toBe(true);
+    }
+  });
+
   it('hanno etichette coerenti con gli ingredienti', () => {
     for (const r of recipes) {
       expect(r.tags.includes('pesce'), `${r.id}: pesce`).toBe(hasFish(r));
@@ -648,7 +690,7 @@ describe('menù a rotazione', () => {
     MENU_ROTATION.forEach((week, wi) => checkLegumesAroundFootball(week, `S${wi + 1}`));
   });
 
-  it(`usa le gallette quasi solo nel pre-calcio: al massimo ${MAX_GALLETTE_SNACKS} spuntini e merende su 28, mai due al giorno`, () => {
+  it('non usa mai gallette di riso', () => {
     const total = MENU_ROTATION.reduce((sum, week, wi) => sum + checkGallette(week, `S${wi + 1}`), 0);
     expect(total).toBeLessThanOrEqual(MAX_GALLETTE_SNACKS);
   });
@@ -664,6 +706,34 @@ describe('menù a rotazione', () => {
 
   it('usa frutta che si trova tutto l’anno: niente agrumi d’inverno', () => {
     MENU_ROTATION.forEach((week, wi) => checkYearRoundFruit(week, `S${wi + 1}`));
+  });
+
+  it(`ha il riso al massimo ${MAX_RICE_MEALS} volte a settimana`, () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      const meals = week.days.flatMap((day) => SLOTS.map((slot) => RECIPES[day.meals[slot] ?? '']).filter(Boolean));
+      const n = meals.filter((r) => r.ingredients.some((l) => RICE.has(l.foodId))).length;
+      expect(n, `settimana ${wi + 1}`).toBeLessThanOrEqual(MAX_RICE_MEALS);
+    });
+  });
+
+  it(`ha carne rossa per al massimo ${MAX_RED_MEAT_G_WEEK} g cotti a settimana`, () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      const g = week.days.reduce((sum, day, di) => sum + SLOTS.reduce((s, slot) => {
+        const r = RECIPES[day.meals[slot] ?? ''];
+        return r ? s + r.ingredients.filter((l) => RED_MEAT.has(l.foodId)).reduce((t, l) => t + lineGrams(l, PORTION_TYPES[di]), 0) : s;
+      }, 0), 0);
+      expect(g, `settimana ${wi + 1}`).toBeLessThanOrEqual(MAX_RED_MEAT_G_WEEK);
+    });
+  });
+
+  it(`ha in media almeno ${MIN_WHOLE_GRAIN_G} g di cereali integrali al giorno`, () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      const g = week.days.reduce((sum, day, di) => sum + SLOTS.reduce((s, slot) => {
+        const r = RECIPES[day.meals[slot] ?? ''];
+        return r ? s + r.ingredients.reduce((t, l) => t + lineGrams(l, PORTION_TYPES[di]) * (WHOLE_GRAIN_DRY[l.foodId] ?? 0), 0) : s;
+      }, 0), 0);
+      expect(g / 7, `settimana ${wi + 1}`).toBeGreaterThanOrEqual(MIN_WHOLE_GRAIN_G);
+    });
   });
 
   it('è vario: pesce 2-3 volte, legumi 4+, uova 2-3, carne rossa al massimo 1 a settimana', () => {

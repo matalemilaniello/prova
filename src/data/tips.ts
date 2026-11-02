@@ -9,7 +9,7 @@
 import type { DayType, ISODate } from '../domain/types';
 import { hashString } from '../lib/id';
 
-export type TipTopic = 'sonno' | 'telefono' | 'fibre' | 'proteine' | 'carico' | 'bar' | 'idratazione' | 'dolci' | 'integratori';
+export type TipTopic = 'sonno' | 'telefono' | 'fibre' | 'proteine' | 'carico' | 'bar' | 'idratazione' | 'dolci' | 'integratori' | 'prevenzione';
 
 /**
  * Valori del piano che alcuni consigli citano: i numeri non si scrivono a mano nel testo, così seguono le
@@ -55,6 +55,7 @@ export const TIP_TOPIC_LABEL: Record<TipTopic, string> = {
   idratazione: 'Idratazione',
   dolci: 'Dolci',
   integratori: 'Integratori',
+  prevenzione: 'Prevenzione',
 };
 
 export const TIPS: Tip[] = [
@@ -273,8 +274,8 @@ export const TIPS: Tip[] = [
   {
     id: 'bar-spremuta',
     topic: 'bar',
-    title: 'Spremuta sì, succo confezionato no',
-    text: 'La spremuta è frutta appena spremuta; nettari e bevande alla frutta hanno spesso zuccheri aggiunti. Un frutto intero sazia di più.',
+    title: 'Il frutto intero batte la spremuta',
+    text: 'Per l’OMS gli zuccheri di spremute e succhi sono liberi come quelli aggiunti, e la fibra resta nel frutto; nettari e bevande alla frutta aggiungono anche zucchero. Un bicchiere ogni tanto, il frutto sempre.',
   },
   {
     id: 'bar-piano-b',
@@ -361,6 +362,56 @@ export const TIPS: Tip[] = [
     topic: 'integratori',
     title: 'Integratori legati a un gesto',
     text: 'Tienili dove fai colazione, sempre nello stesso posto, e prendili con il pasto senza pensarci. Un’abitudine agganciata a un’altra regge meglio di un promemoria.',
+  },
+  {
+    id: 'integratori-tumori',
+    topic: 'integratori',
+    title: 'Nessuna pillola previene i tumori',
+    text: 'Nei grandi trial vitamina C, vitamina D, omega-3 e selenio non hanno ridotto i tumori; beta-carotene e vitamina E ad alte dosi li hanno aumentati in alcuni gruppi. Gli integratori servono per una carenza o su indicazione del medico.',
+  },
+
+  // ───────────────────────── Prevenzione ─────────────────────────
+  {
+    id: 'prev-carne-lavorata',
+    topic: 'prevenzione',
+    title: 'Carne fresca sì, affettati no',
+    text: 'Salumi, würstel e fesa arrosto a fette sono carne lavorata: per il colon-retto il rischio sale di circa il 16% ogni 50 g al giorno. Pollo, pesce, uova e una porzione di carne rossa a settimana bastano per le proteine.',
+  },
+  {
+    id: 'prev-carne-rossa',
+    topic: 'prevenzione',
+    title: 'Carne rossa: anche il maiale conta',
+    text: 'Manzo, vitello, maiale e agnello freschi vanno bene fino a circa 350 g cotti a settimana, pasti fuori compresi. Nel menù ce n’è una porzione: il resto lascia spazio al pranzo della domenica.',
+  },
+  {
+    id: 'prev-riso',
+    topic: 'prevenzione',
+    title: 'Il riso, in molta acqua',
+    text: 'Lessato in almeno sei volte il suo peso d’acqua e scolato, il riso perde quasi metà dell’arsenico inorganico. Per questo nel menù torna al massimo tre volte a settimana, alternato a pasta e cous cous.',
+  },
+  {
+    id: 'prev-dorato',
+    topic: 'prevenzione',
+    title: 'Dorato, non bruciato',
+    text: 'Pane tostato, patate e crosta più scuri hanno più acrilammide. Sulla griglia gira spesso la carne e togli le parti annerite: costa niente, anche se nell’uomo il beneficio non è dimostrato.',
+  },
+  {
+    id: 'prev-alcol',
+    topic: 'prevenzione',
+    title: 'Alcol: meno è meglio, zero è il meglio',
+    text: 'Per i tumori non esiste una dose sicura: il rischio sale già con un bicchiere al giorno, e ogni bicchiere in meno conta. Dopo la partita bere molto peggiora anche il sonno e il recupero.',
+  },
+  {
+    id: 'prev-frutta-secca',
+    topic: 'prevenzione',
+    title: 'Frutta secca chiusa e al fresco',
+    text: 'Le aflatossine nascono con caldo e umidità e la cottura non le elimina. Tieni noci, mandorle e crema di arachidi chiuse e al fresco, e butta quelle amare, rancide o ammuffite.',
+  },
+  {
+    id: 'prev-bevande-calde',
+    topic: 'prevenzione',
+    title: 'Tè e tisane, non bollenti',
+    text: 'Bere sopra i 65 °C è un rischio probabile per l’esofago: aspetta un paio di minuti dopo averli versati. Il caffè in sé non è un problema.',
   },
 ];
 
