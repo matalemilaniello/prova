@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
 import { dayTypeFor, isMatchEve, isStarterDay } from '../../engine/menu';
-import { dayNutritionDetail, dayTargetFor, type DayNutritionDetail } from '../../engine/nutrition';
+import { dayNutritionDetail, dayTargetFor, nutritionStateOf, type DayNutritionDetail } from '../../engine/nutrition';
 import { periodStats } from '../../engine/review';
 import {
   adherenceSummary,
@@ -198,7 +198,11 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
   const matchEve = isMatchEve(today, plan);
   // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente: gli stessi numeri
   // di Settimana e della ricetta, obiettivo dell'intestazione compreso.
-  const nutrition = useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
+  // Con le revisioni: le correzioni accettate contano nel deficit e nel suo limite di sicurezza (FASE2 § 2.1).
+  const nutrition = useMemo(
+    () => nutritionStateOf({ plan, dayLogs, checkIns, profile, reviews }),
+    [plan, dayLogs, checkIns, profile, reviews],
+  );
   const planned = useMemo(() => dayNutritionDetail(today, nutrition), [today, nutrition]);
   const eaten = useMemo(() => dayNutritionDetail(today, nutrition, { onlyDone: true }), [today, nutrition]);
   const target = useMemo(() => dayTargetFor(today, nutrition), [today, nutrition]);

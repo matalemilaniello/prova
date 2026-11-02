@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { CheckIn, DayType, Plan, Profile, WeeklyReview } from '../domain/types';
 import { DEFAULT_PROFILE, DEFAULT_TARGETS, defaultPlan } from '../data/defaults';
@@ -241,5 +244,24 @@ describe('isPreseason', () => {
     expect(isPreseason('2026-08-10', undefined)).toBe(false);
     expect(isPreseason('2026-08-10', { firstMatch: '2026-09-06', preseasonWeeks: 20 })).toBe(true);
     expect(isPreseason('2026-06-01', { lastMatch: '2026-06-01', firstMatch: '2026-06-20' })).toBe(false);
+  });
+});
+
+describe('le schermate passano le revisioni (§ 2.1)', () => {
+  it('nessun file costruisce lo stato della nutrizione con controlli e profilo ma senza revisioni', () => {
+    // Senza `reviews` goalDeltaOf non vede le correzioni accettate: deficit e limite di sicurezza sbagliati.
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) files.push(path);
+      }
+    };
+    walk(root);
+    expect(files.length).toBeGreaterThan(20);
+    const literal = /\{\s*plan,\s*dayLogs,\s*checkIns,\s*profile\s*\}/;
+    for (const f of files) expect(readFileSync(f, 'utf8'), f).not.toMatch(literal);
   });
 });

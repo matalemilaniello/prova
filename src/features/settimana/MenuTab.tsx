@@ -14,7 +14,7 @@ import type { DayType, ISODate, IngredientLine, MealSlot, Plan, AppData } from '
 import { FOODS } from '../../data/foods';
 import { formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
 import { mealsForDate, type MealEntry } from '../../engine/menu';
-import { dayNutritionDetail, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
+import { dayNutritionDetail, nutritionStateOf, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
@@ -52,10 +52,15 @@ export interface MenuTabProps {
 }
 
 export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
-  // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente, come in Oggi.
+  // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente, come in Oggi;
+  // con le revisioni il deficit tiene conto delle correzioni accettate.
   const checkIns = useApp((s) => s.checkIns);
   const profile = useApp((s) => s.profile);
-  const state = useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
+  const reviews = useApp((s) => s.reviews);
+  const state = useMemo(
+    () => nutritionStateOf({ plan, dayLogs, checkIns, profile, reviews }),
+    [plan, dayLogs, checkIns, profile, reviews],
+  );
   const meals = useMemo(() => mealsForDate(date, state), [date, state]);
   const detail = useMemo(() => dayNutritionDetail(date, state), [date, state]);
   const schedule = useMemo(() => mealScheduleFor(date, plan), [date, plan]);
@@ -74,7 +79,6 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   const shoppingChecked = useApp((s) => s.shoppingChecked);
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
-  const reviews = useApp((s) => s.reviews);
   const prepDone = useApp((s) => s.prepDone);
   const dayState = useMemo<DayState>(
     () => ({ plan, dayLogs, shoppingChecked, physio, workoutLogs, reviews, prepDone }),
