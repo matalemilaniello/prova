@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { MenuWeek, PlanPatch, PlanProposal, Program, ScheduleDay, TrainingGoal } from '../../domain/types';
 import { DEFAULT_TARGETS, defaultAppData } from '../../data/defaults';
@@ -221,5 +223,33 @@ describe('isSuperseded', () => {
     expect(isSuperseded(p, s, SUN)).toBe(false);
     const moved: ProposalState = { ...s, plan: { ...s.plan, training: { ...training, primary: 'potenza' } } };
     expect(isSuperseded(p, moved, SUN)).toBe(true);
+  });
+});
+
+describe('motori puri (§ 13.2)', () => {
+  it('engine/plan ed engine/energy.ts non leggono l’orologio e non usano Math.random', () => {
+    const dir = fileURLToPath(new URL('.', import.meta.url));
+    const files = readdirSync(dir)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .map((f) => `${dir}/${f}`);
+    files.push(fileURLToPath(new URL('../energy.ts', import.meta.url)));
+    expect(files.length).toBeGreaterThanOrEqual(2);
+    for (const f of files) {
+      // Commenti tolti: la regola vale per il codice.
+      const src = readFileSync(f, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      expect(src, f).not.toMatch(/Date\.now\s*\(/);
+      expect(src, f).not.toMatch(/new Date\s*\(\s*\)/);
+      expect(src, f).not.toMatch(/Math\.random/);
+    }
+  });
+
+  it('stessi ingressi, stessi risultati', () => {
+    const s = baseState();
+    const patch: PlanPatch = { program, training, menus: { [MON]: menuWeek } };
+    expect(planBasis('blocco', s)).toBe(planBasis('blocco', baseState()));
+    expect(applyPatch(s.plan, s.profile, patch)).toEqual(applyPatch(baseState().plan, baseState().profile, patch));
+    expect(beforeOf(s.plan, s.profile, patch)).toEqual(beforeOf(baseState().plan, baseState().profile, patch));
   });
 });

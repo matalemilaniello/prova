@@ -658,6 +658,17 @@ describe('stato caldo, archivio freddo e andata e ritorno', () => {
     expect(JSON.parse(safeStorage.getItem(ARCHIVE_KEY) as string).dishThumbs).toEqual(s.dishThumbs);
   });
 
+  it('un backup della versione 3 importato non perde niente', () => {
+    useApp.getState().loadDemo('2026-11-12');
+    const demo = pickData(useApp.getState());
+    const v3 = JSON.parse(JSON.stringify({ ...demo, version: 3 })) as Record<string, unknown>;
+    useApp.getState().resetAll();
+    expect(useApp.getState().importData(v3)).toBe(true);
+    const back = pickData(useApp.getState());
+    expect(back.version).toBe(4);
+    expect({ ...back, version: 3 }).toEqual({ ...demo, version: 3 });
+  });
+
   it('avvio con un archivio pieno: nessuna scrittura prima della fusione, tutto intatto dopo due ricariche', async () => {
     const s = fullState();
     const archiveBefore = safeStorage.getItem(ARCHIVE_KEY) as string;
