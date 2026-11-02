@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, Clock, Feather, Settings, Timer } from 'lucide-react';
+import { BriefcaseBusiness, Check, Clock, Feather, Settings, Timer } from 'lucide-react';
 import type { FootballKind, HHMM, ISODate, ItemStatus, MealSlot } from '../../domain/types';
 import { navigate } from '../../app/router';
 import { addDays, daysBetween, formatWeekday, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
@@ -27,6 +27,7 @@ import {
   type DayItem,
 } from '../../engine/timeline';
 import { impactThresholdFor, painGate } from '../../engine/training';
+import { formatWork } from '../../engine/work';
 import { fmtDayTitle, fmtKcal, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useDayLog, useNowHHMM, usePlanDay } from '../../state/hooks';
@@ -498,6 +499,12 @@ export default function OggiScreen() {
                 {event.text}
               </Pill>
             ))}
+          {/* Il lavoro di oggi: solo informazione, non si segna e non conta. */}
+          {data.work.length > 0 && (
+            <Pill tone="neutral" icon={BriefcaseBusiness}>
+              {`Lavoro ${formatWork(data.work)}`}
+            </Pill>
+          )}
         </span>
       }
       actions={<IconButton icon={Settings} label="Impostazioni" onClick={() => navigate('impostazioni')} />}

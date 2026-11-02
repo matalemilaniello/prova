@@ -9,13 +9,15 @@
  */
 import { useId, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Activity, ArrowLeftRight, ChefHat, ChevronDown, Dumbbell, ShoppingBasket, UtensilsCrossed } from 'lucide-react';
+import { Activity, ArrowLeftRight, BriefcaseBusiness, ChefHat, ChevronDown, Dumbbell, ShoppingBasket, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, IngredientLine, MealSlot, Plan, AppData } from '../../domain/types';
 import { FOODS } from '../../data/foods';
 import { formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
+import { workBlocksFor } from '../../engine/mealTimes';
 import { mealsForDate, type MealEntry } from '../../engine/menu';
 import { dayNutritionDetail, nutritionStateOf, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
+import { formatWork } from '../../engine/work';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
@@ -65,6 +67,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   const detail = useMemo(() => dayNutritionDetail(date, state), [date, state]);
   const schedule = useMemo(() => mealScheduleFor(date, plan), [date, plan]);
   const day = plan.week.find((d) => d.weekday === weekdayOf(date));
+  const work = workBlocksFor(date, plan);
   // Porzioni e obiettivi seguono il tipo effettivo (la vigilia mangia da calcio); colori ed etichetta il tipo previsto.
   const dayType = meals.dayType;
   const colorType = meals.scheduledDayType;
@@ -101,6 +104,11 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
               {a.label}
             </Pill>
           ))}
+          {work.length > 0 && (
+            <Pill variant="outline" tone="neutral" icon={BriefcaseBusiness}>
+              {`Lavoro ${formatWork(work)}`}
+            </Pill>
+          )}
         </div>
       </header>
 
@@ -140,6 +148,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
                     scale={scale}
                     title={(schedule[m.slot]?.title ?? capitalize(m.slot)).split(',')[0]}
                     time={schedule[m.slot]?.time}
+                    carry={schedule[m.slot]?.carry}
                     beforeShop={mixedShop && beforeShop.has(m.slot)}
                     sunday={sunday}
                     onSwap={() => setSwapSlot(m.slot)}
@@ -335,6 +344,8 @@ interface MealCardProps {
   scale: number;
   title: string;
   time?: string;
+  /** Il pasto cade durante il lavoro: da portare. */
+  carry?: boolean;
   /** Pasto prima della prima spesa: gli ingredienti non ci sono ancora. */
   beforeShop?: boolean;
   /** Il giorno mostrato è domenica: la parte da preparazione viene da quella di oggi. */
@@ -350,7 +361,7 @@ function portionChanged(line: IngredientLine, dayType: DayType, scale: number): 
   return portionParts(line, dayType, FOODS, scale).portion !== portionParts(line, 'palestra', FOODS, 1).portion;
 }
 
-function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeShop, sunday, onSwap }: MealCardProps) {
+function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, beforeShop, sunday, onSwap }: MealCardProps) {
   const recipe = entry.recipe;
   const n = useMemo(() => recipeNutrition(recipe, dayType, FOODS, scale), [recipe, dayType, scale]);
   const [open, setOpen] = useState(false);
@@ -382,7 +393,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
 
   return (
     <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: ${recipe.name}`}>
-      <Pressable onPress={openRecipe} pressScale={0.985} className="flex w-full items-center gap-3.5 p-4 pb-3.5" aria-label={`${title}, ${recipe.name}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}. Apri la ricetta`}>
+      <Pressable onPress={openRecipe} pressScale={0.985} className="flex w-full items-center gap-3.5 p-4 pb-3.5" aria-label={`${title}, ${recipe.name}${carry ? ', da portare al lavoro' : ''}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}. Apri la ricetta`}>
         <span className="relative size-14 shrink-0 self-start">
           <DishArt recipe={recipe} dayType={colorType} variant="thumb" className="size-full" />
         </span>
@@ -390,6 +401,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, beforeS
           <span className="flex min-w-0 items-center gap-2">
             <span className="t-label truncate text-ink-3">{title}</span>
             {time && <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{time}</span>}
+            {carry && <span className="t-caption shrink-0 font-semibold text-ink-2">Da portare</span>}
           </span>
           <span className="t-headline mt-0.5 text-ink">{recipe.name}</span>
           <span className="t-footnote mt-1 text-ink-2">

@@ -42,6 +42,9 @@ function preShoppingSub(shopping: NowContentContext['shopping']): string {
   return `Proteine, un carboidrato e frutta o verdura. Il menù parte dopo la spesa${when}.`;
 }
 
+/** Pillola dei pasti che cadono durante il lavoro (`DayItem.carry`). */
+export const CARRY_META = 'Da portare';
+
 /** Il conto alla rovescia sta nell'etichetta solo entro 4 ore. */
 export const COUNTDOWN_MAX_MIN = 240;
 
@@ -75,12 +78,14 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
     case 'pasto': {
       if (item.preShopping) return { kicker: item.title, headline: PRE_SHOPPING_HEADLINE, sub: preShoppingSub(ctx.shopping), meta: [] };
       const recipe = item.ref ? RECIPES[item.ref] : undefined;
-      if (!recipe) return { kicker: item.title, headline: item.detail ?? item.title, meta: [] };
+      // Un pasto che cade durante il lavoro lo dice per primo: si porta da casa.
+      const carry = item.carry ? CARRY_META : '';
+      if (!recipe) return { kicker: item.title, headline: item.detail ?? item.title, meta: [carry].filter(Boolean) };
       const n = mealNutrientsFor(item, ctx.mealValues);
       return {
         kicker: item.title,
         headline: recipe.name,
-        meta: [n ? fmtKcal(n.kcal) : '', n ? `${Math.round(n.proteinG)} g proteine` : '', fmtMinutes(recipe.prepMin)].filter(Boolean),
+        meta: [carry, n ? fmtKcal(n.kcal) : '', n ? `${Math.round(n.proteinG)} g proteine` : '', fmtMinutes(recipe.prepMin)].filter(Boolean),
       };
     }
     case 'palestra': {
@@ -111,9 +116,9 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
     case 'fisio':
       return { kicker: 'Fisioterapista', headline: item.title, meta: (item.detail ?? '').split(' · ').filter(Boolean) };
     case 'integratori':
-      return { kicker: item.title, headline: item.detail ?? item.title, meta: ['Con il pasto'] };
+      return { kicker: item.title, headline: item.detail ?? item.title, meta: [item.carry ? 'Da portare con il pasto' : 'Con il pasto'] };
     case 'minima':
-      return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: [] };
+      return { kicker: 'Giornata minima', headline: item.title, sub: item.detail, meta: item.carry ? [CARRY_META] : [] };
     case 'spesa':
       if (item.id === STARTER_SHOPPING_ID) {
         // Solo il numero dei prodotti: che le ricette siano veloci lo dice il menù, la pillola restava su due righe.

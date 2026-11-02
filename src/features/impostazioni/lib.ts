@@ -2,13 +2,86 @@
  * Logica condivisa da Impostazioni e Benvenuto: etichette, riassunti e validazioni del profilo e del piano.
  * Funzioni pure (testate in lib.test.ts).
  */
-import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
+import type { DayType, FootballKind, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
+import { daySchedule, mealSchedule } from '../../engine/mealTimes';
 import { droppedByOverride, sessionFor } from '../../engine/plan/program';
 import { MATCH_CARB_G_PER_KG } from '../../engine/targets';
+import { dayMinutes } from '../../engine/sleep';
+import { DEFAULT_GYM_TIME } from '../../engine/timeline';
 import { IMPACT_PAIN_THRESHOLD, impactThresholdFor, isElbowSite, isLowerLegSite } from '../../engine/training';
-import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, capitalize, listIt, plural } from '../../lib/format';
+import { normalizeWork, overlapsWork, workSpans } from '../../engine/work';
+import { DAY_TYPES, FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, capitalize, listIt, plural } from '../../lib/format';
+
+
+// ───────────────────────── Lavoro ─────────────────────────
+
+const FOOTBALL_SUBJECT: Record<FootballKind, string> = {
+  partita: 'La partita',
+  calcetto: 'Il calcetto',
+  allenamento: 'L’allenamento',
+};
+
+/**
+ * Avvisi brevi del lavoro di un giorno della settimana tipo: palestra o calcio che si sovrappongono al lavoro (la seduta
+ * con la sua durata stimata), colazione che per stare prima del lavoro servirebbe prima della sveglia del piano
+ * (`earlyBreakfast` di `daySchedule`). Vuoto senza lavoro.
+ */
+export function workWarnings(day: ScheduleDay, plan: Pick<Plan, 'mealTimes' | 'sleep'>): string[] {
+  const spans = workSpans(day.work, plan);
+  if (!spans.length) return [];
+  const out: string[] = [];
+  if (day.gymSessionId) {
+    const time = day.gymTime ?? DEFAULT_GYM_TIME;
+    const start = dayMinutes(time, plan);
+    if (overlapsWork(start, start + (SESSIONS[day.gymSessionId]?.estMin ?? 55), spans)) {
+      out.push(`La seduta ${day.gymSessionId} delle ${time} cade durante il lavoro.`);
+    }
+  }
+  if (day.football) {
+    const start = dayMinutes(day.football.time, plan);
+    if (overlapsWork(start, start + Math.max(0, day.football.durationMin), spans)) {
+      out.push(`${FOOTBALL_SUBJECT[day.football.kind]} delle ${day.football.time} cade durante il lavoro.`);
+    }
+  }
+  const early = daySchedule(day, plan).earlyBreakfast;
+  if (early) out.push(`La colazione servirebbe alle ${early}, prima della sveglia delle ${plan.sleep.wake}.`);
+  return out;
+}
+
+/**
+ * Cosa fa il lavoro ai pasti di un giorno, in una riga: "Spuntino da portare · pranzo alle 14:45"; "Pasti agli orari di
+ * sempre" se non li tocca. Null senza lavoro.
+ */
+export function workMealNote(day: ScheduleDay, plan: Pick<Plan, 'mealTimes' | 'sleep'>): string | null {
+  if (!normalizeWork(day.work)) return null;
+  const free = mealSchedule({ ...day, work: undefined }, plan);
+  const meals = mealSchedule(day, plan);
+  const parts = MEAL_ORDER.map((slot) => {
+    const name = MEAL_SLOT_LABEL[slot].toLowerCase();
+    const moved = meals[slot].time !== free[slot].time;
+    if (meals[slot].carry) return moved ? `${name} alle ${meals[slot].time} da portare` : `${name} da portare`;
+    return moved ? `${name} alle ${meals[slot].time}` : '';
+  }).filter(Boolean);
+  return parts.length ? capitalize(parts.join(' · ')) : 'Pasti agli orari di sempre';
+}
+
+/** Settimana tipo senza l'orario di lavoro: «Ripristina la settimana tipo» tocca le attività, non il lavoro. */
+export function weekWithoutWork(week: readonly ScheduleDay[]): ScheduleDay[] {
+  return week.map((d) => {
+    const { work: _work, ...rest } = d;
+    return rest;
+  });
+}
+
+/** La settimana tipo `base` con l'orario di lavoro di `from`, giorno per giorno. */
+export function withWorkOf(base: readonly ScheduleDay[], from: readonly ScheduleDay[]): ScheduleDay[] {
+  return base.map((d) => {
+    const work = normalizeWork(from.find((x) => x.weekday === d.weekday)?.work);
+    return work ? { ...d, work } : { ...d };
+  });
+}
 
 // ───────────────────────── Obiettivo ─────────────────────────
 
@@ -156,13 +229,15 @@ export function matchCarbNote(week: ScheduleDay[], calcioCarbG: number, weightKg
 const daysOf = (week: ScheduleDay[], pred: (d: ScheduleDay) => boolean) =>
   week.filter(pred).map((d) => WEEKDAY_SHORT[d.weekday]);
 
-/** "Calcio lun, mer e gio · palestra mar, ven e sab" */
+/** "Calcio lun, mer e gio · palestra mar, ven e sab · lavoro lun, mar, mer, gio e ven" */
 export function weekSummary(week: ScheduleDay[]): string {
   const parts: string[] = [];
   const football = daysOf(week, (d) => Boolean(d.football));
   const gym = daysOf(week, (d) => Boolean(d.gymSessionId));
+  const work = daysOf(week, (d) => Boolean(normalizeWork(d.work)));
   if (football.length) parts.push(`calcio ${listIt(football)}`);
   if (gym.length) parts.push(`palestra ${listIt(gym)}`);
+  if (work.length) parts.push(`lavoro ${listIt(work)}`);
   if (!parts.length) return 'Nessuna attività in programma';
   const s = parts.join(' · ');
   return s.charAt(0).toUpperCase() + s.slice(1);

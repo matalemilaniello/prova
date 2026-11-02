@@ -1,7 +1,8 @@
 /**
  * Contesto del coach: il prompt di sistema (stabile, va in cache) e un riassunto compatto in testo dello
  * stato dell'utente, ricostruito a ogni domanda: profilo, piano, giornata di oggi con gli stati delle voci,
- * menù con i valori, ultimi controlli del mattino, dolori, sedute e calcio recenti, settimana.
+ * menù con i valori, ultimi controlli del mattino, dolori, sedute e calcio recenti, settimana. Con l'orario di
+ * lavoro (`ScheduleDay.work`), i blocchi di oggi e della settimana con i pasti spostati o da portare.
  *
  * Privacy: il nome non viene mai inviato. L'interfaccia mostra all'utente questo stesso testo.
  * Ogni sezione è protetta: se un motore fallisce, il coach riceve comunque il resto.
@@ -12,6 +13,7 @@ import { SESSIONS } from '../data/sessions';
 import {
   DAY_TYPE_LABEL,
   FOOTBALL_LABEL,
+  MEAL_SLOT_LABEL,
   WEEKDAY_SHORT,
   capitalize,
   fmtHours,
@@ -34,7 +36,8 @@ import {
   weekStart,
   weekdayOf,
 } from './dates';
-import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate } from './menu';
+import { mealTimesFor, workBlocksFor } from './mealTimes';
+import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS, mealsForDate } from './menu';
 import { dayCarbScale, dayNutritionDetail, dayTargetFor, eatenMeal, recipeNutrition } from './nutrition';
 import { droppedByOverride, sessionFor } from './plan/program';
 import { firstReviewDate, MIN_NUTRITION_DAYS, reviewAvailable, weeklyStepStatus, weekStats } from './review';
@@ -42,6 +45,7 @@ import { checkInSleepHours, curfewFor, planDayISO } from './sleep';
 import { ageFrom, MATCH_CARB_G_PER_KG } from './targets';
 import { adherenceSummary, buildDay, doseUndefined, effectiveStatus, takenSupplements } from './timeline';
 import { bestSet, findExercise, impactThresholdFor, isElbowSite, isLowerLegSite, loadStatus, nextPlannedSession, painGate } from './training';
+import { formatWork, normalizeWork } from './work';
 
 // ───────────────────────── Prompt di sistema ─────────────────────────
 
@@ -192,6 +196,8 @@ function weekdayPlan(state: AppData): string {
   return days
     .map((d) => {
       const parts: string[] = [];
+      const work = normalizeWork(d.work);
+      if (work) parts.push(`lavoro ${formatWork(work)}`);
       if (d.football) parts.push(`${FOOTBALL_LABEL[d.football.kind].toLowerCase()} ${d.football.time}, ${n0(d.football.durationMin)} min`);
       if (d.gymSessionId) {
         const s = SESSIONS[d.gymSessionId];
@@ -219,6 +225,8 @@ function planSection(state: AppData, today: ISODate): string[] {
   );
   const mt = plan.mealTimes;
   lines.push(`Orari dei pasti: colazione ${mt.colazione}, spuntino ${mt.spuntino}, pranzo ${mt.pranzo}, merenda ${mt.merenda}, cena ${mt.cena} (nei giorni di calcio serale merenda pre-calcio e cena di recupero).`);
+  const workDays = workMealsLine(state, today);
+  if (workDays) lines.push(workDays);
   const supp = takenSupplements(plan);
   if (supp.length) lines.push(`Integratori: ${supp.map((x) => `${x.name}, ${lowerFirst(x.dose)} (${x.timing})`).join('; ')}.`);
   const undecided = plan.supplements.filter((x) => x.active && doseUndefined(x));
@@ -249,6 +257,37 @@ function planSection(state: AppData, today: ISODate): string[] {
 }
 
 
+/** "spuntino da portare, pranzo alle 14:45": come il lavoro sposta i pasti di un giorno, vuoto se non li tocca. */
+function workMealChanges(iso: ISODate, plan: AppData['plan']): string {
+  const free = mealTimesFor(iso, { ...plan, week: plan.week.map((d) => ({ ...d, work: undefined })) });
+  const withWork = mealTimesFor(iso, plan);
+  return MEAL_SLOTS.map((slot) => {
+    const m = withWork[slot];
+    const name = MEAL_SLOT_LABEL[slot].toLowerCase();
+    if (m.carry) return `${name} da portare alle ${m.time}`;
+    return m.time !== free[slot].time ? `${name} alle ${m.time}` : '';
+  })
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * Giorni di lavoro della settimana in corso, con i pasti spostati o da portare: il coach sa perché un pasto è a
+ * quell'ora. Null senza lavoro.
+ */
+function workMealsLine(state: AppData, today: ISODate): string | null {
+  const ws = weekStart(today);
+  const days = [0, 1, 2, 3, 4, 5, 6]
+    .map((i) => addDays(ws, i))
+    .filter((iso) => workBlocksFor(iso, state.plan).length > 0)
+    .map((iso) => {
+      const changes = workMealChanges(iso, state.plan);
+      return `${WEEKDAY_SHORT[weekdayOf(iso)]} ${formatWork(workBlocksFor(iso, state.plan))}${changes ? ` (${changes})` : ''}`;
+    });
+  if (!days.length) return null;
+  return `Lavoro: ${days.join('; ')}. I pasti si spostano nelle pause o a fine turno; quelli da portare si mangiano al lavoro.`;
+}
+
 /** Provenienza di un pasto stimato nella riga del coach: il piano B al bar resta «ordine al bar», come prima. */
 const EATEN_SOURCE_LABEL: Record<MealSource, string> = {
   bar: 'ordine al bar',
@@ -266,6 +305,11 @@ function todaySection(state: AppData, today: ISODate): string[] {
   const lines: string[] = [];
   const eve = isMatchEve(today, plan) ? ', vigilia della partita (porzioni e obiettivo da giorno di calcio)' : '';
   lines.push(`Tipo di giorno: ${DAY_TYPE_LABEL[dayType].toLowerCase()}${eve}, obiettivo ${fmtKcal(t.kcal)} (${macros(t)}).`);
+  const work = workBlocksFor(today, plan);
+  if (work.length) {
+    const changes = workMealChanges(today, plan);
+    lines.push(`Lavoro oggi: ${formatWork(work)}${changes ? `; pasti: ${changes}` : ''}. Durante il lavoro non proporre cose da fare, se non i pasti da portare.`);
+  }
 
   const items = buildDay(today, state);
   const status = effectiveStatus(today, state, items);
@@ -297,6 +341,7 @@ function todaySection(state: AppData, today: ISODate): string[] {
     } else if (it.detail) {
       label += `: ${it.detail}`;
     }
+    if (it.carry) label += ' (da portare al lavoro)';
     const note = log?.notes?.[it.id];
     // Pasto stimato che vale (`eatenMeal`: piano B al bar, foto, piatto salvato): i suoi valori, non quelli della ricetta.
     const bar = it.kind === 'pasto' && it.slot ? eatenMeal(log, it.slot as MealSlot) : null;

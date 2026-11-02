@@ -53,6 +53,7 @@ export function TomorrowSheet({ open, date, items, dayType, matchEve, onClose, o
               <div className="min-w-0 flex-1">
                 <p className="t-callout font-semibold leading-snug text-ink">{i.title}</p>
                 {i.detail && <p className="t-footnote mt-0.5 line-clamp-1 text-ink-2">{i.detail}</p>}
+                {i.carry && <p className="t-caption mt-0.5 font-medium text-ink-2">Da portare al lavoro</p>}
               </div>
             </li>
           ))}

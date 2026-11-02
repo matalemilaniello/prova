@@ -488,7 +488,7 @@ function TimelineRow({
         <button
           type="button"
           {...lp}
-          aria-label={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}`}
+          aria-label={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}${item.carry ? ', da portare al lavoro' : ''}`}
           aria-haspopup={opens ? 'dialog' : undefined}
           className={cn(
             'flex min-h-12 w-full items-start gap-2 rounded-[14px] pl-1.5 pr-1 text-left transition-colors duration-150 active:bg-ink-soft',
@@ -508,6 +508,7 @@ function TimelineRow({
             {status === 'saltato' && <span className="t-caption mt-1 block font-medium text-ink-3">{note ? `Saltato: ${note}` : 'Saltato'}</span>}
             {!status && muted && <span className="t-caption mt-1 block font-medium text-ink-3">Prima dell’inizio</span>}
             {!status && appointment && <span className="t-caption mt-1 block font-medium text-ink-3">Non conta oggi, segna minuti e fatica</span>}
+            {!status && item.carry && <span className="t-caption mt-1 block font-medium text-ink-2">Da portare al lavoro</span>}
             {!status && overdue && <span className="t-caption mt-1 block font-medium text-warn-ink">Da segnare</span>}
           </span>
         </button>

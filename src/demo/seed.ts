@@ -36,6 +36,7 @@ import {
   weekStart,
   weekdayOf,
 } from '../engine/dates';
+import { mealTimesFor } from '../engine/mealTimes';
 import { MEAL_SLOTS, mealsForDate, prepInForce } from '../engine/menu';
 import { sessionFor } from '../engine/plan/program';
 import { shoppingList } from '../engine/shopping';
@@ -92,7 +93,9 @@ const MEAL_NOTES = [
 function fallbackItems(iso: ISODate, data: AppData): TimelineItem[] {
   const day = data.plan.week[weekdayOf(iso)];
   const minimal = data.dayLogs[iso]?.minimal;
-  const t = data.plan.mealTimes;
+  // Orari abituali del giorno (con il lavoro, senza gli spostamenti del calcio), come prima `Plan.mealTimes`.
+  const meals = mealTimesFor(iso, data.plan, { football: false });
+  const t = Object.fromEntries(MEAL_SLOTS.map((slot) => [slot, meals[slot].time])) as Record<MealSlot, string>;
   if (minimal) {
     return [
       { id: 'minima:proteine', time: t.colazione, kind: 'minima', title: 'Proteine a ogni pasto' },

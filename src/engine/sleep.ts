@@ -20,6 +20,12 @@ export function dayCutoffMin(plan: { sleep: Pick<Plan['sleep'], 'wake'> }): numb
   return Math.min(600, Math.max(180, wake - 90));
 }
 
+/** Minuti dall'inizio della giornata: 00:30 diventa 24:30 (1470), così resta dopo le 23:00. */
+export function dayMinutes(t: HHMM, plan: { sleep: Pick<Plan['sleep'], 'wake'> }): number {
+  const m = hhmmToMin(t);
+  return m < dayCutoffMin(plan) ? m + 1440 : m;
+}
+
 /**
  * Giornata del piano in corso: prima del confine (sveglia meno 90 minuti) è ancora quella di ieri.
  * Alle 00:40 di giovedì, con sveglia alle 07:15, la giornata è mercoledì.

@@ -7,7 +7,7 @@ import { effectiveDayType, isMatchEve } from '../../engine/menu';
 import { dayCarbScale, dayNutritionDetail, recipeNutrition } from '../../engine/nutrition';
 import { buildDay, type DayItem } from '../../engine/timeline';
 import { fmtKcal, fmtMinutes } from '../../lib/format';
-import { eyebrowKicker, mealNutrientsFor, nowContent, stateLabel } from './nowContent';
+import { CARRY_META, eyebrowKicker, mealNutrientsFor, nowContent, stateLabel } from './nowContent';
 
 const MON: ISODate = '2026-11-02';
 const SUN: ISODate = '2026-11-01';
@@ -110,5 +110,18 @@ describe('card Adesso: seduta', () => {
     const c = nowContent(gym, { ...ctxFor('2026-11-03', state), gym: { own: 45, physio: 24 } });
     expect(c.meta.map((m) => m.replace(/\u00a0/g, ' '))).toEqual(['45 min', '+ 24 min dal fisioterapista']);
     expect(nowContent(gym, { ...ctxFor('2026-11-03', state), gym: { own: 50, physio: 0 } }).meta.map((m) => m.replace(/\u00a0/g, ' '))).toContain('50 min');
+  });
+});
+
+describe('pasti da portare al lavoro', () => {
+  const ctx = { mealValues: {}, curfewIn: 600, bed: '23:15', timeShown: false };
+
+  it('la card Adesso lo dice per primo; gli integratori del pasto vanno con lui', () => {
+    const meal: DayItem = { id: 'pasto:pranzo', time: '14:15', kind: 'pasto', title: 'Pranzo', slot: 'pranzo', carry: true };
+    expect(nowContent(meal, ctx).meta[0]).toBe(CARRY_META);
+    expect(nowContent({ ...meal, carry: undefined }, ctx).meta).not.toContain(CARRY_META);
+    const supp: DayItem = { id: 'integratori:pranzo', time: '14:15', kind: 'integratori', title: 'Integratori a pranzo', detail: 'Magnesio', carry: true };
+    expect(nowContent(supp, ctx).meta).toEqual(['Da portare con il pasto']);
+    expect(nowContent({ ...supp, carry: undefined }, ctx).meta).toEqual(['Con il pasto']);
   });
 });

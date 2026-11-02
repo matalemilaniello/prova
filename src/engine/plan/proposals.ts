@@ -32,6 +32,7 @@ import type {
   PlanPatch,
   PlanProposal,
   Profile,
+  ScheduleDay,
 } from '../../domain/types';
 import { addDays } from '../dates';
 import { hashString } from '../../lib/id';
@@ -82,6 +83,16 @@ function touchedValues(plan: Plan, profile: Profile, patch: PlanPatch): Record<s
   return out;
 }
 
+/**
+ * Settimana tipo senza l'orario di lavoro: il lavoro sposta i pasti, non i tipi di giorno né le sedute, quindi
+ * cambiarlo non supera le proposte di blocco e di menù. Senza lavoro l'impronta è quella di prima.
+ */
+const weekBasis = (week: readonly ScheduleDay[]) =>
+  week.map((d) => {
+    const { work: _work, ...rest } = d;
+    return rest;
+  });
+
 /** Impronta delle parti del piano che il tipo di proposta legge (§ 5.2). */
 export function planBasis(kind: PlanChangeKind, state: ProposalState): string {
   const { plan, profile } = state;
@@ -89,7 +100,7 @@ export function planBasis(kind: PlanChangeKind, state: ProposalState): string {
     case 'blocco':
       return fingerprint({
         kind,
-        week: plan.week,
+        week: weekBasis(plan.week),
         training: plan.training,
         season: plan.season,
         program: plan.program,
@@ -102,7 +113,7 @@ export function planBasis(kind: PlanChangeKind, state: ProposalState): string {
       // Tipi di giorno della settimana (settimana tipo, blocco, settimane alleggerite), obiettivi ed esclusioni.
       return fingerprint({
         kind,
-        week: plan.week,
+        week: weekBasis(plan.week),
         program: plan.program,
         weekOverrides: plan.weekOverrides,
         targets: plan.targets,

@@ -31,6 +31,7 @@ import { FOODS } from '../data/foods';
 import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
 import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
 import { clampKcalCorrection, deficitAtCap } from './energy';
+import { usualMealTime } from './mealTimes';
 import { mealsForDate } from './menu';
 import { dayCarbScale, dayTargetFor, eatenMeal, recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
@@ -1098,11 +1099,13 @@ function loadProposal(stats: WeekStats, plan: Plan): Proposal | null {
 
 function sweetsProposal(stats: WeekStats, plan: Plan): Proposal | null {
   if (stats.sweetsExtra <= 0) return null;
+  // L'orario abituale della merenda; se il lavoro lo cambia da un giorno all'altro, quello della giornata.
+  const merenda = usualMealTime('merenda', plan);
   return {
     id: 'dolci',
     area: 'dolci',
     title: 'Dolci: sposta la voglia',
-    reason: `${stats.sweets} dolci su ${stats.sweetsPlanned} previsti. Merenda proteica alle ${plan.mealTimes.merenda} (yogurt greco e frutta) per arrivare a cena senza fame, e il dolce programmato dopo cena, mai a stomaco vuoto.`,
+    reason: `${stats.sweets} dolci su ${stats.sweetsPlanned} previsti. Merenda proteica ${merenda ? `alle ${merenda}` : 'all’orario della giornata'} (yogurt greco e frutta) per arrivare a cena senza fame, e il dolce programmato dopo cena, mai a stomaco vuoto.`,
     apply: { type: 'none' },
   };
 }
@@ -1275,13 +1278,14 @@ export function stepWaterGlasses(profile: Pick<AppData['profile'], 'waterTargetL
 export function weeklyStepDef(id: WeeklyStepId, state?: Pick<ReviewState, 'profile' | 'plan'>): WeeklyStepDef {
   const glasses = stepWaterGlasses(state?.profile);
   const planned = state?.plan.sweetsPerWeek ?? 3;
-  const snack = state?.plan.mealTimes.spuntino ?? '10:30';
+  // L'orario abituale dello spuntino; se il lavoro lo cambia da un giorno all'altro, niente orario.
+  const snack = state ? usualMealTime('spuntino', state.plan) : '10:30';
   switch (id) {
     case 'frutta-spuntino':
       return {
         id,
         title: 'Un frutto allo spuntino',
-        how: `Ogni giorno un frutto intero allo spuntino delle ${snack}: una mela o una banana si portano in tasca, anche al lavoro.`,
+        how: `Ogni giorno un frutto intero allo spuntino${snack ? ` delle ${snack}` : ''}: una mela o una banana si portano in tasca, anche al lavoro.`,
         why: 'Ogni porzione di frutta e verdura in più, fino a 5 al giorno, si associa a meno infiammazione e a un microbiota più vario.',
         measure: 'manuale',
       };

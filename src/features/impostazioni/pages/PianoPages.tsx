@@ -11,7 +11,8 @@ import { FormRow, MiniStepper, TimePill } from '../components/controls';
 import { SleepStairs, SleepTargetHint } from '../components/SleepStairs';
 import { SupplementList, SupplementSheet } from '../components/SupplementEditor';
 import { DayEditorSheet, WeekDayList } from '../components/WeekEditor';
-import { MEAL_ORDER, mealOrderIssues, sleepSteps } from '../lib';
+import { WorkWeekEditor } from '../components/WorkEditor';
+import { MEAL_ORDER, mealOrderIssues, sleepSteps, weekWithoutWork, withWorkOf } from '../lib';
 import { Page, type PageProps } from './Page';
 
 // ───────────────────────── Settimana ─────────────────────────
@@ -19,20 +20,22 @@ import { Page, type PageProps } from './Page';
 export function SettimanaPage({ onBack, backLabel }: PageProps) {
   const week = useApp((s) => s.plan.week);
   const [editing, setEditing] = useState<Weekday | null>(null);
-  const isDefault = JSON.stringify(week) === JSON.stringify(DEFAULT_WEEK);
+  // Il ripristino riguarda le attività: l'orario di lavoro resta com'è.
+  const isDefault = JSON.stringify(weekWithoutWork(week)) === JSON.stringify(DEFAULT_WEEK);
 
   const reset = () => {
     const before = JSON.parse(JSON.stringify(week)) as ScheduleDay[];
-    useApp.getState().updatePlan({ week: JSON.parse(JSON.stringify(DEFAULT_WEEK)) as ScheduleDay[] });
+    useApp.getState().updatePlan({ week: withWorkOf(JSON.parse(JSON.stringify(DEFAULT_WEEK)) as ScheduleDay[], week) });
     useUi.getState().toast('Settimana tipo ripristinata', 'neutral', { actionLabel: 'Annulla', onAction: () => useApp.getState().updatePlan({ week: before }) });
   };
 
   return (
-    <Page title="Settimana" subtitle="Calcio, palestra e fisioterapista, giorno per giorno. Vale per tutte le settimane." onBack={onBack} backLabel={backLabel}>
+    <Page title="Settimana" subtitle="Calcio, palestra, fisioterapista e lavoro, giorno per giorno. Vale per tutte le settimane." onBack={onBack} backLabel={backLabel}>
       <section className="flex flex-col gap-2">
         <WeekDayList week={week} onSelect={setEditing} />
         <p className="t-footnote px-1 text-ink-3">Il tipo di giorno decide calorie e carboidrati del menù.</p>
       </section>
+      <WorkWeekEditor />
       {!isDefault && (
         <Button variant="ghost" icon={RotateCcw} className="self-center" onClick={reset}>
           Ripristina la settimana tipo
@@ -64,7 +67,7 @@ export function PastiPage({ onBack, backLabel }: PageProps) {
   const issues = mealOrderIssues(mealTimes);
 
   return (
-    <Page title="Orari dei pasti" subtitle="Gli orari dei giorni normali. La giornata li sposta da sola intorno al calcio." onBack={onBack} backLabel={backLabel}>
+    <Page title="Orari dei pasti" subtitle="Gli orari dei giorni normali. La giornata li sposta da sola intorno al calcio e al lavoro." onBack={onBack} backLabel={backLabel}>
       <ListGroup>
         {MEAL_ORDER.map((slot) => (
           <FormRow key={slot} icon={MEAL_ICON[slot].icon} iconTone={MEAL_ICON[slot].tone} label={MEAL_SLOT_LABEL[slot]}>
@@ -84,6 +87,11 @@ export function PastiPage({ onBack, backLabel }: PageProps) {
         <Disclosure title="Nei giorni di calcio serale">
           <p className="t-callout">
             La merenda diventa pre-partita, circa 2 ore e 30 prima, e la cena diventa di recupero, dopo la doccia. Se il calcio finisce tardi la cena è leggera e veloce.
+          </p>
+        </Disclosure>
+        <Disclosure title="Nei giorni di lavoro">
+          <p className="t-callout">
+            Un pasto che cade nel lavoro va in una pausa di almeno 30 minuti, oppure subito dopo, se il lavoro finisce entro un’ora. Altrimenti resta al suo orario ed è da portare. La colazione arriva 45 minuti prima di cominciare, mai prima della sveglia. L’orario di lavoro si scrive in Settimana.
           </p>
         </Disclosure>
       </Card>

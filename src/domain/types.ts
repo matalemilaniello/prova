@@ -18,6 +18,12 @@ export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type DayType = 'calcio' | 'palestra' | 'leggero' | 'riposo';
 
+/** Intervallo di orari nella stessa giornata, con `from` prima di `to` (es. un blocco di lavoro). */
+export interface TimeRange {
+  from: HHMM;
+  to: HHMM;
+}
+
 export interface MacroTarget {
   kcal: number;
   proteinG: number;
@@ -79,6 +85,12 @@ export interface ScheduleDay {
   gymOptional?: boolean;
   /** Esercizi del fisioterapista in questo giorno. */
   physio?: boolean;
+  /**
+   * Orario di lavoro del giorno: da 1 a 4 blocchi in ordine, senza sovrapposizioni (`normalizeWork` in
+   * engine/work.ts). Assente = giorno libero. I pasti si spostano intorno al lavoro (`mealTimesFor` in
+   * engine/mealTimes.ts); il lavoro non si segna e non conta nella giornata.
+   */
+  work?: TimeRange[];
 }
 
 export interface Supplement {
@@ -373,6 +385,8 @@ export interface TimelineItem {
   /** Riferimento: id ricetta, id seduta, tipo di calcio… */
   ref?: string;
   slot?: MealSlot;
+  /** Pasto (o integratori del pasto) che cade durante il lavoro: si porta da casa (`mealTimesFor`). */
+  carry?: boolean;
 }
 
 export type ItemStatus = 'fatto' | 'sostituito' | 'saltato';

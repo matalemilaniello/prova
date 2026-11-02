@@ -2,8 +2,9 @@
  * Dati della schermata Oggi, calcolati una volta per render dai pezzi di stato che servono.
  */
 import { useMemo } from 'react';
-import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget } from '../../domain/types';
+import type { DayType, FootballKind, HHMM, ISODate, ItemStatus, MacroTarget, TimeRange } from '../../domain/types';
 import { addDays, dateRange, daysBetween, weekDates, weekStart, weekdayOf } from '../../engine/dates';
+import { workBlocksFor } from '../../engine/mealTimes';
 import { dayTypeFor, isMatchEve, isStarterDay } from '../../engine/menu';
 import { dayNutritionDetail, dayTargetFor, nutritionStateOf, type DayNutritionDetail } from '../../engine/nutrition';
 import { periodStats } from '../../engine/review';
@@ -74,6 +75,8 @@ export interface OggiData {
   nights: number;
   /** La voce "Adesso"; null quando tutte le voci che contano sono segnate. */
   now: NowPick | null;
+  /** Blocchi di lavoro di oggi (vuoto nei giorni liberi): non si segnano e non contano. */
+  work: TimeRange[];
   overdue: DayItem[];
   /** Voci rimaste aperte ieri (solo la mattina). */
   yesterdayOpen: DayItem[];
@@ -150,13 +153,16 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
   const beforeStart = useMemo(() => (it: DayItem) => isBeforeStart(today, it, plan), [today, plan]);
   const complete = summary.total > 0 && summary.pending === 0;
 
+  const work = useMemo(() => workBlocksFor(today, plan), [today, plan]);
   const now = useMemo(() => {
     if (complete) return null;
+    // Durante il lavoro la card propone solo i pasti (e gli integratori) da portare, poi quello che viene dopo.
     return pickNow(items, status, nowHHMM, plan, {
       skip: checkInDone || status.controllo ? [] : ['controllo'],
       exclude: (it) => isBeforeStart(today, it, plan),
+      work,
     });
-  }, [complete, items, status, nowHHMM, plan, checkInDone, today]);
+  }, [complete, items, status, nowHHMM, plan, checkInDone, today, work]);
 
   const overdue = useMemo(() => overdueItems(items, status, nowHHMM, plan, counts), [items, status, nowHHMM, plan, counts]);
 
@@ -275,6 +281,7 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
     streak,
     nights,
     now,
+    work,
     overdue,
     yesterdayOpen,
     minimal,

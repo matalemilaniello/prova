@@ -32,21 +32,23 @@ import type {
   HHMM,
   ISODate,
   ItemStatus,
-  MealSlot,
   Plan,
   ScheduleDay,
   Supplement,
+  TimeRange,
   TimelineItem,
   TimelineKind,
 } from '../domain/types';
 import { estimateItemSec, SESSIONS } from '../data/sessions';
-import { fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
+import { fmtMinutes, listIt, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
+import { isEveningFootball, mealSchedule, mealTimesFor, PRE_FOOTBALL_MIN_GAP_MIN } from './mealTimes';
 import { MEAL_SLOTS, isStarterDay, mealsForDate, prepInForce } from './menu';
 import { daySession, droppedByOverride, sessionFor } from './plan/program';
 import { shoppingList, type ShoppingLead, type ShoppingOptions } from './shopping';
-import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, timeInBedLabel } from './sleep';
+import { bedtimeFor, curfewFor, dayMinutes, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
+import { afterWork, normalizeWork, spanAt, workSpans } from './work';
 
 /** Lo stato che serve alla timeline. I registri (controlli, sedute, calcio, spesa…) sono facoltativi. */
 export type TimelineState = Pick<AppData, 'plan' | 'dayLogs'> &
@@ -78,20 +80,10 @@ export interface FirstUse {
 
 /** Il controllo del mattino arriva 5 minuti dopo la sveglia. */
 export const CHECKIN_AFTER_WAKE_MIN = 5;
-/** Il calcio è "serale" da quest'ora: merenda pre-calcio e cena di recupero. */
-export const EVENING_FOOTBALL_FROM: HHMM = '17:30';
-/** Anticipo della merenda pre-calcio. */
-export const PRE_FOOTBALL_LEAD_MIN = 150;
-/** La merenda pre-calcio non arriva prima di 2 ore dopo il pranzo… */
-export const PRE_FOOTBALL_AFTER_LUNCH_MIN = 120;
-/** …e non nell'ultima ora prima del calcio. */
-export const PRE_FOOTBALL_MIN_GAP_MIN = 60;
-/** Doccia e rientro: la cena di recupero arriva 30 minuti dopo la fine del calcio. */
-export const RECOVERY_DELAY_MIN = 30;
-/** Se il calcio finisce dopo quest'ora la cena di recupero è veloce e digeribile. */
-export const LATE_FOOTBALL_END: HHMM = '21:30';
 /** Orario degli esercizi del fisioterapista: 75 minuti dopo il pranzo, a casa. */
 export const PHYSIO_AFTER_LUNCH_MIN = 75;
+/** Dal lavoro a casa (esercizi del fisioterapista) o al supermercato: si comincia 30 minuti dopo la fine. */
+export const WORK_RETURN_MIN = 30;
 /** Orario della palestra quando il piano non lo indica. */
 export const DEFAULT_GYM_TIME: HHMM = '17:00';
 /** Soglia di aderenza per una giornata riuscita. */
@@ -122,8 +114,6 @@ export const JOLLY_MAX = 1;
 /** Voci della giornata minima, nell'ordine della specifica. */
 export const MINIMAL_IDS = ['minima:proteine', 'minima:frutto', 'minima:integratori', 'minima:telefono'] as const;
 
-const DAY_MIN = 1440;
-
 /** Ordine a parità di orario: la colazione prima degli integratori, il coprifuoco prima del letto. */
 const KIND_ORDER: Record<DayItemKind, number> = {
   controllo: 0,
@@ -146,73 +136,28 @@ export const FOOTBALL_TITLE: Record<FootballKind, string> = {
   allenamento: 'Allenamento di squadra',
 };
 
-const PRE_FOOTBALL_TITLE: Record<FootballKind, string> = {
-  partita: 'Merenda pre-partita',
-  calcetto: 'Merenda pre-calcetto',
-  allenamento: 'Merenda pre-allenamento',
-};
-
 // ───────────────────────── Orari della giornata ─────────────────────────
 
-/** Inizio della giornata (sveglia − 90 min): unica definizione in `sleep.ts`. */
-export { dayCutoffMin } from './sleep';
+/** Inizio della giornata (sveglia − 90 min) e minuti della giornata: unica definizione in `sleep.ts`. */
+export { dayCutoffMin, dayMinutes } from './sleep';
 
-/** Minuti dall'inizio della giornata: 00:30 diventa 24:30 (1470), così resta dopo le 23:00. */
-export function dayMinutes(t: HHMM, plan: Pick<Plan, 'sleep'>): number {
-  const m = hhmmToMin(t);
-  return m < dayCutoffMin(plan) ? m + DAY_MIN : m;
-}
+/** Orari dei pasti (calcio e lavoro): unica definizione in `mealTimes.ts`. */
+export {
+  EVENING_FOOTBALL_FROM,
+  LATE_FOOTBALL_END,
+  PRE_FOOTBALL_AFTER_LUNCH_MIN,
+  PRE_FOOTBALL_LEAD_MIN,
+  PRE_FOOTBALL_MIN_GAP_MIN,
+  RECOVERY_DELAY_MIN,
+  isEveningFootball,
+  mealSchedule,
+  mealTimesFor,
+  type MealSchedule,
+} from './mealTimes';
 
 /** Arrotonda ai 5 minuti (per eccesso con `up`). */
 function round5(min: number, up = false): number {
   return up ? Math.ceil(min / 5) * 5 : Math.round(min / 5) * 5;
-}
-
-/** Il calcio del giorno è serale (merenda pre-calcio e cena di recupero)? */
-export function isEveningFootball(day: Pick<ScheduleDay, 'football'> | undefined): boolean {
-  return Boolean(day?.football && hhmmToMin(day.football.time) >= hhmmToMin(EVENING_FOOTBALL_FROM));
-}
-
-export interface MealSchedule {
-  time: HHMM;
-  title: string;
-}
-
-/** Orari e titoli dei 5 pasti del giorno, con gli spostamenti dei giorni di calcio. */
-export function mealSchedule(day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>): Record<MealSlot, MealSchedule> {
-  const t = plan.mealTimes;
-  const out = Object.fromEntries(MEAL_SLOTS.map((slot) => [slot, { time: t[slot], title: MEAL_SLOT_LABEL[slot] }])) as Record<
-    MealSlot,
-    MealSchedule
-  >;
-  const f = day?.football;
-  if (!f) return out;
-
-  const start = hhmmToMin(f.time);
-  const end = start + Math.max(0, f.durationMin);
-
-  if (isEveningFootball(day)) {
-    // Merenda pre-calcio: ~2 h 30 prima, ma non a ridosso del pranzo né nell'ultima ora.
-    let pre = start - PRE_FOOTBALL_LEAD_MIN;
-    pre = Math.max(pre, hhmmToMin(t.pranzo) + PRE_FOOTBALL_AFTER_LUNCH_MIN);
-    pre = Math.min(pre, start - PRE_FOOTBALL_MIN_GAP_MIN);
-    out.merenda = { time: minToHHMM(round5(pre)), title: PRE_FOOTBALL_TITLE[f.kind] };
-
-    // Cena di recupero dopo il calcio (mai prima del solito orario di cena).
-    const recovery = Math.max(dayMinutes(t.cena, plan), round5(end + RECOVERY_DELAY_MIN, true));
-    const late = end > hhmmToMin(LATE_FOOTBALL_END);
-    out.cena = { time: minToHHMM(recovery), title: late ? 'Cena di recupero, veloce e digeribile' : 'Cena di recupero' };
-    return out;
-  }
-
-  // Calcio di giorno: il pasto che cadrebbe durante la partita si sposta subito dopo.
-  for (const slot of MEAL_SLOTS) {
-    const m = dayMinutes(out[slot].time, plan);
-    if (m > start && m < end) {
-      out[slot] = { time: minToHHMM(round5(end + RECOVERY_DELAY_MIN, true)), title: `${MEAL_SLOT_LABEL[slot]} di recupero` };
-    }
-  }
-  return out;
 }
 
 // ───────────────────────── Costruzione delle voci ─────────────────────────
@@ -271,31 +216,36 @@ export function physioMinutes(physio: AppData['physio'] | undefined): number {
 
 function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
   const { plan } = state;
-  const t = plan.mealTimes;
+  // Gli orari abituali del giorno (con il lavoro, senza gli spostamenti del calcio), come prima `Plan.mealTimes`.
+  const t = mealTimesFor(iso, plan, { football: false });
+  const carry = (slot: 'colazione' | 'spuntino') => (t[slot].carry ? { carry: true } : {});
   const curfew = curfewFor(iso, plan);
   const bed = bedtimeFor(iso, plan);
   const supps = takenSupplements(plan);
   const items: TimelineItem[] = [
     {
       id: 'minima:proteine',
-      time: t.colazione,
+      time: t.colazione.time,
       kind: 'minima',
       title: 'Proteine a ogni pasto',
       detail: 'Un palmo di carne, pesce, uova, legumi o latticini',
+      ...carry('colazione'),
     },
     {
       id: 'minima:frutto',
-      time: t.spuntino,
+      time: t.spuntino.time,
       kind: 'minima',
       title: 'Almeno un frutto',
       detail: 'Intero e senza preparazione: mela, pera o banana',
+      ...carry('spuntino'),
     },
     {
       id: 'minima:integratori',
-      time: t.colazione,
+      time: t.colazione.time,
       kind: 'minima',
       title: 'Integratori',
       detail: supps.length ? supplementList(supps) : 'Quelli del piano, con la colazione',
+      ...carry('colazione'),
     },
     {
       id: 'minima:telefono',
@@ -420,6 +370,8 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
       detail: entry?.recipe?.name,
       ref: entry?.recipeId || undefined,
       slot,
+      // Cade durante il lavoro: da portare.
+      ...(schedule[slot].carry ? { carry: true } : {}),
     });
   }
 
@@ -437,6 +389,8 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
       kind: 'integratori',
       title: SUPP_TITLE[timing],
       detail: supplementList(group),
+      // Con un pasto da portare, anche gli integratori di quel pasto vanno al lavoro.
+      ...(timing !== 'sera' && schedule[timing].carry ? { carry: true } : {}),
     });
   }
 
@@ -481,14 +435,19 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
   return sortTimeline(items, plan);
 }
 
-/** Orario degli esercizi del fisioterapista: dopo pranzo, oppure dopo la palestra se si sovrappongono. */
+/**
+ * Orario degli esercizi del fisioterapista: dopo pranzo, oppure dopo la palestra se si sovrappongono. Si fanno a casa:
+ * se cadono durante il lavoro, 30 minuti dopo la fine (`WORK_RETURN_MIN`).
+ */
 export function physioTime(day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>, mins = 15, gymMin?: number): HHMM {
   const schedule = mealSchedule(day, plan);
-  let at = dayMinutes(schedule.pranzo.time, plan) + PHYSIO_AFTER_LUNCH_MIN;
+  const len = Math.max(mins, 15);
+  const work = workSpans(day?.work, plan);
+  let at = afterWork(dayMinutes(schedule.pranzo.time, plan) + PHYSIO_AFTER_LUNCH_MIN, len, work, WORK_RETURN_MIN);
   if (day?.gymSessionId) {
     const start = dayMinutes(day.gymTime ?? DEFAULT_GYM_TIME, plan);
     const end = start + (gymMin ?? SESSIONS[day.gymSessionId]?.estMin ?? 55);
-    if (at + Math.max(mins, 15) > start && at < end) at = end + 15;
+    if (at + len > start && at < end) at = afterWork(end + 15, len, work, WORK_RETURN_MIN);
   }
   return minToHHMM(round5(at));
 }
@@ -551,7 +510,8 @@ export interface StarterShopping {
 
 /**
  * Finestre occupate di una giornata, in minuti dalla mezzanotte: la palestra (da 15 minuti prima a 30 minuti dopo
- * la fine), il calcio dalla merenda pre-calcio alla fine, gli esercizi del fisioterapista se ci sono.
+ * la fine), il calcio dalla merenda pre-calcio alla fine, gli esercizi del fisioterapista se ci sono, il lavoro (con
+ * gli stessi margini della palestra).
  */
 function busyWindows(
   day: ScheduleDay | undefined,
@@ -575,6 +535,7 @@ function busyWindows(
     const at = hhmmToMin(physioTime(day, { mealTimes: plan.mealTimes, sleep: plan.sleep }, mins, gymMin));
     out.push([at, at + mins]);
   }
+  for (const b of normalizeWork(day.work) ?? []) out.push([hhmmToMin(b.from) - GYM_LEAD_MIN, hhmmToMin(b.to) + GYM_AFTER_MIN]);
   return out;
 }
 
@@ -593,7 +554,10 @@ export function starterShopping(
 ): StarterShopping | null {
   const first = firstUseOf(plan);
   if (!first) return null;
-  const after = round5(hhmmToMin(plan.mealTimes.pranzo) + STARTER_SHOPPING_AFTER_LUNCH_MIN, true);
+  // Un'ora dopo il pranzo abituale del giorno (con il lavoro, senza gli spostamenti del calcio).
+  const lunch = (iso: ISODate) =>
+    plan.week && plan.sleep ? mealTimesFor(iso, { week: plan.week, mealTimes: plan.mealTimes, sleep: plan.sleep }, { football: false }).pranzo.time : plan.mealTimes.pranzo;
+  const afterFor = (iso: ISODate) => round5(hhmmToMin(lunch(iso)) + STARTER_SHOPPING_AFTER_LUNCH_MIN, true);
   const latest = hhmmToMin(STARTER_SHOPPING_LATEST);
   /** Primo orario libero da `from` alle 19:30, a passi di 5 minuti; null se la giornata è piena. */
   const freeFrom = (iso: ISODate, from: number): number | null => {
@@ -605,10 +569,10 @@ export function starterShopping(
     return null;
   };
   let date = first.date;
-  let at = weekdayOf(date) === 6 ? null : freeFrom(date, Math.max(after, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true)));
+  let at = weekdayOf(date) === 6 ? null : freeFrom(date, Math.max(afterFor(date), round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true)));
   if (at === null) {
     date = addDays(date, 1);
-    at = freeFrom(date, after) ?? after;
+    at = freeFrom(date, afterFor(date)) ?? afterFor(date);
   }
   if (weekdayOf(date) >= 5) return null;
   const monday = weekStart(date);
@@ -642,7 +606,7 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   }
 
   if (wd === 5) {
-    // Dopo la seduta del sabato mattina, se c'è e si sovrappone.
+    // Dopo la seduta del sabato mattina, se c'è e si sovrappone; dopo il lavoro, se cade lì.
     let at = hhmmToMin(SHOPPING_TIME);
     const gymDay = gymDayOn(iso, day, plan);
     if (gymDay?.gymSessionId) {
@@ -650,6 +614,7 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
       const end = start + gymTotalMin(gymDay.gymSessionId, state, iso);
       if (at < end + 10 && at + 60 > start) at = round5(end + 15, true);
     }
+    at = afterWork(at, 60, workSpans(day?.work, plan), WORK_RETURN_MIN);
     // Chi comincia il sabato fa la spesa dopo il primo avvio, non prima: è la sua prima spesa.
     const first = firstUseOf(plan);
     if (first?.date === iso) at = Math.max(at, round5(hhmmToMin(first.time) + STARTER_SHOPPING_AFTER_START_MIN, true));
@@ -1226,16 +1191,33 @@ export function itemWindowMin(item: DayItem, plan: Pick<Plan, 'week' | 'sleep'>)
 }
 
 /**
+ * La voce cade in un blocco di lavoro non ancora finito e non è da portare: finché si lavora la card Adesso non la
+ * propone (i pasti e gli integratori da portare sì). Finito il blocco torna, se è ancora da segnare.
+ */
+export function heldByWork(item: Pick<DayItem, 'time' | 'carry'>, now: HHMM, work: readonly TimeRange[], plan: Pick<Plan, 'sleep'>): boolean {
+  if (item.carry || !work.length) return false;
+  const span = spanAt(dayMinutes(item.time, plan), workSpans(work, plan));
+  return Boolean(span && dayMinutes(now, plan) < span[1]);
+}
+
+/**
  * La voce da mostrare nella card "Adesso": quella in corso, altrimenti la prossima non segnata,
  * altrimenti l'ultima rimasta indietro. Null se non resta niente da segnare.
+ * Con `work` (i blocchi di lavoro del giorno) restano fuori le voci che cadono nel lavoro e non sono da portare
+ * (`heldByWork`); se restassero solo quelle, la card le mostra lo stesso invece di dire che è tutto segnato.
  */
 export function pickNow(
   items: DayItem[],
   status: Record<string, ItemStatus>,
   now: HHMM,
   plan: Pick<Plan, 'sleep' | 'week'>,
-  opts: { skip?: DayItemKind[]; exclude?: (item: DayItem) => boolean } = {},
+  opts: { skip?: DayItemKind[]; exclude?: (item: DayItem) => boolean; work?: readonly TimeRange[] } = {},
 ): NowPick | null {
+  const work = opts.work;
+  if (work?.length) {
+    const pick = pickNow(items, status, now, plan, { skip: opts.skip, exclude: (it) => Boolean(opts.exclude?.(it)) || heldByWork(it, now, work, plan) });
+    if (pick) return pick;
+  }
   const nowM = dayMinutes(now, plan);
   const pending = items.filter((it) => !status[it.id] && !opts.skip?.includes(it.kind) && !opts.exclude?.(it));
   if (!pending.length) return null;

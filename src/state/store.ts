@@ -90,6 +90,7 @@ import { roundNutrients } from '../engine/nutrition';
 import { planTodayISO } from '../engine/sleep';
 import { applyPatch, beforeOf, dueApprovals, entersPlanAtApproval, isPendingApproval, isSuperseded, pendingApprovals, projectedState } from '../engine/plan/proposals';
 import { IMPACT_PAIN_THRESHOLD, isLowerLegSite } from '../engine/training';
+import { normalizeWork } from '../engine/work';
 import { uid } from '../lib/id';
 
 // ───────────────────────── Storage sicuro ─────────────────────────
@@ -295,6 +296,8 @@ function normalizeScheduleDay(src: Record<string, unknown>, d: ScheduleDay, i: W
     gymTime: isHHMM(src.gymTime) ? src.gymTime : undefined,
     gymOptional: src.gymOptional === true ? true : undefined,
     physio: src.physio === true ? true : undefined,
+    // Orario di lavoro: blocchi validi, in ordine, sovrapposti uniti, al massimo 4; vuoto = campo tolto.
+    work: normalizeWork(src.work),
   } as ScheduleDay);
 }
 
@@ -2014,7 +2017,17 @@ export const useApp = create<AppState>()(
           set((s) => ({
             plan: {
               ...s.plan,
-              week: s.plan.week.map((d) => (d.weekday === weekday ? ({ ...d, ...patch, weekday } as ScheduleDay) : d)),
+              week: s.plan.week.map((d) => {
+                if (d.weekday !== weekday) return d;
+                const next = { ...d, ...patch, weekday } as ScheduleDay;
+                // L'orario di lavoro si salva solo normalizzato; senza blocchi il campo sparisce.
+                if ('work' in patch) {
+                  const work = normalizeWork(patch.work);
+                  if (work) next.work = work;
+                  else delete next.work;
+                }
+                return next;
+              }),
             },
           })),
 

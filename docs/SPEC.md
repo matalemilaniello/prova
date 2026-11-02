@@ -799,3 +799,42 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   - `nutritionStateOf(s)` in `engine/nutrition.ts`: lo stato dei valori e degli obiettivi di una data con piano, diario,
     controlli, profilo e revisioni; `useNutritionState()` lo usa. Senza le revisioni `goalDeltaOf` non vede le
     correzioni accettate e i limiti dell'energia restano a metà per chi è in dimagrimento senza `Plan.goalDeltaKcal`.
+- Orario di lavoro nella settimana tipo (Impostazioni, Oggi, Settimana, calendario, coach; `DATA_VERSION` resta 4):
+  - `types.ts`: `TimeRange { from: HHMM; to: HHMM }`, `ScheduleDay.work?: TimeRange[]` (da 1 a 4 blocchi in ordine,
+    senza sovrapposizioni; assente = giorno libero) e `TimelineItem.carry?: boolean` (pasto, o integratori del pasto, da
+    portare al lavoro). Senza il campo l'app è quella di prima: l'istantanea di compatibilità non cambia.
+  - `engine/work.ts`: `normalizeWork` (orari validi, inizio prima della fine, ordinati, sovrapposti o contigui uniti,
+    al massimo `MAX_WORK_BLOCKS` = 4, vuoto = undefined; la usano `normalizeScheduleDay` in `normalizeData` e
+    `setScheduleDay`, che toglie il campo vuoto), `parseWork` (testo delle impostazioni: "9-13.30", "8:30-10:00,
+    10:30-13:00", "dalle 14 alle 18", vuoto o "libero" = giorno libero; errori in italiano), `formatWork`, `workSpans`
+    (minuti della giornata del piano, pause corte unite a richiesta), `spanAt`, `overlapsWork`, `afterWork`. Il backup
+    accetta il campo così com'è e l'importazione lo normalizza.
+  - `engine/mealTimes.ts`: unica fonte degli orari dei pasti. `mealTimesFor(iso, plan, opts?)` per una data,
+    `mealSchedule(day, plan, opts?)` e `daySchedule` (con `earlyBreakfast`) per un giorno della settimana tipo,
+    `usualMealTime(slot, plan)`, `scheduleDayOf`, `workBlocksFor`; con `{ football: false }` gli orari abituali (lavoro sì,
+    calcio no), al posto di chi leggeva `Plan.mealTimes` così com'era (giornata minima, spesa di avvio, revisione). Le
+    regole del calcio e le costanti relative (`EVENING_FOOTBALL_FROM`, `PRE_FOOTBALL_*`, `RECOVERY_DELAY_MIN`,
+    `LATE_FOOTBALL_END`, `isEveningFootball`) si spostano qui da `timeline.ts`, che le riesporta; `dayMinutes` passa a
+    `sleep.ts` (riesportata). Regole del lavoro, dopo quelle del calcio: colazione a inizio lavoro meno 45 minuti se il
+    lavoro comincia prima di colazione più 30, mai prima del controllo del mattino (sveglia più 5), con l'avviso se
+    servirebbe prima della sveglia; un pasto che cade nel lavoro va in una pausa di almeno 30 minuti entro 90 minuti,
+    altrimenti a fine lavoro più 15 se finisce entro 60, altrimenti 45 minuti prima di un lavoro cominciato da non più di
+    30, altrimenti resta ed è da portare; tra due pasti almeno 90 minuti (o la distanza del piano, se più corta), con il
+    pasto dopo che segue quello spostato avanti. Passano da qui la timeline (pasti, integratori, giornata minima), gli
+    esercizi del fisioterapista (fuori dal lavoro, 30 minuti dopo la fine: `WORK_RETURN_MIN`), la spesa del sabato (dopo
+    il lavoro), la spesa di avvio (il lavoro tra le finestre occupate), il calendario (orari del giorno e "Da portare al
+    lavoro."), Settimana (`mealScheduleFor`, Menù e ricetta), la revisione (merenda e spuntino della settimana, senza
+    orario se il lavoro lo cambia da un giorno all'altro), il coach e i dati di esempio. Le pagine Orari dei pasti e
+    Impostazioni mostrano e modificano ancora `Plan.mealTimes`, gli orari dei giorni normali.
+  - `engine/timeline.ts`: `heldByWork(item, now, work, plan)` e `pickNow(…, { work })`: durante un blocco di lavoro la
+    card Adesso non propone le voci che vi cadono, tranne quelle da portare; se restassero solo quelle, le mostra lo
+    stesso. Il lavoro non è una voce della timeline: non si segna e non conta. `planBasis` ignora il lavoro (sposta i
+    pasti, non i tipi di giorno né le sedute), così cambiarlo non supera le proposte di blocco e di menù.
+  - Interfaccia: Impostazioni › Settimana ha la sezione «Lavoro» (`components/WorkEditor.tsx`), un campo per giorno che si
+    salva all'uscita solo se valido e mostra gli orari normalizzati, cosa cambia nei pasti (`workMealNote`) e gli avvisi
+    (`workWarnings`: palestra o calcio nel lavoro, colazione prima della sveglia); «Ripristina la settimana tipo» tiene il
+    lavoro (`weekWithoutWork`, `withWorkOf`); `weekSummary` aggiunge i giorni di lavoro. Oggi mostra il lavoro del giorno
+    in una pillola dell'intestazione (`OggiData.work`) e "Da portare al lavoro" sotto le voci (`CARRY_META` nella card
+    Adesso); Settimana › Menù mostra la pillola del lavoro e "Da portare" accanto all'orario del pasto.
+  - Coach: la settimana tipo dice il lavoro di ogni giorno, il piano i giorni di lavoro della settimana con i pasti
+    spostati o da portare, la giornata il lavoro di oggi; le voci da portare lo dicono nella timeline.

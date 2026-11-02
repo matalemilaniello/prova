@@ -29,6 +29,10 @@ import {
   targetDaysLabel,
   validateBody,
   weekSummary,
+  weekWithoutWork,
+  withWorkOf,
+  workMealNote,
+  workWarnings,
 } from './lib';
 
 describe('profilo', () => {
@@ -200,5 +204,45 @@ describe('pasti, sonno, macro', () => {
     // Senza zone sotto il ginocchio la soglia per gli impatti non conta e non si mostra.
     expect(painSummary(['Gomito'], { painThreshold: 3, impactThreshold: 1 })).toBe('Gomito · soglia 3');
     expect(painSummary([], { painThreshold: 3 })).toBe('Nessuna zona · soglia 3');
+  });
+});
+
+describe('lavoro', () => {
+  const plan = { mealTimes: DEFAULT_MEAL_TIMES, sleep: DEFAULT_SLEEP };
+  const tue = DEFAULT_WEEK[1];
+
+  it('cosa fa il lavoro ai pasti, in una riga', () => {
+    expect(workMealNote(tue, plan)).toBeNull();
+    expect(workMealNote({ ...tue, work: [{ from: '08:00', to: '14:00' }] }, plan)).toBe('Spuntino da portare');
+    expect(workMealNote({ ...tue, work: [{ from: '11:00', to: '14:30' }] }, plan)).toBe('Pranzo alle 14:45');
+    expect(workMealNote({ ...tue, work: [{ from: '09:00', to: '13:00' }, { from: '14:00', to: '18:00' }] }, plan)).toBe(
+      'Spuntino da portare · pranzo alle 13:30 · merenda da portare',
+    );
+    expect(workMealNote({ ...tue, work: [{ from: '18:00', to: '19:00' }] }, plan)).toBe('Pasti agli orari di sempre');
+    expect(workMealNote({ ...DEFAULT_WEEK[6], work: [{ from: '07:00', to: '12:00' }] }, plan)).toBe('Colazione alle 07:20 da portare · spuntino da portare');
+  });
+
+  it('avvisi: palestra o calcio nel lavoro, colazione prima della sveglia', () => {
+    expect(workWarnings(tue, plan)).toEqual([]);
+    expect(workWarnings({ ...tue, work: [{ from: '08:00', to: '14:00' }] }, plan)).toEqual([]);
+    // La seduta A delle 17:00 dura circa un'ora: si sovrappone a un lavoro fino alle 17:30.
+    expect(workWarnings({ ...tue, work: [{ from: '14:00', to: '17:30' }] }, plan)).toEqual(['La seduta A delle 17:00 cade durante il lavoro.']);
+    const mon = DEFAULT_WEEK[0];
+    expect(workWarnings({ ...mon, work: [{ from: '20:00', to: '22:00' }] }, plan)).toEqual(['La partita delle 21:00 cade durante il lavoro.']);
+    expect(workWarnings({ ...DEFAULT_WEEK[3], work: [{ from: '20:00', to: '22:00' }] }, plan)).toEqual(['L’allenamento delle 20:30 cade durante il lavoro.']);
+    expect(workWarnings({ ...DEFAULT_WEEK[6], work: [{ from: '07:00', to: '12:00' }] }, plan)).toEqual([
+      'La colazione servirebbe alle 06:15, prima della sveglia delle 07:15.',
+    ]);
+  });
+
+  it('riepilogo della settimana e ripristino che tiene il lavoro', () => {
+    const week = DEFAULT_WEEK.map((d) => (d.weekday < 5 ? { ...d, work: [{ from: '09:00', to: '13:00' }] } : { ...d }));
+    expect(weekSummary(week)).toBe('Calcio lun, mer e gio · palestra mar, ven e sab · lavoro lun, mar, mer, gio e ven');
+    expect(weekWithoutWork(week)).toEqual(DEFAULT_WEEK);
+    const custom = week.map((d) => ({ ...d, gymSessionId: undefined }));
+    const reset = withWorkOf(DEFAULT_WEEK, custom);
+    expect(reset[0]).toEqual({ ...DEFAULT_WEEK[0], work: [{ from: '09:00', to: '13:00' }] });
+    expect(reset[6]).toEqual(DEFAULT_WEEK[6]);
+    expect(withWorkOf(DEFAULT_WEEK, DEFAULT_WEEK)).toEqual(DEFAULT_WEEK);
   });
 });

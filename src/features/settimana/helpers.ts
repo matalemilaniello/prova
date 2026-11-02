@@ -1,18 +1,13 @@
 /**
  * Utilità della schermata Settimana: orari e titoli dei pasti, attività del giorno, etichette.
- * Gli orari dei pasti vengono dal motore della timeline se c'è (stessa logica della schermata Oggi),
- * altrimenti da un calcolo equivalente semplificato.
+ * Gli orari dei pasti vengono dal motore unico (`mealTimesFor`), la stessa logica della schermata Oggi.
  */
-import type { AppData, DayType, FootballKind, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
-import { addDays, addMinutes, hhmmToMin, isISODate, minToHHMM, weekStart, weekdayOf } from '../../engine/dates';
+import type { AppData, DayType, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
+import { addDays, isISODate, weekStart, weekdayOf } from '../../engine/dates';
+import { mealTimesFor, type MealSchedule } from '../../engine/mealTimes';
 import type { ShoppingLead } from '../../engine/shopping';
 import { STARTER_FIBER_SHARE } from '../../data/menu';
-import { FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
-
-interface MealSchedule {
-  time: HHMM;
-  title: string;
-}
+import { FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
 
 /** Lo stato che serve alle funzioni della timeline usate qui (i registri sono facoltativi). */
 export type DayState = Pick<AppData, 'plan' | 'dayLogs'> & Partial<AppData>;
@@ -33,7 +28,6 @@ interface TimelineDayItem {
 }
 
 type TimelineModule = {
-  mealSchedule?: (day: ScheduleDay | undefined, plan: Pick<Plan, 'mealTimes' | 'sleep'>) => Record<MealSlot, MealSchedule>;
   daySuccessful?: (iso: ISODate, state: AppData) => boolean;
   starterShopping?: (plan: Pick<Plan, 'startDate' | 'mealTimes'>, state?: StarterShoppingState) => { date: ISODate; time: HHMM } | null;
   firstShopping?: (state: DayState) => { id: string; date: ISODate; time: HHMM } | null;
@@ -44,36 +38,12 @@ type TimelineModule = {
 const timelineModules = import.meta.glob<TimelineModule>('../../engine/timeline.ts', { eager: true });
 const timeline: TimelineModule = Object.values(timelineModules)[0] ?? {};
 
-const PRE_TITLE: Record<FootballKind, string> = {
-  partita: 'Merenda pre-partita',
-  calcetto: 'Merenda pre-calcetto',
-  allenamento: 'Merenda pre-allenamento',
-};
-
-/** Orario e titolo dei 5 pasti del giorno, con merenda pre-calcio e cena di recupero. */
+/**
+ * Orario e titolo dei 5 pasti del giorno, con merenda pre-calcio, cena di recupero e i pasti spostati intorno al
+ * lavoro (o da portare): gli stessi di Oggi, da `mealTimesFor`.
+ */
 export function mealScheduleFor(date: ISODate, plan: Plan): Record<MealSlot, MealSchedule> {
-  const day = plan.week.find((d) => d.weekday === weekdayOf(date)) ?? plan.week[weekdayOf(date)];
-  try {
-    const fromTimeline = timeline.mealSchedule?.(day, plan);
-    if (fromTimeline) return fromTimeline;
-  } catch {
-    /* ripiego qui sotto */
-  }
-  const t = plan.mealTimes;
-  const out = {
-    colazione: { time: t.colazione, title: MEAL_SLOT_LABEL.colazione },
-    spuntino: { time: t.spuntino, title: MEAL_SLOT_LABEL.spuntino },
-    pranzo: { time: t.pranzo, title: MEAL_SLOT_LABEL.pranzo },
-    merenda: { time: t.merenda, title: MEAL_SLOT_LABEL.merenda },
-    cena: { time: t.cena, title: MEAL_SLOT_LABEL.cena },
-  };
-  const f = day?.football;
-  if (f && hhmmToMin(f.time) >= hhmmToMin('17:30')) {
-    out.merenda = { time: addMinutes(f.time, -150), title: PRE_TITLE[f.kind] };
-    const end = hhmmToMin(f.time) + f.durationMin;
-    out.cena = { time: minToHHMM(Math.ceil((end + 30) / 5) * 5), title: 'Cena di recupero' };
-  }
-  return out;
+  return mealTimesFor(date, plan);
 }
 
 /** True se la giornata passata è riuscita (se il motore della timeline è disponibile). */

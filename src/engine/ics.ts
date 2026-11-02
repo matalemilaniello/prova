@@ -5,17 +5,19 @@
  * - Orari locali con TZID=Europe/Rome e il relativo VTIMEZONE (ora legale compresa).
  * - Ogni evento si ripete con RRULE:FREQ=WEEKLY;BYDAY=… e ha un VALARM all'orario.
  * - Gli orari vengono dalla stessa timeline della schermata Oggi (merenda e cena spostate nei giorni
- *   di calcio, fisioterapista dopo pranzo o dopo la palestra), così calendario e app non si contraddicono.
+ *   di calcio, pasti spostati intorno al lavoro, fisioterapista dopo pranzo, dopo la palestra o dopo il lavoro), così
+ *   calendario e app non si contraddicono. Un pasto che cade durante il lavoro lo dice: "Da portare al lavoro".
  * - Gli UID sono stabili: rigenerando il file dopo un cambio di piano molti calendari aggiornano gli eventi.
  * - Il coprifuoco segue la scala del sonno: una serie con UNTIL per ogni gradino (un passo a settimana, dal
  *   lunedì), l'ultimo, all'obiettivo, si ripete senza fine. Gli orari dopo mezzanotte cadono nel giorno dopo.
  *   La scala conta le settimane come il piano: il primo passo arriva con la prima revisione, quindi un file
  *   creato prima dell'inizio del piano tiene l'orario di partenza per tutta la prima settimana (`sleepStairOrigin`).
  */
-import type { AppData, HHMM, ISODate, Plan, Supplement, TimelineItem, Weekday, WeeklyReview } from '../domain/types';
+import type { AppData, HHMM, ISODate, MealSlot, Plan, Supplement, TimelineItem, Weekday, WeeklyReview } from '../domain/types';
 import { SESSIONS } from '../data/sessions';
 import { hashString } from '../lib/id';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, nightMinutes, weekdayOf, weekStart } from './dates';
+import { mealSchedule } from './mealTimes';
 import { buildTimeline, firstReviewWeek, isReviewableWeek, physioMinutes, supplementList, takenSupplements } from './timeline';
 import { firstReviewDate } from './review';
 import { bedtimeFor, curfewFor, dayCutoffMin } from './sleep';
@@ -223,20 +225,35 @@ function weekTimelines(state: ReminderState, start: ISODate): Record<Weekday, Ti
   return out;
 }
 
-/** Ripiego minimo se la timeline non è disponibile: orari salvati nel piano. */
+/**
+ * Orario di un pasto in un giorno della settimana tipo, con calcio e lavoro (`mealSchedule`): serve quando la
+ * timeline non ha la voce. Se anche quello non riesce, l'orario salvato nel piano.
+ */
+function mealTimeOn(plan: Plan, wd: Weekday, slot: MealSlot): HHMM {
+  try {
+    return mealSchedule(plan.week.find((d) => d.weekday === wd), plan)[slot].time;
+  } catch {
+    return plan.mealTimes[slot];
+  }
+}
+
+/** Ripiego minimo se la timeline non è disponibile: gli orari dei pasti del giorno. */
 function fallbackTimeline(plan: Plan, wd: Weekday): TimelineItem[] {
-  const t = plan.mealTimes;
+  const t = (slot: MealSlot) => mealTimeOn(plan, wd, slot);
   const day = plan.week.find((d) => d.weekday === wd);
   const items: TimelineItem[] = [
-    { id: 'pasto:colazione', time: t.colazione, kind: 'pasto', title: 'Colazione', slot: 'colazione' },
-    { id: 'pasto:pranzo', time: t.pranzo, kind: 'pasto', title: 'Pranzo', slot: 'pranzo' },
-    { id: 'pasto:cena', time: t.cena, kind: 'pasto', title: 'Cena', slot: 'cena' },
+    { id: 'pasto:colazione', time: t('colazione'), kind: 'pasto', title: 'Colazione', slot: 'colazione' },
+    { id: 'pasto:pranzo', time: t('pranzo'), kind: 'pasto', title: 'Pranzo', slot: 'pranzo' },
+    { id: 'pasto:cena', time: t('cena'), kind: 'pasto', title: 'Cena', slot: 'cena' },
     { id: 'coprifuoco', time: curfewFor('', plan), kind: 'coprifuoco', title: 'Coprifuoco' },
   ];
   if (day?.gymSessionId) items.push({ id: `palestra:${day.gymSessionId}`, time: day.gymTime ?? '17:00', kind: 'palestra', title: '', ref: day.gymSessionId });
-  if (day?.physio) items.push({ id: 'fisio', time: minToHHMM(hhmmToMin(t.pranzo) + 75), kind: 'fisio', title: '' });
+  if (day?.physio) items.push({ id: 'fisio', time: minToHHMM(hhmmToMin(t('pranzo')) + 75), kind: 'fisio', title: '' });
   return items;
 }
+
+/** Riga per i pasti che cadono durante il lavoro (`TimelineItem.carry`). */
+const CARRY_TEXT = 'Da portare al lavoro.';
 
 interface Occurrence {
   /** Giorno della giornata del piano. */
@@ -505,9 +522,9 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       const item = findItem(tl[day], 'pasto:colazione');
       return {
         day,
-        time: item?.time ?? plan.mealTimes.colazione,
+        time: item?.time ?? mealTimeOn(plan, day, 'colazione'),
         summary: morning.length ? 'Colazione e integratori' : 'Colazione',
-        description: [morning.length ? `Integratori: ${suppText(morning)}` : '', 'In Ritmo trovi la colazione di oggi.']
+        description: [item?.carry ? CARRY_TEXT : '', morning.length ? `Integratori: ${suppText(morning)}` : '', 'In Ritmo trovi la colazione di oggi.']
           .filter(Boolean)
           .join(' '),
         durationMin: 20,
@@ -520,14 +537,17 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       const group = byTiming(timing);
       // Con il promemoria del pranzo attivo, gli integratori del pranzo vanno nella sua descrizione.
       if (!group.length || (timing === 'pranzo' && want.has('pranzo'))) continue;
-      const occT: Occurrence[] = ALL_DAYS.map((day) => ({
-        day,
-        time: findItem(tl[day], `pasto:${timing}`)?.time ?? plan.mealTimes[timing],
-        summary: TIMING_TITLE[timing],
-        description: suppText(group),
-        durationMin: 5,
-        key: timing,
-      }));
+      const occT: Occurrence[] = ALL_DAYS.map((day) => {
+        const item = findItem(tl[day], `pasto:${timing}`);
+        return {
+          day,
+          time: item?.time ?? mealTimeOn(plan, day, timing),
+          summary: TIMING_TITLE[timing],
+          description: [item?.carry ? CARRY_TEXT : '', suppText(group)].filter(Boolean).join(' '),
+          durationMin: 5,
+          key: timing,
+        };
+      });
       events.push(...groupOccurrences('colazione', occT));
     }
 
@@ -552,16 +572,23 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
 
   if (want.has('pranzo')) {
     const lunchSupps = byTiming('pranzo');
-    const occ: Occurrence[] = ALL_DAYS.map((day) => ({
-      day,
-      time: findItem(tl[day], 'pasto:pranzo')?.time ?? plan.mealTimes.pranzo,
-      summary: 'Pranzo',
-      description: [lunchSupps.length ? `Con il pranzo: ${suppText(lunchSupps)}` : '', 'In Ritmo trovi il pranzo di oggi con le porzioni.']
-        .filter(Boolean)
-        .join(' '),
-      durationMin: 30,
-      key: 'pranzo',
-    }));
+    const occ: Occurrence[] = ALL_DAYS.map((day) => {
+      const item = findItem(tl[day], 'pasto:pranzo');
+      return {
+        day,
+        time: item?.time ?? mealTimeOn(plan, day, 'pranzo'),
+        summary: 'Pranzo',
+        description: [
+          item?.carry ? CARRY_TEXT : '',
+          lunchSupps.length ? `Con il pranzo: ${suppText(lunchSupps)}` : '',
+          'In Ritmo trovi il pranzo di oggi con le porzioni.',
+        ]
+          .filter(Boolean)
+          .join(' '),
+        durationMin: 30,
+        key: 'pranzo',
+      };
+    });
     events.push(...groupOccurrences('pranzo', occ));
   }
 
@@ -601,7 +628,7 @@ export function reminderEvents(state: ReminderState, kinds: ReminderKind[], star
       const item = findItem(tl[day], 'fisio');
       occ.push({
         day,
-        time: item?.time ?? minToHHMM(hhmmToMin(plan.mealTimes.pranzo) + 75),
+        time: item?.time ?? minToHHMM(hhmmToMin(mealTimeOn(plan, day, 'pranzo')) + 75),
         summary: 'Esercizi del fisioterapista',
         description: `${n === 1 ? '1 esercizio' : `${n} esercizi`}, circa ${mins} minuti. In Ritmo trovi dosi e indicazioni.`,
         durationMin: Math.max(10, mins || 20),
