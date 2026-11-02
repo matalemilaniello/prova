@@ -535,10 +535,9 @@ solo le voci di oggi e non i giorni passati. L'interfaccia mostra sempre un'etic
   È una scelta temporanea della fase 1 per un'app personale a utente singolo: la fase 2 sposterà la chiave su
   un server. L'interfaccia lo dice chiaramente e consiglia di impostare un limite di spesa sulla console.
 - Modello predefinito `claude-opus-5-5`, pensiero adattivo, risposta in streaming. Prima di scrivere il codice
-  leggi la documentazione dello skill claude-api in
-  `/tmp/claude-0/bundled-skills/2.1.316/c920797112a727e450cfdeb7ec1cca41/claude-api/typescript/claude-api/README.md`
-  e `streaming.md` nella stessa cartella, più la sezione su refusal e fallback in
-  `../../shared/model-migration.md` (Migrating to Claude Opus 5.5). Non inventare API dell'SDK.
+  leggi la documentazione dello skill claude-api (`typescript/claude-api/README.md` e `streaming.md`), più la
+  sezione su refusal e fallback in `shared/model-migration.md` (Migrating to Claude Opus 5.5). Non inventare API
+  dell'SDK.
 - Prompt di sistema in italiano: allenatore e nutrizionista sportivo pratico, risposte brevi e concrete,
   conosce il piano e i dati della giornata (da `coachContext.ts`), non fa diagnosi, rimanda al fisioterapista
   per i dolori e al medico per sintomi importanti, rispetta le competenze dichiarate dall'utente.
