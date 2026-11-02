@@ -1,6 +1,9 @@
 /**
  * Host dei pannelli: legge ui.overlay e monta il componente di contratto (SPEC §6).
  * I componenti sono caricati a richiesta e pre-caricati quando l'app è inattiva.
+ *
+ * I tre pannelli della fase 2 (`mealLog`, `planProposal`, `supplement`, docs/FASE2.md § 11.3) per ora mostrano un
+ * segnaposto: le onde che li costruiscono sostituiscono il segnaposto con il caricamento del loro file.
  */
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
@@ -41,7 +44,29 @@ function keyOf(o: NonNullable<Overlay>): string {
       return `football:${o.date}:${o.itemId}`;
     case 'barPlanB':
       return `barPlanB:${o.slot ?? ''}`;
+    case 'mealLog':
+      return `mealLog:${o.date}:${o.slot}:${o.mode}:${o.chatMessageId ?? ''}`;
+    case 'planProposal':
+      return `planProposal:${o.id}`;
+    case 'supplement':
+      return `supplement:${o.supplementId ?? ''}`;
   }
+}
+
+/** Titoli dei pannelli della fase 2 non ancora costruiti. */
+const PLACEHOLDER_TITLE = {
+  mealLog: 'Pasto',
+  planProposal: 'Proposta del piano',
+  supplement: 'Integratore',
+} as const;
+
+/** Segnaposto di un pannello della fase 2: si apre e si chiude, senza dati. */
+function PlaceholderSheet({ type, onClose }: { type: keyof typeof PLACEHOLDER_TITLE; onClose: () => void }) {
+  return (
+    <Sheet open onClose={onClose} title={PLACEHOLDER_TITLE[type]}>
+      <p className="t-callout pb-2 text-ink-2">Questa parte arriva con un prossimo aggiornamento di Ritmo.</p>
+    </Sheet>
+  );
 }
 
 function render(o: NonNullable<Overlay>, onClose: () => void) {
@@ -56,6 +81,10 @@ function render(o: NonNullable<Overlay>, onClose: () => void) {
       return <FootballSheet date={o.date} kind={o.kind} itemId={o.itemId} onClose={onClose} />;
     case 'barPlanB':
       return <BarPlanBSheet slot={o.slot} onClose={onClose} />;
+    case 'mealLog':
+    case 'planProposal':
+    case 'supplement':
+      return <PlaceholderSheet type={o.type} onClose={onClose} />;
   }
 }
 

@@ -1,4 +1,4 @@
-import { Activity, BatteryCharging, Cookie, Dumbbell, Flame, Moon, Salad, Scale, type LucideIcon } from 'lucide-react';
+import { Activity, BatteryCharging, CalendarRange, Cookie, Dumbbell, Flame, Moon, Salad, Scale, type LucideIcon } from 'lucide-react';
 import type { Proposal } from '../../domain/types';
 import type { AnyTone } from '../../ui';
 
@@ -12,6 +12,8 @@ export const AREA_META: Record<Proposal['area'], { icon: LucideIcon; tone: AnyTo
   scarico: { icon: BatteryCharging, tone: 'leggero', label: 'Scarico' },
   fibre: { icon: Salad, tone: 'good', label: 'Fibre' },
   dolci: { icon: Cookie, tone: 'warn', label: 'Dolci' },
+  // Fase 2: proposta del piano (blocco, menù, obiettivi) dalla revisione.
+  piano: { icon: CalendarRange, tone: 'accent', label: 'Piano' },
 };
 
 /** Siti delle pliche (Jackson e Pollock a 7 siti): l'utente sceglie quali misura. */
