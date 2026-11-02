@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData } from '../domain/types';
-import { defaultAppData } from '../data/defaults';
+import { LEGACY_DEFAULT_SUPPLEMENTS, defaultAppData } from '../data/defaults';
 import { buildDemo } from '../demo/seed';
 import { buildCoachContext, COACH_SYSTEM_PROMPT, coachDay, coachDaySummary } from './coachContext';
 
@@ -135,7 +135,9 @@ describe('riassunto per la chat', () => {
   it('prima della prima spesa i pasti sono con quello che c’è in casa e la dose da definire resta fuori', () => {
     // Primo avvio lunedì 9 alle 10:00: la spesa di avvio è alle 15:15, colazione, spuntino e pranzo vengono prima.
     const base = defaultAppData('2026-11-09');
-    const state: AppData = { ...base, onboarded: true, plan: { ...base.plan, startDate: '2026-11-09', firstUse: { date: '2026-11-09', time: '10:00' } } };
+    // Integratori della fase 1 (vitamina D con la dose da definire): i nuovi utenti partono dal catalogo.
+    const supplements = LEGACY_DEFAULT_SUPPLEMENTS.map((x) => ({ ...x }));
+    const state: AppData = { ...base, onboarded: true, plan: { ...base.plan, supplements, startDate: '2026-11-09', firstUse: { date: '2026-11-09', time: '10:00' } } };
     const ctx = buildCoachContext(state, new Date(2026, 10, 9, 11, 0));
     expect(ctx).toMatch(/Pranzo: prima della prima spesa, con quello che c’è in casa/);
     expect(ctx).not.toMatch(/Cena: prima della prima spesa/);

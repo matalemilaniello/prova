@@ -90,13 +90,15 @@ export function useDemoData(): boolean {
 
 /**
  * Stato per i valori dei pasti e gli obiettivi di una data (`dayNutritionDetail`, `dayCarbScale`, `dayTargetFor`):
- * piano, diario, controlli e profilo, con riferimento stabile. Con controlli e profilo il minimo di carboidrati di
- * partita e vigilia (6 g/kg) usa il peso recente: passalo così in tutte le schermate, i numeri coincidono ovunque.
+ * piano, diario, controlli, profilo e revisioni, con riferimento stabile. Con controlli e profilo il minimo di
+ * carboidrati di partita e vigilia (6 g/kg) usa il peso recente; con profilo e revisioni i limiti dell'energia vedono
+ * il deficit in vigore: passalo così in tutte le schermate, i numeri coincidono ovunque.
  */
 export function useNutritionState(): NutritionState {
   const plan = useApp((s) => s.plan);
   const dayLogs = useApp((s) => s.dayLogs);
   const checkIns = useApp((s) => s.checkIns);
   const profile = useApp((s) => s.profile);
-  return useMemo(() => ({ plan, dayLogs, checkIns, profile }), [plan, dayLogs, checkIns, profile]);
+  const reviews = useApp((s) => s.reviews);
+  return useMemo(() => ({ plan, dayLogs, checkIns, profile, reviews }), [plan, dayLogs, checkIns, profile, reviews]);
 }

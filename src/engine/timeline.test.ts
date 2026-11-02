@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData, DayLog, ISODate, ItemStatus, Plan, TimelineItem } from '../domain/types';
-import { defaultAppData, defaultPlan } from '../data/defaults';
+import { LEGACY_DEFAULT_SUPPLEMENTS, defaultAppData, defaultPlan } from '../data/defaults';
 import { addDays } from './dates';
 import { shoppingList } from './shopping';
 import {
@@ -60,7 +60,9 @@ const SUN0 = '2026-11-08';
 
 function makeState(patch: Partial<AppData> = {}): AppData {
   const base = defaultAppData(MON);
-  return { ...base, plan: defaultPlan('2026-10-19'), onboarded: true, ...patch };
+  // Integratori della fase 1 (vitamina D con la dose da definire): i nuovi utenti partono dal catalogo.
+  const plan = { ...defaultPlan('2026-10-19'), supplements: LEGACY_DEFAULT_SUPPLEMENTS.map((x) => ({ ...x })) };
+  return { ...base, plan, onboarded: true, ...patch };
 }
 
 function log(date: ISODate, status: Record<string, ItemStatus>, extra: Partial<DayLog> = {}): DayLog {

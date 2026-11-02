@@ -17,9 +17,13 @@ import type {
   Supplement,
 } from '../domain/types';
 import { addDays, todayISO, weekdayOf, weekStart } from '../engine/dates';
+import { CATALOG_VERSION } from './supplementCatalogIds';
 
-/** Versione della forma dei dati salvati (AppData.version e persist di zustand). */
-export const DATA_VERSION = 3;
+/**
+ * Versione della forma dei dati salvati (AppData.version e persist di zustand). La 4 (fase 2) non cambia valori: serve
+ * perché un'app vecchia rifiuti un backup nuovo invece di perdere in silenzio piatti, proposte e versioni.
+ */
+export const DATA_VERSION = 4;
 
 /** Chiave di localStorage. */
 export const STORAGE_KEY = 'ritmo:v1';
@@ -75,7 +79,63 @@ export const DEFAULT_WEEK: ScheduleDay[] = [
   { weekday: 6, dayType: 'riposo' },
 ];
 
+/**
+ * Caffeina di un espresso, in mg: una stima dentro un intervallo di circa 60-110 mg per tazza, che varia molto con la
+ * miscela e la preparazione (EFSA 2015, parere sulla sicurezza della caffeina: circa 80 mg per un espresso; da
+ * controllare sulla fonte primaria nell'onda 3A). Un solo numero in tutta l'app: il testo sul caffè (fino a 400 mg al
+ * giorno, «circa 4-5 espressi») e la somma della caffeina degli integratori (`Plan.coffeePerDay`), che dice sempre
+ * «circa». Non è la dose dello studio sul sonno (107 mg), che è un'altra cosa.
+ */
+export const ESPRESSO_CAFFEINE_MG = 80;
+
+/**
+ * Integratori per chi comincia, dal catalogo (`scripts/data/supplement-catalog.json`, docs/FASE2.md § 9.7): stessi id
+ * della fase 1 con la voce del catalogo e la sua dose predefinita, tutti con la colazione.
+ * - creatina 3 g: etichetta italiana e claim UE (l'AIS indica 3-5 g);
+ * - omega-3 600 mg di EPA+DHA: mantenimento AIS (500-600 mg);
+ * - vitamina D 15 µg (600 UI): fabbisogno EFSA; la Endocrine Society 2024 sconsiglia negli adulti tra 19 e 74 anni
+ *   l'integrazione empirica sopra la DRI. Per una dose di mantenimento l'esame non serve; serve sopra i 50 µg.
+ * `catalogVersion` è già segnata: la revisione degli integratori non li ripropone.
+ */
 export const DEFAULT_SUPPLEMENTS: Supplement[] = [
+  {
+    id: 'creatina',
+    name: 'Creatina monoidrato',
+    dose: '3 g',
+    timing: 'colazione',
+    active: true,
+    catalogId: 'creatina',
+    amount: { amount: 3, unit: 'g' },
+    catalogVersion: CATALOG_VERSION,
+  },
+  {
+    id: 'omega3',
+    name: 'Omega-3',
+    dose: '600 mg di EPA+DHA',
+    timing: 'colazione',
+    active: true,
+    catalogId: 'omega-3',
+    amount: { amount: 600, unit: 'mg' },
+    catalogVersion: CATALOG_VERSION,
+  },
+  {
+    id: 'vitamina-d',
+    name: 'Vitamina D',
+    dose: '15 µg',
+    timing: 'colazione',
+    active: true,
+    catalogId: 'vitamina-d',
+    amount: { amount: 15, unit: 'µg' },
+    catalogVersion: CATALOG_VERSION,
+  },
+];
+
+/**
+ * Integratori predefiniti della fase 1, scritti a mano: è il piano di chi ha cominciato prima del catalogo (la vitamina
+ * D con la dose da definire). Non si usano per i nuovi utenti: servono alla migrazione (§ 9.7, «Rivedi gli integratori»)
+ * e ai test del comportamento di quei piani, che resta com'era.
+ */
+export const LEGACY_DEFAULT_SUPPLEMENTS: readonly Supplement[] = [
   { id: 'creatina', name: 'Creatina monoidrato', dose: '5 g', timing: 'colazione', active: true },
   { id: 'omega3', name: 'Omega-3', dose: '1-2 g di EPA+DHA', timing: 'colazione', active: true },
   {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData, ISODate, Plan } from '../domain/types';
-import { defaultPlan } from '../data/defaults';
+import { LEGACY_DEFAULT_SUPPLEMENTS, defaultPlan } from '../data/defaults';
 import { addDays, weekdayOf } from './dates';
 import { curfewFor } from './sleep';
 import {
@@ -179,7 +179,8 @@ describe('eventi dal piano', () => {
   });
 
   it('colazione con gli integratori attivi del mattino', () => {
-    const ev = reminderEvents(state(), ['colazione'], START);
+    // Integratori della fase 1 (vitamina D con la dose da definire): i nuovi utenti partono dal catalogo.
+    const ev = reminderEvents(state({ supplements: LEGACY_DEFAULT_SUPPLEMENTS.map((x) => ({ ...x })) }), ['colazione'], START);
     expect(ev).toHaveLength(1);
     expect(ev[0].summary).toBe('Colazione e integratori');
     expect(ev[0].description).toContain('creatina monoidrato (5 g)');

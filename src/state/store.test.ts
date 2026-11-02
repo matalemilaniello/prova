@@ -333,7 +333,8 @@ describe('store', () => {
     expect(migrateData(v2({ target: '23:00', wake: '07:15' }), 2).plan.sleep.target).toBe('23:00');
     // Già alla versione 3: nessun cambiamento.
     expect(migrateData(v2({ target: '23:30', wake: '07:15' }), 3).plan.sleep.target).toBe('23:30');
-    expect(migrateData(v2({}), 2).version).toBe(3);
+    // Dalla 3 alla 4 (fase 2) cambia solo il numero: i dati arrivano alla versione attuale.
+    expect(migrateData(v2({}), 2).version).toBe(DATA_VERSION);
   });
 
   it('in localStorage restano solo le foto più recenti della chat', () => {

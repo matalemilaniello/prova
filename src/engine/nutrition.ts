@@ -21,6 +21,10 @@
  * di carboidrati (`dayCarbScale`) ed entra nell'obiettivo della data (`dayTargetFor`, `DayNutritionDetail.target`).
  * Per il peso servono `checkIns` o `profile` nello stato (`NutritionState`); senza, vale il peso su cui sono
  * costruite le proteine del piano.
+ *
+ * Limiti dell'energia (fase 2, `engine/energy.ts`): con un deficit in vigore, i giorni in cui supera quello ammesso
+ * (partita, vigilia, zona sotto il ginocchio sopra soglia, precampionato, tetto del 20%) riprendono le kcal in più
+ * dalle stesse righe di carboidrati (`dayEnergyDelta`). Senza deficit niente cambia.
  */
 import type {
   AppData,
@@ -40,14 +44,16 @@ import { MENU_ROTATION } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { DEFAULT_TARGETS, DEFAULT_WEEK, defaultPlan } from '../data/defaults';
 import { addDays, daysBetween, isISODate } from './dates';
+import { dayEnergyDelta } from './energy';
 import { effectiveDayType, isMatchDay, isMatchEve, mealsForDate, type MenuState } from './menu';
 import { MATCH_CARB_G_PER_KG, PROTEIN_G_PER_KG } from './targets';
 
 /**
  * Stato per i valori di una data: quello del menù più, se ci sono, controlli e profilo per il peso (minimo di
- * carboidrati di partita e vigilia). Passa sempre anche `checkIns` e `profile` quando li hai.
+ * carboidrati di partita e vigilia) e, con le revisioni, per il deficit in vigore (limiti dell'energia). Passa sempre
+ * anche `checkIns`, `profile` e `reviews` quando li hai.
  */
-export type NutritionState = MenuState & Partial<Pick<AppData, 'checkIns' | 'profile'>>;
+export type NutritionState = MenuState & Partial<Pick<AppData, 'checkIns' | 'profile' | 'reviews'>>;
 
 export const CARB_FACTOR: Record<DayType, number> = {
   calcio: 1.25,
@@ -210,12 +216,21 @@ export interface MatchCarbs {
   gPerKg: number;
   /** Minimo di carboidrati del giorno, arrotondato a 5 g. */
   floorG: number;
-  /** Carboidrati dell'obiettivo del tipo di giorno. */
+  /** Carboidrati dell'obiettivo del tipo di giorno, con quelli rimessi dai limiti dell'energia (`energyAdjust`). */
   baseG: number;
   /** Carboidrati aggiunti per arrivare al minimo (0 se l'obiettivo lo raggiunge già). */
   extraG: number;
   /** Kcal aggiunte (4 kcal/g, arrotondate a 10). */
   extraKcal: number;
+}
+
+/**
+ * Kcal che i limiti dell'energia rimettono nell'obiettivo della data (`dayEnergyDelta`) e i carboidrati che le portano
+ * (4 kcal/g, arrotondati a 5 g come le correzioni della revisione). Zero senza deficit.
+ */
+export function energyAdjust(date: ISODate, state: NutritionState): { kcal: number; carbG: number } {
+  const kcal = state.plan ? dayEnergyDelta(date, state) : 0;
+  return { kcal, carbG: kcal > 0 ? Math.round(kcal / 4 / 5) * 5 : 0 };
 }
 
 /**
@@ -229,21 +244,28 @@ export function matchCarbs(date: ISODate, state: NutritionState): MatchCarbs | n
   if (!when) return null;
   const weightKg = referenceWeightKg(date, state);
   if (!weightKg) return null;
-  const baseG = Number(plan.targets?.[effectiveDayType(date, plan)]?.carbG) || 0;
+  const baseG = (Number(plan.targets?.[effectiveDayType(date, plan)]?.carbG) || 0) + energyAdjust(date, state).carbG;
   const floorG = Math.round((MATCH_CARB_G_PER_KG * weightKg) / 5) * 5;
   const extraG = Math.max(0, floorG - baseG);
   return { when, weightKg, gPerKg: MATCH_CARB_G_PER_KG, floorG, baseG, extraG, extraKcal: Math.round((extraG * 4) / 10) * 10 };
 }
 
 /**
- * Obiettivo della data: quello del tipo di giorno effettivo (la vigilia vale come calcio) più il minimo di
- * carboidrati di partita e vigilia. È l'obiettivo da mostrare accanto ai valori del giorno.
+ * Obiettivo della data: quello del tipo di giorno effettivo (la vigilia vale come calcio), più le kcal che i limiti
+ * dell'energia rimettono quel giorno (`energyAdjust`, dai carboidrati), più il minimo di carboidrati di partita e
+ * vigilia. È l'obiettivo da mostrare accanto ai valori del giorno.
  */
 export function dayTargetFor(date: ISODate, state: NutritionState): MacroTarget {
   const base = state.plan.targets[effectiveDayType(date, state.plan)];
+  if (!base) return base;
+  const e = energyAdjust(date, state);
   const m = matchCarbs(date, state);
-  if (!base || !m?.extraG) return base;
-  return { ...base, carbG: base.carbG + m.extraG, kcal: base.kcal + m.extraKcal };
+  if (!e.kcal && !m?.extraG) return base;
+  return {
+    ...base,
+    carbG: base.carbG + e.carbG + (m?.extraG ?? 0),
+    kcal: base.kcal + e.kcal + (m?.extraKcal ?? 0),
+  };
 }
 
 /**
@@ -256,7 +278,8 @@ export function dayTargetFor(date: ISODate, state: NutritionState): MacroTarget 
  */
 export function dayCarbScale(date: ISODate, state: NutritionState): number {
   const dayType = effectiveDayType(date, state.plan);
-  const delta = targetDelta(dayType, state.plan);
+  // Le kcal rimesse dai limiti dell'energia passano dalle righe di carboidrati, come la differenza dell'obiettivo.
+  const delta = targetDelta(dayType, state.plan) + energyAdjust(date, state).kcal;
   const match = matchCarbs(date, state);
   if (!delta && !match?.extraG) return 1;
   const plannedIds = mealsForDate(date, { plan: state.plan, dayLogs: {} }).meals.map((m) => m.plannedId);
