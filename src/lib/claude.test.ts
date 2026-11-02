@@ -14,6 +14,8 @@ import {
   streamCoachReply,
   streamErrorKind,
   tidyReply,
+  usageDelta,
+  usageMonth,
 } from './claude';
 
 const msg = (id: string, role: ChatMessage['role'], text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -52,18 +54,44 @@ describe('modello', () => {
   });
 
   it('pensiero adattivo, effort e fallback solo dove esistono', () => {
-    expect(modelSupport('claude-opus-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true });
-    expect(modelSupport('claude-opus-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true });
-    expect(modelSupport('claude-opus-4-6')).toEqual({ adaptiveThinking: true, effort: true, fallback: false });
-    expect(modelSupport('claude-opus-4-5')).toEqual({ adaptiveThinking: false, effort: true, fallback: false });
+    expect(modelSupport('claude-opus-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true, structuredOutputs: true });
+    expect(modelSupport('claude-opus-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: true, structuredOutputs: true });
+    expect(modelSupport('claude-opus-4-6')).toEqual({ adaptiveThinking: true, effort: true, fallback: false, structuredOutputs: false });
+    expect(modelSupport('claude-opus-4-5')).toEqual({ adaptiveThinking: false, effort: true, fallback: false, structuredOutputs: true });
     expect(modelSupport('claude-sonnet-5-5')).toMatchObject({ fallback: true });
     expect(modelSupport('claude-sonnet-5')).toMatchObject({ fallback: false });
-    expect(modelSupport('claude-sonnet-4-5-20250929')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
-    expect(modelSupport('claude-haiku-4-5')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
+    expect(modelSupport('claude-sonnet-4-5-20250929')).toEqual({ adaptiveThinking: false, effort: false, fallback: false, structuredOutputs: false });
+    expect(modelSupport('claude-haiku-4-5')).toEqual({ adaptiveThinking: false, effort: false, fallback: false, structuredOutputs: true });
     // Una famiglia senza fallback lato server: il parametro non va mandato.
-    expect(modelSupport('claude-haiku-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: false });
+    expect(modelSupport('claude-haiku-5-5')).toEqual({ adaptiveThinking: true, effort: true, fallback: false, structuredOutputs: true });
     expect(modelSupport('claude-fable-5-1')).toMatchObject({ fallback: true });
-    expect(modelSupport('qualcosa')).toEqual({ adaptiveThinking: false, effort: false, fallback: false });
+    expect(modelSupport('qualcosa')).toEqual({ adaptiveThinking: false, effort: false, fallback: false, structuredOutputs: false });
+  });
+
+  it('uscita strutturata: i modelli della documentazione, non quelli sconosciuti', () => {
+    const yes = ['claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5-5', 'claude-sonnet-5', 'claude-haiku-5-5', 'claude-haiku-4-5', 'claude-fable-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'claude-opus-4-1'];
+    const no = ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-3-5', 'modello-mio', ''];
+    for (const m of yes) expect(modelSupport(m).structuredOutputs, m).toBe(true);
+    for (const m of no) expect(modelSupport(m).structuredOutputs, m).toBe(false);
+  });
+});
+
+describe('uso dei token', () => {
+  it('usage della risposta → token del mese, con i mancanti a 0', () => {
+    expect(usageDelta({ input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 2500, cache_creation_input_tokens: null })).toEqual({
+      calls: 1,
+      input: 1200,
+      output: 300,
+      cacheRead: 2500,
+      cacheWrite: 0,
+    });
+    expect(usageDelta(undefined)).toEqual({ calls: 1, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+    expect(usageDelta({ input_tokens: -4, output_tokens: Number.NaN })).toMatchObject({ input: 0, output: 0 });
+  });
+
+  it('mese nell’ora locale', () => {
+    expect(usageMonth(new Date(2026, 10, 30, 23, 50))).toBe('2026-11');
+    expect(usageMonth(new Date(2027, 0, 1, 0, 10))).toBe('2027-01');
   });
 });
 
@@ -195,6 +223,7 @@ describe('streaming', () => {
     const calls = mockFetch(sse([start('claude-opus-5-5'), ...textEvents, ...end]));
     const reply = await streamCoachReply(opts('claude-opus-5-5'));
     expect(reply.text).toBe('Prendi il toast');
+    expect(reply.usage).toEqual({ calls: 1, input: 10, output: 5, cacheRead: 0, cacheWrite: 0 });
     expect(calls[0].body.fallbacks).toBe('default');
     expect(calls[0].headers.get('anthropic-beta') ?? '').toContain('server-side-fallback-2026-07-01');
 

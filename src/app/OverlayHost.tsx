@@ -2,8 +2,9 @@
  * Host dei pannelli: legge ui.overlay e monta il componente di contratto (SPEC §6).
  * I componenti sono caricati a richiesta e pre-caricati quando l'app è inattiva.
  *
- * I tre pannelli della fase 2 (`mealLog`, `planProposal`, `supplement`, docs/FASE2.md § 11.3) per ora mostrano un
- * segnaposto: le onde che li costruiscono sostituiscono il segnaposto con il caricamento del loro file.
+ * Pannelli della fase 2 (docs/FASE2.md § 11.3): `planProposal` è il foglio vero (`features/piano/PlanProposalSheet`);
+ * `mealLog` e `supplement` per ora mostrano un segnaposto, che le onde che li costruiscono sostituiscono con il
+ * caricamento del loro file.
  */
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
@@ -19,6 +20,7 @@ const loaders = {
   session: () => import('../features/allenamento/SessionPlayer'),
   football: () => import('../features/oggi/FootballSheet'),
   barPlanB: () => import('../features/coach/BarPlanBSheet'),
+  planProposal: () => import('../features/piano/PlanProposalSheet'),
 };
 
 const RecipeSheet = lazy(loaders.recipe);
@@ -26,6 +28,7 @@ const CheckInSheet = lazy(loaders.checkin);
 const SessionPlayer = lazy(loaders.session);
 const FootballSheet = lazy(loaders.football);
 const BarPlanBSheet = lazy(loaders.barPlanB);
+const PlanProposalSheet = lazy(loaders.planProposal);
 
 /** Scarica in anticipo i pannelli, così si aprono subito. */
 export function preloadOverlays() {
@@ -56,7 +59,6 @@ function keyOf(o: NonNullable<Overlay>): string {
 /** Titoli dei pannelli della fase 2 non ancora costruiti. */
 const PLACEHOLDER_TITLE = {
   mealLog: 'Pasto',
-  planProposal: 'Proposta del piano',
   supplement: 'Integratore',
 } as const;
 
@@ -81,8 +83,9 @@ function render(o: NonNullable<Overlay>, onClose: () => void) {
       return <FootballSheet date={o.date} kind={o.kind} itemId={o.itemId} onClose={onClose} />;
     case 'barPlanB':
       return <BarPlanBSheet slot={o.slot} onClose={onClose} />;
-    case 'mealLog':
     case 'planProposal':
+      return <PlanProposalSheet id={o.id} onClose={onClose} />;
+    case 'mealLog':
     case 'supplement':
       return <PlaceholderSheet type={o.type} onClose={onClose} />;
   }

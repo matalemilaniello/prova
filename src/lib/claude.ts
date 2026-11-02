@@ -14,12 +14,16 @@
  *   mancano la guida chiede di non mandare il parametro);
  * - `stop_reason: 'refusal'` controllato prima di leggere il testo;
  * - errori tipizzati (`AuthenticationError`, `RateLimitError`, `APIConnectionError`…) e `error.type`;
- * - cache del prompt di sistema (`cache_control: { type: 'ephemeral' }`).
+ * - cache del prompt di sistema (`cache_control: { type: 'ephemeral' }`);
+ * - `usage` della risposta (token in ingresso, in uscita, letti e scritti nella cache) per il conto del mese.
+ *
+ * I compiti strutturati della fase 2 (foto, etichette, rifinitura delle proposte) passano da `lib/claudeTasks.ts`, che
+ * riusa da qui `loadSdk`, `makeClient`, `classifyError`, `modelSupport`, `FALLBACK_BETA`, `imageBlock` e `usageDelta`.
  *
  * L'SDK si carica solo quando serve (import dinamico): chi non usa il coach non lo scarica.
  */
 import type Anthropic from '@anthropic-ai/sdk';
-import type { ChatMessage } from '../domain/types';
+import type { ChatMessage, CoachUsageMonth } from '../domain/types';
 import { splitDataUrl } from './image';
 
 type Sdk = typeof import('@anthropic-ai/sdk');
@@ -95,6 +99,11 @@ export interface ModelSupport {
   effort: boolean;
   /** Ha i fallback lato server (`fallbacks: 'default'`): sui modelli che non li hanno il parametro non si manda. */
   fallback: boolean;
+  /**
+   * Accetta l'uscita strutturata (`output_config.format` con uno schema JSON). Senza, le righe che usano un compito
+   * strutturato (foto, etichetta, rifinitura delle proposte) non compaiono (docs/FASE2.md § 10.1).
+   */
+  structuredOutputs: boolean;
 }
 
 /**
@@ -102,23 +111,54 @@ export interface ModelSupport {
  * semplice: meglio una risposta senza pensiero adattivo che un errore 400.
  */
 export function modelSupport(model: string): ModelSupport {
+  const none: ModelSupport = { adaptiveThinking: false, effort: false, fallback: false, structuredOutputs: false };
   const p = parseModel(model);
-  if (!p) return { adaptiveThinking: false, effort: false, fallback: false };
+  if (!p) return none;
   const v = p.version + 1e-9;
+  const is = (x: number) => Math.abs(p.version - x) < 1e-6;
   switch (p.family) {
     case 'opus':
-      return { adaptiveThinking: v >= 4.6, effort: v >= 4.5, fallback: v >= 5 };
+      // Uscita strutturata: dalla 4.8 in poi e sulle vecchie 4.1 e 4.5 (la documentazione non elenca 4.6 e 4.7).
+      return { adaptiveThinking: v >= 4.6, effort: v >= 4.5, fallback: v >= 5, structuredOutputs: v >= 4.8 || is(4.5) || is(4.1) };
     case 'sonnet':
-      return { adaptiveThinking: v >= 4.6, effort: v >= 4.6, fallback: v >= 5.5 };
+      return { adaptiveThinking: v >= 4.6, effort: v >= 4.6, fallback: v >= 5.5, structuredOutputs: v >= 5 };
     case 'haiku':
       // Nessun fallback lato server per questa famiglia: con il parametro un rifiuto resta un rifiuto o diventa un 400.
-      return { adaptiveThinking: v >= 5.5, effort: v >= 5.5, fallback: false };
+      return { adaptiveThinking: v >= 5.5, effort: v >= 5.5, fallback: false, structuredOutputs: v >= 5.5 || is(4.5) };
     case 'fable':
     case 'mythos':
-      return { adaptiveThinking: v >= 5, effort: v >= 5, fallback: v >= 5 };
+      return { adaptiveThinking: v >= 5, effort: v >= 5, fallback: v >= 5, structuredOutputs: v >= 5 };
     default:
-      return { adaptiveThinking: false, effort: false, fallback: false };
+      return none;
   }
+}
+
+// ───────────────────────── Uso dei token ─────────────────────────
+
+/** Token di una risposta, nella forma di `Settings.coachUsage` (una chiamata). */
+export type CoachUsageDelta = CoachUsageMonth;
+
+type UsageLike = Partial<Pick<Anthropic.Beta.BetaUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'>>;
+
+const tokens = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
+
+/**
+ * `usage` di una risposta dell'API → token da sommare al mese (`recordCoachUsage`). I campi totali comprendono già
+ * l'eventuale tentativo di fallback; quelli mancanti valgono 0.
+ */
+export function usageDelta(usage: UsageLike | null | undefined): CoachUsageDelta {
+  return {
+    calls: 1,
+    input: tokens(usage?.input_tokens),
+    output: tokens(usage?.output_tokens),
+    cacheRead: tokens(usage?.cache_read_input_tokens),
+    cacheWrite: tokens(usage?.cache_creation_input_tokens),
+  };
+}
+
+/** Mese della chiave di `Settings.coachUsage` ('2026-11'), nell'ora locale. */
+export function usageMonth(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // ───────────────────────── Messaggi per l'API ─────────────────────────
@@ -138,7 +178,8 @@ export function isConversational(m: ChatMessage): boolean {
   return true;
 }
 
-function imageBlock(dataUrl: string): BetaContentBlockParam | null {
+/** Foto (data URL) → blocco immagine dell'API; null se il data URL non si legge. */
+export function imageBlock(dataUrl: string): BetaContentBlockParam | null {
   const parts = splitDataUrl(dataUrl);
   if (!parts) return null;
   const mediaType = parts.mediaType === 'image/png' || parts.mediaType === 'image/webp' || parts.mediaType === 'image/gif' ? parts.mediaType : 'image/jpeg';
@@ -342,7 +383,8 @@ export function loadSdk(): Promise<Sdk> {
   return sdkPromise;
 }
 
-function makeClient(sdk: Sdk, apiKey: string, opts: { maxRetries?: number; timeout?: number } = {}) {
+/** Client dell'SDK con la chiave dell'utente, nel browser (scelta temporanea dichiarata nell'interfaccia). */
+export function makeClient(sdk: Sdk, apiKey: string, opts: { maxRetries?: number; timeout?: number } = {}) {
   return new sdk.default({
     apiKey: normalizeKey(apiKey),
     // Fase 1: chiave personale nel browser, scelta temporanea dichiarata nell'interfaccia.
@@ -378,6 +420,8 @@ export interface CoachReply {
   /** Modello che ha risposto (diverso dal richiesto se è intervenuto un fallback). */
   model: string | null;
   fallback: boolean;
+  /** Token della risposta, da registrare con `recordCoachUsage(usageMonth(), usage)`; assente se interrotta prima della fine. */
+  usage?: CoachUsageDelta;
 }
 
 /**
@@ -428,10 +472,11 @@ export async function streamCoachReply(o: CoachStreamOptions): Promise<CoachRepl
 
     const final = await stream.finalMessage();
     const fallback = (final.usage.iterations ?? []).some((it) => it.type === 'fallback_message');
+    const usage = usageDelta(final.usage);
 
     // Rifiuto: si controlla prima del contenuto; l'eventuale parziale non vale come risposta.
     if (final.stop_reason === 'refusal') {
-      return { text: '', stop: 'rifiuto', model: final.model ?? null, fallback };
+      return { text: '', stop: 'rifiuto', model: final.model ?? null, fallback, usage };
     }
     const joined = final.content
       .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
@@ -444,6 +489,7 @@ export async function streamCoachReply(o: CoachStreamOptions): Promise<CoachRepl
       stop: final.stop_reason === 'max_tokens' ? 'limite' : null,
       model: final.model ?? null,
       fallback,
+      usage,
     };
   } catch (err) {
     if (err instanceof CoachError) throw err;
