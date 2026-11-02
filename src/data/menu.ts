@@ -146,7 +146,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's1-ragu',
         title: 'Prepara il ragù di lenticchie',
         minutes: 25,
-        yields: 'Due porzioni: giovedì a pranzo in frigo, sabato a cena in freezer',
+        yields: 'Due porzioni in freezer: quella di giovedì passa in frigo mercoledì sera',
         recipeIds: ['pasta-ragu-lenticchie'],
       },
       {
@@ -259,7 +259,7 @@ export const MENU_ROTATION: MenuWeek[] = [
         id: 's2-ragu',
         title: 'Prepara il ragù di lenticchie',
         minutes: 25,
-        yields: 'Due porzioni: giovedì a pranzo in frigo, sabato a cena in freezer',
+        yields: 'Due porzioni in freezer: quella di giovedì passa in frigo mercoledì sera',
         recipeIds: ['pasta-ragu-lenticchie'],
       },
       {
@@ -433,7 +433,7 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
     steps: [
       "Rosola la carota grattugiata con l’olio per 2 minuti.",
       "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.",
-      'Dividi in due porzioni: quella di giovedì in frigo, quella di sabato in freezer.',
+      'Raffredda in fretta e metti le due porzioni in freezer entro un’ora: quella di giovedì passa in frigo mercoledì sera.',
     ],
     timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
   },
@@ -474,7 +474,7 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
     steps: [
       "Rosola la carota grattugiata con l’olio per 2 minuti.",
       "Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.",
-      'Dividi in due porzioni: quella di giovedì in frigo, quella di sabato in freezer.',
+      'Raffredda in fretta e metti le due porzioni in freezer entro un’ora: quella di giovedì passa in frigo mercoledì sera.',
     ],
     timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
   },

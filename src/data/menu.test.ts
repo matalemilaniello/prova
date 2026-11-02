@@ -898,6 +898,55 @@ describe('settimana di avvio', () => {
   });
 });
 
+/**
+ * Giorni in frigo dei componenti della preparazione, contati dalla domenica (docs/FASE2.md § 4.11): cereali cotti 1
+ * (Bacillus cereus, FSA e NHS), pesce cotto 2, pollo, legumi e frittatine 3, preparati secchi 7. Per ogni attività del
+ * seme: il componente più delicato e i giorni (1 = lunedì) che la resa serve dal frigo; gli altri vanno in freezer.
+ */
+const SEED_STORAGE: Record<string, { fridgeDays: number; fromFridge: number[] }> = {
+  's1-riso': { fridgeDays: 1, fromFridge: [1] },
+  's1-pollo': { fridgeDays: 3, fromFridge: [1] },
+  's1-ragu': { fridgeDays: 3, fromFridge: [] },
+  's1-box': { fridgeDays: 1, fromFridge: [1] },
+  's1-sacchetti': { fridgeDays: 7, fromFridge: [1, 2, 3, 4, 5, 6] },
+  's2-frittatine': { fridgeDays: 3, fromFridge: [1, 2] },
+  's2-pollo-riso': { fridgeDays: 1, fromFridge: [1] },
+  's2-ragu': { fridgeDays: 3, fromFridge: [] },
+  's2-box': { fridgeDays: 1, fromFridge: [1] },
+  's2-sacchetti': { fridgeDays: 7, fromFridge: [1, 2, 3, 4, 5, 6] },
+};
+
+describe('conservazione della preparazione', () => {
+  it('nessuna porzione si mangia dal frigo oltre i giorni del suo componente', () => {
+    for (const week of MENU_ROTATION) {
+      for (const task of week.prep) {
+        const storage = SEED_STORAGE[task.id];
+        expect(storage, `${task.id}: manca nella tabella`).toBeDefined();
+        const eaten = new Set<number>();
+        week.days.slice(0, 6).forEach((day, di) => {
+          for (const slot of SLOTS) if (task.recipeIds?.includes(day.meals[slot] ?? '')) eaten.add(di + 1);
+        });
+        for (const d of storage.fromFridge) {
+          expect(d, `${task.id}: ${WEEKDAYS[d - 1]} dal frigo`).toBeLessThanOrEqual(storage.fridgeDays);
+        }
+        const frozen = [...eaten].filter((d) => !storage.fromFridge.includes(d));
+        if (frozen.length > 0) {
+          expect(task.yields, `${task.id}: la resa deve dire freezer`).toMatch(/freezer/);
+          expect(PREP_GUIDE[task.id].steps.join(' '), `${task.id}: la guida deve dire freezer`).toMatch(/freezer/);
+        }
+      }
+    }
+  });
+
+  it('il ragù di lenticchie va tutto in freezer: il giovedì è il quarto giorno', () => {
+    for (const id of ['s1-ragu', 's2-ragu']) {
+      const task = MENU_ROTATION.flatMap((w) => w.prep).find((t) => t.id === id);
+      expect(task?.yields, id).toMatch(/^Due porzioni in freezer/);
+      expect(PREP_GUIDE[id].steps.join(' '), id).not.toMatch(/giovedì in frigo/);
+    }
+  });
+});
+
 describe('guida della preparazione', () => {
   it('ha passaggi e timer sensati per ogni attività della domenica', () => {
     const ids = MENU_ROTATION.flatMap((w) => w.prep.map((t) => t));
