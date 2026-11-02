@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeftRight, Trash2, TrendingUp, Trophy } from 'lucide-react';
 import type { AppData, WorkoutLog } from '../../../domain/types';
-import { SESSIONS } from '../../../data/sessions';
 import { formatDayLong } from '../../../engine/dates';
+import { sessionFor } from '../../../engine/plan/program';
 import { bestSet, sessionLoad, workoutSetCount, workoutVolume } from '../../../engine/training';
 import { fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
@@ -21,10 +21,12 @@ export interface WorkoutDetailSheetProps {
 /** Dettaglio di una seduta registrata: numeri, esercizi serie per serie, record, eliminazione. */
 export function WorkoutDetailSheet({ log, open, onClose, physio }: WorkoutDetailSheetProps) {
   const history = useApp((s) => s.workoutLogs);
+  const plan = useApp((s) => s.plan);
   const toast = useUi((s) => s.toast);
   const [confirm, setConfirm] = useState(false);
   if (!log) return null;
-  const session = SESSIONS[log.sessionId];
+  // La seduta di quel giorno (blocco in vigore, settimana scaricata o leggera), per le unità degli esercizi.
+  const session = sessionFor(log.sessionId, log.date, plan);
   // Il trofeo va solo al record ancora imbattuto della seduta; gli altri miglioramenti sono progressi.
   const top = headlineRecord(log, history, physio)?.exerciseId ?? null;
   const prs = new Set(strengthRecords(log, history, physio).map((r) => r.exerciseId));

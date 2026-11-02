@@ -677,3 +677,70 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
     `useCalendarTask`, `CALENDAR_TASK_TEXT`, `CALENDAR_TASK_HASH`, `saveCalendarFile(…, remember?)`,
     `components/ManualCopySheet` e `components/reminderIcons`.
   - controllo tipografico: anche le virgolette doppie dritte nei testi (`straightQuotePairs`), con `--fix` in « ».
+- Fase 2, onda 0 (docs/FASE2.md § 12; nessun campo fuori dal § 12.1). Tipi, stato e archivio (0A1):
+  - `types.ts`: tutto il § 12.1, con ogni campo nuovo dei tipi esistenti facoltativo (pasti stimati `EatenMeal` come forma
+    di `DayLog.barMeals`, `DayLog.swapPlanned`, `MyDish`, esclusioni, obiettivi su tre livelli, `Program`, proposte e
+    versioni, integratori dal catalogo, `Settings.coachRefine` e `.coachUsage`, i tre pannelli nuovi in `Overlay`, le
+    sezioni `dishes`, `dishThumbs`, `planner`, `planVersions` di `AppData`); `Violation` sta qui perché la usano più onde.
+  - `DATA_VERSION` 4 senza migrazioni di valori; normalizzazione del § 12.4 in `state/store.ts` (con `keepsEatenMeal`,
+    `normalizeEatenMeal`, `validPer100g`, `normalizeEstimatedItem`, `estimatedItemsValues`, `MealSnapshot`); archivio
+    freddo `ritmo:v1:archivio` per miniature e versioni (§ 12.5), letto in modo sincrono nel `merge` e scritto solo dopo
+    l'idratazione, con `archiveInfo()`; le azioni del § 12.3. `applyProposal(proposal, today?)` gestisce anche
+    `planProposal` e `weekKind` e, con `kcalDelta`, taglia la correzione (`clampKcalCorrection`) e scrive
+    `Plan.goalDeltaKcal`.
+  - `data/defaults.ts`: `ESPRESSO_CAFFEINE_MG` = 80; integratori dei nuovi utenti dal catalogo (creatina 3 g, omega-3
+    600 mg, vitamina D 15 µg), quelli della fase 1 in `LEGACY_DEFAULT_SUPPLEMENTS`. `data/supplementCatalogIds.ts`
+    (`CATALOG_IDS`, `CATALOG_VERSION`, con il test sul JSON), `data/foodFactsTypes.ts`, `data/estimateFoods.ts` (vuoto).
+  - `lib/backup.ts`: il riepilogo conta piatti, versioni e proposte aperte; accetta le versioni 1-4.
+  - `app/OverlayHost.tsx` e `app/boot.ts`: `mealLog`, `planProposal`, `supplement` con un segnaposto e `?overlay=`.
+  - `engine/energy.ts` (§ 2.1): `goalDeltaOf`, `dayEnergyDelta`, `clampKcalCorrection`, `deficitAtCap`, `EnergyState`,
+    `expenditureKcal` (kcal dell'obiettivo meno il deficit in vigore: non dipende dall'età né dall'orologio),
+    `isPreseason` (ridotta, la fase completa arriva con `engine/plan/season.ts`), `lowerLegGuard` (anche il fermo degli
+    impatti `Plan.impactHold` su una zona sotto il ginocchio porta il deficit massimo a 250). In `engine/nutrition.ts`
+    `energyAdjust`; `NutritionState` e `useNutritionState()` comprendono le revisioni.
+  - `engine/plan/proposals.ts`: `planBasis`, `proposalId`, `applyPatch`, `beforeOf`, `isSuperseded`, più `ProposalState`,
+    `stableStringify`, `lastApprovableDay`, `PATCH_KEYS`. `features/progressi/areas.ts`: l'area `piano`.
+- Fase 2, onda 0, risolutori (0A2, firme del § 12.2):
+  - `engine/menu.ts`: `menuWeekInForce(iso, plan)` (menù approvato del lunedì, altrimenti la rotazione; la ripetizione
+    dell'ultima settimana approvata arriva nell'onda 2A), `plannedMealsForDate(iso, plan)` (strato 1, il menù di avvio
+    vince su tutto), `weekSubstitutions(monday, plan)` (vuoto fino all'onda 1B; un valore che non è una ricetta nota non
+    sostituisce), `prepInForce(monday, plan)` (compiti del menù in vigore; un compito che serviva solo a ricette tolte
+    dalle sostituzioni sparisce). `mealsForDate` è lo strato 2 con gli scambi sopra (le sostituzioni solo con la
+    rotazione vera, non con una scritta a mano dai test); `DayMeals.source: MenuSource`
+    (`'avvio' | 'rotazione' | 'approvato' | 'ripetuto'`) e `MealEntry.excludedFrom?` (la ricetta tolta, con `plannedId`
+    che diventa la sostituta).
+  - `engine/plan/program.ts`: `sessionFor(slot, iso, plan)` (senza blocco la seduta fissa, lo stesso oggetto di
+    `SESSIONS`; con un blocco la seduta della settimana 1 con i fattori della sua settimana; prima dell'inizio del blocco
+    o per uno slot che il blocco non ha, la seduta fissa), `daySession` (in quest'onda sempre «piena», senza motivi),
+    `DaySession`, `weekOverrideFor`, `droppedByOverride`; `deriveItem` e `deriveSession` con gli arrotondamenti del
+    § 3.4 (la durata `estMin` segue le serie), `lightenSession`, `programWeekDose` (ripetizione senza progressione a fine
+    blocco, § 3.1), `DELOAD_DOSE`, `BASE_DOSE`, `LIGHT_WEEK_MIN_RIR`, `MAX_RIR`, `REPEAT_CYCLE_WEEKS`. «Scarico»
+    (`Plan.weekOverrides`) applica i fattori dello scarico a tutte le sedute di quella settimana, anche quelle fisse;
+    «leggera» porta il RIR ad almeno 3 e toglie la seduta facoltativa (in `plannedSessionFor`, nella timeline, nel
+    carico previsto, nel coach e in `nextGymSession`). Il cambio di fase senza approvazione (§ 3.1) resta all'onda 2B.
+  - Punti che leggevano `SESSIONS[...]` (31): passano da `sessionFor` o `daySession` quelli che mostrano o eseguono la
+    seduta di una data: `gymDuration` e `gymTotalMin` (argomento `iso?`: con la data e il piano nello stato
+    `daySession`, senza la seduta fissa), la voce della palestra in `buildTimeline`, il coach (ultime sedute, prossima
+    seduta, attività di oggi), `painGate`, `plannedLoadRemaining`, `nextGymSession`, `WorkoutDetailSheet`,
+    `NextSessionCard` e `ResumeCard`, `AllenamentoScreen`, `SessionPlayer`, `QuickWorkoutSheet`, `nowContent`
+    (`NowContentContext.session?`) e i dati di esempio. Tengono `SESSIONS` quelli che usano solo lo slot o la settimana
+    tipo: `boot.ts` (`?overlay=session`), `physioTime` e `itemWindowMin` (stima quando chi chiama non dà la durata),
+    `weekdayPlan` del coach, il calendario ricorrente (`ics.ts`), `introLevel` e `workoutVolume` (identità dello slot),
+    `WeekEditor` (tre punti), `dayActivities`, `DayDial`.
+  - Punti che leggevano `menuWeekFor(…, plan.startDate)` per la preparazione: `nextWeekPrep(iso, plan)` (ora vuole il
+    `Plan` intero), `shoppingList` (con `opts.rotation` resta la rotazione data), `PrepTab` (due punti),
+    `SettimanaScreen` e i dati di esempio passano da `prepInForce`.
+  - `engine/nutrition.ts`: `eatenMeal(log, slot)` (vale con «sostituito», oppure «fatto» con `asPlanned`: la regola di
+    `keepsEatenMeal`), unico accessorio di `dayNutritionDetail` con `onlyDone`, `dayIntake` e della riga del coach
+    (che dice la provenienza: «ordine al bar», «stima dalla foto», «piatto salvato»); `carbScaleForMeals(recipes,
+    dayType, target, carbFloorG?)`, di cui `dayCarbScale` è il caso del menù previsto. In `dayIntake` `bar` conta solo i
+    sostituiti con un ordine del bar.
+  - `engine/review.ts`: la correzione delle calorie è già tagliata con `clampKcalCorrection` (deficit ricavato dalle
+    revisioni prima della settimana rivista); con il deficit al tetto (`deficitAtCap`) nessun taglio e il motivo
+    `DEFICIT_AT_CAP_TEXT` («Deficit già al massimo: tieni le calorie e guarda sonno e passi.»); con il surplus al tetto
+    «Calorie invariate». Scarico e settimana più leggera hanno `apply: { type: 'weekKind', weekStart: lunedì dopo, kind }`;
+    `appliesToPlan(p)` dice quali proposte accettate passano da `applyProposal` (`changesPlan` resta orario e calorie,
+    per il riepilogo).
+  - `engine/compat.test.ts` con `compat.base.json`: l'istantanea del § 13.1, impronte dei valori calcolati sul ramo di
+    partenza (2d95033). Cambi dichiarati: integratori predefiniti (anche nei dati di esempio), `DATA_VERSION` 4, `apply`
+    di scarico e settimana leggera.

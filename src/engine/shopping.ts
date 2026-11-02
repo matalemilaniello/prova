@@ -32,12 +32,12 @@
  * cucinato in anticipo e la carne fresca di metà settimana va congelata da cruda. `starter` dice se tutta la
  * lista è di avvio: è la spesa di avvio, quella del primo pomeriggio libero.
  */
-import type { Food, ISODate, MealSlot, MenuWeek, ShopCategory } from '../domain/types';
+import type { Food, ISODate, MealSlot, MenuWeek, PrepTask, ShopCategory } from '../domain/types';
 import { FOODS } from '../data/foods';
 import { MENU_ROTATION } from '../data/menu';
 import { WEEKDAY_LONG, listIt } from '../lib/format';
 import { addDays, weekDates, weekStart, weekdayOf } from './dates';
-import { mealsForDate, menuWeekFor } from './menu';
+import { mealsForDate, menuWeekFor, prepInForce } from './menu';
 import { dayCarbScale, lineGrams, type NutritionState } from './nutrition';
 
 const NBSP = ' ';
@@ -374,10 +374,10 @@ export function freezeNote(dates: ISODate[], buyG?: number): string {
 }
 
 /** True se la preparazione della settimana cucina quell'alimento per quella ricetta. */
-function preparedAhead(foodId: string, recipeId: string, batch: boolean | undefined, week: MenuWeek | undefined): boolean {
+function preparedAhead(foodId: string, recipeId: string, batch: boolean | undefined, prep: readonly PrepTask[] | undefined): boolean {
   if (batch) return true;
   const word = foodId.split('-')[0];
-  return Boolean(week?.prep?.some((t) => (t.recipeIds ?? []).includes(recipeId) && t.title.toLowerCase().includes(word)));
+  return Boolean(prep?.some((t) => (t.recipeIds ?? []).includes(recipeId) && t.title.toLowerCase().includes(word)));
 }
 
 // ───────────────────────── Lista della settimana ─────────────────────────
@@ -390,7 +390,9 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
   const rotation = opts.rotation ?? MENU_ROTATION;
   const monday = weekStart(weekStartIso);
   const acc = new Map<string, { eaten: number; uses: ShoppingUse[] }>();
-  const week = rotation.length ? menuWeekFor(monday, state.plan.startDate, rotation) : undefined;
+  // Compiti della preparazione della domenica prima: quelli del menù in vigore (con una rotazione scritta a mano dai
+  // test, quelli della rotazione).
+  const prep = opts.rotation ? (rotation.length ? menuWeekFor(monday, state.plan.startDate, rotation)?.prep : undefined) : prepInForce(monday, state.plan);
   const lead = opts.lead;
   const leadDates: ISODate[] = [];
   if (lead && lead.date < monday) for (let d = lead.date; d < monday && leadDates.length < 3; d = addDays(d, 1)) leadDates.push(d);
@@ -416,7 +418,7 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
         cur.eaten += grams;
         const use: ShoppingUse = { date, slot: meal.slot, recipeId: meal.recipeId, grams };
         // Nei giorni di avvio la preparazione non c'è stata: anche una ricetta da preparazione si cucina sul momento.
-        if (!starter && preparedAhead(line.foodId, meal.recipeId, meal.recipe.batch, week)) use.ahead = true;
+        if (!starter && preparedAhead(line.foodId, meal.recipeId, meal.recipe.batch, prep)) use.ahead = true;
         cur.uses.push(use);
         acc.set(line.foodId, cur);
       }

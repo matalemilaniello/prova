@@ -1,8 +1,19 @@
 /**
  * Menù: rotazione delle settimane di MENU_ROTATION a partire dall'inizio del piano,
  * più le sostituzioni scelte dall'utente nel diario del giorno.
+ *
+ * Risolutori della fase 2 (docs/FASE2.md § 6.4, § 12.2), in due strati che si calcolano solo da quello sotto:
+ * - `menuWeekInForce(iso, plan)`: la settimana in vigore, cioè il menù approvato di quel lunedì (`Plan.menus`) o la
+ *   rotazione (dall'onda 2A anche l'ultima settimana approvata ripetuta);
+ * - strato 1, `plannedMealsForDate(iso, plan)`: le ricette previste nella data, senza sostituzioni né scambi (nei giorni
+ *   di avvio il menù di avvio, che vince su tutto);
+ * - strato 2, `weekSubstitutions(monday, plan)`: le ricette che sostituiscono quelle con un alimento escluso (vuoto
+ *   finché non arrivano le esclusioni, onda 1B);
+ * - `mealsForDate(iso, state)`: lo strato 2 con gli scambi dell'utente sopra, e `DayMeals.source` dice da dove viene.
+ * `prepInForce(monday, plan)` dà i compiti della preparazione della domenica prima di quel lunedì.
+ * Senza i campi nuovi (`Plan.menus`, esclusioni) tutto coincide con la rotazione di prima.
  */
-import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Recipe } from '../domain/types';
+import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Plan, PrepTask, Recipe } from '../domain/types';
 import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince, weekStart } from './dates';
@@ -29,7 +40,15 @@ export interface MealEntry {
    * Assente negli altri casi, anche quando la ricetta della rotazione non era da preparazione.
    */
   starterOf?: string;
+  /**
+   * Ricetta del menù tolta perché contiene un alimento escluso (strato 2, § 6.4): al suo posto `plannedId`. Assente
+   * senza esclusioni.
+   */
+  excludedFrom?: string;
 }
+
+/** Da dove vengono i pasti della data: menù di avvio, rotazione, menù approvato o ultima settimana approvata ripetuta. */
+export type MenuSource = 'avvio' | 'rotazione' | 'approvato' | 'ripetuto';
 
 export interface DayMeals {
   date: ISODate;
@@ -46,6 +65,8 @@ export interface DayMeals {
   rotationIndex: number;
   /** Giorno di avvio: spesa e preparazione della domenica non ancora fatte, niente ricette da preparazione. */
   starter: boolean;
+  /** Provenienza del menù del giorno (`'avvio'` nei giorni di avvio). */
+  source: MenuSource;
   /** Pasti in ordine di giornata; mancano gli slot senza ricetta. */
   meals: MealEntry[];
   bySlot: Partial<Record<MealSlot, MealEntry>>;
@@ -161,19 +182,39 @@ export function starterRecipeFor(recipeId: string, slot: MealSlot): string {
   return quick?.id ?? recipeId;
 }
 
-/** Pasti effettivi della data: ricetta del menù o sostituzione del diario, con il tipo di giorno. */
-export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[] = MENU_ROTATION): DayMeals {
-  const scheduledDayType = dayTypeFor(iso, state.plan);
-  const dayType = effectiveDayType(iso, state.plan);
-  const day = menuDayFor(iso, state.plan.startDate, rotation);
-  const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
-  const starter = isStarterDay(iso, state.plan);
+// ───────────────────────── Menù in vigore e strati (fase 2) ─────────────────────────
+
+type MenuPlan = Pick<Plan, 'startDate' | 'menus'>;
+
+/** Settimana in vigore con la sua provenienza: il menù approvato del lunedì, altrimenti la rotazione. */
+function weekInForce(iso: ISODate, plan: MenuPlan, rotation: MenuWeek[]): { week: MenuWeek | undefined; source: MenuSource } {
+  const approved = isISODate(iso) ? plan.menus?.[weekStart(iso)] : undefined;
+  if (approved && Array.isArray(approved.days)) return { week: approved, source: 'approvato' };
+  return { week: menuWeekFor(iso, plan.startDate, rotation), source: 'rotazione' };
+}
+
+/**
+ * Settimana di menù in vigore nella data: Plan.menus del suo lunedì; altrimenti l'ultima approvata delle 4 settimane prima,
+ * se nessun fresco strict è fuori stagione nel mese (dall'onda 2A, § 4.10); altrimenti la rotazione. Nell'onda 0, quando
+ * Plan.menus è sempre vuoto, è Plan.menus o la rotazione: la firma non cambia.
+ */
+export function menuWeekInForce(iso: ISODate, plan: Pick<Plan, 'startDate' | 'menus'>): MenuWeek | undefined {
+  return weekInForce(iso, plan, MENU_ROTATION).week;
+}
+
+/** Strato 1 con una rotazione data (le funzioni pubbliche usano MENU_ROTATION; i test ne passano una scritta a mano). */
+function plannedMeals(iso: ISODate, plan: AppData['plan'], rotation: MenuWeek[]): DayMeals {
+  const scheduledDayType = dayTypeFor(iso, plan);
+  const dayType = effectiveDayType(iso, plan);
+  const { week, source } = weekInForce(iso, plan, rotation);
+  const day = isISODate(iso) ? week?.days?.[weekdayOf(iso)] : undefined;
+  const starter = isStarterDay(iso, plan);
   const meals: MealEntry[] = [];
   const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
   for (const slot of MEAL_SLOTS) {
     const menuId = day?.meals?.[slot] ?? '';
     // Giorni di avvio: il menù di avvio (STARTER_WEEK, 17 prodotti, niente preparazione); se manca quel pasto,
-    // l'alternativa veloce alla ricetta della rotazione.
+    // l'alternativa veloce alla ricetta della settimana in vigore.
     const starterId = starter ? STARTER_WEEK.days[weekdayOf(iso)]?.meals?.[slot] : undefined;
     const plannedId = starter
       ? starterId && RECIPES[starterId]
@@ -182,15 +223,13 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
           ? starterRecipeFor(menuId, slot)
           : ''
       : menuId;
-    const swapId = swaps[slot];
-    const recipeId = swapId || plannedId;
-    if (!recipeId) continue;
+    if (!plannedId) continue;
     const entry: MealEntry = {
       slot,
-      recipeId,
-      recipe: RECIPES[recipeId],
+      recipeId: plannedId,
+      recipe: RECIPES[plannedId],
       plannedId,
-      swapped: Boolean(swapId && swapId !== plannedId),
+      swapped: false,
       ...(plannedId !== menuId && RECIPES[menuId]?.batch ? { starterOf: menuId } : {}),
     };
     meals.push(entry);
@@ -200,12 +239,87 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
     date: iso,
     dayType,
     scheduledDayType,
-    matchEve: isMatchEve(iso, state.plan),
-    rotationIndex: rotationIndexFor(iso, state.plan.startDate, rotation),
+    matchEve: isMatchEve(iso, plan),
+    rotationIndex: rotationIndexFor(iso, plan.startDate, rotation),
     starter,
+    source: starter ? 'avvio' : source,
     meals,
     bySlot,
   };
+}
+
+/** Strato 1 del § 6.4: le ricette previste nella data, senza sostituzioni né scambi. */
+export function plannedMealsForDate(iso: ISODate, plan: Plan): DayMeals {
+  return plannedMeals(iso, plan, MENU_ROTATION);
+}
+
+const NO_SUBSTITUTIONS: Partial<Record<ISODate, Partial<Record<MealSlot, string>>>> = Object.freeze({});
+
+/**
+ * Strato 2 del § 6.4: sostituzioni delle esclusioni di una settimana, memorizzate per (lunedì, piano). Onda 0: vuoto.
+ * Le chiavi sono le date della settimana, i valori le ricette che prendono il posto di quelle previste dallo strato 1;
+ * un valore che non è una ricetta nota non sostituisce niente.
+ */
+export function weekSubstitutions(monday: ISODate, plan: Plan): Partial<Record<ISODate, Partial<Record<MealSlot, string>>>> {
+  void monday;
+  void plan;
+  return NO_SUBSTITUTIONS;
+}
+
+/** Pasti effettivi della data: strato 2 (menù in vigore con le sostituzioni delle esclusioni) più gli scambi del diario. */
+export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[] = MENU_ROTATION): DayMeals {
+  const planned = plannedMeals(iso, state.plan, rotation);
+  // Le sostituzioni si calcolano sul menù vero: una rotazione scritta a mano dai test non ne ha.
+  const subs = rotation === MENU_ROTATION && isISODate(iso) ? weekSubstitutions(weekStart(iso), state.plan)[iso] : undefined;
+  const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
+  const meals: MealEntry[] = [];
+  const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
+  for (const slot of MEAL_SLOTS) {
+    const base = planned.bySlot[slot];
+    const sub = subs?.[slot];
+    const substituted = Boolean(sub && RECIPES[sub] && base && sub !== base.plannedId);
+    const plannedId = substituted ? (sub as string) : base?.plannedId ?? '';
+    const swapId = swaps[slot];
+    const recipeId = swapId || plannedId;
+    if (!recipeId) continue;
+    const entry: MealEntry = {
+      slot,
+      recipeId,
+      recipe: RECIPES[recipeId],
+      plannedId,
+      swapped: Boolean(swapId && swapId !== plannedId),
+      ...(base?.starterOf ? { starterOf: base.starterOf } : {}),
+      ...(substituted && base ? { excludedFrom: base.plannedId } : {}),
+    };
+    meals.push(entry);
+    bySlot[slot] = entry;
+  }
+  return { ...planned, meals, bySlot };
+}
+
+/**
+ * Compiti della preparazione della domenica prima di `monday`, con le esclusioni applicate: un compito che serviva solo
+ * a ricette tolte dalle sostituzioni sparisce, uno condiviso resta (§ 4.11). Senza sostituzioni sono i compiti della
+ * settimana in vigore.
+ */
+export function prepInForce(monday: ISODate, plan: Plan): PrepTask[] {
+  const tasks = menuWeekInForce(monday, plan)?.prep ?? [];
+  if (!tasks.length || !isISODate(monday)) return tasks;
+  const ws = weekStart(monday);
+  const subs = weekSubstitutions(ws, plan);
+  if (!Object.keys(subs).length) return tasks;
+  const removed = new Set<string>();
+  const kept = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    for (const m of mealsForDate(addDays(ws, i), { plan, dayLogs: {} }).meals) {
+      if (m.excludedFrom) removed.add(m.excludedFrom);
+      kept.add(m.plannedId);
+    }
+  }
+  return tasks.filter((t) => {
+    const ids = t.recipeIds ?? [];
+    return !ids.length || !ids.every((id) => removed.has(id) && !kept.has(id));
+  });
 }
 
 /** Alternative valide per una ricetta (dalle sue `swaps` e dalle ricette dello stesso pasto). */

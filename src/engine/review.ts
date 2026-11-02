@@ -17,8 +17,10 @@
  *   - scarico: ogni 6-8 settimane dall'inizio (o dall'ultimo scarico), o prima con sonno < 6 h per 3 notti
  *     e dolore in aumento.
  *
- * `sleepCurrent` e `kcalDelta` cambiano il piano con `applyProposal`; `{ type: 'none' }` è un impegno senza
- * toccare il piano. Nella revisione si decide solo su quello che cambia la settimana dopo (`needsDecision`:
+ * `sleepCurrent` e `kcalDelta` cambiano il piano con `applyProposal`; con i limiti dell'energia (`engine/energy.ts`) la
+ * correzione delle calorie è già tagliata al tetto, e con il deficit al tetto non si propone un altro taglio. Scarico e
+ * settimana più leggera hanno `weekKind`: accettati scrivono `Plan.weekOverrides` della settimana dopo
+ * (`appliesToPlan`). `{ type: 'none' }` è un impegno senza toccare il piano. Nella revisione si decide solo su quello che cambia la settimana dopo (`needsDecision`:
  * piano, scarico, settimana più leggera); il resto è da sapere.
  * Gli id sono stabili e uguali all'area ('sonno', 'calorie', …): una proposta per area.
  *
@@ -28,8 +30,9 @@ import type { AppData, Goal, HHMM, ISODate, MealSlot, Plan, Proposal, WeeklyRevi
 import { FOODS } from '../data/foods';
 import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
 import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
+import { clampKcalCorrection, deficitAtCap } from './energy';
 import { mealsForDate } from './menu';
-import { dayCarbScale, dayTargetFor, recipeNutrition, recipeVegPortions } from './nutrition';
+import { dayCarbScale, dayTargetFor, eatenMeal, recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
 import {
   adherenceSummary,
@@ -404,16 +407,25 @@ function uncountedMealSlots(iso: ISODate, state: ReviewState): Set<MealSlot> {
 
 const finiteOr0 = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
 
-/** Valori di un pasto preso con il piano B al bar, se il pasto è sostituito e l'ordine è leggibile. */
-function barIntake(log: AppData['dayLogs'][string] | undefined, slot: MealSlot): IntakeValues | null {
-  const bar = log?.barMeals?.[slot];
-  if (!bar || typeof bar !== 'object' || !bar.nutrients) return null;
-  return { fiberG: finiteOr0(bar.nutrients.fiberG), proteinG: finiteOr0(bar.nutrients.proteinG), vegPortions: finiteOr0(bar.vegPortions) };
+/**
+ * Valori di un pasto stimato che vale per la voce (`eatenMeal`: ordine al bar, foto o piatto salvato con la voce
+ * sostituita, oppure fatta se era il pasto previsto), con la sua provenienza.
+ */
+function eatenIntake(log: AppData['dayLogs'][string] | undefined, slot: MealSlot): (IntakeValues & { atBar: boolean }) | null {
+  const meal = eatenMeal(log, slot);
+  if (!meal) return null;
+  return {
+    fiberG: finiteOr0(meal.nutrients.fiberG),
+    proteinG: finiteOr0(meal.nutrients.proteinG),
+    vegPortions: finiteOr0(meal.vegPortions),
+    atBar: (meal.source ?? 'bar') === 'bar',
+  };
 }
 
 /**
- * Fibre, proteine e porzioni di vegetali del giorno dai pasti segnati: fatto = ricetta intera, preso con il
- * piano B al bar = i valori dell'ordine, sostituito con altro = metà, saltato = niente. I pasti senza stato
+ * Fibre, proteine e porzioni di vegetali del giorno dai pasti segnati: fatto = ricetta intera, con un pasto stimato
+ * che vale (`eatenMeal`: piano B al bar, foto, piatto salvato) = i valori della stima, sostituito con altro = metà,
+ * saltato = niente. I pasti senza stato
  * restano fuori (né zero né interi): `planned` e `plannedLogged` servono a stimare la settimana senza
  * contarli. Le giornate minime non hanno pasti da contare.
  */
@@ -451,12 +463,13 @@ export function dayIntake(iso: ISODate, state: ReviewState): DayIntake {
     out.logged = true;
     out.mealsLogged++;
     out.plannedLogged = addIntake(out.plannedLogged, v);
-    const bar = st === 'sostituito' ? barIntake(log, m.slot) : null;
+    const est = eatenIntake(log, m.slot);
+    const bar = est ? { fiberG: est.fiberG, proteinG: est.proteinG, vegPortions: est.vegPortions } : null;
     const eaten = bar ?? (st === 'fatto' ? v : st === 'sostituito' ? addIntake(ZERO_INTAKE, v, REPLACED_SHARE) : ZERO_INTAKE);
     Object.assign(out, addIntake(out, eaten));
     if (st === 'sostituito') out.replaced.push(m.slot);
     else if (st === 'saltato') out.skipped.push(m.slot);
-    if (bar) out.bar.push(m.slot);
+    if (est && st === 'sostituito' && est.atBar) out.bar.push(m.slot);
     const lost = v.fiberG - eaten.fiberG;
     if (st !== 'fatto' && lost > 0) out.fiberLost[m.slot] = (out.fiberLost[m.slot] ?? 0) + lost;
   }
@@ -844,6 +857,17 @@ export function creatineLoading(weekStart: ISODate, plan: Pick<Plan, 'supplement
   return w >= 0 && w < CREATINE_WATER_WEEKS;
 }
 
+/** Testo dei limiti dell'energia quando il deficit è già al tetto (§ 2.1). */
+export const DEFICIT_AT_CAP_TEXT = 'Deficit già al massimo: tieni le calorie e guarda sonno e passi.';
+
+/**
+ * Revisioni salvate prima della settimana rivista: il deficit in vigore si ricava da quelle (`goalDeltaOf`), così
+ * rileggere una revisione già accettata non conta due volte la sua correzione.
+ */
+function reviewsBefore(state: ReviewState, weekStart: ISODate): WeeklyReview[] {
+  return (state.reviews ?? []).filter((r) => r && r.weekStart < weekStart);
+}
+
 function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
   if (stats.weighIns < MIN_WEIGH_INS) {
     return {
@@ -857,7 +881,10 @@ function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
   const pct = stats.weightDeltaPct ?? 0;
   const delta = stats.weightDelta ?? 0;
   const goal = state.profile.goal ?? 'ricomposizione';
-  const kcal = kcalCorrection(goal, pct);
+  const proposed = kcalCorrection(goal, pct);
+  // Limiti dell'energia (§ 2.1): la correzione si taglia perché il deficit non superi 500 kcal né il 20% del dispendio.
+  const reviews = reviewsBefore(state, stats.weekStart);
+  const kcal = proposed ? clampKcalCorrection(proposed, state.plan, state.profile, reviews) : 0;
   const change = `${fmtDelta(delta, 'kg', 1)} (${pct1(pct)})`;
   const ref = stats.weightDeltaSource === 'confronto' ? 'rispetto alla settimana prima' : 'nella settimana';
   const avg = stats.weightAvg !== null ? `Peso medio ${fmtKg(stats.weightAvg)}, ` : '';
@@ -865,18 +892,36 @@ function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
     return {
       id: 'calorie',
       area: 'calorie',
-      title: `+${KCAL_UP} kcal al giorno`,
+      title: `+${fmtNumber(kcal)} kcal al giorno`,
       reason: `${avg}${change} ${ref}: un calo così rapido per ${GOAL_WORD[goal]} rischia di costare muscolo. Le calorie in più arrivano dai carboidrati.`,
       apply: { type: 'kcalDelta', value: kcal },
     };
   }
-  if (kcal < 0 && delta > 0 && creatineLoading(stats.weekStart, state.plan)) {
+  if (proposed < 0 && delta > 0 && creatineLoading(stats.weekStart, state.plan)) {
     // Nelle prime settimane la creatina richiama acqua nei muscoli (circa 0,5-1 kg): non è grasso.
     return {
       id: 'calorie',
       area: 'calorie',
       title: 'Calorie invariate',
       reason: `${stats.weightAvg !== null ? `Peso medio ${fmtKg(stats.weightAvg)}, in salita` : 'Peso in salita'} di ${fmtKg(Math.round(delta * 10) / 10)} (${pct1(pct)}) ${ref}: nelle prime settimane di creatina è soprattutto acqua nei muscoli. Calorie invariate, ricontrolliamo tra una settimana.`,
+    };
+  }
+  if (proposed < 0 && (kcal === 0 || deficitAtCap(state.plan, state.profile, reviews))) {
+    // Il deficit è già al tetto: nessun taglio in più.
+    return {
+      id: 'calorie',
+      area: 'calorie',
+      title: 'Calorie invariate',
+      reason: `${avg}${change} ${ref}. ${DEFICIT_AT_CAP_TEXT}`,
+    };
+  }
+  if (proposed > 0 && kcal === 0) {
+    // Surplus già al tetto (+500 kcal): nessun aumento in più.
+    return {
+      id: 'calorie',
+      area: 'calorie',
+      title: 'Calorie invariate',
+      reason: `${avg}${change} ${ref}: le calorie sono già al massimo previsto per ${GOAL_WORD[goal]}.`,
     };
   }
   if (kcal < 0) {
@@ -887,8 +932,8 @@ function weightProposal(stats: WeekStats, state: ReviewState): Proposal {
       title: `${fmtNumber(-n)} kcal al giorno`,
       reason:
         goal === 'dimagrimento'
-          ? `${avg}${change} ${ref}: il calo è troppo lento. Togli ${n} kcal dai carboidrati, proteine invariate.`
-          : `${avg}${change} ${ref}: sali più del previsto per ${GOAL_WORD[goal]}. Togli ${n} kcal dai carboidrati, proteine invariate.`,
+          ? `${avg}${change} ${ref}: il calo è troppo lento. Togli ${fmtNumber(n)} kcal dai carboidrati, proteine invariate.`
+          : `${avg}${change} ${ref}: sali più del previsto per ${GOAL_WORD[goal]}. Togli ${fmtNumber(n)} kcal dai carboidrati, proteine invariate.`,
       apply: { type: 'kcalDelta', value: kcal },
     };
   }
@@ -1046,7 +1091,8 @@ function loadProposal(stats: WeekStats, plan: Plan): Proposal | null {
     area: 'allenamento',
     title: 'Settimana più leggera',
     reason: `Carico di ${fmtNumber(st.load)} UA, ${ratio} delle settimane precedenti (soglia 120%). ${skip} e tieni le altre a RIR 3.`,
-    apply: { type: 'none' },
+    // Accettata scrive `Plan.weekOverrides` della settimana dopo: la seduta facoltativa sparisce, le altre a RIR ≥ 3.
+    apply: { type: 'weekKind', weekStart: addDays(weekStartOf(stats.weekStart), 7), kind: 'leggera' },
   };
 }
 
@@ -1085,7 +1131,15 @@ function deloadProposal(stats: WeekStats, state: ReviewState): Proposal | null {
     weeks >= DELOAD_AFTER_WEEKS
       ? `${weeks} settimane di lavoro ${since === weekStartOf(state.plan.startDate || since) ? 'dall’inizio del piano' : 'dall’ultimo scarico'}: è il momento di recuperare. La prossima settimana ${how}.`
       : `${stats.shortNights} notti sotto le ${SHORT_NIGHT_H} ore e ${listIt(rising.map((p) => p.site.toLowerCase()))} in aumento: meglio scaricare adesso. La prossima settimana ${how}.`;
-  return { id: 'scarico', area: 'scarico', title: 'Settimana di scarico', reason, apply: { type: 'none' } };
+  // Accettata scrive `Plan.weekOverrides` della settimana dopo: le sedute (anche quelle fisse) prendono i fattori dello
+  // scarico (engine/plan/program.ts).
+  return {
+    id: 'scarico',
+    area: 'scarico',
+    title: 'Settimana di scarico',
+    reason,
+    apply: { type: 'weekKind', weekStart: addDays(weekStartOf(stats.weekStart), 7), kind: 'scarico' },
+  };
 }
 
 /**
@@ -1117,9 +1171,18 @@ export function acceptable(list: readonly Proposal[]): Proposal[] {
   return list.filter((p) => p.apply !== undefined);
 }
 
-/** Proposte che cambiano davvero il piano. */
+/** Proposte che cambiano davvero il piano salvato in modo visibile (orario a letto, calorie). */
 export function changesPlan(p: Proposal): boolean {
   return p.apply?.type === 'sleepCurrent' || p.apply?.type === 'kcalDelta';
+}
+
+/**
+ * Proposte che, accettate, si passano ad `applyProposal`: quelle che cambiano il piano più lo scarico e la settimana
+ * più leggera, che scrivono `Plan.weekOverrides` (`weekKind`), e le proposte del piano (`planProposal`). Lo scarico e la
+ * settimana leggera restano impegni della settimana nel riepilogo (`changesPlan` falso).
+ */
+export function appliesToPlan(p: Proposal): boolean {
+  return changesPlan(p) || p.apply?.type === 'weekKind' || p.apply?.type === 'planProposal';
 }
 
 /** Impegni della settimana dopo che cambiano il programma anche se non toccano il piano salvato. */

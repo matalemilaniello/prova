@@ -5,9 +5,9 @@
 import { useMemo, useState } from 'react';
 import { CircleCheck, Dumbbell } from 'lucide-react';
 import type { WorkoutLog } from '../../domain/types';
-import { SESSIONS } from '../../data/sessions';
 import { daysBetween, formatDayTitle, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
 import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
+import { sessionFor } from '../../engine/plan/program';
 import { gateForLater, introLevel, sessionLoad } from '../../engine/training';
 import { useNow, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
@@ -49,7 +49,7 @@ export default function AllenamentoScreen() {
   const [physioOpen, setPhysioOpen] = useState(false);
 
   const draftTotal = useMemo(() => {
-    const s = draft ? SESSIONS[draft.sessionId] : undefined;
+    const s = draft ? sessionFor(draft.sessionId, draft.date, plan) : undefined;
     if (!s) return 0;
     // Come nel lettore: gli esercizi del fisioterapista contano solo se li stai facendo.
     const items = buildPlayerPlan(s, physio, plan, draft!.date, { intro: introLevel(s.id, workoutLogs) }).items;
@@ -92,7 +92,7 @@ export default function AllenamentoScreen() {
                 key={w.id}
                 icon={CircleCheck}
                 iconTone="good"
-                title={`${SESSIONS[w.sessionId]?.name ?? 'Seduta'} fatta oggi`}
+                title={`${sessionFor(w.sessionId, w.date, plan)?.name ?? 'Seduta'} fatta oggi`}
                 subtitle={`${w.durationMin} min · RPE ${w.rpe} · ${fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA${rec ? ` · record: ${shortName(exerciseFor(rec.exerciseId, physio)?.name ?? rec.exerciseId, rec.exerciseId)}` : ''}`}
                 onPress={() => setDetail({ log: w, open: true })}
               />

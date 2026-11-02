@@ -12,8 +12,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, ChevronLeft, ChevronRight, Dumbbell, Flag, ListOrdered, Play, Timer } from 'lucide-react';
 import type { ExerciseLog, ISODate, SetLog, WorkoutLog, WorkoutSession } from '../../domain/types';
 import { EXERCISES } from '../../data/exercises';
-import { SESSIONS } from '../../data/sessions';
 import { weekStart } from '../../engine/dates';
+import { sessionFor } from '../../engine/plan/program';
 import {
   introLevel,
   lastEntryFor,
@@ -48,7 +48,9 @@ export interface SessionPlayerProps {
 }
 
 export default function SessionPlayer({ sessionId, date, onClose }: SessionPlayerProps) {
-  const session = SESSIONS[sessionId];
+  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa dello slot).
+  const plan = useApp((s) => s.plan);
+  const session = sessionFor(sessionId, date, plan);
   if (!session) {
     return (
       <FullScreenModal open onClose={onClose} title="Seduta">
@@ -594,7 +596,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           <div className="pt-3">
             <Callout
               tone="accent"
-              title={`Hai una ${SESSIONS[other.sessionId]?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} in corso`}
+              title={`Hai una ${sessionFor(other.sessionId, other.date, plan)?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} in corso`}
               action={
                 <Button size="sm" variant="ghost" onClick={() => useUi.getState().open({ type: 'session', sessionId: other.sessionId, date: other.date })}>
                   Riprendila

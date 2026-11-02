@@ -6,7 +6,7 @@
  * Privacy: il nome non viene mai inviato. L'interfaccia mostra all'utente questo stesso testo.
  * Ogni sezione è protetta: se un motore fallisce, il coach riceve comunque il resto.
  */
-import type { AppData, CheckIn, DayType, ISODate, ItemStatus, MealSlot, Nutrients, Weekday } from '../domain/types';
+import type { AppData, CheckIn, DayType, ISODate, ItemStatus, MealSlot, MealSource, Nutrients, Weekday } from '../domain/types';
 import { BAR_OPTIONS, BAR_VERDICTS } from '../data/barPlanB';
 import { SESSIONS } from '../data/sessions';
 import {
@@ -35,7 +35,8 @@ import {
   weekdayOf,
 } from './dates';
 import { dayTypeFor, effectiveDayType, isMatchEve, mealsForDate } from './menu';
-import { dayCarbScale, dayNutritionDetail, dayTargetFor, recipeNutrition } from './nutrition';
+import { dayCarbScale, dayNutritionDetail, dayTargetFor, eatenMeal, recipeNutrition } from './nutrition';
+import { droppedByOverride, sessionFor } from './plan/program';
 import { firstReviewDate, MIN_NUTRITION_DAYS, reviewAvailable, weeklyStepStatus, weekStats } from './review';
 import { checkInSleepHours, curfewFor, planDayISO } from './sleep';
 import { ageFrom, MATCH_CARB_G_PER_KG } from './targets';
@@ -247,6 +248,14 @@ function planSection(state: AppData, today: ISODate): string[] {
   return lines;
 }
 
+
+/** Provenienza di un pasto stimato nella riga del coach: il piano B al bar resta «ordine al bar», come prima. */
+const EATEN_SOURCE_LABEL: Record<MealSource, string> = {
+  bar: 'ordine al bar',
+  foto: 'stima dalla foto',
+  piatto: 'piatto salvato',
+};
+
 function todaySection(state: AppData, today: ISODate): string[] {
   const plan = state.plan;
   const dayType = dayTypeFor(today, plan);
@@ -289,9 +298,11 @@ function todaySection(state: AppData, today: ISODate): string[] {
       label += `: ${it.detail}`;
     }
     const note = log?.notes?.[it.id];
-    // Pasto preso con il piano B al bar: i valori dell'ordine, non quelli della ricetta.
-    const bar = st === 'sostituito' && it.kind === 'pasto' && it.slot ? log?.barMeals?.[it.slot as MealSlot] : undefined;
-    const barValues = bar ? `, ordine al bar: ${fmtKcal(bar.nutrients.kcal)}, P ${n0(bar.nutrients.proteinG)} g, fibre ${n0(bar.nutrients.fiberG)} g` : '';
+    // Pasto stimato che vale (`eatenMeal`: piano B al bar, foto, piatto salvato): i suoi valori, non quelli della ricetta.
+    const bar = it.kind === 'pasto' && it.slot ? eatenMeal(log, it.slot as MealSlot) : null;
+    const barValues = bar
+      ? `, ${EATEN_SOURCE_LABEL[bar.source ?? 'bar']}: ${fmtKcal(bar.nutrients.kcal)}, P ${n0(bar.nutrients.proteinG)} g, fibre ${n0(bar.nutrients.fiberG)} g`
+      : '';
     lines.push(`- ${label} · ${st ? STATUS_LABEL[st] : it.kind === 'letto' ? 'stasera' : 'da fare'}${barValues}${note ? ` (nota: "${trimDot(note)}")` : ''}`);
   }
 
@@ -352,7 +363,7 @@ function trainingSection(state: AppData, today: ISODate): string[] {
   if (workouts.length) {
     lines.push('Ultime sedute di palestra:');
     for (const w of workouts) {
-      const name = SESSIONS[w.sessionId]?.name ?? `Seduta ${w.sessionId}`;
+      const name = sessionFor(w.sessionId, w.date, state.plan)?.name ?? `Seduta ${w.sessionId}`;
       const ex = w.exercises
         .map((e) => {
           const best = bestSet(e);
@@ -384,7 +395,7 @@ function trainingSection(state: AppData, today: ISODate): string[] {
   lines.push(`${load.join('; ')}.${ls.alert ? ' Attenzione: carico oltre il 120% della media.' : ''}`);
   const next = nextPlannedSession(today, state);
   if (next) {
-    const name = SESSIONS[next.sessionId]?.name ?? `Seduta ${next.sessionId}`;
+    const name = sessionFor(next.sessionId, next.date, state.plan)?.name ?? `Seduta ${next.sessionId}`;
     const when = next.daysAway === 0 ? 'oggi' : next.daysAway === 1 ? 'domani' : formatDayLong(next.date);
     lines.push(`Prossima seduta: ${name} ${when}${next.time ? ` alle ${next.time}` : ''}${next.optional ? ' (facoltativa)' : ''}.`);
   }
@@ -487,8 +498,8 @@ export function coachDaySummary(state: AppData, now: Date = currentDate()): Coac
   const wd = state.plan.week.find((d) => d.weekday === weekdayOf(today));
   let activity: string | null = null;
   if (wd?.football) activity = `${capitalize(FOOTBALL_LABEL[wd.football.kind])} alle ${wd.football.time}`;
-  else if (wd?.gymSessionId) {
-    const name = SESSIONS[wd.gymSessionId]?.name ?? `Seduta ${wd.gymSessionId}`;
+  else if (wd?.gymSessionId && !droppedByOverride(today, wd, state.plan)) {
+    const name = sessionFor(wd.gymSessionId, today, state.plan)?.name ?? `Seduta ${wd.gymSessionId}`;
     activity = `${name}${wd.gymOptional ? ' facoltativa' : ''}${wd.gymTime ? ` alle ${wd.gymTime}` : ''}`;
   }
   let done = 0;

@@ -34,6 +34,7 @@ import type {
 import { EXERCISES, elbowSwitchOf, type CatalogExercise } from '../data/exercises';
 import { SESSIONS, estimateItemSec } from '../data/sessions';
 import { addDays, daysBetween, weekStart as weekStartOf, weekdayOf } from './dates';
+import { droppedByOverride, sessionFor } from './plan/program';
 
 // ───────────────────────── Costanti ─────────────────────────
 
@@ -623,10 +624,16 @@ export interface PlannedSession {
   daysAway: number;
 }
 
-/** Seduta di palestra prevista in una data dal piano, se c'è. */
-export function plannedSessionFor(iso: ISODate, plan: Pick<Plan, 'week'>): Omit<PlannedSession, 'daysAway'> | null {
+/**
+ * Seduta di palestra prevista in una data dal piano, se c'è. Nella settimana «leggera» accettata nella revisione
+ * (`Plan.weekOverrides`) la seduta facoltativa non c'è.
+ */
+export function plannedSessionFor(
+  iso: ISODate,
+  plan: Pick<Plan, 'week'> & Partial<Pick<Plan, 'weekOverrides'>>,
+): Omit<PlannedSession, 'daysAway'> | null {
   const day = plan.week.find((d) => d.weekday === weekdayOf(iso));
-  if (!day?.gymSessionId) return null;
+  if (!day?.gymSessionId || droppedByOverride(iso, day, plan)) return null;
   return { date: iso, sessionId: day.gymSessionId, time: day.gymTime, optional: Boolean(day.gymOptional) };
 }
 
@@ -680,8 +687,8 @@ export function plannedLoadRemaining(
     if (iso < today) continue;
     const day = state.plan.week.find((d) => d.weekday === weekdayOf(iso));
     if (!day) continue;
-    if (day.gymSessionId && !hasWorkoutOn(iso, state.workoutLogs ?? [])) {
-      const est = SESSIONS[day.gymSessionId]?.estMin ?? 50;
+    if (day.gymSessionId && !droppedByOverride(iso, day, state.plan) && !hasWorkoutOn(iso, state.workoutLogs ?? [])) {
+      const est = sessionFor(day.gymSessionId, iso, state.plan)?.estMin ?? 50;
       items.push({ date: iso, kind: 'palestra', sessionId: day.gymSessionId, optional: Boolean(day.gymOptional), load: sessionLoad(est, TYPICAL_RPE.palestra) });
     }
     if (day.football && !(state.footballLogs ?? []).some((f) => f.date === iso)) {
@@ -891,7 +898,7 @@ export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions =
   const threshold = state.plan.painThreshold ?? 3;
   const impactThreshold = impactThresholdFor(state.plan);
   const sessionId = opts.sessionId === undefined ? (state.plan.week ? plannedSessionFor(iso, state.plan)?.sessionId : undefined) : opts.sessionId;
-  const session = sessionId ? SESSIONS[sessionId] : undefined;
+  const session = sessionId ? sessionFor(sessionId, iso, state.plan) : undefined;
   const monitored = state.profile?.painSites ?? [];
   const watched = (site: string) => !monitored.length || monitored.includes(site);
   const strong = Math.max(5, threshold + 2);

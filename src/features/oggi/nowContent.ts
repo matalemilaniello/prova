@@ -4,7 +4,7 @@
  * I valori dei pasti arrivano già calcolati da `dayNutritionDetail` (tipo di giorno effettivo, vigilia
  * compresa, e scala del piano `dayCarbScale`): sono gli stessi numeri di Settimana e della scheda della ricetta.
  */
-import type { HHMM, MealSlot, Nutrients } from '../../domain/types';
+import type { HHMM, MealSlot, Nutrients, WorkoutSession } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { SESSIONS } from '../../data/sessions';
 import { STARTER_SHOPPING_ID, type DayItem, type NowPick } from '../../engine/timeline';
@@ -28,6 +28,8 @@ export interface NowContentContext {
   timeShown: boolean;
   /** Durata della seduta come in Allenamento (`gymDuration`): senza, vale `estMin`. */
   gym?: Pick<SessionDuration, 'own' | 'physio'> | null;
+  /** Seduta del giorno (`sessionFor`: blocco in vigore, settimana scaricata o leggera); senza, la seduta fissa dello slot. */
+  session?: WorkoutSession | null;
   /** Prima spesa dei giorni di avvio, per i pasti che vengono prima (`DayItem.preShopping`). */
   shopping?: { time: HHMM; tomorrow: boolean } | null;
 }
@@ -82,7 +84,7 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       };
     }
     case 'palestra': {
-      const s = SESSIONS[item.ref ?? ''];
+      const s = ctx.session ?? SESSIONS[item.ref ?? ''];
       return {
         kicker: item.title,
         headline: s?.subtitle ?? item.title,

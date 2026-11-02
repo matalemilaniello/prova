@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
-import { SESSIONS } from '../../../data/sessions';
+import { sessionFor } from '../../../engine/plan/program';
 import type { PainGate, PlannedSession } from '../../../engine/training';
 import { capitalize, fmtMinutes } from '../../../lib/format';
 import { useApp } from '../../../state/store';
@@ -29,7 +29,8 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
   const nowHHMM = useNowHHMM();
-  const session = SESSIONS[next.sessionId];
+  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa).
+  const session = sessionFor(next.sessionId, next.date, plan);
   if (!session) return null;
   // Numeri della seduta senza il blocco del fisioterapista (e senza i suoi doppioni), con la dose di oggi.
   const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
@@ -103,7 +104,7 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
 
         {next.optional && after && (
           <p className="t-footnote -mt-1 text-balance text-center text-ink-3">
-            Se la salti, la prossima è la {SESSIONS[after.sessionId]?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} {relativeDayShort(after.date, today)}.
+            Se la salti, la prossima è la {sessionFor(after.sessionId, after.date, plan)?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} {relativeDayShort(after.date, today)}.
           </p>
         )}
       </div>
@@ -123,7 +124,8 @@ export interface ResumeCardProps {
 
 /** Seduta lasciata a metà: si riprende da dove eri. */
 export function ResumeCard({ draft, today, now, doneSets, totalSets, onResume, onDiscard }: ResumeCardProps) {
-  const session = SESSIONS[draft.sessionId];
+  const plan = useApp((s) => s.plan);
+  const session = sessionFor(draft.sessionId, draft.date, plan);
   const sameDay = draft.date === today;
   const started = new Date(draft.startedAt);
   const startedAt = `${String(started.getHours()).padStart(2, '0')}:${String(started.getMinutes()).padStart(2, '0')}`;

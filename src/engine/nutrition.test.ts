@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { CheckIn, DayType, Food, IngredientLine, Plan, PortionUnit, Profile, Recipe } from '../domain/types';
+import type { CheckIn, DayLog, DayType, EatenMeal, Food, IngredientLine, ItemStatus, Plan, PortionUnit, Profile, Recipe } from '../domain/types';
 import { DEFAULT_PROFILE, defaultPlan } from '../data/defaults';
 import { FOODS } from '../data/foods';
 import { RECIPES } from '../data/recipes';
 import { addDays } from './dates';
-import { isMatchDay, isMatchEve } from './menu';
+import { keepsEatenMeal, normalizeBarMeals } from '../state/store';
+import { isMatchDay, isMatchEve, mealsForDate } from './menu';
 import {
   carbFactor,
+  carbScaleForMeals,
+  eatenMeal,
   dayCarbScale,
   dayNutrition,
   dayNutritionDetail,
@@ -549,5 +552,88 @@ describe('partita e vigilia: almeno 6 g/kg di carboidrati', () => {
     const s = { ...state, plan: high };
     expect(matchCarbs(monday, s)?.extraG).toBe(0);
     expect(dayTargetFor(monday, s)).toEqual(high.targets.calcio);
+  });
+});
+
+// ───────────────────────── Pasti stimati e scala su ricette date (fase 2, § 7.5, § 12.2) ─────────────────────────
+
+describe('eatenMeal: il pasto stimato che vale per la voce', () => {
+  const D = '2026-11-11';
+  const meal = (over: Partial<EatenMeal> = {}): EatenMeal => ({
+    label: 'Pasta al pomodoro',
+    nutrients: { kcal: 640, proteinG: 22, carbG: 98, fatG: 16, fiberG: 7 },
+    vegPortions: 1,
+    source: 'foto',
+    ...over,
+  });
+  const log = (status: ItemStatus | undefined, m: EatenMeal): DayLog => ({
+    date: D,
+    status: status ? { 'pasto:pranzo': status } : {},
+    notes: {},
+    minimal: false,
+    waterGlasses: 0,
+    sweets: 0,
+    recipeSwaps: {},
+    barMeals: { pranzo: m },
+  });
+
+  it('vale con «sostituito», oppure con «fatto» e asPlanned; concorda con lo stato (§ 13.6, 26)', () => {
+    for (const st of ['fatto', 'sostituito', 'saltato', undefined] as const) {
+      for (const asPlanned of [true, undefined]) {
+        const m = meal({ asPlanned });
+        const got = eatenMeal(log(st, m), 'pranzo');
+        expect(got !== null, `${st} ${asPlanned}`).toBe(keepsEatenMeal(st, m));
+        expect(Boolean(normalizeBarMeals({ pranzo: m }, st ? { 'pasto:pranzo': st } : {})?.pranzo)).toBe(got !== null);
+        if (got) expect(got.nutrients).toEqual(m.nutrients);
+      }
+    }
+    expect(eatenMeal(undefined, 'pranzo')).toBeNull();
+    expect(eatenMeal(log('sostituito', { label: 'x' } as EatenMeal), 'pranzo')).toBeNull();
+    expect(eatenMeal(log('sostituito', meal()), 'cena')).toBeNull();
+  });
+
+  it('un pasto previsto fotografato resta fatto e vale per la stima nei valori del giorno', () => {
+    const plan = defaultPlan('2026-11-09');
+    const day = log('fatto', meal({ asPlanned: true }));
+    const state = { plan, dayLogs: { [D]: day } };
+    const done = dayNutritionDetail(D, state, { onlyDone: true });
+    expect(done.bySlot.pranzo).toEqual(meal().nutrients);
+    expect(done.total).toEqual(meal().nutrients);
+    expect(done.vegPortions).toBe(1);
+    // Senza asPlanned la voce fatta vale la ricetta (lo stato toglierebbe comunque la stima).
+    const plain = dayNutritionDetail(D, { plan, dayLogs: { [D]: log('fatto', meal()) } }, { onlyDone: true });
+    expect(plain.bySlot.pranzo).toEqual(dayNutritionDetail(D, { plan, dayLogs: {} }).bySlot.pranzo);
+    // I valori previsti restano quelli del menù.
+    expect(dayNutritionDetail(D, state).bySlot.pranzo).toEqual(dayNutritionDetail(D, { plan, dayLogs: {} }).bySlot.pranzo);
+  });
+});
+
+describe('carbScaleForMeals: la regola di dayCarbScale su ricette date', () => {
+  it('coincide con dayCarbScale sul menù previsto, con obiettivi cambiati e con il minimo di partita e vigilia', () => {
+    const base = defaultPlan('2026-11-09');
+    const plans: Plan[] = [
+      base,
+      { ...base, targets: { ...base.targets, palestra: { ...base.targets.palestra, kcal: base.targets.palestra.kcal + 300 }, riposo: { ...base.targets.riposo, kcal: base.targets.riposo.kcal - 200 } } },
+    ];
+    const profile: Profile = { ...DEFAULT_PROFILE, startWeightKg: 90 };
+    for (const plan of plans) {
+      for (let i = 0; i < 14; i++) {
+        const iso = addDays('2026-11-09', i);
+        const state = { plan, dayLogs: {}, profile };
+        const dayType = mealsForDate(iso, state).dayType;
+        const recipes = mealsForDate(iso, state).meals.map((m) => RECIPES[m.plannedId]);
+        const m = matchCarbs(iso, state);
+        const target = { ...plan.targets[dayType], kcal: plan.targets[dayType].kcal };
+        expect(carbScaleForMeals(recipes, dayType, target, m?.extraG ? m.floorG : undefined), iso).toBeCloseTo(dayCarbScale(iso, state), 12);
+      }
+    }
+  });
+
+  it('obiettivi predefiniti e nessun minimo: scala 1; con il minimo sale fino a raggiungerlo', () => {
+    const recipes = mealsForDate('2026-11-12', { plan: defaultPlan('2026-11-09'), dayLogs: {} }).meals.map((m) => m.recipe);
+    expect(carbScaleForMeals(recipes, 'palestra', defaultPlan('2026-11-09').targets.palestra)).toBe(1);
+    const floor = carbScaleForMeals(recipes, 'calcio', defaultPlan('2026-11-09').targets.calcio, 600);
+    expect(floor).toBeGreaterThan(1);
+    expect(floor).toBeLessThanOrEqual(1.6);
   });
 });

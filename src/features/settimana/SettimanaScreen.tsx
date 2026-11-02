@@ -15,7 +15,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AppData, ISODate } from '../../domain/types';
 import { useUrlParam } from '../../app/urlParams';
 import { addDays, daysBetween, formatWeekRange, weekDates, weekIndexSince, weekStart, weekdayOf } from '../../engine/dates';
-import { isStarterDay, menuWeekFor } from '../../engine/menu';
+import { isStarterDay, prepInForce } from '../../engine/menu';
 import { shoppingList, shoppingProgress } from '../../engine/shopping';
 import { haptic } from '../../lib/haptics';
 import { useApp } from '../../state/store';
@@ -95,7 +95,7 @@ export default function SettimanaScreen() {
   const prepDone = useApp((s) => s.prepDone[prepMonday] ?? EMPTY);
   const progress = shoppingProgress(list, checked);
   // Nella settimana di avvio non c'è niente da preparare: il contatore resta spento.
-  const prepTasks = prepSkipped(plan, prepMonday, isStarterDay(prepMonday, plan)) ? [] : menuWeekFor(prepMonday, plan.startDate)?.prep ?? [];
+  const prepTasks = prepSkipped(plan, prepMonday, isStarterDay(prepMonday, plan)) ? [] : prepInForce(prepMonday, plan);
   const prepLeft = prepTasks.filter((t) => !prepDone.includes(t.id)).length;
 
   // Giornate passate riuscite (spunta nella striscia).

@@ -8,7 +8,10 @@ import { buildDay } from './timeline';
 import { dayNutrition, recipeNutrition } from './nutrition';
 import {
   acceptable,
+  appliesToPlan,
+  changesPlan,
   creatineLoading,
+  DEFICIT_AT_CAP_TEXT,
   firstReviewDate,
   firstReviewWeek,
   isReviewableWeek,
@@ -893,5 +896,112 @@ describe('scala del sonno nel tempo', () => {
     const s = weekStats(W1, d, { today: addDays(W1, 6) });
     expect(s.nightsOnTarget).toBe(s.nightsWithBedtime);
     expect(s.nightsOnTarget).toBeGreaterThan(0);
+  });
+});
+
+// ───────────────────────── Fase 2: limiti dell'energia e settimane della revisione (§ 2.1, § 3.9) ─────────────────────────
+
+describe('correzione delle calorie entro i limiti dell’energia (§ 2.1, § 13.7, 38)', () => {
+  /** Dimagrimento senza `goalDeltaKcal` (i piani di oggi), calo troppo lento: la regola chiede −150. */
+  function slowLoss(reviews: WeeklyReview[] = [], targetsScale = 1): { state: AppData; stats: ReturnType<typeof weekStats> } {
+    const d = base();
+    d.profile = { ...d.profile, goal: 'dimagrimento' };
+    if (targetsScale !== 1) {
+      for (const t of Object.keys(d.plan.targets) as (keyof typeof d.plan.targets)[]) d.plan.targets[t] = { ...d.plan.targets[t], kcal: Math.round(d.plan.targets[t].kcal * targetsScale) };
+    }
+    d.reviews = reviews;
+    const stats = { ...weekStats(W2, d), weighIns: 5, weightAvg: 80, weightDelta: -0.08, weightDeltaPct: -0.001, weightDeltaSource: 'confronto' as const };
+    return { state: d, stats };
+  }
+  const accepted = (weekStart: ISODate, value: number): WeeklyReview => ({
+    weekStart,
+    votes: { energia: 7, digestione: 7, umore: 7, campo: 7 },
+    acceptedProposals: ['calorie'],
+    proposals: [{ id: 'calorie', area: 'calorie', title: `${value} kcal al giorno`, reason: '', apply: { type: 'kcalDelta', value } }],
+  });
+  const calories = (s: { state: AppData; stats: ReturnType<typeof weekStats> }) => proposals(W2, s.state, { stats: s.stats }).find((p) => p.area === 'calorie')!;
+
+  it('sotto il tetto la correzione resta −150', () => {
+    expect(kcalCorrection('dimagrimento', -0.001)).toBe(-150);
+    expect(calories(slowLoss()).apply).toEqual({ type: 'kcalDelta', value: -150 });
+  });
+
+  it('con una correzione da −150 già accettata il deficit è al tetto: nessun altro taglio', () => {
+    const p = calories(slowLoss([accepted(W1, -150)]));
+    expect(p.apply).toBeUndefined();
+    expect(p.title).toBe('Calorie invariate');
+    expect(p.reason).toContain(DEFICIT_AT_CAP_TEXT);
+    expect(needsDecision(p)).toBe(false);
+  });
+
+  it('con obiettivi bassi il tetto del 20% taglia la correzione', () => {
+    // Riposo a 1.840 kcal: dispendio 2.190, il 20% è 438 (meno di 500): da −350 si scende di 88 al massimo.
+    const s = slowLoss([], 0.8);
+    const p = calories(s);
+    const cap = Math.min(...Object.values(s.state.plan.targets).map((t) => Math.min(500, Math.floor((t.kcal + 350) * 0.2))));
+    expect(p.apply).toEqual({ type: 'kcalDelta', value: -(cap - 350) });
+    expect(p.title).toBe(`−${cap - 350} kcal al giorno`);
+  });
+
+  it('una revisione già salvata non conta la sua stessa correzione', () => {
+    const p = calories(slowLoss([accepted(W2, -150)]));
+    expect(p.apply).toEqual({ type: 'kcalDelta', value: -150 });
+  });
+});
+
+describe('scarico e settimana più leggera scrivono la settimana dopo (§ 3.9)', () => {
+  it('lo scarico dopo 6 settimane ha apply weekKind sul lunedì dopo, e si passa ad applyProposal', () => {
+    const d = base('2026-09-28');
+    const p = proposals(W2, d, { today: '2026-11-15' }).find((x) => x.area === 'scarico')!;
+    expect(p.apply).toEqual({ type: 'weekKind', weekStart: '2026-11-16', kind: 'scarico' });
+    expect(changesPlan(p)).toBe(false);
+    expect(appliesToPlan(p)).toBe(true);
+    expect(needsDecision(p)).toBe(true);
+    expect(acceptable([p])).toEqual([p]);
+  });
+
+  it('la settimana più leggera ha apply weekKind «leggera»', () => {
+    const d = base();
+    const loadStatus = { weekStart: W2, load: 3000, average: 2000, ratio: 1.5, threshold: 2400, previous: [], enoughHistory: true, alert: true };
+    const stats = { ...weekStats(W2, d), loadStatus };
+    const p = proposals(W2, d, { stats }).find((x) => x.area === 'allenamento')!;
+    expect(p.apply).toEqual({ type: 'weekKind', weekStart: '2026-11-16', kind: 'leggera' });
+    expect(appliesToPlan(p)).toBe(true);
+    expect(changesPlan(p)).toBe(false);
+  });
+
+  it('le proposte che cambiano il piano restano quelle di prima; quelle del piano si passano ad applyProposal', () => {
+    expect(appliesToPlan({ id: 'x', area: 'piano', title: '', reason: '', apply: { type: 'planProposal', id: 'p1' } })).toBe(true);
+    expect(appliesToPlan({ id: 'x', area: 'fibre', title: '', reason: '', apply: { type: 'none' } })).toBe(false);
+    expect(appliesToPlan({ id: 'x', area: 'sonno', title: '', reason: '', apply: { type: 'sleepCurrent', value: '00:00' } })).toBe(true);
+  });
+});
+
+describe('dayIntake con i pasti stimati (§ 7.5)', () => {
+  it('una foto del pasto previsto vale la stima; una foto al posto del pasto non conta come bar', () => {
+    const d = base();
+    const day = W2;
+    const n = { kcal: 500, proteinG: 40, carbG: 50, fatG: 10, fiberG: 2 };
+    d.dayLogs[day] = {
+      date: day,
+      status: { 'pasto:pranzo': 'fatto', 'pasto:cena': 'sostituito', 'pasto:merenda': 'sostituito' },
+      notes: {},
+      minimal: false,
+      waterGlasses: 0,
+      sweets: 0,
+      recipeSwaps: {},
+      barMeals: {
+        pranzo: { label: 'Pranzo fotografato', nutrients: n, vegPortions: 2, source: 'foto', asPlanned: true },
+        cena: { label: 'Pizza', nutrients: { ...n, fiberG: 4 }, source: 'foto' },
+        merenda: { label: 'Toast al formaggio', nutrients: { ...n, fiberG: 1 } },
+      },
+    };
+    const x = dayIntake(day, d);
+    const planned = dayIntake(day, { ...d, dayLogs: {} }).planned;
+    expect(x.fiberG).toBeCloseTo(2 + 4 + 1, 9);
+    expect(x.proteinG).toBeCloseTo(120, 9);
+    expect(x.bar).toEqual(['merenda']);
+    expect(x.replaced.sort()).toEqual(['cena', 'merenda']);
+    expect(x.planned).toEqual(planned);
   });
 });

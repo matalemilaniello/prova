@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Check, Gauge, Play, Timer } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
-import { SESSIONS } from '../../../data/sessions';
+import { sessionFor } from '../../../engine/plan/program';
 import { gymTotalMin } from '../../../engine/timeline';
 import { fmtNumber } from '../../../lib/format';
 import { uid } from '../../../lib/id';
@@ -25,11 +25,14 @@ export interface QuickWorkoutSheetProps {
 }
 
 export function QuickWorkoutSheet({ open, date, sessionId, itemId, onClose, onOpenPlayer }: QuickWorkoutSheetProps) {
-  const session = SESSIONS[sessionId];
+  const plan = useApp((s) => s.plan);
+  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa dello slot).
+  const session = sessionFor(sessionId, date, plan);
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
+  const footballLogs = useApp((s) => s.footballLogs);
   // Seduta più blocco del fisioterapista, come in Allenamento (fino a 5 minuti, per i tasti rapidi).
-  const [planned] = useState(() => Math.round(gymTotalMin(sessionId, { physio, workoutLogs }) / 5) * 5);
+  const [planned] = useState(() => Math.round(gymTotalMin(sessionId, { physio, workoutLogs, plan, footballLogs }, date) / 5) * 5);
   const [minutes, setMinutes] = useState(planned);
   const [rpe, setRpe] = useState<number | undefined>(undefined);
   const quick = [...new Set([planned - 15, planned, planned + 15].filter((m) => m >= 10))];

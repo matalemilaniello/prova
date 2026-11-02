@@ -4,7 +4,7 @@
  * Deterministico: ogni giornata ha il suo generatore con seme, ricavato dal giorno (posizione dall'inizio del
  * piano) e dalla sezione. L'ora passata decide solo quali voci di oggi risultano già segnate: lo storico dei
  * giorni passati (diario, controlli, sedute, calcio) è lo stesso a qualunque ora.
- * Legge a runtime RECIPES, SESSIONS, EXERCISES e MENU_ROTATION: funziona anche se sono vuoti
+ * Legge a runtime RECIPES, le sedute del giorno (`sessionFor`), EXERCISES e il menù in vigore: funziona anche se sono vuoti
  * e produce dati più ricchi quando i contenuti ci sono. Nessun dato reale dell'utente.
  */
 import type {
@@ -25,7 +25,6 @@ import type {
 } from '../domain/types';
 import { EXERCISES } from '../data/exercises';
 import { RECIPES } from '../data/recipes';
-import { SESSIONS } from '../data/sessions';
 import { DATA_VERSION, defaultAppData, defaultPlan } from '../data/defaults';
 import {
   addDays,
@@ -37,7 +36,8 @@ import {
   weekStart,
   weekdayOf,
 } from '../engine/dates';
-import { MEAL_SLOTS, menuWeekFor, mealsForDate } from '../engine/menu';
+import { MEAL_SLOTS, mealsForDate, prepInForce } from '../engine/menu';
+import { sessionFor } from '../engine/plan/program';
 import { shoppingList } from '../engine/shopping';
 import { isOnTargetFor, sleepHours } from '../engine/sleep';
 import { hashString } from '../lib/id';
@@ -366,7 +366,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
     }
     if (minimalDays.has(i)) continue;
     const r = dayRng('palestra', i);
-    const session = SESSIONS[sid];
+    const session = sessionFor(sid, iso, data.plan);
     const exercises: ExerciseLog[] = session
       ? session.blocks.flatMap((b) => b.items).map((it) => exerciseLogFor(it, weekNo, r))
       : [];
@@ -466,7 +466,7 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
     }
     const prepStatus = status['rito:preparazione'];
     if (prepStatus === 'fatto' || prepStatus === 'sostituito') {
-      const tasks = (menuWeekFor(nextMonday, data.plan.startDate)?.prep ?? []).map((t) => t.id);
+      const tasks = prepInForce(nextMonday, data.plan).map((t) => t.id);
       data.prepDone[nextMonday] = prepStatus === 'fatto' ? tasks : tasks.slice(0, Math.max(0, tasks.length - 1));
     }
   }

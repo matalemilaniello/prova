@@ -28,7 +28,9 @@
  */
 import type {
   AppData,
+  DayLog,
   DayType,
+  EatenMeal,
   Food,
   IngredientLine,
   ISODate,
@@ -111,9 +113,13 @@ interface CarbParts {
 
 /** Kcal e carboidrati delle righe di un elenco di ricette, con il fattore del tipo di giorno e scala 1. */
 function carbParts(recipeIds: (string | undefined)[], dayType: DayType, foods: Record<string, Food> = FOODS): CarbParts {
+  return carbPartsOf(recipeIds.map((id) => (id ? RECIPES[id] : undefined)), dayType, foods);
+}
+
+/** Come `carbParts`, su ricette già risolte. */
+function carbPartsOf(recipes: (Recipe | undefined)[], dayType: DayType, foods: Record<string, Food> = FOODS): CarbParts {
   const out: CarbParts = { scaledKcal: 0, scaledCarbG: 0, fixedCarbG: 0 };
-  for (const id of recipeIds) {
-    const r = id ? RECIPES[id] : undefined;
+  for (const r of recipes) {
     if (!r) continue;
     for (const line of r.ingredients) {
       const f = foods[line.foodId];
@@ -269,12 +275,33 @@ export function dayTargetFor(date: ISODate, state: NutritionState): MacroTarget 
 }
 
 /**
+ * Scala dei carboidrati di un insieme di ricette (la regola di dayCarbScale su ricette date): la differenza tra le kcal
+ * di `target` e quelle dell'obiettivo su cui è tarato il menù (`DEFAULT_TARGETS`) passa dalle righe di carboidrati di
+ * quelle ricette; con `carbFloorG` (il minimo di partita e vigilia) la scala sale almeno quanto serve perché i loro
+ * carboidrati ci arrivino. Tra 0,6 e 1,6. Serve anche al generatore del menù, che prova ricette che non sono nel piano.
+ */
+export function carbScaleForMeals(recipes: (Recipe | undefined)[], dayType: DayType, target: MacroTarget, carbFloorG?: number): number {
+  const ref = DEFAULT_TARGETS[dayType]?.kcal;
+  const cur = Number(target?.kcal);
+  const delta = Number.isFinite(cur) && cur > 0 && ref ? cur - ref : 0;
+  const floor = typeof carbFloorG === 'number' && Number.isFinite(carbFloorG) && carbFloorG > 0 ? carbFloorG : 0;
+  if (!delta && !floor) return 1;
+  const parts = recipes.length ? carbPartsOf(recipes, dayType) : null;
+  const base = parts && parts.scaledKcal > 0 ? parts.scaledKcal : menuCarbKcal(dayType);
+  const scale = scaleFrom(delta, base);
+  if (!floor || !parts || !(parts.scaledCarbG > 0)) return scale;
+  const needed = (floor - parts.fixedCarbG) / parts.scaledCarbG;
+  return needed > scale ? clampScale(needed) : scale;
+}
+
+/**
  * Scala delle righe di carboidrati per la data: la differenza di kcal dell'obiettivo divisa per le kcal
  * delle righe di carboidrati del menù previsto quel giorno. Così il totale del giorno segue l'obiettivo
  * (+150 kcal nel piano → circa +150 kcal nel piatto). Il giorno della partita e la vigilia la scala sale
  * almeno quanto serve perché i carboidrati del menù previsto arrivino al minimo (`matchCarbs`): nel piatto ci
  * sono davvero 6 g/kg, non solo nell'obiettivo. Il menù previsto è quello che `mealsForDate` dà senza le
- * sostituzioni del diario: nei giorni di avvio è il menù di avvio, non la rotazione.
+ * sostituzioni del diario (lo strato 2 del menù, § 6.4): nei giorni di avvio è il menù di avvio, non la rotazione.
+ * È `carbScaleForMeals` su quelle ricette.
  */
 export function dayCarbScale(date: ISODate, state: NutritionState): number {
   const dayType = effectiveDayType(date, state.plan);
@@ -282,13 +309,10 @@ export function dayCarbScale(date: ISODate, state: NutritionState): number {
   const delta = targetDelta(dayType, state.plan) + energyAdjust(date, state).kcal;
   const match = matchCarbs(date, state);
   if (!delta && !match?.extraG) return 1;
-  const plannedIds = mealsForDate(date, { plan: state.plan, dayLogs: {} }).meals.map((m) => m.plannedId);
-  const parts = plannedIds.length ? carbParts(plannedIds, dayType) : null;
-  const base = parts && parts.scaledKcal > 0 ? parts.scaledKcal : menuCarbKcal(dayType);
-  const scale = scaleFrom(delta, base);
-  if (!match?.extraG || !parts || !(parts.scaledCarbG > 0)) return scale;
-  const needed = (match.floorG - parts.fixedCarbG) / parts.scaledCarbG;
-  return needed > scale ? clampScale(needed) : scale;
+  const recipes = mealsForDate(date, { plan: state.plan, dayLogs: {} }).meals.map((m) => RECIPES[m.plannedId]);
+  const ref = DEFAULT_TARGETS[dayType];
+  const target: MacroTarget = { ...(state.plan.targets?.[dayType] ?? ref), kcal: ref.kcal + delta };
+  return carbScaleForMeals(recipes, dayType, target, match?.extraG ? match.floorG : undefined);
 }
 
 /** Risolve l'argomento `scale` delle funzioni di questo file. */
@@ -648,14 +672,31 @@ export function formatPortion(line: IngredientLine, dayType: DayType, foods: Rec
 
 export interface DayNutritionOptions {
   /**
-   * Conta solo i pasti segnati come fatti nel diario (voce 'pasto:<slot>' con stato 'fatto') e, per i pasti
-   * sostituiti con il piano B al bar (`DayLog.barMeals`), i valori dell'ordine. Default false: valori previsti
-   * dal menù.
+   * Conta solo i pasti segnati come fatti nel diario (voce 'pasto:<slot>' con stato 'fatto') e, per i pasti con un
+   * pasto stimato che vale (`eatenMeal`: piano B al bar, foto, piatto salvato), i valori della stima. Default false:
+   * valori previsti dal menù.
    */
   onlyDone?: boolean;
 }
 
 const nonNeg = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+
+/**
+ * Pasto stimato che vale per la voce (§ 7.5), o null. Un `EatenMeal` (ordine al bar, foto, piatto salvato) vale con la
+ * voce «sostituito», oppure con la voce «fatto» se era il pasto previsto (`asPlanned`): è la stessa regola con cui lo
+ * stato lo tiene o lo toglie (`keepsEatenMeal` in state/store.ts). È l'unico accessorio dei tre lettori: valori del
+ * giorno con `onlyDone`, `dayIntake` della revisione, la riga del coach. I valori si leggono in modo difensivo (dati
+ * salvati o importati): senza valori numerici il pasto non vale.
+ */
+export function eatenMeal(log: DayLog | undefined, slot: MealSlot): EatenMeal | null {
+  const meal = log?.barMeals?.[slot];
+  if (!meal || typeof meal !== 'object') return null;
+  const st = log?.status?.[`pasto:${slot}`];
+  const counts = st === 'sostituito' || (st === 'fatto' && meal.asPlanned === true);
+  if (!counts) return null;
+  const n = barMealNutrients(meal);
+  return n ? { ...meal, nutrients: n, ...(meal.vegPortions !== undefined ? { vegPortions: nonNeg(meal.vegPortions) } : {}) } : null;
+}
 
 /** Valori di un ordine al bar letti in modo difensivo (dati salvati o importati). */
 function barMealNutrients(meal: { nutrients?: Partial<Nutrients> } | undefined): Nutrients | null {
@@ -694,15 +735,12 @@ export function dayNutritionDetail(
   for (const m of meals) {
     if (opts.onlyDone) {
       const st = status[`pasto:${m.slot}`];
-      if (st === 'sostituito') {
-        // Preso con il piano B al bar: valgono i valori dell'ordine, come nella revisione.
-        const bar = log?.barMeals?.[m.slot];
-        const n = barMealNutrients(bar);
-        if (n) {
-          bySlot[m.slot] = n;
-          total = addNutrients(total, n);
-          veg += nonNeg(bar?.vegPortions);
-        }
+      // Pasto stimato che vale (bar, foto, piatto salvato): i suoi valori al posto della ricetta, come nella revisione.
+      const eaten = eatenMeal(log, m.slot);
+      if (eaten) {
+        bySlot[m.slot] = eaten.nutrients;
+        total = addNutrients(total, eaten.nutrients);
+        veg += nonNeg(eaten.vegPortions);
         continue;
       }
       if (st !== 'fatto') continue;

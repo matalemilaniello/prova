@@ -163,4 +163,15 @@ describe('piano B al bar nel contesto', () => {
     const ctx = buildCoachContext(s, NOW);
     expect(ctx).toMatch(/sostituito, ordine al bar: 400\skcal, P 30 g, fibre 3 g/);
   });
+
+  it('una foto del pasto previsto porta i valori della stima con la provenienza (§ 7.5)', () => {
+    const s = demo();
+    const log = s.dayLogs[TODAY];
+    log.status['pasto:pranzo'] = 'fatto';
+    log.barMeals = { pranzo: { label: 'Pasta al pomodoro', nutrients: { kcal: 640, proteinG: 22, carbG: 98, fatG: 16, fiberG: 7 }, source: 'foto', asPlanned: true } };
+    expect(buildCoachContext(s, NOW)).toMatch(/fatto, stima dalla foto: 640\skcal, P 22 g, fibre 7 g/);
+    // Senza asPlanned una voce fatta non porta la stima (lo stato la toglie).
+    delete log.barMeals.pranzo!.asPlanned;
+    expect(buildCoachContext(s, NOW)).not.toMatch(/stima dalla foto/);
+  });
 });

@@ -5,6 +5,7 @@
 import type { DayType, Goal, HHMM, ISODate, MealSlot, MealTimes, Plan, Profile, ScheduleDay, Supplement, Weekday } from '../../domain/types';
 import { SESSIONS } from '../../data/sessions';
 import { addDays, hhmmToMin, nightMinutes, weekdayOf } from '../../engine/dates';
+import { droppedByOverride, sessionFor } from '../../engine/plan/program';
 import { MATCH_CARB_G_PER_KG } from '../../engine/targets';
 import { IMPACT_PAIN_THRESHOLD, impactThresholdFor, isElbowSite, isLowerLegSite } from '../../engine/training';
 import { DAY_TYPES, FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, capitalize, listIt, plural } from '../../lib/format';
@@ -185,20 +186,27 @@ export interface NextSession {
   inDays: number;
 }
 
-/** Prima seduta di palestra da oggi (compreso se l'orario non è passato). */
-export function nextGymSession(plan: Pick<Plan, 'week'>, today: ISODate, nowHHMM?: HHMM): NextSession | null {
+/**
+ * Prima seduta di palestra da oggi (compreso se l'orario non è passato). Il nome è quello della seduta del giorno
+ * (`sessionFor`); nella settimana «leggera» della revisione la seduta facoltativa non c'è.
+ */
+export function nextGymSession(
+  plan: Pick<Plan, 'week'> & Partial<Pick<Plan, 'program' | 'weekOverrides'>>,
+  today: ISODate,
+  nowHHMM?: HHMM,
+): NextSession | null {
   for (let i = 0; i < 8; i++) {
     const date = addDays(today, i);
     const wd = weekdayOf(date);
     const d = plan.week.find((w) => w.weekday === wd);
-    if (!d?.gymSessionId) continue;
+    if (!d?.gymSessionId || droppedByOverride(date, d, plan)) continue;
     const time = d.gymTime ?? '17:00';
     if (i === 0 && nowHHMM && hhmmToMin(nowHHMM) > hhmmToMin(time)) continue;
     return {
       date,
       weekday: wd,
       sessionId: d.gymSessionId,
-      name: SESSIONS[d.gymSessionId]?.name ?? `Seduta ${d.gymSessionId}`,
+      name: sessionFor(d.gymSessionId, date, plan)?.name ?? `Seduta ${d.gymSessionId}`,
       time,
       optional: Boolean(d.gymOptional),
       inDays: i,

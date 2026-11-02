@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData, MenuWeek } from '../domain/types';
 import { defaultPlan, planStartFor } from '../data/defaults';
-import { MENU_ROTATION } from '../data/menu';
+import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
+import { addDays, weekStart as weekStartOf, weekdayOf } from './dates';
 import {
   dayTypeFor,
   effectiveDayType,
@@ -11,11 +12,17 @@ import {
   mealsForDate,
   menuDayFor,
   menuWeekFor,
+  menuWeekInForce,
+  plannedMealsForDate,
+  prepInForce,
   rotationIndexFor,
   starterEnd,
   starterRecipeFor,
+  weekSubstitutions,
 } from './menu';
 import { dayNutrition, dayNutritionDetail } from './nutrition';
+import { shoppingList } from './shopping';
+import { nextWeekPrep } from './timeline';
 
 const week = (tag: string): MenuWeek => ({
   days: Array.from({ length: 7 }, (_, i) => ({
@@ -198,5 +205,74 @@ describe('primo avvio', () => {
     }
     // Dal lunedì dopo torna il menù con la preparazione.
     expect(mealsForDate('2026-11-23', s).starter).toBe(false);
+  });
+});
+
+// ───────────────────────── Risolutori della fase 2 (§ 6.4, § 12.2) ─────────────────────────
+
+describe('menù in vigore e strati', () => {
+  const p = defaultPlan('2026-11-09');
+  const approved: MenuWeek = {
+    days: Array.from({ length: 7 }, () => ({
+      meals: {
+        colazione: Object.values(RECIPES).find((r) => r.slots.includes('colazione') && !r.batch)!.id,
+        pranzo: Object.values(RECIPES).find((r) => r.slots.includes('pranzo') && !r.batch)!.id,
+      },
+    })),
+    prep: [{ id: 'prep-di-prova', title: 'Riso basmati', minutes: 20, yields: 'riso per 2 pranzi' }],
+  };
+
+  it('senza menù approvati è la rotazione, con la provenienza «rotazione»', () => {
+    for (let i = 0; i < 28; i++) {
+      const iso = addDays('2026-11-09', i);
+      expect(menuWeekInForce(iso, p)).toBe(menuWeekFor(iso, p.startDate));
+      const m = mealsForDate(iso, { plan: p, dayLogs: {} });
+      expect(m.source).toBe('rotazione');
+      expect(m.meals.every((e) => e.excludedFrom === undefined)).toBe(true);
+      expect(plannedMealsForDate(iso, p)).toEqual(m);
+      expect(prepInForce(weekStartOf(iso), p)).toBe(menuWeekFor(weekStartOf(iso), p.startDate)?.prep);
+      expect(weekSubstitutions(weekStartOf(iso), p)).toEqual({});
+    }
+  });
+
+  it('il menù approvato del lunedì vince sulla rotazione solo in quella settimana', () => {
+    const withMenu = { ...p, menus: { '2026-11-16': approved } };
+    expect(menuWeekInForce('2026-11-18', withMenu)).toBe(approved);
+    expect(menuWeekInForce('2026-11-23', withMenu)).toBe(menuWeekFor('2026-11-23', p.startDate));
+    const m = mealsForDate('2026-11-18', { plan: withMenu, dayLogs: {} });
+    expect(m.source).toBe('approvato');
+    expect(m.meals.map((e) => e.recipeId)).toEqual([approved.days[2].meals.colazione, approved.days[2].meals.pranzo]);
+    expect(prepInForce('2026-11-16', withMenu)).toBe(approved.prep);
+    // La rotazione resta il riferimento dell'indice.
+    expect(m.rotationIndex).toBe(rotationIndexFor('2026-11-18', p.startDate));
+  });
+
+  it('gli scambi dell’utente stanno sopra lo strato 2 e non toccano lo strato 1', () => {
+    const iso = '2026-11-11';
+    const planned = plannedMealsForDate(iso, p);
+    const pranzo = planned.bySlot.pranzo!;
+    const other = Object.values(RECIPES).find((r) => r.slots.includes('pranzo') && r.id !== pranzo.plannedId)!;
+    const m = mealsForDate(iso, { plan: p, dayLogs: { [iso]: { date: iso, status: {}, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: { pranzo: other.id } } } });
+    expect(m.bySlot.pranzo).toMatchObject({ recipeId: other.id, plannedId: pranzo.plannedId, swapped: true });
+    expect(plannedMealsForDate(iso, p)).toEqual(planned);
+  });
+
+  it('il menù di avvio vince su tutto, anche su un menù approvato (§ 13.4, 57)', () => {
+    const first = '2026-11-11';
+    const starterPlan = { ...defaultPlan('2026-11-09'), firstUse: { date: first, time: '18:30' }, menus: { '2026-11-09': approved } };
+    expect(isStarterDay(first, starterPlan)).toBe(true);
+    const m = mealsForDate(first, { plan: starterPlan, dayLogs: {} });
+    expect(m.source).toBe('avvio');
+    expect(m.starter).toBe(true);
+    const starterMeals = STARTER_WEEK.days[weekdayOf(first)].meals;
+    for (const [slot, id] of Object.entries(starterMeals)) if (RECIPES[id!]) expect(m.bySlot[slot as keyof typeof starterMeals]?.plannedId).toBe(id);
+  });
+
+  it('spesa e preparazione seguono il menù approvato', () => {
+    const withMenu = { ...p, menus: { '2026-11-16': approved } };
+    const list = shoppingList('2026-11-16', { plan: withMenu, dayLogs: {} });
+    const used = new Set(list.items.flatMap((i) => i.uses.map((u) => u.recipeId)));
+    expect([...used].sort()).toEqual([...new Set(approved.days.flatMap((d) => Object.values(d.meals)))].sort());
+    expect(nextWeekPrep('2026-11-15', withMenu).tasks).toBe(approved.prep);
   });
 });

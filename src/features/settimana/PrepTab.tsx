@@ -9,7 +9,7 @@ import { Check, ChefHat, ChevronRight, Flame, Play, Sparkles, Timer } from 'luci
 import type { AppData, ISODate, MealSlot, Plan, PrepTask } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { addDays, daysBetween, formatDayLong, weekDates, weekdayOf } from '../../engine/dates';
-import { isStarterDay, mealsForDate, menuWeekFor, starterEnd } from '../../engine/menu';
+import { isStarterDay, mealsForDate, prepInForce, starterEnd } from '../../engine/menu';
 import { capitalize, fmtMinutes, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
@@ -43,7 +43,8 @@ export function orderPrep(tasks: PrepTask[]): PrepTask[] {
 
 export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onOpenWeek }: PrepTabProps) {
   const [playing, setPlaying] = useState(Boolean(autoPlay));
-  const tasks = useMemo(() => orderPrep(menuWeekFor(weekStart, plan.startDate)?.prep ?? []), [weekStart, plan.startDate]);
+  // Compiti del menù in vigore quel lunedì, con le esclusioni applicate.
+  const tasks = useMemo(() => orderPrep(prepInForce(weekStart, plan)), [weekStart, plan]);
   const done = useApp((s) => s.prepDone[weekStart] ?? EMPTY);
   const togglePrep = useApp((s) => s.togglePrep);
   const doneSet = new Set(done);
@@ -256,7 +257,7 @@ function StarterPrep({
 }) {
   const end = starterEnd(plan);
   const firstPrep = end ? addDays(end, -1) : null;
-  const nextTasks = end ? menuWeekFor(end, plan.startDate)?.prep ?? [] : [];
+  const nextTasks = end ? prepInForce(end, plan) : [];
   const minutes = nextTasks.reduce((a, t) => a + t.minutes, 0);
   // Settimane da qui a quella che apre la prima preparazione (di solito una).
   const ahead = end ? Math.max(1, Math.round(daysBetween(weekStart, end) / 7)) : 1;

@@ -42,7 +42,8 @@ import type {
 import { estimateItemSec, SESSIONS } from '../data/sessions';
 import { fmtMinutes, listIt, MEAL_SLOT_LABEL, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
-import { MEAL_SLOTS, isStarterDay, mealsForDate, menuWeekFor } from './menu';
+import { MEAL_SLOTS, isStarterDay, mealsForDate, prepInForce } from './menu';
+import { daySession, droppedByOverride, sessionFor } from './plan/program';
 import { shoppingList, type ShoppingLead, type ShoppingOptions } from './shopping';
 import { bedtimeFor, curfewFor, dayCutoffMin, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
@@ -309,25 +310,38 @@ function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
   // Calcio e palestra restano come appuntamenti che non contano: minuti e RPE servono al carico.
   const wd = weekdayOf(iso);
   const day = plan.week.find((d) => d.weekday === wd) ?? plan.week[wd];
-  const appointments = [gymItem(day, state), footballItem(day)].filter((x): x is TimelineItem => Boolean(x));
+  const appointments = [gymItem(gymDayOn(iso, day, plan), state, iso), footballItem(day)].filter((x): x is TimelineItem => Boolean(x));
   if (!appointments.length) return items;
   return sortTimeline([...items, ...appointments], plan);
 }
 
+/** Stato per la durata della seduta: diario delle sedute e fisioterapista; con il piano, la seduta della data. */
+type GymState = Pick<TimelineState, 'physio' | 'workoutLogs'> & Partial<Pick<TimelineState, 'plan' | 'footballLogs' | 'checkIns'>>;
+
 /**
  * Durata prevista della seduta, la stessa di Allenamento: senza gli esercizi già nel programma del
  * fisioterapista, con una serie in meno nella fase di ingresso, più il blocco del fisioterapista. Null se la
- * seduta non esiste.
+ * seduta non esiste. Con la data (e il piano nello stato) la seduta è quella del giorno (`daySession`: blocco in
+ * vigore, settimana scaricata o leggera); senza, la seduta fissa dello slot.
  */
-export function gymDuration(sessionId: string, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): SessionDuration | null {
-  const session = SESSIONS[sessionId];
+export function gymDuration(sessionId: string, state: GymState, iso?: ISODate): SessionDuration | null {
+  const session =
+    iso && state.plan
+      ? daySession(sessionId, iso, {
+          plan: state.plan,
+          workoutLogs: state.workoutLogs ?? [],
+          footballLogs: state.footballLogs ?? [],
+          ...(state.checkIns ? { checkIns: state.checkIns } : {}),
+          ...(state.physio ? { physio: state.physio } : {}),
+        })?.session
+      : SESSIONS[sessionId];
   if (!session) return null;
   return sessionDuration(session, state.physio, { intro: introLevel(sessionId, state.workoutLogs ?? []) !== null });
 }
 
-/** Minuti in palestra (seduta più blocco del fisioterapista), 55 se la seduta non esiste. */
-export function gymTotalMin(sessionId: string, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): number {
-  return gymDuration(sessionId, state)?.total ?? 55;
+/** Minuti in palestra (seduta più blocco del fisioterapista), 55 se la seduta non esiste. Con la data, quella del giorno. */
+export function gymTotalMin(sessionId: string, state: GymState, iso?: ISODate): number {
+  return gymDuration(sessionId, state, iso)?.total ?? 55;
 }
 
 /** "45 min" oppure, con gli esercizi del fisioterapista, "45 + 24 min" (la forma breve di Allenamento). */
@@ -336,11 +350,20 @@ function gymDurationShort(d: SessionDuration): string {
   return d.physio ? `${d.own}\u00a0+\u00a0${d.physio}\u00a0min` : fmtMinutes(d.own);
 }
 
-function gymItem(day: ScheduleDay | undefined, state: Pick<TimelineState, 'physio' | 'workoutLogs'>): TimelineItem | null {
+/**
+ * Giorno della settimana tipo con la palestra che vale nella data: nella settimana «leggera» accettata nella revisione
+ * (`Plan.weekOverrides`) la seduta facoltativa non c'è.
+ */
+function gymDayOn(iso: ISODate, day: ScheduleDay | undefined, plan: Pick<Plan, 'weekOverrides'>): ScheduleDay | undefined {
+  if (!day?.gymSessionId || !droppedByOverride(iso, day, plan)) return day;
+  return { ...day, gymSessionId: undefined, gymTime: undefined, gymOptional: undefined };
+}
+
+function gymItem(day: ScheduleDay | undefined, state: GymState & Pick<TimelineState, 'plan'>, iso: ISODate): TimelineItem | null {
   if (!day?.gymSessionId) return null;
   const id = day.gymSessionId;
-  const session = SESSIONS[id];
-  const d = gymDuration(id, state);
+  const session = sessionFor(id, iso, state.plan);
+  const d = gymDuration(id, state, iso);
   return {
     id: `palestra:${id}`,
     time: day.gymTime ?? DEFAULT_GYM_TIME,
@@ -418,7 +441,8 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
   }
 
   // Palestra.
-  const gym = gymItem(day, state);
+  const gymDay = gymDayOn(iso, day, plan);
+  const gym = gymItem(gymDay, state, iso);
   if (gym) items.push(gym);
 
   // Calcio.
@@ -431,7 +455,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
     const mins = physioMinutes(state.physio);
     items.push({
       id: 'fisio',
-      time: physioTime(day, plan, mins, day.gymSessionId ? gymTotalMin(day.gymSessionId, state) : undefined),
+      time: physioTime(gymDay, plan, mins, gymDay?.gymSessionId ? gymTotalMin(gymDay.gymSessionId, state, iso) : undefined),
       kind: 'fisio',
       title: 'Esercizi del fisioterapista',
       detail: `${plural(n, 'esercizio', 'esercizi')} · ${fmtMinutes(mins)}`,
@@ -506,10 +530,13 @@ export function sortTimeline<T extends DayItem>(items: T[], plan: Pick<Plan, 'sl
 
 // ───────────────────────── Riti del fine settimana ─────────────────────────
 
-/** Attività della preparazione domenicale per la settimana che parte il lunedì dopo `iso`. */
-export function nextWeekPrep(iso: ISODate, plan: Pick<Plan, 'startDate'>): { weekStart: ISODate; tasks: { id: string; minutes: number }[]; minutes: number } {
+/**
+ * Attività della preparazione domenicale per la settimana che parte il lunedì dopo `iso`: quelle del menù in vigore
+ * quel lunedì, con le esclusioni applicate (`prepInForce`).
+ */
+export function nextWeekPrep(iso: ISODate, plan: Plan): { weekStart: ISODate; tasks: { id: string; minutes: number }[]; minutes: number } {
   const monday = addDays(weekStart(iso), 7);
-  const tasks = menuWeekFor(monday, plan.startDate)?.prep ?? [];
+  const tasks = prepInForce(monday, plan);
   return { weekStart: monday, tasks, minutes: tasks.reduce((t, x) => t + (x.minutes || 0), 0) };
 }
 
@@ -617,9 +644,10 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
   if (wd === 5) {
     // Dopo la seduta del sabato mattina, se c'è e si sovrappone.
     let at = hhmmToMin(SHOPPING_TIME);
-    if (day?.gymSessionId) {
-      const start = hhmmToMin(day.gymTime ?? DEFAULT_GYM_TIME);
-      const end = start + gymTotalMin(day.gymSessionId, state);
+    const gymDay = gymDayOn(iso, day, plan);
+    if (gymDay?.gymSessionId) {
+      const start = hhmmToMin(gymDay.gymTime ?? DEFAULT_GYM_TIME);
+      const end = start + gymTotalMin(gymDay.gymSessionId, state, iso);
       if (at < end + 10 && at + 60 > start) at = round5(end + 15, true);
     }
     // Chi comincia il sabato fa la spesa dopo il primo avvio, non prima: è la sua prima spesa.
