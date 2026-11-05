@@ -1620,8 +1620,8 @@ interface PreventionMeals {
   weekMenu: PlannedMeal[];
   /** Giorni chiusi con abbastanza pasti segnati: le medie al giorno (cereali integrali). */
   complete: PlannedMeal[];
-  /** Pasti stimati con i loro alimenti in tutti i giorni chiusi. */
-  estimated: PlannedMeal[];
+  /** Pasti stimati con i loro alimenti in tutti i giorni chiusi; `asPlanned` = era il pasto previsto (§ 7.5). */
+  estimated: { meal: PlannedMeal; asPlanned: boolean }[];
   /** Giorni completi. */
   days: number;
 }
@@ -1651,7 +1651,7 @@ function preventionMeals(weekStart: ISODate, state: ReviewState, opts: PeriodOpt
       if (eaten) {
         // Foto o piatto salvato: i suoi alimenti. Un ordine del bar senza alimenti non dice cosa c'era nel piatto.
         meal = mealFromEaten(eaten, d, slot);
-        if (meal) out.estimated.push(meal);
+        if (meal) out.estimated.push({ meal, asPlanned: eaten.asPlanned === true });
       } else {
         const entry = day.bySlot[slot];
         const st = closed ? log?.status[`pasto:${slot}`] : undefined;
@@ -1668,16 +1668,22 @@ function preventionMeals(weekStart: ISODate, state: ReviewState, opts: PeriodOpt
   return out;
 }
 
-/** Risposte che il diario sa già: pasti stimati con salumi e con carne rossa (al massimo «3 o più»). */
-function diaryAnswers(estimated: PlannedMeal[], ctx: PreventionCtx): { processed: number; redMeat: number } {
+/**
+ * Quello che il diario sa già dei pasti stimati: le volte con salumi (tutte), le porzioni di carne rossa fuori dal menù
+ * (i pasti stimati che non erano il pasto previsto: precompilano la domanda) e i grammi di carne rossa di tutti i pasti
+ * stimati, con la quota di carne dei piatti composti (`meatShare`).
+ */
+function diaryAnswers(estimated: PreventionMeals['estimated'], ctx: PreventionCtx): { processed: number; redMeat: number; redMeatG: number } {
   let processed = 0;
   let redMeat = 0;
-  for (const m of estimated) {
-    const p = mealPrevention(m, ctx);
+  let redMeatG = 0;
+  for (const { meal, asPlanned } of estimated) {
+    const p = mealPrevention(meal, ctx);
     if (p.processedG > 0) processed++;
-    if (p.redMeatG > 0) redMeat++;
+    if (p.redMeatG > 0 && !asPlanned) redMeat++;
+    redMeatG += p.redMeatG;
   }
-  return { processed, redMeat };
+  return { processed, redMeat, redMeatG };
 }
 
 /** Le misure della prevenzione della settimana, con le risposte della revisione (§ 4.7). */
@@ -1733,11 +1739,13 @@ export function preventionMeasures(weekStart: ISODate, state: ReviewState, opts:
     note: 'Per la carne lavorata non c’è una dose sicura: ogni volta in meno conta (IARC, gruppo 1).',
   });
 
-  // Carne rossa: grammi cotti del menù dei giorni contati, più le porzioni fuori (risposta o pasti stimati) × 150 g.
+  // Carne rossa: grammi cotti del menù dei giorni contati e dei pasti stimati (con la quota di carne dei piatti composti),
+  // più le porzioni fuori dal menù che il diario non ha × 150 g. La risposta comprende i pasti stimati fuori dal menù
+  // (la domanda parte da quelli): contano solo le porzioni in più, così una foto non vale due volte.
   const menuRed = enough ? weekPreventionStats(weekMenu, ctx).redMeatG : 0;
-  const portions = outside.redMeat !== undefined ? Math.max(outside.redMeat, known.redMeat) : known.redMeat;
-  const red = round10(menuRed + portions * OUTSIDE_RED_MEAT_PORTION_G);
-  if (enough || outside.redMeat !== undefined || known.redMeat > 0) {
+  const extraPortions = outside.redMeat !== undefined ? Math.max(0, outside.redMeat - known.redMeat) : 0;
+  const red = round10(menuRed + known.redMeatG + extraPortions * OUTSIDE_RED_MEAT_PORTION_G);
+  if (enough || outside.redMeat !== undefined || known.redMeatG > 0) {
     const answered = outside.redMeat !== undefined;
     measures.push({
       id: 'carne-rossa',

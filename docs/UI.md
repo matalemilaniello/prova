@@ -362,7 +362,8 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   corso salvata ed emette `DATA_REPLACED_EVENT` (`'ritmo:dati-sostituiti'`), che `allenamento/draft.ts` ascolta.
 - `normalizeData` ripara ogni sezione (diari senza `status`, sedute senza `exercises`, zone di dolore non in
   array, numeri scritti come testo…) e conserva i campi sconosciuti: un backup danneggiato non blocca mai l'app.
-  `DATA_VERSION` è 3 (2: fibre da 30 a 35 g; 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia delle 07:15).
+  `DATA_VERSION` è 4 (2: fibre da 30 a 35 g; 3: obiettivo del sonno da 23:30 a 23:15 con la sveglia delle 07:15; 4:
+  sezioni della fase 2, senza migrazioni di valori).
   Campi facoltativi del giro 4: `Plan.impactThreshold` resta un numero da 0 a 10 al mezzo punto (anche da testo,
   "2,5"; "1,3" diventa 1,5), altrimenti sparisce (`normalizeImpactThreshold`); sparisce anche a 2, che coincide sempre
   con il predefinito min(soglia, 2). `DayLog.barMeals` tiene solo pasti noti con etichetta (su una riga) e kcal,
@@ -502,6 +503,16 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   `shoppingTarget(iso, state, item)` → `{ weekStart, keys } | null`: la lista che sta dietro una voce della spesa (la
   stessa di `derivedStatus` e di Settimana). In Oggi `setItemStatusSynced` (`features/oggi/shoppingSync.ts`) la usa:
   la spesa segnata fatta spunta tutta la lista, Annulla, Saltato e Sostituito la rimettono com'era.
+- Pasti stimati, piatti, gusti e prevenzione (fase 2, onda 1; dettagli in SPEC «Modifiche al contratto»):
+  `engine/estimate.ts` (la scheda della foto: `resolveEstimate`, `draftValues`, `draftMeal`, `estimateDetail` per il
+  dettaglio dei pasti), `engine/dishes.ts` (i miei piatti: `scaleDish`, `dishMeal`, `sortDishes`, `searchDishes`),
+  `engine/exclusions.ts` (`excludedFoods`, `recipeAllowed`, `tasteSignals`, `foodWithArticle` per i testi dei gusti),
+  `engine/similar.ts` (`mealAlternatives`, `alternativesFor`, `exclusionWarnings`), `engine/prevention.ts`
+  (`weekPreventionStats`, `mealFromEaten`) e `factsOf` in `data/foodFacts.ts`, l'unico accesso ai fatti degli alimenti
+  (archivio e sole stime). Un pasto svuotato da un'esclusione (`DayMeals.cleared`) ha in Oggi il dettaglio
+  `CLEARED_MEAL_DETAIL` e il piano B al posto della ricetta. Il pannello `mealLog` vive in `features/pasti/`: la riga
+  «Fotografa il piatto» è un `<label>` (`PhotoPickRow`) su un input nascosto, perché Safari apre il selettore solo dentro
+  un gesto; la foto scelta passa da `photoInbox.ts` e non entra mai nello stato.
 - Timeline di Oggi (`features/oggi/components/Timeline.tsx`): in vista restano le prossime 5 ore, la voce di Adesso,
   quelle rimaste indietro e gli appuntamenti (calcio, palestra, revisione). Oltre, le voci prima di un appuntamento si
   raccolgono in una riga con i loro nomi ("Pranzo, merenda e preparazione", da `GAP_COLLAPSE_FROM` = 2 voci) e quelle
@@ -516,5 +527,8 @@ solo quali voci di oggi risultano già segnate.
 
 `?demo=1` dati di esempio senza onboarding · `?theme=scuro|chiaro` (anche `dark|light`) · `?overlay=recipe|checkin|session|football|barPlanB`
 (con `?recipe=<id>` il pannello della ricetta apre quella ricetta, nel pasto di oggi che la prevede se c'è)
-· `?onboarding=1` · `?tab=…` (scheda iniziale di una schermata) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).
+e, dalla fase 2, `mealLog` (il pranzo di oggi, nel modo piatti se ce n'è almeno uno), `planProposal`, `supplement`
+· `?coach=finto` (il pannello `mealLog` usa una lettura registrata e inventata al posto della rete: anteprime e flussi
+automatici) · `?onboarding=1` · `?tab=…` (scheda iniziale di una schermata) · `#impostazioni?sezione=…` (una
+sotto-pagina, `gusti` compresa) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).
 Esempio: `index.html?demo=1&theme=chiaro&now=18:30#oggi`.

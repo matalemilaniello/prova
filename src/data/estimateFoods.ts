@@ -10,7 +10,9 @@
  * controllano sulla fonte primaria (§ 14.4): sono stime, come le foto da cui nascono.
  *
  * Un piatto composto ha un solo gruppo, quello dell'ingrediente che decide la regola di prevenzione (il panino al
- * prosciutto cotto è `carne-lavorata`, l'hamburger `carne-rossa`): i grammi sono quelli del piatto intero.
+ * prosciutto cotto è `carne-lavorata`, l'hamburger e la lasagna al ragù `carne-rossa`): i grammi sono quelli del piatto
+ * intero e `meatShare` dice quanta parte del peso è carne, così 200 g di hamburger nel panino non contano come 200 g di
+ * carne rossa. Le quote sono stime di una ricetta tipica da bar o da asporto [ipotesi, da rivedere con l'utente].
  * `upf` segue la versione più comune al bar o al supermercato (NOVA 4), non quella fatta in casa.
  */
 import type { Food } from '../domain/types';
@@ -319,17 +321,22 @@ export const ESTIMATE_FOOD_FACTS: Record<string, FoodFacts> = {
   'pizza-verdure': fact('cereale-raffinato'),
   focaccia: fact('cereale-raffinato'),
   tramezzino: fact('cereale-raffinato', { upf: true }),
-  'panino-prosciutto-cotto': fact('carne-lavorata', { upf: true }),
-  'piadina-farcita': fact('carne-lavorata'),
-  'toast-prosciutto-formaggio': fact('carne-lavorata', { upf: true }),
-  hamburger: fact('carne-rossa', { upf: true }),
-  kebab: fact('carne-rossa'),
-  lasagna: fact('cereale-raffinato'),
-  'pasta-ragu': fact('cereale-raffinato'),
+  // Pane e prosciutto circa 2 a 1 (vedi i valori).
+  'panino-prosciutto-cotto': fact('carne-lavorata', { upf: true, meatShare: 0.33 }),
+  // Salume circa un quinto del peso, con formaggio e piadina.
+  'piadina-farcita': fact('carne-lavorata', { meatShare: 0.2 }),
+  'toast-prosciutto-formaggio': fact('carne-lavorata', { upf: true, meatShare: 0.2 }),
+  // Carne cotta circa il 40% del panino (pane, salse, verdure).
+  hamburger: fact('carne-rossa', { upf: true, meatShare: 0.4 }),
+  kebab: fact('carne-rossa', { meatShare: 0.4 }),
+  // Ragù di carne: la carne è circa il 15% del peso della lasagna o del piatto di pasta.
+  lasagna: fact('carne-rossa', { meatShare: 0.15 }),
+  'pasta-ragu': fact('carne-rossa', { meatShare: 0.15 }),
   risotto: fact('cereale-raffinato', { rice: true }),
   sushi: fact('cereale-raffinato', { rice: true, freeSugarG: 2 }),
   'cotoletta-pollo': fact('pollame'),
-  'cotoletta-milanese': fact('carne-rossa'),
+  // Vitello impanato: la panatura è circa un quarto del peso.
+  'cotoletta-milanese': fact('carne-rossa', { meatShare: 0.75 }),
   'patatine-fritte': fact('patate', { upf: true }),
   'patatine-busta': fact('patate', { upf: true }),
   'prosciutto-crudo': fact('carne-lavorata'),

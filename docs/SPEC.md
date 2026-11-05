@@ -838,3 +838,106 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
     Adesso); Settimana › Menù mostra la pillola del lavoro e "Da portare" accanto all'orario del pasto.
   - Coach: la settimana tipo dice il lavoro di ogni giorno, il piano i giorni di lavoro della settimana con i pasti
     spostati o da portare, la giornata il lavoro di oggi; le voci da portare lo dicono nella timeline.
+- Fase 2, onda 1, pasti stimati e i miei piatti (1A; funzioni A e B, docs/FASE2.md § 7-8; nessun campo nuovo in
+  `types.ts`):
+  - `engine/estimate.ts`: `resolveEstimate(raw, ctx)` (firma del § 14.3) dà la scheda (`EstimateDraft`, con `DraftItem`,
+    `PhotoReading`, `EstimateCtx`); i valori li calcola sempre il motore (`draftValues`, `draftMeal`,
+    `estimatedItemsValues`): dall'archivio per gli alimenti di `FOODS` e di `ESTIMATE_FOODS`, dal coach solo fuori
+    archivio e dopo `validPer100g`. Olio della domanda (`OIL_CHOICES`, `OIL_GRAMS`, `nearestOil`) e olio assorbito nella
+    frittura (`FRIED_OIL_SHARE` = 0,08, solo sugli alimenti dell'archivio: quelli di sola stima fritti lo contengono già,
+    `friedOilGrams`); intervallo ±25% con gli alimenti a confidenza bassa oltre il 25% delle kcal (`LOW_CONFIDENCE_SHARE`,
+    `RANGE_SHARE`, arrotondato verso il centro), kcal a 10 (`roundKcal10`) e grammi a 5 (`roundItemGrams`);
+    `kcalCheck` (sotto 100 o oltre 1.800 kcal la scheda chiede conferma); `matchesPlanned` (almeno il 60% degli
+    alimenti non di dispensa della ricetta prevista, `MATCH_PLANNED_SHARE`); `stepGrams` (passi di 10 g sotto i 100, di
+    25 sopra); `estimateDetail` («Dalla foto · 720 kcal», «Il mio piatto: … · 640 kcal»), letto dal dettaglio dei pasti
+    in `engine/timeline.ts`. `MAX_MEAL_ITEMS` = 12 vale per validatore, normalizzazione e piatti; nella scheda gli
+    alimenti sono al massimo `DRAFT_ITEMS_MAX` = 11, perché il dodicesimo posto è dell'olio, che si salva come alimento
+    (`OIL_FOOD_ID`) così le porzioni dei piatti lo scalano. Un alimento senza valori blocca la conferma finché non si
+    sceglie dall'archivio o si toglie. `validPer100g`, `normalizeEstimatedItem` ed `estimatedItemsValues` stanno qui
+    dall'onda 1: `state/store.ts` li importa e li riesporta con le stesse costanti.
+  - `engine/dishes.ts`: `scaleDish` e `scaledItems` (lineari, condimenti compresi), `dishMeal`, `newDish`,
+    `dishMatchesPlanned`, `dishUsage` (usi contati dal diario, solo i `dishId` esistenti), `sortDishes` (prima quelli
+    nati in quel pasto, poi i più usati, poi i più recenti), `searchDishes` (ricerca da `DISH_SEARCH_FROM` = 8 piatti),
+    `unusedDishes` (oltre `DISH_PRUNE_FROM` = 60), `dishReadyForMenu` (condimenti sotto `MENU_CONDIMENT_SHARE` = 5%
+    delle kcal), `dishAsRecipe`, `PORTIONS`, `PORTION_LABEL`.
+  - `data/estimateFoods.ts`: 35 alimenti di sola stima (`ESTIMATE_FOODS`) con i fatti di ciascuno
+    (`ESTIMATE_FOOD_FACTS`: i salumi sono `carne-lavorata`); mai nel menù né nella spesa (test).
+  - `engine/coachTasks/photo.ts`: compito `foto-piatto` sopra `runStructuredTask` (`photoTask`, `readPhoto`,
+    `photoSchema` con gli id di `FOODS` e `ESTIMATE_FOODS` in `enum`, `photoSystemPrompt` stabile, `photoContext`,
+    `validatePhotoReading`, `photoFoodIds`, `PHOTO_TIMEOUT_MS` = 45 s, `PHOTO_MAX_TOKENS` = 8.000). `photoReadable(settings)`
+    decide se la riga «Fotografa il piatto» compare (chiave e modello con l'uscita strutturata). `PHOTO_FALLBACK` = true:
+    se nel § 14.4 l'uscita strutturata non regge insieme a `fallbacks: 'default'`, si mette a false (§ 15.8). Gli alimenti
+    esclusi dall'utente sono ammessi: è ciò che si è mangiato (§ 10.2).
+  - `lib/image.ts`: `thumbnail(dataUrl, 96)` con `centerSquare` (ritaglio quadrato al centro), JPEG alle qualità di
+    `THUMB_QUALITIES` finché sta in `THUMB_MAX_CHARS` (i 12 KB di `normalizeThumbs`), `THUMB_PX`.
+  - `features/pasti/**`: il pannello `mealLog` (`MealLogSheet`, modi `foto` e `piatti`; `DishesSheet`, `ItemsEditor`,
+    `PhotoPick` con il `<label>` sull'`<input type="file" accept="image/*">` senza `capture`, `parts`); `actions.ts`
+    (`markEatenMeal` con «Annulla» da `mealSnapshot` e `restoreMeal`, `markDish`, `saveDishFromMeal`, `mealNote`: nota della
+    voce di un pasto sostituito, «Dalla foto: …» o «Il mio piatto: …»); `logic.ts` (testi e scelte pure: `MEAL_LOG_TEXT`,
+    `failureView` per gli errori del § 7.6, `nearestOpenSlot` per «Metti nel diario», `searchFoods`, `markedToast`);
+    `photoInbox.ts` (foto scelta in attesa del pannello e copie da 1.024 px delle foto della chat, solo in memoria:
+    `stashPhoto`, `peekPhoto`, `clearPhoto`, `rememberChatPhoto`, `chatPhoto`); `useMealContext`, `useOnline`;
+    `fakeReading.ts`, la lettura registrata che il pannello usa con `?coach=finto`.
+  - Righe nuove nei fogli che ci sono già: `ItemActionsSheet` («Fotografa il piatto» solo con `photoReadable`, «Serve la
+    rete» senza rete, che apre il foglio con «I miei piatti», «Piano B al bar» e «Chiudi»; «I miei piatti» con almeno un
+    piatto), `coach/components/Messages.tsx` («Metti nel diario» sotto le foto di oggi), `app/OverlayHost.tsx` (il
+    pannello vero al posto del segnaposto). Screenshot: scenari `mealLog` e `mealLog-piatti` (tre piatti inventati).
+- Fase 2, onda 1, gusti e prevenzione (1B; funzioni D ed E, docs/FASE2.md § 4.7-4.9 e § 6):
+  - `data/foodFacts.ts`: `FOOD_FACTS` (tutti gli alimenti di `FOODS`, con la stagionalità del § 4.10), `factsOf(foodId)`
+    (archivio e sole stime: l'unico accesso per motori e test), `inSeason`, `seasonAllows`. `data/recipeFacts.ts`:
+    `RECIPE_FACTS` (tutte le ricette: cotture, `riceMethod`, `prep` con `PrepComponentId`), `recipeFactsOf`, `Cooking`.
+  - `engine/exclusions.ts`: `excludedFoods(plan, iso?)` e `recipeAllowed` (firme del § 14.3): le esclusioni dell'utente da
+    `since` più i divieti fissi A1-A3 (`preventionBan`, `bannedFoods`; le carni lavorate di sola stima comprese);
+    `userExclusions`, `userExcludedFoods`, `excludableFoods` (ingredienti di una ricetta senza dispensa),
+    `searchableFoods` (pagina Gusti); cambi ripetuti (`tasteSignals`, `isRepeatedSwap`, `tasteQuestion`, con
+    `TASTE_MIN_SWAPS` = 3, `TASTE_MIN_SHARE` = 0,6, `TASTE_WINDOW_DAYS` = 28, `TASTE_ASK_COOLDOWN_DAYS` = 56); nomi con
+    l'articolo per i testi («Tolte le carote»: `foodLabel`, `foodWithArticle`, `agreed`, `objectPronoun`, `capitalFirst`).
+  - `engine/similar.ts`: `mealAlternatives(entry, ctx, limit?)` (firma del § 14.3) e `alternativesFor` (con `widened`):
+    filtro H0, H1, stagione `strict`, niente ricette da preparazione, tetti di H3; banda `BAND` ±10%, allargata a
+    `WIDE_BAND` ±20% quando non c'è niente; ordine per spesa, valori, minuti, familiarità e id. `baseCarbScale` (strato 1),
+    `recipeInSeason`, `weekMealsFor`, `substitutionsForWeek` (lo strato 2 dietro `weekSubstitutions`, mai `dayCarbScale`
+    né la spesa: un test lo verifica con un contatore), `doneRates`, `exclusionImpact`, `clearedMeals`,
+    `exclusionWarnings` (avvisi della pagina Gusti), `FOOTBALL_LUNCH_MAX_FIBER_G`.
+  - `engine/menu.ts`: `weekSubstitutions` ora sostituisce; il valore `''` è una casella senza alternative valide, che
+    resta vuota, e `DayMeals.cleared?: Partial<Record<MealSlot, string>>` dice quale ricetta è stata tolta; `prepInForce`
+    toglie i compiti che servivano solo alle ricette tolte o svuotate.
+  - `engine/prevention.ts`: `weekPreventionStats(meals, ctx)` (firma del § 14.3), `mealPrevention`, `mealFromRecipe`,
+    `mealFromEaten` (un pasto stimato conta per i suoi alimenti, un ordine del bar senza alimenti no), `PlannedMeal`,
+    `PreventionCtx` (fatti iniettabili nei test), le costanti di A4-A10 e di B1 (`RED_MEAT_WEEK_G` = 350,
+    `OUTSIDE_RED_MEAT_PORTION_G` = 150).
+  - `engine/review.ts`: `preventionMeasures(weekStart, state, opts)` con `PreventionReport` (`measures`, `days`,
+    `prefill`, `alcohol`), `measuresOutside`, `alcoholStepOption`; lo scalino `alcol` («Una sera senza alcol in più») in
+    `WeeklyStepId` e in `ALL_STEP_IDS` (`WEEKLY_STEP_IDS` resta l'elenco degli scalini sempre proposti), il parametro
+    `outside` di `proposeWeeklyStep`, `WAIST_LIMIT_CM`, `WAIST_RISE_CM`. Le misure sui giorni con meno del 60% dei pasti
+    segnati non contano per le medie al giorno; i pasti non segnati contano come previsti.
+  - `data/barPlanB.ts`: `BarPlanBOption.contains?: string[]` (alimenti dell'archivio, campo locale); `barPick.ts` e
+    `BarPlanBSheet` tolgono le opzioni con un alimento escluso.
+  - Coach (`engine/coachContext.ts`): la riga «Esclusi dall’utente» nel contesto e il divieto nel prompt di sistema. Senza
+    esclusioni il contesto non cambia: l'istantanea di compatibilità resta uguale.
+  - Interfaccia: `RecipeSheet` (alternative con valori simili, «Qualcosa non ti piace?» con «Togli dal piano»),
+    `SwapSheet` (domanda dei cambi ripetuti; il cambio passa `plannedId` a `swapRecipe`, che scrive `DayLog.swapPlanned`),
+    `GustiPage` (Impostazioni › Gusti), revisione (tre domande facoltative nel passo Misure, misure fuori riferimento in
+    «Da sapere», il resto dietro un tocco).
+- Fase 2, onda 1, integrazione:
+  - `FoodFacts.meatShare?: number` (tipo locale in `data/foodFactsTypes.ts`): per i piatti composti di sola stima con
+    gruppo `carne-rossa` o `carne-lavorata`, la quota del peso che è carne; assente = 1. Valori [ipotesi, ricetta tipica da
+    bar o da asporto]: hamburger nel panino e kebab 0,4, cotoletta alla milanese 0,75, panino al prosciutto cotto 0,33,
+    piadina farcita e toast 0,2; lasagna e pasta al ragù passano da `cereale-raffinato` a `carne-rossa` con 0,15 (il ragù
+    è di carne: prima non contavano). `meatShareOf` in `engine/prevention.ts`; i menù non cambiano (gli alimenti
+    dell'archivio non hanno la quota).
+  - Carne rossa nella revisione (§ 4.7): grammi cotti del menù dei giorni contati e di tutti i pasti stimati (con la
+    quota), più le porzioni fuori dal menù che il diario non ha × 150 g. La domanda parte dai pasti stimati che non erano il
+    pasto previsto (`prefill.redMeat`) e conta solo la differenza, così una foto non vale due volte; una foto del pasto
+    previsto conta i suoi grammi e non precompila la domanda. Prima ogni foto con carne rossa valeva 150 g qualunque fosse
+    il peso.
+  - `CLEARED_MEAL_DETAIL` in `engine/timeline.ts` («Scegli tu: proteine, un carboidrato, verdura», § 6.4): dettaglio di un
+    pasto svuotato da un'esclusione, dopo la stima e lo scambio dell'utente. La card Adesso mostra «Piano B» al posto di
+    «Ricetta» per un pasto senza ricetta (stesso posto, nessun pulsante in più).
+  - `PageId` comprende `gusti` (`features/impostazioni/pages/Page.tsx`), anche per `#impostazioni?sezione=gusti` e per
+    gli screenshot (`impostazioni-gusti`).
+  - La chat tiene in memoria la foto da 1.024 px di ogni messaggio inviato (`rememberChatPhoto` in `useCoachChat`):
+    «Metti nel diario» la usa finché l'app è aperta, poi quella da 720 px del messaggio.
+  - Informazioni: riga «Foto dei piatti» nel gruppo Privacy (§ 7.7) e riga «Archivio non letto» quando l'archivio freddo
+    è illeggibile (`archiveInfo().status`, § 12.5).
+  - Esclusioni, stime e piatti: un alimento escluso resta ammesso nelle stime da foto e nei piatti salvati (§ 10.2: è ciò
+    che si è mangiato); le esclusioni valgono per il piano (menù, alternative, spesa, piano B, coach).

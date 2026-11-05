@@ -61,12 +61,7 @@ const FisioPage = lazy(() => import('./pages/SalutePages').then((m) => ({ defaul
 
 const GustiPage = lazy(() => import('./pages/GustiPage'));
 
-/** Pagine di questa schermata: quelle di `PageId` più i gusti (docs/FASE2.md § 6.2). */
-type ScreenPageId = PageId | 'gusti';
-const SCREEN_PAGE_IDS: ScreenPageId[] = [...PAGE_IDS, 'gusti'];
-const SCREEN_PAGE_TITLE: Record<ScreenPageId, string> = { ...PAGE_TITLE, gusti: 'Gusti' };
-
-const PAGES: Record<ScreenPageId, ComponentType<PageProps>> = {
+const PAGES: Record<PageId, ComponentType<PageProps>> = {
   profilo: ProfiloPage,
   obiettivi: ObiettiviPage,
   settimana: SettimanaPage,
@@ -85,13 +80,13 @@ const PAGES: Record<ScreenPageId, ComponentType<PageProps>> = {
 /** Copia dei dati dell'utente salvata dallo store prima dei dati di esempio. */
 const PRE_DEMO_KEY = 'ritmo:pre-demo';
 
-function initialStack(): ScreenPageId[] {
+function initialStack(): PageId[] {
   const s = getUrlParam('sezione');
-  return s && (SCREEN_PAGE_IDS as string[]).includes(s) ? [s as ScreenPageId] : [];
+  return s && (PAGE_IDS as string[]).includes(s) ? [s as PageId] : [];
 }
 
 export default function ImpostazioniScreen() {
-  const [stack, setStack] = useState<ScreenPageId[]>(initialStack);
+  const [stack, setStack] = useState<PageId[]>(initialStack);
   const [dir, setDir] = useState<1 | -1>(1);
   const pushed = useRef(0);
   const reduce = useReducedMotion();
@@ -112,9 +107,9 @@ export default function ImpostazioniScreen() {
       const q = location.hash.indexOf('?');
       if (q === -1 || parseRoute(location.hash) !== 'impostazioni') return;
       const sec = new URLSearchParams(location.hash.slice(q + 1)).get('sezione');
-      if (sec && (SCREEN_PAGE_IDS as string[]).includes(sec)) {
+      if (sec && (PAGE_IDS as string[]).includes(sec)) {
         setDir(1);
-        setStack([sec as ScreenPageId]);
+        setStack([sec as PageId]);
       }
     };
     window.addEventListener('hashchange', apply);
@@ -158,7 +153,7 @@ export default function ImpostazioniScreen() {
     }
   }, [depth]);
 
-  const open = useCallback((id: ScreenPageId) => {
+  const open = useCallback((id: PageId) => {
     const next = [...stackRef.current, id];
     if (document.activeElement instanceof HTMLElement) returnFocus.current[next.length - 1] = document.activeElement;
     setDir(1);
@@ -190,7 +185,7 @@ export default function ImpostazioniScreen() {
   const transition = { type: 'spring', stiffness: 380, damping: 40, mass: 0.9 } as const;
 
   const Current = top ? PAGES[top] : null;
-  const backLabel = stack.length > 1 ? SCREEN_PAGE_TITLE[stack[stack.length - 2]] : 'Impostazioni';
+  const backLabel = stack.length > 1 ? PAGE_TITLE[stack[stack.length - 2]] : 'Impostazioni';
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-bg">
@@ -229,7 +224,7 @@ export default function ImpostazioniScreen() {
 
 // ───────────────────────── Elenco principale ─────────────────────────
 
-function RootPage({ open }: { open: (id: ScreenPageId) => void }) {
+function RootPage({ open }: { open: (id: PageId) => void }) {
   const profile = useApp((s) => s.profile);
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);

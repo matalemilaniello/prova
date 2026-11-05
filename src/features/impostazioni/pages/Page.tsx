@@ -10,6 +10,7 @@ export type PageId =
   | 'obiettivi'
   | 'settimana'
   | 'pasti'
+  | 'gusti'
   | 'sonno'
   | 'integratori'
   | 'dolore'
@@ -19,13 +20,14 @@ export type PageId =
   | 'backup'
   | 'info';
 
-export const PAGE_IDS: PageId[] = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+export const PAGE_IDS: PageId[] = ['profilo', 'obiettivi', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
 export const PAGE_TITLE: Record<PageId, string> = {
   profilo: 'Profilo',
   obiettivi: 'Obiettivi',
   settimana: 'Settimana',
   pasti: 'Orari dei pasti',
+  gusti: 'Gusti',
   sonno: 'Sonno',
   integratori: 'Integratori',
   dolore: 'Zone di dolore',

@@ -54,6 +54,12 @@ import { bedtimeFor, curfewFor, dayMinutes, isOnTargetFor, timeInBedLabel } from
 import { introLevel, sessionDuration, type SessionDuration } from './training';
 import { afterWork, normalizeWork, spanAt, workSpans } from './work';
 
+/**
+ * Dettaglio di un pasto rimasto senza ricetta perché un'esclusione non ha lasciato alternative valide (`DayMeals.cleared`,
+ * docs/FASE2.md § 6.4): lo schema di `PRE_SHOPPING_DETAIL`. Il piano B resta nel foglio della voce.
+ */
+export const CLEARED_MEAL_DETAIL = 'Scegli tu: proteine, un carboidrato, verdura';
+
 /** Dettaglio di un pasto con una stima da foto o da un piatto salvato che vale per la voce (`eatenMeal`); null altrimenti. */
 function mealEstimateDetail(log: DayLog | undefined, slot: MealSlot): string | null {
   const meal = eatenMeal(log, slot);
@@ -379,7 +385,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
       time: schedule[slot].time,
       kind: 'pasto',
       title: schedule[slot].title,
-      detail: mealEstimateDetail(log, slot) ?? entry?.recipe?.name,
+      detail: mealEstimateDetail(log, slot) ?? entry?.recipe?.name ?? (meals.cleared?.[slot] ? CLEARED_MEAL_DETAIL : undefined),
       ref: entry?.recipeId || undefined,
       slot,
       // Cade durante il lavoro: da portare.

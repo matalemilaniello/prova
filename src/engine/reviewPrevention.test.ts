@@ -1,12 +1,15 @@
 /**
- * Misure della prevenzione nella revisione (docs/FASE2.md § 4.7; § 13.4 test 19) e scalino dell'alcol. Gli alimenti di
- * sola stima si provano con fatti iniettati: i fatti veri arrivano con l'integrazione dell'onda. Dati inventati.
+ * Misure della prevenzione nella revisione (docs/FASE2.md § 4.7; § 13.4 test 19) e scalino dell'alcol. Le prime prove
+ * usano fatti iniettati; quelle in fondo i fatti veri degli alimenti di sola stima (`ESTIMATE_FOOD_FACTS`, letti da
+ * `factsOf`). Dati inventati.
  */
 import { describe, expect, it } from 'vitest';
 import type { AppData, DayLog, ISODate, MealSlot } from '../domain/types';
 import type { FoodFacts } from '../data/foodFactsTypes';
 import { defaultAppData } from '../data/defaults';
 import { factsOf } from '../data/foodFacts';
+import { ESTIMATE_FOODS } from '../data/estimateFoods';
+import { mealPrevention } from './prevention';
 import { weekDates } from './dates';
 import { mealsForDate } from './menu';
 import { alcoholStepOption, measuresOutside, preventionMeasures, proposeWeeklyStep, reviewStep, weeklyStepDef } from './review';
@@ -127,5 +130,66 @@ describe('misure della prevenzione (test 19)', () => {
     expect(r.days).toBe(0);
     expect(r.measures.map((m) => m.id).sort()).toEqual(['alcol', 'carne-lavorata']);
     expect(measuresOutside(r)).toEqual([]);
+  });
+});
+
+describe('misure della prevenzione con i fatti veri delle sole stime', () => {
+  const DAY = '2026-11-11';
+  const KCAL = { kcal: 600, proteinG: 30, carbG: 60, fatG: 25, fiberG: 4 };
+
+  /** Un solo giorno chiuso nel diario: il menù non basta per le misure (pochi giorni) e contano solo le stime. */
+  function oneDay(meal: NonNullable<DayLog['barMeals']>[MealSlot], status: 'sostituito' | 'fatto' = 'sostituito'): AppData {
+    const d = base();
+    d.dayLogs[DAY] = { date: DAY, status: {}, notes: {}, minimal: false, waterGlasses: 0, sweets: 0, recipeSwaps: {} };
+    setMeal(d, DAY, 'pranzo', meal, status);
+    return d;
+  }
+
+  it('i salumi di sola stima e quelli di un piatto salvato contano in B2', () => {
+    const photo = oneDay({ label: 'Panino', nutrients: KCAL, source: 'foto', items: [{ foodId: 'pane-bianco', grams: 80 }, { foodId: 'salame', grams: 40 }] });
+    const r = preventionMeasures(WS, photo, { today: TODAY });
+    expect(byId(r, 'carne-lavorata')).toMatchObject({ status: 'fuori', value: '1 volta' });
+    expect(r.prefill.processed).toBe(1);
+    const dish = oneDay({ label: 'Il mio piatto', nutrients: KCAL, source: 'piatto', dishId: 'p1', portion: 1, items: [{ foodId: 'prosciutto-crudo', grams: 50 }, { foodId: 'mozzarella', grams: 100 }] });
+    expect(byId(preventionMeasures(WS, dish, { today: TODAY }), 'carne-lavorata')?.status).toBe('fuori');
+  });
+
+  it('un piatto composto conta solo la sua carne: 220 g di hamburger nel panino non sono 220 g di carne rossa', () => {
+    const d = oneDay({ label: 'Hamburger', nutrients: KCAL, source: 'foto', items: [{ foodId: 'hamburger', grams: 220 }, { foodId: 'patatine-fritte', grams: 100 }] });
+    const r = preventionMeasures(WS, d, { today: TODAY });
+    // 220 × 0,4 = 88 g, arrotondati a 10.
+    expect(byId(r, 'carne-rossa')).toMatchObject({ value: 'circa 90 g dal diario, fuori dal menù non indicato', status: 'non-indicato' });
+    expect(r.prefill.redMeat).toBe(1);
+    // La risposta precompilata comprende la foto: nessuna porzione in più; una porzione in più vale 150 g.
+    expect(byId(preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 1 } }), 'carne-rossa')).toMatchObject({ value: 'circa 90 g su 350', status: 'dentro' });
+    expect(byId(preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 2 } }), 'carne-rossa')?.value).toBe('circa 240 g su 350');
+    expect(byId(preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 3 } }), 'carne-rossa')).toMatchObject({ value: 'circa 390 g su 350', status: 'fuori' });
+    // Una lasagna al ragù è carne rossa per la sua quota, non per il peso intero.
+    const lasagna = oneDay({ label: 'Lasagna', nutrients: KCAL, source: 'foto', items: [{ foodId: 'lasagna', grams: 400 }] });
+    expect(byId(preventionMeasures(WS, lasagna, { today: TODAY, outside: { redMeat: 1 } }), 'carne-rossa')?.value).toBe('circa 60 g su 350');
+  });
+
+  it('una foto del pasto previsto conta i suoi grammi ma non precompila la carne rossa fuori dal menù', () => {
+    const d = oneDay({ label: 'Manzo e patate', nutrients: KCAL, source: 'foto', asPlanned: true, items: [{ foodId: 'manzo', grams: 200 }, { foodId: 'patate', grams: 200 }] }, 'fatto');
+    const r = preventionMeasures(WS, d, { today: TODAY });
+    expect(r.prefill.redMeat).toBeUndefined();
+    expect(byId(r, 'carne-rossa')?.value).toBe('circa 200 g dal diario, fuori dal menù non indicato');
+    // Una porzione fuori dal menù è un pasto diverso: si somma.
+    expect(byId(preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 1 } }), 'carne-rossa')).toMatchObject({ value: 'circa 350 g su 350', status: 'dentro' });
+  });
+
+  it('ogni alimento di sola stima di carne ha una quota tra 0 e 1 e non conta mai più del suo peso', () => {
+    for (const f of ESTIMATE_FOODS) {
+      const facts = factsOf(f.id)!;
+      expect(facts, f.id).toBeDefined();
+      if (facts.group !== 'carne-rossa' && facts.group !== 'carne-lavorata') {
+        expect(facts.meatShare, f.id).toBeUndefined();
+        continue;
+      }
+      const p = mealPrevention({ day: DAY, slot: 'pranzo', items: [{ foodId: f.id, grams: 100 }] });
+      const g = facts.group === 'carne-rossa' ? p.redMeatG : p.processedG;
+      expect(g, f.id).toBeGreaterThan(0);
+      expect(g, f.id).toBeLessThanOrEqual(100);
+    }
   });
 });

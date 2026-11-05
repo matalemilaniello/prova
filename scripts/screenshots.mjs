@@ -71,7 +71,7 @@ mkdirSync(outDir, { recursive: true });
  * `dishes` aggiunge tre piatti salvati inventati ai dati di esempio (pagina dei piatti).
  * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean }[]}
  */
-const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
 const VIEWS = [
   { name: 'benvenuto', query: { onboarding: '1' }, fresh: true },

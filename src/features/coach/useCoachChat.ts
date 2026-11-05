@@ -22,6 +22,7 @@ import {
 import { haptic } from '../../lib/haptics';
 import { uid } from '../../lib/id';
 import { useApp } from '../../state/store';
+import { rememberChatPhoto } from '../pasti/photoInbox';
 import { addMessage, removeMessages } from './chat';
 
 export interface DraftReply {
@@ -154,6 +155,8 @@ export function useCoachChat(): CoachChat {
       const t = text.trim();
       if ((!t && !image) || busyRef.current) return;
       const uidUser = addMessage({ role: 'user', text: t, ...(image ? { image: image.store } : {}) });
+      // La copia da 1.024 px resta in memoria per «Metti nel diario» (docs/FASE2.md § 7.1): lo stato tiene quella da 720.
+      if (image) rememberChatPhoto(uidUser, image.send);
       markFresh(uidUser);
       void run(image ? { id: uidUser, dataUrl: image.send } : undefined);
     },

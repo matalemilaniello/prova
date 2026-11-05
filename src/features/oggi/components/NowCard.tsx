@@ -131,7 +131,9 @@ export function NowCard(props: NowCardProps) {
     );
   } else {
     primary = markBtn('primary');
-    if (item.kind === 'pasto' && item.preShopping && onPlanB) {
+    // Prima della spesa di avvio, o senza ricetta perché un'esclusione non ha lasciato alternative (docs/FASE2.md § 6.4):
+    // al posto della ricetta il piano B.
+    if (item.kind === 'pasto' && (item.preShopping || !item.ref) && onPlanB) {
       secondary = (
         <Button size="lg" variant="secondary" icon={Store} className="px-5" onClick={() => onPlanB(item.slot)}>
           Piano B

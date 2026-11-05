@@ -137,6 +137,12 @@ function defaultFood(foodId: string): Food | undefined {
 
 const pos = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
 
+/** Quota del peso che è carne (piatti composti di sola stima, `FoodFacts.meatShare`); 1 senza la quota o fuori da 0-1. */
+export function meatShareOf(f: Pick<FoodFacts, 'meatShare'>): number {
+  const s = f.meatShare;
+  return typeof s === 'number' && Number.isFinite(s) && s > 0 && s <= 1 ? s : 1;
+}
+
 /** I numeri di un pasto. */
 export function mealPrevention(meal: PlannedMeal, ctx: PreventionCtx = {}): MealPrevention {
   const facts = ctx.facts ?? factsOf;
@@ -171,10 +177,10 @@ export function mealPrevention(meal: PlannedMeal, ctx: PreventionCtx = {}): Meal
     if (!f) continue;
     switch (f.group) {
       case 'carne-rossa':
-        out.redMeatG += g;
+        out.redMeatG += g * meatShareOf(f);
         break;
       case 'carne-lavorata':
-        out.processedG += g;
+        out.processedG += g * meatShareOf(f);
         break;
       case 'pesce':
         out.fish = true;

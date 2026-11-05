@@ -34,4 +34,10 @@ export interface FoodFacts {
   upf?: boolean;
   /** Stagionalità dei freschi (§ 4.10): `months` = mesi di stagione 1-12; `strict` = fuori da quei mesi non entra. */
   season?: { months: number[]; strict: boolean };
+  /**
+   * Solo piatti composti di sola stima con gruppo `carne-rossa` o `carne-lavorata` (hamburger nel panino, lasagna al
+   * ragù): quota del peso che è carne di quel gruppo, tra 0 e 1; il resto è pane, pasta, salse. Assente = 1 (il peso è
+   * tutto carne). Le misure della prevenzione contano i grammi × la quota (§ 4.7).
+   */
+  meatShare?: number;
 }

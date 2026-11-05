@@ -1,12 +1,12 @@
 /** Informazioni e privacy: versione, cosa resta sul telefono, avvertenze, crediti. */
 import { useMemo } from 'react';
-import { HardDrive, LayoutGrid, Lock, ServerOff, Sparkles, Stethoscope } from 'lucide-react';
+import { Archive, Camera, HardDrive, LayoutGrid, Lock, ServerOff, Sparkles, Stethoscope } from 'lucide-react';
 import { navigate } from '../../../app/router';
 import { APP_VERSION, BUILD_DATE, IS_PREVIEW } from '../../../app/env';
 import { STORAGE_KEY } from '../../../data/defaults';
 import { byteSize, fmtBytes } from '../../../lib/backup';
 import { fromISO, isISODate } from '../../../engine/dates';
-import { safeStorage } from '../../../state/store';
+import { archiveInfo, safeStorage } from '../../../state/store';
 import { Card, ListGroup, ListRow } from '../../../ui';
 import { AppMark } from '../components/Pickers';
 import { Page, type PageProps } from './Page';
@@ -41,6 +41,20 @@ export default function InfoPage({ onBack, backLabel }: PageProps) {
         <ListRow icon={Lock} iconTone="good" title="Tutto su questo telefono" subtitle="Diario, controlli, sedute e revisioni restano nel browser. Nessun account, nessuna pubblicità." />
         <ListRow icon={ServerOff} iconTone="palestra" title="Nessun server" subtitle="L’app funziona anche offline. Il codice è pubblico, i tuoi dati no." />
         <ListRow icon={Sparkles} iconTone="accent" title="Il coach" subtitle="Solo quando gli scrivi, messaggio e riassunto della giornata vanno ad Anthropic con la tua chiave." />
+        <ListRow
+          icon={Camera}
+          iconTone="neutral"
+          title="Foto dei piatti"
+          subtitle="La foto va al coach solo per la lettura e non si salva: restano alimenti, grammi e valori; i piatti salvati tengono una miniatura."
+        />
+        {archiveInfo().status === 'illeggibile' && (
+          <ListRow
+            icon={Archive}
+            iconTone="warn"
+            title="Archivio non letto"
+            subtitle="Miniature dei piatti e storico del piano non si sono letti: restano salvati come erano, l’app non li sovrascrive."
+          />
+        )}
         <ListRow icon={HardDrive} iconTone="neutral" title="Spazio usato" value={used ? fmtBytes(used) : '–'} />
       </ListGroup>
 
