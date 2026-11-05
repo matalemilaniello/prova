@@ -32,7 +32,7 @@ import { fmtDelta, fmtHours, fmtKg, fmtNumber, listIt } from '../lib/format';
 import { addDays, addMinutes, daysBetween, nightMinutes, weekDates, weekIndexSince, weekStart as weekStartOf } from './dates';
 import { clampKcalCorrection, deficitAtCap } from './energy';
 import { usualMealTime } from './mealTimes';
-import { mealsForDate } from './menu';
+import { MEAL_SLOTS, mealsForDate } from './menu';
 import { dayCarbScale, dayTargetFor, eatenMeal, recipeNutrition, recipeVegPortions } from './nutrition';
 import { atSleepTarget, checkInSleepHours, isOnTargetFor, nextBedtime, ON_TARGET_TOLERANCE_MIN, sleepHours } from './sleep';
 import {
@@ -47,6 +47,21 @@ import {
   type AdherenceSummary,
 } from './timeline';
 import { loadStatus, type LoadStatus } from './training';
+import {
+  MIN_FISH_MEALS,
+  MIN_LEGUME_MEALS,
+  MIN_VEG_PORTIONS,
+  MIN_WHOLE_GRAIN_G,
+  OUTSIDE_RED_MEAT_PORTION_G,
+  RED_MEAT_WEEK_G,
+  RICE_MAX_MEALS,
+  mealFromEaten,
+  mealFromRecipe,
+  mealPrevention,
+  weekPreventionStats,
+  type PlannedMeal,
+  type PreventionCtx,
+} from './prevention';
 
 // ───────────────────────── Costanti ─────────────────────────
 
@@ -1246,7 +1261,7 @@ export function fmtSleepAvg(h: number | null): string {
 // conteggio dei giorni. Acqua e dolci si contano da soli dal diario; gli altri si segnano con un tocco
 // (voce `scalino` nel diario del giorno, che non conta nell'aderenza).
 
-export type WeeklyStepId = 'frutta-spuntino' | 'verdura-cena' | 'acqua' | 'caffe' | 'dolci';
+export type WeeklyStepId = 'frutta-spuntino' | 'verdura-cena' | 'acqua' | 'caffe' | 'dolci' | 'alcol';
 
 export interface WeeklyStepDef {
   id: WeeklyStepId;
@@ -1268,6 +1283,11 @@ export const STEP_TARGET_DAYS = 5;
 export const STEP_WATER_GLASSES = 8;
 
 export const WEEKLY_STEP_IDS: WeeklyStepId[] = ['frutta-spuntino', 'verdura-cena', 'acqua', 'dolci', 'caffe'];
+/**
+ * Tutti gli scalini salvabili: in più `alcol` («una sera senza alcol in più», § 4.7), che si propone solo quando nella
+ * settimana compare l'alcol (risposta della revisione). Primo nell'ordine: è la prima leva della prevenzione (§ 4.1).
+ */
+export const ALL_STEP_IDS: WeeklyStepId[] = ['alcol', ...WEEKLY_STEP_IDS];
 
 /** Bicchieri dello scalino dell'acqua per questo profilo. */
 export function stepWaterGlasses(profile: Pick<AppData['profile'], 'waterTargetL'> | undefined): number {
@@ -1321,6 +1341,14 @@ export function weeklyStepDef(id: WeeklyStepId, state?: Pick<ReviewState, 'profi
         why: 'La caffeina ha un’emivita media di circa 5 ore: un caffè alle 17 a mezzanotte è ancora per più di un terzo in circolo e alleggerisce il sonno profondo.',
         measure: 'manuale',
       };
+    case 'alcol':
+      return {
+        id,
+        title: 'Una sera senza alcol in più',
+        how: 'Scegli una sera in cui di solito bevi e prendi acqua frizzante, una bibita senza zucchero o un analcolico; segnala in Oggi.',
+        why: 'Per i tumori non c’è una dose sicura di alcol: ogni bicchiere in meno riduce il rischio (WCRF, IARC).',
+        measure: 'manuale',
+      };
   }
 }
 
@@ -1332,7 +1360,7 @@ export interface SavedWeeklyStep {
 
 export type WeeklyReviewWithStep = WeeklyReview & { step?: SavedWeeklyStep };
 
-const isStepId = (v: unknown): v is WeeklyStepId => typeof v === 'string' && (WEEKLY_STEP_IDS as string[]).includes(v);
+const isStepId = (v: unknown): v is WeeklyStepId => typeof v === 'string' && (ALL_STEP_IDS as string[]).includes(v);
 
 /** Scalino di una revisione, se c'è ed è valido. */
 export function reviewStep(review: WeeklyReview | undefined): SavedWeeklyStep | null {
@@ -1441,7 +1469,11 @@ function mealMisses(state: ReviewState, dates: ISODate[], slot: 'spuntino' | 'ce
  * (per il caffè). Lo scalino della settimana rivista, se non è riuscito (meno di 5 giorni), si ripete;
  * se è riuscito si sale al prossimo.
  */
-export function proposeWeeklyStep(weekStart: ISODate, state: ReviewState, opts: PeriodOptions & { stats?: WeekStats } = {}): StepSuggestion {
+export function proposeWeeklyStep(
+  weekStart: ISODate,
+  state: ReviewState,
+  opts: PeriodOptions & { stats?: WeekStats; outside?: WeeklyReview['outside'] } = {},
+): StepSuggestion {
   const ws = weekStartOf(weekStart);
   const stats = opts.stats ?? weekStats(ws, state, opts);
   const today = opts.today ?? addDays(ws, 6);
@@ -1494,6 +1526,9 @@ export function proposeWeeklyStep(weekStart: ISODate, state: ReviewState, opts: 
     }
     return { id, title: def.title, reason, gap: Math.round(gap * 100) / 100 };
   });
+  // Lo scalino dell'alcol solo se nella settimana l'alcol compare (risposta della revisione, § 4.7).
+  const alcohol = alcoholStepOption(opts.outside ?? reviewFor(ws, state.reviews)?.outside, state);
+  if (alcohol) options.push(alcohol);
 
   // Scalino della settimana rivista.
   const prevSaved = reviewStep(reviewFor(addDays(ws, -7), state.reviews));
@@ -1503,10 +1538,11 @@ export function proposeWeeklyStep(weekStart: ISODate, state: ReviewState, opts: 
     previous = { id: prevSaved.id, title: pr.step.title, done: pr.done, target: pr.target, consolidated: pr.done >= pr.target };
   }
 
-  const ranked = [...options].sort((a, b) => b.gap - a.gap || WEEKLY_STEP_IDS.indexOf(a.id) - WEEKLY_STEP_IDS.indexOf(b.id));
+  const ranked = [...options].sort((a, b) => b.gap - a.gap || ALL_STEP_IDS.indexOf(a.id) - ALL_STEP_IDS.indexOf(b.id));
   let suggested = ranked[0];
-  if (previous && !previous.consolidated) {
-    const same = options.find((o) => o.id === previous!.id)!;
+  const prevOption = previous ? options.find((o) => o.id === previous!.id) : undefined;
+  if (previous && !previous.consolidated && prevOption) {
+    const same = prevOption;
     suggested = {
       ...same,
       reason: `Questa settimana è riuscito ${previous.done} ${previous.done === 1 ? 'giorno' : 'giorni'} su 7: ripetilo e diventa un’abitudine, poi si sale. ${weeklyStepDef(same.id, state).why}`,
@@ -1514,6 +1550,273 @@ export function proposeWeeklyStep(weekStart: ISODate, state: ReviewState, opts: 
   } else if (previous?.consolidated && suggested.id === previous.id) {
     suggested = ranked.find((o) => o.id !== previous!.id) ?? suggested;
   }
-  const rest = options.filter((o) => o.id !== suggested.id).sort((a, b) => b.gap - a.gap || WEEKLY_STEP_IDS.indexOf(a.id) - WEEKLY_STEP_IDS.indexOf(b.id));
+  const rest = options.filter((o) => o.id !== suggested.id).sort((a, b) => b.gap - a.gap || ALL_STEP_IDS.indexOf(a.id) - ALL_STEP_IDS.indexOf(b.id));
   return { suggested, options: [suggested, ...rest], previous };
+}
+
+// ───────────────────────── Prevenzione: misure e domande (§ 4.7) ─────────────────────────
+//
+// Lo scopo è vedere il modo di mangiare senza appesantire: le misure vanno in «Da sapere», senza pulsanti né colpe, e
+// in vista restano solo quelle fuori dal riferimento. Si ricavano dal diario: i giorni con abbastanza pasti segnati
+// (come le fibre, `MIN_DAY_MEAL_SHARE`) contano per il menù, con i pasti non segnati come previsti; un pasto stimato da
+// foto o da un piatto conta per i suoi alimenti, un ordine del bar senza alimenti non conta. Le tre domande facoltative
+// coprono quello che il diario non vede: carne rossa e salumi fuori dal menù, alcol.
+
+export type OutsideAnswers = NonNullable<WeeklyReview['outside']>;
+
+export type PreventionMeasureId = 'carne-rossa' | 'carne-lavorata' | 'alcol' | 'vegetali' | 'integrali' | 'legumi' | 'pesce' | 'riso' | 'vita';
+
+export interface PreventionMeasure {
+  id: PreventionMeasureId;
+  title: string;
+  /** «circa 450 g su 350». */
+  value: string;
+  /** Dentro o fuori dal riferimento; `non-indicato` senza la risposta che serve. */
+  status: 'dentro' | 'fuori' | 'non-indicato';
+  /** Riferimento e fonte in una frase, senza colpe. */
+  note: string;
+}
+
+export interface PreventionReport {
+  /** Le misure che si possono dire, in ordine di leva (§ 4.1): alcol, vita, carne lavorata, verdura e frutta… */
+  measures: PreventionMeasure[];
+  /** Giorni del diario che contano per il menù. */
+  days: number;
+  /** Risposte che il diario sa già (pasti stimati con salumi o carne rossa): precompilano le domande. */
+  prefill: OutsideAnswers;
+  /** Nella settimana compare l'alcol: si propone lo scalino `alcol`. */
+  alcohol: boolean;
+}
+
+export interface PreventionOptions extends PeriodOptions {
+  stats?: WeekStats;
+  /** Risposte della revisione (quelle salvate, se mancano). */
+  outside?: OutsideAnswers;
+  /** Vita misurata in questa revisione (quella salvata, se manca). */
+  waistCm?: number;
+  /** Fatti degli alimenti: i test ne iniettano di finti per le sole stime. */
+  facts?: PreventionCtx['facts'];
+}
+
+/** Giro vita sopra il quale cresce il rischio (WCRF; OMS per gli adulti europei). */
+export const WAIST_LIMIT_CM: Record<'M' | 'F', number> = { M: 94, F: 80 };
+/** Aumento della vita in 4 settimane che si segnala. */
+export const WAIST_RISE_CM = 1;
+
+const ALCOHOL_LABEL: Record<NonNullable<OutsideAnswers['alcoholUnits']>, string> = {
+  '0': 'nessuna unità',
+  '1-3': '1-3 unità',
+  '4-7': '4-7 unità',
+  '8+': '8 o più unità',
+};
+
+const times = (n: number) => `${fmtNumber(n)} ${n === 1 ? 'volta' : 'volte'}`;
+const round10 = (g: number) => Math.round(g / 10) * 10;
+
+interface PreventionMeals {
+  /** Tutta la settimana dal primo giorno con Ritmo: il diario nei giorni chiusi, il menù negli altri (conteggi a settimana). */
+  week: PlannedMeal[];
+  /** Pasti del menù nella settimana (senza le stime): la carne rossa del menù, in grammi cotti. */
+  weekMenu: PlannedMeal[];
+  /** Giorni chiusi con abbastanza pasti segnati: le medie al giorno (cereali integrali). */
+  complete: PlannedMeal[];
+  /** Pasti stimati con i loro alimenti in tutti i giorni chiusi. */
+  estimated: PlannedMeal[];
+  /** Giorni completi. */
+  days: number;
+}
+
+/**
+ * Pasti della settimana per le misure. Nei giorni chiusi conta il diario: «fatto» = la ricetta del menù (scambi e
+ * sostituzioni compresi), un pasto stimato = i suoi alimenti, sostituito senza stima o saltato = niente, non segnato =
+ * come previsto; nei giorni non ancora chiusi il menù previsto. Le giornate minime non hanno pasti da contare.
+ */
+function preventionMeals(weekStart: ISODate, state: ReviewState, opts: PeriodOptions): PreventionMeals {
+  const ws = weekStartOf(weekStart);
+  const start = reviewStart(state);
+  const end = opts.today && opts.today <= addDays(ws, 6) ? opts.today : addDays(ws, 7);
+  const out: PreventionMeals = { week: [], weekMenu: [], complete: [], estimated: [], days: 0 };
+  for (const d of weekDates(ws)) {
+    if (start && d < start) continue;
+    const log = state.dayLogs[d];
+    if (log?.minimal) continue;
+    const closed = d < end;
+    const complete = closed && dayIntake(d, state).complete;
+    if (complete) out.days++;
+    const day = mealsForDate(d, state);
+    const scale = dayCarbScale(d, state);
+    for (const slot of MEAL_SLOTS) {
+      const eaten = closed ? eatenMeal(log, slot) : null;
+      let meal: PlannedMeal | null = null;
+      if (eaten) {
+        // Foto o piatto salvato: i suoi alimenti. Un ordine del bar senza alimenti non dice cosa c'era nel piatto.
+        meal = mealFromEaten(eaten, d, slot);
+        if (meal) out.estimated.push(meal);
+      } else {
+        const entry = day.bySlot[slot];
+        const st = closed ? log?.status[`pasto:${slot}`] : undefined;
+        if (entry?.recipe && (!st || st === 'fatto')) {
+          meal = mealFromRecipe(entry.recipe, day.dayType, scale, d, slot);
+          out.weekMenu.push(meal);
+        }
+      }
+      if (!meal) continue;
+      out.week.push(meal);
+      if (complete) out.complete.push(meal);
+    }
+  }
+  return out;
+}
+
+/** Risposte che il diario sa già: pasti stimati con salumi e con carne rossa (al massimo «3 o più»). */
+function diaryAnswers(estimated: PlannedMeal[], ctx: PreventionCtx): { processed: number; redMeat: number } {
+  let processed = 0;
+  let redMeat = 0;
+  for (const m of estimated) {
+    const p = mealPrevention(m, ctx);
+    if (p.processedG > 0) processed++;
+    if (p.redMeatG > 0) redMeat++;
+  }
+  return { processed, redMeat };
+}
+
+/** Le misure della prevenzione della settimana, con le risposte della revisione (§ 4.7). */
+export function preventionMeasures(weekStart: ISODate, state: ReviewState, opts: PreventionOptions = {}): PreventionReport {
+  const ws = weekStartOf(weekStart);
+  const saved = reviewFor(ws, state.reviews);
+  const outside: OutsideAnswers = opts.outside ?? saved?.outside ?? {};
+  const ctx: PreventionCtx = opts.facts ? { facts: opts.facts } : {};
+  const { week, weekMenu, complete, estimated, days } = preventionMeals(ws, state, opts);
+  const known = diaryAnswers(estimated, ctx);
+  const enough = days >= MIN_NUTRITION_DAYS;
+  const st = weekPreventionStats(week, ctx);
+  const measures: PreventionMeasure[] = [];
+
+  // Alcol (la prima leva).
+  const units = outside.alcoholUnits;
+  measures.push({
+    id: 'alcol',
+    title: 'Alcol',
+    value: units ? `${ALCOHOL_LABEL[units]}${outside.binge ? ', una sera con 5 o più' : ''}` : 'non indicato',
+    status: !units ? 'non-indicato' : units === '0' ? 'dentro' : 'fuori',
+    note: outside.binge
+      ? 'Per i tumori non c’è una dose sicura: ogni unità in meno conta, e mai 5 o più nella stessa sera.'
+      : 'Per i tumori non c’è una dose sicura: ogni unità in meno conta (WCRF, IARC).',
+  });
+
+  // Vita, dalle revisioni: sotto il limite e senza aumenti in 4 settimane.
+  const waist = opts.waistCm ?? saved?.waistCm;
+  if (isNum(waist)) {
+    const before = (state.reviews ?? [])
+      .filter((r) => isNum(r.waistCm) && r.weekStart < ws && r.weekStart >= addDays(ws, -28))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))[0]?.waistCm;
+    const limit = state.profile?.sex ? WAIST_LIMIT_CM[state.profile.sex] : null;
+    const rise = isNum(before) ? waist - before : 0;
+    const over = limit !== null && waist >= limit;
+    const rising = rise >= WAIST_RISE_CM - 1e-9;
+    measures.push({
+      id: 'vita',
+      title: 'Vita',
+      value: rising ? `${fmtNumber(waist, 1, true)} cm, ${fmtDelta(rise, 'cm', 1)} in 4 settimane` : `${fmtNumber(waist, 1, true)} cm${limit !== null ? ` su ${limit}` : ''}`,
+      status: over || rising ? 'fuori' : 'dentro',
+      note: 'Il grasso addominale aumenta il rischio di diversi tumori (WCRF, prova convincente): conta la tendenza.',
+    });
+  }
+
+  // Carne lavorata: pasti stimati con salumi e risposta (precompilata con quelli).
+  const processed = outside.processed !== undefined ? Math.max(outside.processed, known.processed) : known.processed;
+  measures.push({
+    id: 'carne-lavorata',
+    title: 'Salumi e carne lavorata',
+    value: processed > 0 ? (outside.processed === 3 ? '3 o più volte' : times(processed)) : outside.processed !== undefined ? 'nessuna' : 'non indicato',
+    status: processed > 0 ? 'fuori' : outside.processed !== undefined ? 'dentro' : 'non-indicato',
+    note: 'Per la carne lavorata non c’è una dose sicura: ogni volta in meno conta (IARC, gruppo 1).',
+  });
+
+  // Carne rossa: grammi cotti del menù dei giorni contati, più le porzioni fuori (risposta o pasti stimati) × 150 g.
+  const menuRed = enough ? weekPreventionStats(weekMenu, ctx).redMeatG : 0;
+  const portions = outside.redMeat !== undefined ? Math.max(outside.redMeat, known.redMeat) : known.redMeat;
+  const red = round10(menuRed + portions * OUTSIDE_RED_MEAT_PORTION_G);
+  if (enough || outside.redMeat !== undefined || known.redMeat > 0) {
+    const answered = outside.redMeat !== undefined;
+    measures.push({
+      id: 'carne-rossa',
+      title: 'Carne rossa',
+      value: answered || red > RED_MEAT_WEEK_G ? `circa ${fmtNumber(red)} g su ${fmtNumber(RED_MEAT_WEEK_G)}` : `circa ${fmtNumber(red)} g dal diario, fuori dal menù non indicato`,
+      status: red > RED_MEAT_WEEK_G ? 'fuori' : answered ? 'dentro' : 'non-indicato',
+      note: 'In tutto circa 350 g cotti a settimana, mai oltre 500 (WCRF); fuori casa una porzione vale di solito 150 g o più.',
+    });
+  }
+
+  if (enough) {
+    // Verdura e frutta: la stessa stima delle porzioni del primo passo della revisione.
+    const stats = opts.stats ?? weekStats(ws, state, opts);
+    if (stats.vegPortionsAvg !== null) {
+      const v = stats.vegPortionsAvg;
+      measures.push({
+        id: 'vegetali',
+        title: 'Verdura e frutta',
+        value: `circa ${fmtNumber(Math.round(v * 2) / 2, 1)} porzioni al giorno su ${MIN_VEG_PORTIONS}`,
+        status: v >= MIN_VEG_PORTIONS - 0.05 ? 'dentro' : 'fuori',
+        note: 'Almeno 400 g al giorno, patate escluse (OMS): riducono il rischio di diversi tumori dell’apparato digerente (WCRF, prova probabile).',
+      });
+    }
+    const wg = weekPreventionStats(complete, ctx).wholeGrainDryG / days;
+    measures.push({
+      id: 'integrali',
+      title: 'Cereali integrali',
+      value: `circa ${fmtNumber(round10(wg))} g al giorno su ${MIN_WHOLE_GRAIN_G}`,
+      status: wg >= MIN_WHOLE_GRAIN_G - 0.5 ? 'dentro' : 'fuori',
+      note: '90 g al giorno riducono il rischio di tumore del colon-retto (WCRF, prova probabile).',
+    });
+    const legumes = st.legumeMeals;
+    measures.push({
+      id: 'legumi',
+      title: 'Legumi',
+      value: `${times(legumes)} su ${MIN_LEGUME_MEALS}`,
+      status: legumes >= MIN_LEGUME_MEALS ? 'dentro' : 'fuori',
+      note: 'Linea guida CREA 2018: 2-4 porzioni a settimana, per fibre e proteine vegetali.',
+    });
+    const fish = st.fishMeals;
+    measures.push({
+      id: 'pesce',
+      title: 'Pesce',
+      value: times(fish),
+      status: fish >= MIN_FISH_MEALS ? 'dentro' : 'fuori',
+      note: 'Varietà del menù: pesce 2-3 volte a settimana, una volta pesce azzurro o salmone.',
+    });
+    const rice = st.riceMeals;
+    measures.push({
+      id: 'riso',
+      title: 'Riso',
+      value: `${times(rice)} su ${RICE_MAX_MEALS} al massimo`,
+      status: rice <= RICE_MAX_MEALS ? 'dentro' : 'fuori',
+      note: 'Al massimo 3 volte, lessato in molta acqua e scolato, per l’arsenico inorganico (EFSA 2024).',
+    });
+  }
+
+  const prefill: OutsideAnswers = {};
+  if (known.processed > 0) prefill.processed = Math.min(3, known.processed) as 0 | 1 | 2 | 3;
+  if (known.redMeat > 0) prefill.redMeat = Math.min(3, known.redMeat) as 0 | 1 | 2 | 3;
+  return { measures, days, prefill, alcohol: Boolean(units && units !== '0') };
+}
+
+/** Le misure fuori dal riferimento, in ordine di leva: quelle da mostrare in vista. */
+export function measuresOutside(report: PreventionReport): PreventionMeasure[] {
+  return report.measures.filter((m) => m.status === 'fuori');
+}
+
+/** Lo scalino `alcol` da proporre quando nella settimana compare l'alcol (null altrimenti). */
+export function alcoholStepOption(outside: WeeklyReview['outside'] | undefined, state?: Pick<ReviewState, 'profile' | 'plan'>): StepOption | null {
+  const units = outside?.alcoholUnits;
+  if (!units || units === '0') return null;
+  const def = weeklyStepDef('alcol', state);
+  const strong = units === '4-7' || units === '8+' || outside?.binge === true;
+  return {
+    id: 'alcol',
+    title: def.title,
+    reason: `${capital(ALCOHOL_LABEL[units])} questa settimana. ${def.why}`,
+    // Prima leva della prevenzione (§ 4.1): con più di qualche unità diventa lo scalino consigliato.
+    gap: strong ? 1 : 0.4,
+  };
 }

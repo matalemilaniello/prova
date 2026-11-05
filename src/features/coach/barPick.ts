@@ -3,7 +3,7 @@
  * i totali di una scelta e i dolci rimasti della settimana. Funzioni pure, testate.
  */
 import type { AppData, BarOption, DayType, ISODate, MealSlot, Nutrients } from '../../domain/types';
-import { BAR_OPTIONS } from '../../data/barPlanB';
+import { BAR_OPTIONS, type BarPlanBOption } from '../../data/barPlanB';
 import { addDays, hhmmToMin, weekDates, weekStart, weekdayOf } from '../../engine/dates';
 import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS } from '../../engine/menu';
 import { dayNutritionDetail, type NutritionState } from '../../engine/nutrition';
@@ -99,6 +99,23 @@ export function barCombo(slot: MealSlot, dayType: DayType, preFootball: boolean,
         ? { ids: ['panino-pollo', 'yogurt-frutta'], why: 'Dopo la palestra: carboidrati e circa 35 g di proteine per il recupero, leggero prima di dormire.' }
         : { ids: ['insalatona', 'yogurt-frutta'], why: 'Verdure e proteine, più uno yogurt con la frutta: una cena leggera e completa.' };
   }
+}
+
+/**
+ * Opzioni del piano B senza gli alimenti esclusi dall'utente (docs/FASE2.md § 6.5): un'opzione che contiene un alimento
+ * escluso (`BarPlanBOption.contains`) non compare. `excluded` è `excludedFoods(plan, giorno)`.
+ */
+export function barOptionsFor(excluded: ReadonlySet<string>, options: readonly BarPlanBOption[] = BAR_OPTIONS): BarPlanBOption[] {
+  return options.filter((o) => !(o.contains ?? []).some((id) => excluded.has(id)));
+}
+
+/** Testo della combinazione quando le esclusioni ne hanno tolto una parte. */
+export const COMBO_WITHOUT_EXCLUDED = 'La combinazione consigliata, senza quello che hai tolto dal piano.';
+
+/** La combinazione con le sole opzioni ammesse; se le esclusioni ne tolgono una, il motivo lo dice. */
+export function allowedCombo(combo: BarCombo, options: readonly BarOption[]): BarCombo {
+  const ids = combo.ids.filter((id) => options.some((o) => o.id === id));
+  return ids.length === combo.ids.length ? combo : { ids, why: COMBO_WITHOUT_EXCLUDED };
 }
 
 /** Nei giorni di calcio la scelta del bar arriva almeno a questa quota del pasto previsto (kcal e carboidrati). */

@@ -2,7 +2,8 @@
  * Contesto del coach: il prompt di sistema (stabile, va in cache) e un riassunto compatto in testo dello
  * stato dell'utente, ricostruito a ogni domanda: profilo, piano, giornata di oggi con gli stati delle voci,
  * menù con i valori, ultimi controlli del mattino, dolori, sedute e calcio recenti, settimana. Con l'orario di
- * lavoro (`ScheduleDay.work`), i blocchi di oggi e della settimana con i pasti spostati o da portare.
+ * lavoro (`ScheduleDay.work`), i blocchi di oggi e della settimana con i pasti spostati o da portare. Con le esclusioni
+ * (`Plan.exclusions`, docs/FASE2.md § 6.5) la riga «Esclusi dall’utente»; il prompt di sistema vieta di proporli.
  *
  * Privacy: il nome non viene mai inviato. L'interfaccia mostra all'utente questo stesso testo.
  * Ogni sezione è protetta: se un motore fallisce, il coach riceve comunque il resto.
@@ -36,6 +37,7 @@ import {
   weekStart,
   weekdayOf,
 } from './dates';
+import { foodLabel, userExclusions } from './exclusions';
 import { mealTimesFor, workBlocksFor } from './mealTimes';
 import { dayTypeFor, effectiveDayType, isMatchEve, MEAL_SLOTS, mealsForDate } from './menu';
 import { dayCarbScale, dayNutritionDetail, dayTargetFor, eatenMeal, recipeNutrition } from './nutrition';
@@ -91,6 +93,7 @@ Cosa sai fare
 - Integratori e tumori: nessuno li previene. Beta-carotene, vitamina E e acido folico ad alte dosi hanno dato più tumori in alcuni trial; per la vitamina B12 ad alte dosi c’è solo un sospetto da studi osservazionali. Non proporne a questo scopo e rimanda al medico per le dosi.
 - Proporzioni: per un adulto attivo contano soprattutto alcol, peso e attività fisica, poi carne lavorata, fibre, verdura e frutta. Contaminanti e cotture sono precauzioni. Niente allarmi: il gruppo 1 dell’IARC dice quanto sono solide le prove, non quanto è grande il rischio; niente superfood, diete alcaline o «lo zucchero nutre il tumore».
 - Cucina: piatti da 15 minuti con ingredienti comuni e verdure comode (surgelati, insalate in busta, legumi in barattolo, vellutate), adattati al tipo di giorno e a quello che l’utente ha in casa.
+- Gusti: non proporre mai gli alimenti che il contesto elenca in «Esclusi dall’utente», nemmeno come alternativa o al bar: l’utente li ha tolti dal piano.
 - Allenamento: decidi se saltare, accorciare o spingere una seduta in base a sonno, dolore, carico della settimana e distanza dalla partita. Di solito accorciare è meglio che saltare. Rispetta la progressione doppia, i RIR e le limitazioni del piano indicate nel contesto.
 - Settimana: leggi aderenza, sonno, peso, dolori e carico; di’ cosa ha funzionato e proponi una correzione. Se nel contesto c’è uno scalino della settimana (un solo obiettivo piccolo, come un frutto allo spuntino), aiutalo a centrarlo prima di aggiungere altro. Le modifiche al piano si accettano nella revisione della domenica, nella sezione Progressi: ricordalo quando proponi un cambiamento.
 - Ritmo ha queste sezioni: Oggi (timeline da segnare, acqua, dolci, giornata minima), Settimana (menù, spesa, preparazione della domenica), Allenamento (sedute e storico), Coach, Progressi (grafici e revisione della domenica). Indica la sezione giusta quando serve.
@@ -234,6 +237,11 @@ function planSection(state: AppData, today: ISODate): string[] {
     lines.push(`Integratori senza dose: ${listIt(undecided.map((x) => x.name))}, dose da definire con l’esame, per ora non si prende${undecided.length > 1 ? 'no' : ''}.`);
   }
   lines.push(`Dolci previsti: ${n0(plan.sweetsPerWeek)} a settimana.`);
+  const excluded = userExclusions(plan);
+  if (excluded.length) {
+    const names = excluded.map((e) => `${foodLabel(e.foodId)}${e.since > today ? ` (da ${formatDayLong(e.since)})` : ''}`);
+    lines.push(`Esclusi dall’utente: ${listIt(names)}. Non proporli.`);
+  }
   const sites = state.profile.painSites ?? [];
   const limits: string[] = [];
   const elbow = sites.find(isElbowSite);

@@ -7,8 +7,16 @@
  * - `meglio`: va bene con un accorgimento, scritto nel motivo;
  * - `programmato`: solo come uno dei dolci previsti nella settimana.
  * I valori sono stime indicative per la porzione tipica servita al banco.
+ *
+ * `contains` (campo locale, fuori dal contratto, docs/FASE2.md § 6.5): gli alimenti dell'archivio che l'opzione porta di
+ * sicuro. Un'opzione con un alimento escluso dall'utente non compare; quelli a scelta («tonno o pollo») non si elencano.
  */
 import type { BarOption } from '../domain/types';
+
+/** Opzione del piano B con gli alimenti dell'archivio che contiene (per le esclusioni). */
+export interface BarPlanBOption extends BarOption {
+  contains?: string[];
+}
 
 /** Etichette e spiegazioni dei verdetti, per l'interfaccia. */
 export const BAR_VERDICTS: Record<BarOption['verdict'], { label: string; hint: string }> = {
@@ -17,7 +25,7 @@ export const BAR_VERDICTS: Record<BarOption['verdict'], { label: string; hint: s
   programmato: { label: 'Dolce programmato', hint: 'Solo come uno dei dolci della settimana' },
 };
 
-export const BAR_OPTIONS: BarOption[] = [
+export const BAR_OPTIONS: BarPlanBOption[] = [
   // ───────────────────────── Sì ─────────────────────────
   {
     id: 'panino-pollo',
@@ -25,6 +33,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: 'Il panino migliore del banco se il pollo è cotto alla piastra o al forno: la fesa di pollo o di tacchino arrosto a fette è un affettato. Chiedi un filo d’olio invece delle salse.',
     approx: { kcal: 420, proteinG: 32, carbG: 52, fatG: 8, fiberG: 3.5 },
+    contains: ['pane-bianco', 'pollo', 'insalata', 'pomodorini'],
   },
   {
     id: 'panino-verdure',
@@ -32,6 +41,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: 'Carboidrati digeribili, verdura e pochi grassi. Se lo trovi integrale, ancora meglio.',
     approx: { kcal: 335, proteinG: 9.5, carbG: 55, fatG: 6.5, fiberG: 5 },
+    contains: ['pane-bianco', 'verdure-grigliate'],
   },
   {
     id: 'insalatona',
@@ -39,6 +49,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: "Verdure e circa 30 g di proteine nello stesso piatto: sazia e resta leggero. Con tonno, uovo o pollo cotto, non con affettati; l’olio a parte, niente salse.",
     approx: { kcal: 430, proteinG: 30, carbG: 12, fatG: 28, fiberG: 5 },
+    contains: ['insalata', 'uova'],
   },
   {
     id: 'yogurt-frutta',
@@ -46,6 +57,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: 'Leggero e con i fermenti, ma con poche proteine: se il bar ce l’ha, scegli lo yogurt greco (circa 15 g), oppure abbinalo a un toast.',
     approx: { kcal: 155, proteinG: 6.5, carbG: 18, fatG: 6, fiberG: 2 },
+    contains: ['yogurt-greco-2'],
   },
   {
     id: 'macedonia',
@@ -67,6 +79,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: 'Vitamina C e carboidrati facili prima del calcio, ma i suoi zuccheri sono liberi come quelli aggiunti (OMS) e la fibra resta nel frutto: un bicchiere, e quando puoi il frutto intero.',
     approx: { kcal: 88, proteinG: 1.4, carbG: 19, fatG: 0.4, fiberG: 0.4 },
+    contains: ['arancia'],
   },
   {
     id: 'cappuccino',
@@ -74,6 +87,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'si',
     why: 'Latte e caffè: qualche grammo di proteine. Amaro o con mezza bustina di zucchero.',
     approx: { kcal: 95, proteinG: 5, carbG: 7, fatG: 5, fiberG: 0 },
+    contains: ['latte'],
   },
   {
     id: 'caffe',
@@ -90,6 +104,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'meglio',
     why: 'Amido facile da digerire, ideale nei giorni di calcio, ma solo 16 g di proteine: chiedi di aggiungere tonno, un uovo o del formaggio.',
     approx: { kcal: 510, proteinG: 16, carbG: 81, fatG: 12.5, fiberG: 5 },
+    contains: ['pasta', 'passata'],
   },
   {
     id: 'toast',
@@ -97,6 +112,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'meglio',
     why: 'Pane bianco e formaggio fuso saziano poco e danno poche proteine. Chiedilo solo al formaggio, senza prosciutto cotto, e prendine uno solo, con uno yogurt.',
     approx: { kcal: 260, proteinG: 12, carbG: 26, fatG: 11, fiberG: 1.5 },
+    contains: ['pane-bianco'],
   },
   {
     id: 'tramezzino',
@@ -104,6 +120,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'meglio',
     why: 'La maionese raddoppia i grassi. Scegli quello con meno salsa e aggiungi uno yogurt per le proteine.',
     approx: { kcal: 300, proteinG: 12, carbG: 26, fatG: 16.5, fiberG: 1.5 },
+    contains: ['pane-bianco', 'tonno', 'pomodorini'],
   },
   {
     id: 'piadina',
@@ -111,6 +128,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'meglio',
     why: 'Piadina e formaggio sono pesanti: va bene come pranzo, non come spuntino. Chiedila senza salse e aggiungi un frutto.',
     approx: { kcal: 525, proteinG: 21.5, carbG: 54, fatG: 24, fiberG: 3 },
+    contains: ['piadina-integrale', 'pomodorini', 'rucola'],
   },
   {
     id: 'trancio-pizza',
@@ -118,6 +136,7 @@ export const BAR_OPTIONS: BarOption[] = [
     verdict: 'meglio',
     why: 'Va bene a pranzo nei giorni di calcio: margherita o verdure, non salame o salsiccia. Un trancio solo, poi un frutto o un’insalata per la fibra.',
     approx: { kcal: 440, proteinG: 16, carbG: 62, fatG: 13, fiberG: 3.5 },
+    contains: ['passata'],
   },
   {
     id: 'focaccia',

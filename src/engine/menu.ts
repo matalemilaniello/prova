@@ -7,8 +7,8 @@
  *   rotazione (dall'onda 2A anche l'ultima settimana approvata ripetuta);
  * - strato 1, `plannedMealsForDate(iso, plan)`: le ricette previste nella data, senza sostituzioni né scambi (nei giorni
  *   di avvio il menù di avvio, che vince su tutto);
- * - strato 2, `weekSubstitutions(monday, plan)`: le ricette che sostituiscono quelle con un alimento escluso (vuoto
- *   finché non arrivano le esclusioni, onda 1B);
+ * - strato 2, `weekSubstitutions(monday, plan)`: le ricette che sostituiscono quelle con un alimento escluso o vietato
+ *   (`substitutionsForWeek` in engine/similar.ts); una casella senza alternative valide resta vuota;
  * - `mealsForDate(iso, state)`: lo strato 2 con gli scambi dell'utente sopra, e `DayMeals.source` dice da dove viene.
  * `prepInForce(monday, plan)` dà i compiti della preparazione della domenica prima di quel lunedì.
  * Senza i campi nuovi (`Plan.menus`, esclusioni) tutto coincide con la rotazione di prima.
@@ -17,6 +17,7 @@ import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Plan, Prep
 import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince, weekStart } from './dates';
+import { substitutionsForWeek } from './similar';
 
 /** Ordine dei pasti nella giornata. */
 export const MEAL_SLOTS: MealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
@@ -70,6 +71,11 @@ export interface DayMeals {
   /** Pasti in ordine di giornata; mancano gli slot senza ricetta. */
   meals: MealEntry[];
   bySlot: Partial<Record<MealSlot, MealEntry>>;
+  /**
+   * Pasti rimasti vuoti perché la ricetta prevista contiene un alimento escluso e nessuna alternativa è valida (§ 6.4):
+   * pasto → ricetta tolta. Oggi li mostra con «Scegli tu». Assente senza pasti vuoti.
+   */
+  cleared?: Partial<Record<MealSlot, string>>;
 }
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
@@ -253,17 +259,15 @@ export function plannedMealsForDate(iso: ISODate, plan: Plan): DayMeals {
   return plannedMeals(iso, plan, MENU_ROTATION);
 }
 
-const NO_SUBSTITUTIONS: Partial<Record<ISODate, Partial<Record<MealSlot, string>>>> = Object.freeze({});
-
 /**
- * Strato 2 del § 6.4: sostituzioni delle esclusioni di una settimana, memorizzate per (lunedì, piano). Onda 0: vuoto.
- * Le chiavi sono le date della settimana, i valori le ricette che prendono il posto di quelle previste dallo strato 1;
- * un valore che non è una ricetta nota non sostituisce niente.
+ * Strato 2 del § 6.4: sostituzioni delle esclusioni di una settimana, memorizzate per (lunedì, piano). Le chiavi sono le
+ * date della settimana, i valori le ricette che prendono il posto di quelle previste dallo strato 1: la prima delle
+ * alternative con valori simili (`mealAlternatives`), calcolata con la scala dello strato 1, giorno per giorno dal lunedì
+ * e pasto per pasto. `''` = casella vuota, senza alternative valide; un altro valore che non è una ricetta nota non
+ * sostituisce niente. Senza esclusioni (e con un menù senza alimenti vietati) è vuoto.
  */
 export function weekSubstitutions(monday: ISODate, plan: Plan): Partial<Record<ISODate, Partial<Record<MealSlot, string>>>> {
-  void monday;
-  void plan;
-  return NO_SUBSTITUTIONS;
+  return substitutionsForWeek(monday, plan);
 }
 
 /** Pasti effettivi della data: strato 2 (menù in vigore con le sostituzioni delle esclusioni) più gli scambi del diario. */
@@ -274,11 +278,15 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
   const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
   const meals: MealEntry[] = [];
   const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
+  const cleared: Partial<Record<MealSlot, string>> = {};
   for (const slot of MEAL_SLOTS) {
     const base = planned.bySlot[slot];
     const sub = subs?.[slot];
+    // '' = nessuna alternativa valida: la casella resta vuota (resta lo scambio dell'utente, se c'è).
+    const emptied = Boolean(base && sub === '');
     const substituted = Boolean(sub && RECIPES[sub] && base && sub !== base.plannedId);
-    const plannedId = substituted ? (sub as string) : base?.plannedId ?? '';
+    const plannedId = emptied ? '' : substituted ? (sub as string) : base?.plannedId ?? '';
+    if (emptied && base) cleared[slot] = base.plannedId;
     const swapId = swaps[slot];
     const recipeId = swapId || plannedId;
     if (!recipeId) continue;
@@ -289,12 +297,12 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
       plannedId,
       swapped: Boolean(swapId && swapId !== plannedId),
       ...(base?.starterOf ? { starterOf: base.starterOf } : {}),
-      ...(substituted && base ? { excludedFrom: base.plannedId } : {}),
+      ...((substituted || emptied) && base ? { excludedFrom: base.plannedId } : {}),
     };
     meals.push(entry);
     bySlot[slot] = entry;
   }
-  return { ...planned, meals, bySlot };
+  return { ...planned, meals, bySlot, ...(Object.keys(cleared).length ? { cleared } : {}) };
 }
 
 /**
@@ -311,10 +319,12 @@ export function prepInForce(monday: ISODate, plan: Plan): PrepTask[] {
   const removed = new Set<string>();
   const kept = new Set<string>();
   for (let i = 0; i < 7; i++) {
-    for (const m of mealsForDate(addDays(ws, i), { plan, dayLogs: {} }).meals) {
+    const day = mealsForDate(addDays(ws, i), { plan, dayLogs: {} });
+    for (const m of day.meals) {
       if (m.excludedFrom) removed.add(m.excludedFrom);
       kept.add(m.plannedId);
     }
+    for (const id of Object.values(day.cleared ?? {})) if (id) removed.add(id);
   }
   return tasks.filter((t) => {
     const ids = t.recipeIds ?? [];

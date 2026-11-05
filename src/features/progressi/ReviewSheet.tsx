@@ -13,16 +13,19 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, Footprints, Plus, Undo2 } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, Footprints, Plus, ShieldCheck, Undo2 } from 'lucide-react';
 import type { ISODate, Proposal, WeeklyReview } from '../../domain/types';
 import { addMinutes, formatDayLong, formatWeekRange, weekDates } from '../../engine/dates';
 import { checkInSleepHours } from '../../engine/sleep';
 import {
+  alcoholStepOption,
   changesPlan,
   firstReviewDate,
   isReviewableWeek,
   MIN_NUTRITION_DAYS,
+  measuresOutside,
   needsDecision,
+  preventionMeasures,
   previousReview,
   proposals as buildProposals,
   proposeWeeklyStep,
@@ -34,6 +37,9 @@ import {
   STEP_TARGET_DAYS,
   weeklyStepDef,
   weekStats,
+  type OutsideAnswers,
+  type PreventionMeasure,
+  type PreventionReport,
   type StepSuggestion,
   type WeeklyReviewWithStep,
   type WeeklyStepId,
@@ -70,6 +76,7 @@ const STEP_SHORT: Record<WeeklyStepId, string> = {
   acqua: 'Acqua',
   dolci: 'Dolci',
   caffe: 'Caffè',
+  alcol: 'Una sera senza alcol',
 };
 
 /** Cosa vuol dire, da lunedì, un impegno accettato. */
@@ -393,6 +400,7 @@ function MeasuresStep({
   allSites,
   note,
   setNote,
+  children,
 }: {
   waist: number | undefined;
   setWaist: (v: number | undefined) => void;
@@ -404,6 +412,8 @@ function MeasuresStep({
   allSites: string[];
   note: string;
   setNote: (v: string) => void;
+  /** Domande facoltative della prevenzione, prima della nota. */
+  children?: ReactNode;
 }) {
   const [showFolds, setShowFolds] = useState(sites.length > 0);
   const prevWaist = prev?.waistCm;
@@ -518,10 +528,161 @@ function MeasuresStep({
         </AnimatePresence>
       </Card>
 
+      {children}
+
       <Field label="Una riga sulla settimana" optional>
         <TextArea value={note} onChange={setNote} rows={3} placeholder="Cosa ha funzionato, cosa cambiare" maxLength={400} />
       </Field>
     </div>
+  );
+}
+
+// ───────────────────────── Passo 3: domande della prevenzione ─────────────────────────
+
+const PORTION_CHOICES: { value: 0 | 1 | 2 | 3; label: string }[] = [
+  { value: 0, label: '0' },
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3 o più' },
+];
+const ALCOHOL_CHOICES: { value: NonNullable<OutsideAnswers['alcoholUnits']>; label: string }[] = [
+  { value: '0', label: '0' },
+  { value: '1-3', label: '1-3' },
+  { value: '4-7', label: '4-7' },
+  { value: '8+', label: '8 o più' },
+];
+
+/** Una domanda da un tocco: un secondo tocco sulla scelta la toglie (risposta facoltativa). */
+function ChoiceRow<T extends string | number>({
+  label,
+  hint,
+  choices,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  choices: { value: T; label: string }[];
+  value: T | undefined;
+  onChange: (v: T | undefined) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="t-callout font-medium text-ink">
+        {label}
+        {hint && <span className="t-caption block font-normal text-ink-3">{hint}</span>}
+      </p>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+        {choices.map((c) => (
+          <Chip key={String(c.value)} selected={value === c.value} onChange={(on) => onChange(on ? c.value : undefined)} className="h-11 min-w-[44px] justify-center px-4">
+            {c.label}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OutsideQuestions({ outside, setOutside }: { outside: OutsideAnswers; setOutside: (fn: (o: OutsideAnswers) => OutsideAnswers) => void }) {
+  const set = <K extends keyof OutsideAnswers>(key: K, v: OutsideAnswers[K] | undefined) =>
+    setOutside((o) => {
+      const n = { ...o };
+      if (v === undefined) delete n[key];
+      else n[key] = v;
+      // La domanda della sera sola vale solo con l'alcol.
+      if (key === 'alcoholUnits' && (v === undefined || v === '0')) delete n.binge;
+      return n;
+    });
+  return (
+    <Card className="flex flex-col gap-4">
+      <div>
+        <p className="t-label text-ink-3">Fuori dal menù</p>
+        <p className="t-footnote mt-1 text-ink-2">Facoltative: servono alle misure della prevenzione.</p>
+      </div>
+      <ChoiceRow label="Carne rossa fuori dal menù" hint="Porzioni nella settimana" choices={PORTION_CHOICES} value={outside.redMeat} onChange={(v) => set('redMeat', v)} />
+      <ChoiceRow label="Salumi o carne lavorata" hint="Volte nella settimana" choices={PORTION_CHOICES} value={outside.processed} onChange={(v) => set('processed', v)} />
+      <ChoiceRow label="Alcol" hint="Unità nella settimana: una birra piccola o un calice" choices={ALCOHOL_CHOICES} value={outside.alcoholUnits} onChange={(v) => set('alcoholUnits', v)} />
+      {outside.alcoholUnits && outside.alcoholUnits !== '0' && (
+        <ChoiceRow
+          label="In una sera sola, 5 o più?"
+          choices={[
+            { value: 'si', label: 'Sì' },
+            { value: 'no', label: 'No' },
+          ]}
+          value={outside.binge === undefined ? undefined : outside.binge ? 'si' : 'no'}
+          onChange={(v) => set('binge', v === undefined ? undefined : v === 'si')}
+        />
+      )}
+    </Card>
+  );
+}
+
+// ───────────────────────── Passo 4: misure della prevenzione ─────────────────────────
+
+const MEASURE_STATUS: Record<PreventionMeasure['status'], { label: string; tone: 'good' | 'warn' | 'neutral' }> = {
+  dentro: { label: 'Nel riferimento', tone: 'good' },
+  fuori: { label: 'Da guardare', tone: 'warn' },
+  'non-indicato': { label: 'Non indicato', tone: 'neutral' },
+};
+
+function MeasureRow({ m, withNote }: { m: PreventionMeasure; withNote: boolean }) {
+  const st = MEASURE_STATUS[m.status];
+  return (
+    <li className="flex flex-col gap-0.5 py-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="t-callout font-medium text-ink">{m.title}</span>
+        <span className="t-caption shrink-0" style={{ color: toneInk(st.tone) }}>
+          {st.label}
+        </span>
+      </div>
+      <span className="t-footnote tabular text-ink-2">{m.value}</span>
+      {withNote && <span className="t-footnote text-pretty text-ink-3">{m.note}</span>}
+    </li>
+  );
+}
+
+/** «Da sapere»: in vista le sole misure fuori dal riferimento; tutto il resto dietro un tocco. */
+function PreventionCard({ report }: { report: PreventionReport }) {
+  const out = measuresOutside(report);
+  const said = report.measures.filter((m) => m.status !== 'non-indicato');
+  if (!said.length) return null;
+  const all = (
+    <ul className="divide-y divide-line">
+      {report.measures.map((m) => (
+        <MeasureRow key={m.id} m={m} withNote={false} />
+      ))}
+    </ul>
+  );
+  if (!out.length) {
+    return (
+      <Card padding="none" variant="outline">
+        <Disclosure title="Prevenzione: tutto nei limiti" icon={ShieldCheck} className="px-4" contentClassName="pb-3">
+          {all}
+        </Disclosure>
+      </Card>
+    );
+  }
+  return (
+    <Card padding="none" variant="outline" as="article">
+      <div className="flex gap-3 p-4 pb-2">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-ink-soft text-ink-2" style={{ boxShadow: 'inset 0 0 0 1px var(--line-strong)' }}>
+          <ShieldCheck size={20} strokeWidth={2.1} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="t-label text-ink-3">Prevenzione</span>
+          <ul className="mt-1 divide-y divide-line">
+            {out.map((m) => (
+              <MeasureRow key={m.id} m={m} withNote />
+            ))}
+          </ul>
+        </div>
+      </div>
+      <div className="border-t border-line px-4">
+        <Disclosure title="Tutte le misure" summary={plural(report.measures.length, 'misura', 'misure')} contentClassName="pb-3">
+          {all}
+        </Disclosure>
+      </div>
+    </Card>
   );
 }
 
@@ -717,8 +878,19 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>(() =>
     Object.fromEntries((saved?.acceptedProposals ?? []).map((id) => [id, 'accettata' as Decision])),
   );
+  // Domande della prevenzione: le risposte salvate, altrimenti quanto il diario sa già (pasti stimati con salumi).
+  const [outside, setOutside] = useState<OutsideAnswers>(() => ({ ...(saved?.outside ?? preventionMeasures(weekStart, useApp.getState(), { today, stats }).prefill) }));
+  const prevention = useMemo(() => preventionMeasures(weekStart, useApp.getState(), { today, stats, outside, waistCm: waist }), [weekStart, today, stats, outside, waist]);
   const savedStep = reviewStep(saved);
   const [chosenStep, setChosenStep] = useState<WeeklyStepId | null>(() => (saved ? (savedStep?.id ?? null) : suggestion.suggested.id));
+
+  // Lo scalino dell'alcol si aggiunge alle scelte quando nella settimana compare l'alcol.
+  const steps = useMemo<StepSuggestion>(() => {
+    const opt = alcoholStepOption(outside, useApp.getState());
+    if (!opt || suggestion.options.some((o) => o.id === 'alcol')) return suggestion;
+    const [first, ...rest] = suggestion.options;
+    return { ...suggestion, options: [first, opt, ...rest] };
+  }, [suggestion, outside]);
 
   const allSites = useMemo(() => {
     const extra = (reviews ?? []).flatMap((r) => Object.keys(r.skinfolds ?? {}));
@@ -741,6 +913,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
   // Le proposte già accettate in una revisione salvata restano accettate anche se oggi sono da sapere.
   const accepted = list.filter((p) => applied.has(p.id) || (needsDecision(p) && decisions[p.id] === 'accettata')).map((p) => p.id);
   const toApply = list.filter((p) => decisions[p.id] === 'accettata' && !applied.has(p.id) && changesPlan(p));
+  const preventionShown = prevention.measures.some((m) => m.status !== 'non-indicato');
 
   const go = (i: StepIndex) => {
     setDir(i > step ? 1 : -1);
@@ -783,6 +956,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
       ...(waist !== undefined ? { waistCm: waist } : {}),
       ...(Object.keys(foldValues).length ? { skinfolds: foldValues } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
+      ...(Object.keys(outside).length ? { outside } : {}),
       ...(stepDef ? { step: { id: stepDef.id, title: stepDef.title } } : {}),
     };
     s.saveReview(review);
@@ -947,7 +1121,9 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                     allSites={allSites}
                     note={note}
                     setNote={setNote}
-                  />
+                  >
+                    <OutsideQuestions outside={outside} setOutside={setOutside} />
+                  </MeasuresStep>
                 )}
                 {step === 3 && (
                   <div className="flex flex-col gap-6">
@@ -975,7 +1151,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                         ))}
                       </section>
                     )}
-                    {informative.length > 0 && (
+                    {(informative.length > 0 || preventionShown) && (
                       <section className="flex flex-col gap-3" aria-labelledby="proposte-sapere">
                         <SectionTitle as="h3" id="proposte-sapere">
                           Da sapere
@@ -983,6 +1159,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                         {informative.map((p) => (
                           <ProposalCard key={p.id} proposal={p} plan={plan} state="da-decidere" actionable={false} />
                         ))}
+                        <PreventionCard report={prevention} />
                       </section>
                     )}
                     {list.length === 0 && (
@@ -1003,7 +1180,7 @@ export function ReviewSheet({ weekStart, today, onClose }: ReviewSheetProps) {
                             : 'Un solo obiettivo piccolo, scelto sul punto più debole della settimana.'}
                         </p>
                       </div>
-                      <StepPicker suggestion={suggestion} chosen={chosenStep} onChoose={(id) => setChosenStep(id)} readOnly={!current} />
+                      <StepPicker suggestion={steps} chosen={chosenStep} onChoose={(id) => setChosenStep(id)} readOnly={!current} />
                     </section>
                   </div>
                 )}

@@ -1,7 +1,7 @@
 /**
  * Impostazioni: elenco raggruppato in stile iOS con sotto-pagine che entrano da destra.
  * Il gesto o tasto "indietro" del sistema chiude la sotto-pagina (fuori dall'anteprima).
- * Anteprime: #impostazioni?sezione=profilo|obiettivi|settimana|pasti|sonno|integratori|dolore|fisio|promemoria|coach|backup|info
+ * Anteprime: #impostazioni?sezione=profilo|obiettivi|settimana|pasti|gusti|sonno|integratori|dolore|fisio|promemoria|coach|backup|info
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -17,6 +17,7 @@ import {
   Info,
   Moon,
   Pill as PillIcon,
+  Salad,
   Sparkles,
   Target,
   Trash2,
@@ -30,7 +31,7 @@ import { isProfileComplete } from '../../data/defaults';
 import { currentDate } from '../../engine/dates';
 import { modelLabel } from '../../lib/claude';
 import { setLastBackupAt } from '../../lib/backup';
-import { fmtDateLong, fmtKg, fmtNumber, plural } from '../../lib/format';
+import { fmtDateLong, fmtKg, fmtNumber, listIt, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { safeStorage, useApp, useUi } from '../../state/store';
 import { Button, Card, ListGroup, ListRow, Pill, Screen, ScreenSkeleton, Toggle, cn, toneInk, toneRing, toneSoft } from '../../ui';
@@ -41,6 +42,7 @@ import { InstallCard } from './components/InstallCard';
 import { ThemePicker } from './components/Pickers';
 import { canSuggestInstall } from './install';
 import { GOAL_LABEL, MEAL_ORDER, ageOf, initials, painSummary, weekSummary } from './lib';
+import { foodLabel, userExclusions } from '../../engine/exclusions';
 import { PAGE_IDS, PAGE_TITLE, type PageId, type PageProps } from './pages/Page';
 import { clearReminderPrefs, useCalendarStatus } from './reminders';
 
@@ -57,11 +59,19 @@ const IntegratoriPage = lazy(() => import('./pages/PianoPages').then((m) => ({ d
 const DolorePage = lazy(() => import('./pages/SalutePages').then((m) => ({ default: m.DolorePage })));
 const FisioPage = lazy(() => import('./pages/SalutePages').then((m) => ({ default: m.FisioPage })));
 
-const PAGES: Record<PageId, ComponentType<PageProps>> = {
+const GustiPage = lazy(() => import('./pages/GustiPage'));
+
+/** Pagine di questa schermata: quelle di `PageId` più i gusti (docs/FASE2.md § 6.2). */
+type ScreenPageId = PageId | 'gusti';
+const SCREEN_PAGE_IDS: ScreenPageId[] = [...PAGE_IDS, 'gusti'];
+const SCREEN_PAGE_TITLE: Record<ScreenPageId, string> = { ...PAGE_TITLE, gusti: 'Gusti' };
+
+const PAGES: Record<ScreenPageId, ComponentType<PageProps>> = {
   profilo: ProfiloPage,
   obiettivi: ObiettiviPage,
   settimana: SettimanaPage,
   pasti: PastiPage,
+  gusti: GustiPage,
   sonno: SonnoPage,
   integratori: IntegratoriPage,
   dolore: DolorePage,
@@ -75,13 +85,13 @@ const PAGES: Record<PageId, ComponentType<PageProps>> = {
 /** Copia dei dati dell'utente salvata dallo store prima dei dati di esempio. */
 const PRE_DEMO_KEY = 'ritmo:pre-demo';
 
-function initialStack(): PageId[] {
+function initialStack(): ScreenPageId[] {
   const s = getUrlParam('sezione');
-  return s && (PAGE_IDS as string[]).includes(s) ? [s as PageId] : [];
+  return s && (SCREEN_PAGE_IDS as string[]).includes(s) ? [s as ScreenPageId] : [];
 }
 
 export default function ImpostazioniScreen() {
-  const [stack, setStack] = useState<PageId[]>(initialStack);
+  const [stack, setStack] = useState<ScreenPageId[]>(initialStack);
   const [dir, setDir] = useState<1 | -1>(1);
   const pushed = useRef(0);
   const reduce = useReducedMotion();
@@ -102,9 +112,9 @@ export default function ImpostazioniScreen() {
       const q = location.hash.indexOf('?');
       if (q === -1 || parseRoute(location.hash) !== 'impostazioni') return;
       const sec = new URLSearchParams(location.hash.slice(q + 1)).get('sezione');
-      if (sec && (PAGE_IDS as string[]).includes(sec)) {
+      if (sec && (SCREEN_PAGE_IDS as string[]).includes(sec)) {
         setDir(1);
-        setStack([sec as PageId]);
+        setStack([sec as ScreenPageId]);
       }
     };
     window.addEventListener('hashchange', apply);
@@ -148,7 +158,7 @@ export default function ImpostazioniScreen() {
     }
   }, [depth]);
 
-  const open = useCallback((id: PageId) => {
+  const open = useCallback((id: ScreenPageId) => {
     const next = [...stackRef.current, id];
     if (document.activeElement instanceof HTMLElement) returnFocus.current[next.length - 1] = document.activeElement;
     setDir(1);
@@ -180,7 +190,7 @@ export default function ImpostazioniScreen() {
   const transition = { type: 'spring', stiffness: 380, damping: 40, mass: 0.9 } as const;
 
   const Current = top ? PAGES[top] : null;
-  const backLabel = stack.length > 1 ? PAGE_TITLE[stack[stack.length - 2]] : 'Impostazioni';
+  const backLabel = stack.length > 1 ? SCREEN_PAGE_TITLE[stack[stack.length - 2]] : 'Impostazioni';
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-bg">
@@ -219,7 +229,7 @@ export default function ImpostazioniScreen() {
 
 // ───────────────────────── Elenco principale ─────────────────────────
 
-function RootPage({ open }: { open: (id: PageId) => void }) {
+function RootPage({ open }: { open: (id: ScreenPageId) => void }) {
   const profile = useApp((s) => s.profile);
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
@@ -232,6 +242,7 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
   const age = ageOf(profile.birthYear, year);
   const kcals = Object.values(plan.targets).map((t) => t.kcal);
   const activeSupps = plan.supplements.filter((s) => s.active).length;
+  const excludedNames = userExclusions(plan).map((e) => foodLabel(e.foodId));
   const physioCount = physio.prescriptions.length;
   const hasPreDemo = settings.demoData && safeStorage.getItem(PRE_DEMO_KEY) !== null;
   const calendar = useCalendarStatus();
@@ -325,6 +336,13 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
           title="Orari dei pasti"
           subtitle={MEAL_ORDER.map((m) => plan.mealTimes[m]).join(' · ')}
           onPress={() => open('pasti')}
+        />
+        <ListRow
+          icon={Salad}
+          iconTone="good"
+          title="Gusti"
+          subtitle={excludedNames.length ? `Non mangio: ${excludedNames.length > 3 ? `${excludedNames.slice(0, 3).join(', ')} e altri ${excludedNames.length - 3}` : listIt(excludedNames)}` : 'Togli quello che non ti piace'}
+          onPress={() => open('gusti')}
         />
         <ListRow icon={Moon} iconTone="riposo" title="Sonno" subtitle={`A letto alle ${plan.sleep.current}, obiettivo ${plan.sleep.target}`} onPress={() => open('sonno')} />
         <ListRow icon={PillIcon} iconTone="leggero" title="Integratori" value={plan.supplements.length ? plural(activeSupps, 'attivo', 'attivi') : 'Nessuno'} onPress={() => open('integratori')} />

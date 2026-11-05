@@ -1,5 +1,5 @@
 /**
- * Piano B al bar: sempre disponibile, anche offline (dati da BAR_OPTIONS).
+ * Piano B al bar: sempre disponibile, anche offline (dati da BAR_OPTIONS, senza le opzioni con un alimento escluso).
  *
  * In cima la scelta già decisa per il pasto di adesso e il tipo di giorno; sotto tutte le opzioni del banco
  * raggruppate per verdetto, con il motivo e i valori indicativi. Toccando le voci si compone l'ordine con i
@@ -9,14 +9,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CakeSlice, Check, CircleCheck, Coffee, Lightbulb, X, type LucideIcon } from 'lucide-react';
 import type { BarOption, ItemStatus, MealSlot } from '../../domain/types';
-import { BAR_OPTIONS, BAR_VERDICTS } from '../../data/barPlanB';
+import { BAR_VERDICTS } from '../../data/barPlanB';
+import { excludedFoods } from '../../engine/exclusions';
 import { MEAL_SLOTS } from '../../engine/menu';
 import { DAY_TYPE_LABEL, fmtNumber, listIt, MEAL_SLOT_LABEL } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useNowHHMM, useNutritionState, useToday } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, cn, DayTypeBadge, Disclosure, EmptyState, IconButton, Sheet, spring, springSnappy, toneColor, toneInk, toneRing, toneSoft, type AnyTone } from '../../ui';
-import { barCombo, barContext, barOrder, fitCombo, lowerFirst, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
+import { allowedCombo, barCombo, barContext, barOptionsFor, barOrder, fitCombo, lowerFirst, optionsById, plannedMeal, sumApprox, sweetsThisWeek, VERDICT_ORDER } from './barPick';
 
 const VERDICT_STYLE: Record<BarOption['verdict'], { tone: AnyTone; icon: LucideIcon }> = {
   si: { tone: 'good', icon: CircleCheck },
@@ -71,10 +72,13 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
   // Nei giorni di calcio e alla vigilia la scelta si avvicina al pasto previsto dal menù (carboidrati compresi).
   const nutrition = useNutritionState();
   const planned = useMemo(() => plannedMeal(nutrition, ctx.today, slot), [nutrition, ctx.today, slot]);
+  // Le opzioni con un alimento escluso dall'utente non compaiono (§ 6.5).
+  const options = useMemo(() => barOptionsFor(excludedFoods(plan, ctx.today)), [plan, ctx.today]);
   const combo = useMemo(() => {
-    const c = fitCombo(barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve), ctx.dayType, planned, slot);
-    return { ...c, options: optionsById(c.ids) };
-  }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve, planned]);
+    const base = allowedCombo(barCombo(slot, ctx.dayType, ctx.preFootball && slot === 'merenda', ctx.matchEve), options);
+    const c = fitCombo(base, ctx.dayType, planned, slot, options);
+    return { ...c, options: optionsById(c.ids, options) };
+  }, [slot, ctx.dayType, ctx.preFootball, ctx.matchEve, planned, options]);
   const comboTotal = sumApprox(combo.options);
   // La proposta in evidenza è già nell'ordine: il pulsante lo dice e un secondo tocco la toglie.
   const comboChosen = combo.options.length > 0 && combo.options.every((o) => selected.includes(o.id));
@@ -85,10 +89,10 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
   };
 
   const groups = useMemo(
-    () => VERDICT_ORDER.map((v) => ({ verdict: v, options: BAR_OPTIONS.filter((o) => o.verdict === v) })).filter((g) => g.options.length),
-    [],
+    () => VERDICT_ORDER.map((v) => ({ verdict: v, options: options.filter((o) => o.verdict === v) })).filter((g) => g.options.length),
+    [options],
   );
-  const chosen = useMemo(() => optionsById(selected), [selected]);
+  const chosen = useMemo(() => optionsById(selected, options), [selected, options]);
   const total = sumApprox(chosen);
 
   const sweetsUsed = sweetsThisWeek(dayLogs, ctx.today);
@@ -169,7 +173,7 @@ export default function BarPlanBSheet({ slot: initialSlot, onClose }: { slot?: M
       subtitle="Valori indicativi della porzione tipica. Funziona anche senza rete."
       footer={footer}
     >
-      {BAR_OPTIONS.length === 0 ? (
+      {options.length === 0 ? (
         <EmptyState icon={Coffee} title="Opzioni in arrivo" text="Le scelte migliori al bar compaiono qui." />
       ) : (
         <div className="flex flex-col gap-6 pb-4">

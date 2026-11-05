@@ -1,17 +1,27 @@
 /**
- * Foglio delle alternative per un pasto: ricette dello stesso pasto con valori a confronto.
- * Tocca per scegliere (con "Annulla" nel messaggio), oppure apri la ricetta per guardarla prima.
+ * Foglio delle alternative per un pasto: ricette dello stesso pasto con valori simili (docs/FASE2.md § 6.1:
+ * `alternativesFor`, prima quelle con gli alimenti già nella spesa), con i valori a confronto. Tocca per scegliere (con
+ * "Annulla" nel messaggio), oppure apri la ricetta per guardarla prima. In testa, solo quando serve, la domanda sui
+ * cambi ripetuti (§ 6.3): l'app chiede, non decide.
+ *
+ * Esporta anche le azioni condivise con il foglio della ricetta: `applySwap` (il cambio salva la ricetta prevista, per
+ * imparare i gusti), `excludeFromPlan` (esclusione da domani con «Annulla») e `TasteQuestion`.
  */
+import { useMemo } from 'react';
 import { BookOpen, Check, Clock, Undo2 } from 'lucide-react';
-import type { DayType, ISODate, MealSlot } from '../../domain/types';
+import type { DayType, FoodExclusion, ISODate, MealSlot, Recipe } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
-import { swapOptions, type MealEntry } from '../../engine/menu';
 import { FOODS } from '../../data/foods';
+import { addDays, weekStart } from '../../engine/dates';
+import { agreed, capitalFirst, foodWithArticle, objectPronoun, tasteQuestion } from '../../engine/exclusions';
+import { type MealEntry } from '../../engine/menu';
 import { recipeNutrition } from '../../engine/nutrition';
-import { fmtNumber } from '../../lib/format';
+import { alternativesFor, doneRates, exclusionImpact, weekMealsFor } from '../../engine/similar';
+import { fmtNumber, listIt } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
-import { IconButton, Pill, Pressable, Sheet } from '../../ui';
+import { usePlanDay } from '../../state/hooks';
+import { Button, Callout, IconButton, Pill, Pressable, Sheet } from '../../ui';
 import { DishArt } from './art/DishArt';
 
 const SLOT_ARTICLE: Record<MealSlot, string> = {
@@ -34,17 +44,114 @@ export function slotArticle(slot: MealSlot): string {
   return SLOT_ARTICLE[slot];
 }
 
-/** Cambia la ricetta del pasto e mostra un messaggio con "Annulla". */
+/**
+ * Cambia la ricetta del pasto e mostra un messaggio con "Annulla". Il cambio salva anche la ricetta prevista in quel
+ * momento (`DayLog.swapPlanned`), che serve a imparare i gusti senza ricostruire il menù di allora.
+ */
 export function applySwap(date: ISODate, slot: MealSlot, entry: Pick<MealEntry, 'plannedId' | 'recipeId'>, nextId: string) {
   const { swapRecipe, getDayLog } = useApp.getState();
-  const prevSwap = getDayLog(date).recipeSwaps[slot] ?? null;
-  swapRecipe(date, slot, nextId === entry.plannedId ? null : nextId);
+  const log = getDayLog(date);
+  const prevSwap = log.recipeSwaps[slot] ?? null;
+  const prevPlanned = log.swapPlanned?.[slot];
+  swapRecipe(date, slot, nextId === entry.plannedId ? null : nextId, entry.plannedId || undefined);
   haptic('success');
   useUi.getState().toast(slotChangedText(slot), 'good', {
     actionLabel: 'Annulla',
-    onAction: () => useApp.getState().swapRecipe(date, slot, prevSwap),
+    onAction: () => useApp.getState().swapRecipe(date, slot, prevSwap, prevPlanned),
   });
 }
+
+/** «Tolto il tonno: cambiano 2 pasti da domani», «Tolte le zucchine e la feta dal piano». */
+export function exclusionText(foodIds: readonly string[], changed: number): string {
+  const names = foodIds.map(foodWithArticle);
+  const head =
+    foodIds.length === 1
+      ? `${agreed(foodIds[0], 'Tolt')} ${names[0]}`
+      : `${foodIds.every((id) => agreed(id, 'Tolt') === 'Tolte' || agreed(id, 'Tolt') === 'Tolta') ? 'Tolte' : 'Tolti'} ${listIt(names)}`;
+  if (changed <= 0) return `${head} dal piano`;
+  return `${head}: ${changed === 1 ? 'cambia 1 pasto' : `cambiano ${changed} pasti`} da domani`;
+}
+
+/**
+ * Esclude gli alimenti dal piano da domani (oggi e i giorni passati non cambiano, § 4.9) e lo dice con «Annulla»: quanti
+ * pasti cambiano nella settimana da domani. Un alimento già escluso non si tocca.
+ */
+export function excludeFromPlan(foodIds: readonly string[], origin: FoodExclusion['origin'], today: ISODate) {
+  const st = useApp.getState();
+  const since = addDays(today, 1);
+  const fresh = [...new Set(foodIds)].filter((id) => !st.plan.exclusions?.some((e) => e.foodId === id));
+  if (!fresh.length) return;
+  const changed = exclusionImpact(st.plan, fresh, since, 7);
+  for (const id of fresh) st.addExclusion(id, origin, since);
+  haptic('success');
+  useUi.getState().toast(exclusionText(fresh, changed), 'good', {
+    actionLabel: 'Annulla',
+    onAction: () => {
+      const s2 = useApp.getState();
+      for (const id of fresh) s2.removeExclusion(id);
+    },
+  });
+}
+
+/**
+ * La domanda sui cambi ripetuti in testa alle alternative di un pasto che contiene l'alimento (§ 6.3): «Il tonno lo
+ * cambi spesso: 3 volte in 4 settimane. Lo tolgo dal piano?» con «Toglilo» e «Tienilo». Niente se non serve.
+ */
+export function TasteQuestion({ recipe, today, className }: { recipe?: Recipe; today: ISODate; className?: string }) {
+  const plan = useApp((s) => s.plan);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const q = useMemo(() => tasteQuestion({ plan, dayLogs }, today, recipe), [plan, dayLogs, today, recipe]);
+  if (!q) return null;
+  const pron = objectPronoun(q.foodId);
+  return (
+    <Callout
+      className={className}
+      action={
+        <div className="flex flex-wrap gap-2 pl-3.5">
+          <Button size="sm" variant="secondary" onClick={() => excludeFromPlan([q.foodId], 'cambi-ripetuti', today)}>
+            {`Togli${pron}`}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              haptic('selection');
+              useApp.getState().markTasteAsked(q.foodId, today);
+            }}
+          >
+            {`Tieni${pron}`}
+          </Button>
+        </div>
+      }
+    >
+      {`${capitalFirst(foodWithArticle(q.foodId))} ${pron} cambi spesso: ${q.swaps} volte in 4 settimane. ${capitalFirst(pron)} tolgo dal piano?`}
+    </Callout>
+  );
+}
+
+/** Alternative del pasto per il foglio: valori simili, poi quelle che usano la spesa della settimana. */
+export function useAlternatives(date: ISODate, entry: MealEntry | undefined, scale?: number) {
+  const plan = useApp((s) => s.plan);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const checkedKeys = useApp((s) => s.shoppingChecked);
+  const today = usePlanDay();
+  return useMemo(() => {
+    if (!entry) return { recipes: [] as Recipe[], widened: false };
+    const state = { plan, dayLogs };
+    const ws = weekStart(date);
+    return alternativesFor(entry, {
+      date,
+      plan,
+      week: weekMealsFor(ws, state),
+      scale,
+      checked: new Set(checkedKeys[ws] ?? []),
+      doneRate: doneRates(state, today),
+    });
+  }, [date, entry, scale, plan, dayLogs, checkedKeys, today]);
+}
+
+/** Riga del foglio quando la banda dei valori si è allargata. */
+export const WIDENED_TEXT = 'Nessuna con valori vicini: queste si scostano fino al 20%.';
 
 export interface SwapSheetProps {
   open: boolean;
@@ -57,15 +164,17 @@ export interface SwapSheetProps {
   scale?: number;
   /** Titolo del pasto ("Merenda pre-partita"). */
   title?: string;
-  /** Giorno di avvio: niente alternative che richiedono la preparazione della domenica. */
+  /** Giorno di avvio: niente alternative che richiedono la preparazione della domenica (non ne arrivano mai). */
   starter?: boolean;
 }
 
-export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title, starter }: SwapSheetProps) {
-  const baseId = entry.plannedId || entry.recipeId;
-  const options = swapOptions(baseId, slot, 10)
-    .filter((r) => r.id !== entry.recipeId && !(starter && r.batch))
-    .slice(0, 6);
+/** Alternative in vista prima di «Tutte». */
+const SHOWN = 6;
+
+export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title }: SwapSheetProps) {
+  const today = usePlanDay();
+  const alts = useAlternatives(date, entry, scale);
+  const options = alts.recipes.filter((r) => r.id !== entry.recipeId).slice(0, SHOWN);
   const planned = entry.swapped && entry.plannedId ? RECIPES[entry.plannedId] : undefined;
   const list = planned ? [planned, ...options.filter((r) => r.id !== planned.id)] : options;
   const cur = recipeNutrition(entry.recipe, dayType, FOODS, scale);
@@ -86,6 +195,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
       title={`Alternative per ${SLOT_ARTICLE[slot]}`}
       subtitle={title && title.toLowerCase() !== slot ? `${title}. Valori adattati a questo giorno.` : 'Valori adattati a questo giorno. Tocca per scegliere.'}
     >
+      <TasteQuestion recipe={RECIPES[entry.plannedId] ?? entry.recipe} today={today} className="mb-4" />
       {entry.recipe && (
         <div className="mb-4 flex items-center gap-3 rounded-[16px] bg-card-2 p-3">
           <DishArt recipe={entry.recipe} dayType={dayType} variant="thumb" className="size-11 shrink-0" />
@@ -96,6 +206,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
           <span className="t-caption shrink-0 font-medium tabular text-ink-2">{fmtNumber(Math.round(cur.kcal))} kcal</span>
         </div>
       )}
+      {alts.widened && list.length > 0 && <p className="t-footnote mb-3 px-1 text-ink-3">{WIDENED_TEXT}</p>}
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
         {list.map((r, i) => {
           const n = recipeNutrition(r, dayType, FOODS, scale);
@@ -137,7 +248,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
       </ul>
       {list.length === 0 && (
         <p className="t-callout flex items-center gap-2 py-6 text-ink-2">
-          <Check aria-hidden size={18} /> Per questo pasto non ci sono alternative.
+          <Check aria-hidden size={18} /> Per questo pasto non ci sono alternative con valori simili.
         </p>
       )}
       <p className="t-footnote mt-3 px-1 text-ink-3">La spesa della settimana si aggiorna da sola con la ricetta scelta.</p>

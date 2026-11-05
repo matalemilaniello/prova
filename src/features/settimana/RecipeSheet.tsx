@@ -1,28 +1,30 @@
 /**
  * Ricetta in un foglio dal basso: illustrazione del piatto generata dagli ingredienti, valori stimati
- * per il tipo di giorno, ingredienti con porzione a mano e grammi, passaggi numerati e alternative.
- * Un'alternativa si può guardare prima di sceglierla: in fondo compare "Usa questa al posto di…".
+ * per il tipo di giorno, ingredienti con porzione a mano e grammi, passaggi numerati e alternative con valori simili
+ * (docs/FASE2.md § 6.1). Un'alternativa si può guardare prima di sceglierla: in fondo compare "Usa questa al posto di…".
+ * Sotto gli ingredienti «Qualcosa non ti piace?» toglie un alimento dal piano da domani (§ 6.2).
  * Contratto dell'host dei pannelli: `{ recipeId, date, slot?, onClose }`.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowLeftRight, ChefHat, Clock, Undo2, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, MealSlot, PortionUnit, Recipe } from '../../domain/types';
 import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
 import { formatRelativeDay, weekdayOf } from '../../engine/dates';
-import { mealsForDate, swapOptions } from '../../engine/menu';
+import { excludableFoods, foodLabel } from '../../engine/exclusions';
+import { mealsForDate, type MealEntry } from '../../engine/menu';
 import { dayCarbScale, dayTargetFor, matchCarbs, portionParts, recipeNutrition, recipeVegPortions, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
 import { capitalize, fmtNumber, fmtPercent, listIt } from '../../lib/format';
 import { useApp } from '../../state/store';
 import { useNutritionState, usePlanDay } from '../../state/hooks';
-import { Button, Card, DayTypeBadge, Disclosure, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
+import { Button, Card, Chip, DayTypeBadge, Disclosure, EmptyState, Pill, Pressable, SectionTitle, Sheet } from '../../ui';
 import { toneInk, toneRing } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import { swatchFor } from './art/foodArt';
 import { mealScheduleFor, portionShort } from './helpers';
-import { applySwap } from './SwapSheet';
+import { applySwap, excludeFromPlan, TasteQuestion, useAlternatives, WIDENED_TEXT } from './SwapSheet';
 
 export interface RecipeSheetProps {
   recipeId: string;
@@ -145,11 +147,15 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
 
         <Hero recipe={recipe} dayType={colorType} label={meals.matchEve ? 'Vigilia della partita' : undefined} sunday={weekdayOf(date) === 6} />
         <Values recipe={recipe} dayType={dayType} scale={scale} targetKcal={targetKcal} />
-        <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} floor={floor} />
+        <Ingredients recipe={recipe} dayType={dayType} colorType={colorType} scale={scale} matchEve={meals.matchEve} floor={floor}>
+          <Dislike recipe={recipe} today={today} />
+        </Ingredients>
         <Steps recipe={recipe} />
         {slotEff && entry && (
           <Alternatives
-            slot={slotEff}
+            date={date}
+            today={today}
+            entry={entry}
             dayType={dayType}
             scale={scale}
             viewId={viewId}
@@ -244,6 +250,7 @@ function Ingredients({
   scale,
   matchEve,
   floor,
+  children,
 }: {
   recipe: Recipe;
   dayType: DayType;
@@ -252,6 +259,8 @@ function Ingredients({
   matchEve: boolean;
   /** Minimo di carboidrati per kg di partita e vigilia, quando alza le porzioni. */
   floor?: number;
+  /** In fondo alla sezione (il collegamento «Qualcosa non ti piace?»). */
+  children?: ReactNode;
 }) {
   const factor = totalCarbFactor(dayType, scale);
   const units = [...new Set(recipe.ingredients.map((l) => HAND_HELP[l.unit]).filter((x): x is string => Boolean(x)))];
@@ -317,6 +326,7 @@ function Ingredients({
           Con la tua mano: {listIt(units)}. I grammi accanto servono a controllare con la bilancia le prime volte.
         </Disclosure>
       )}
+      {children}
     </section>
   );
 }
@@ -349,8 +359,46 @@ function Steps({ recipe }: { recipe: Recipe }) {
 /** Alternative in vista prima di "Tutte". */
 const ALT_SHOWN = 3;
 
+/**
+ * «Qualcosa non ti piace?»: gli ingredienti della ricetta senza dispensa come scelte, e «Togli dal piano» quando ne è
+ * scelto almeno uno. L'esclusione vale da domani e si riattiva da Impostazioni › Gusti.
+ */
+function Dislike({ recipe, today }: { recipe: Recipe; today: ISODate }) {
+  const exclusions = useApp((s) => s.plan.exclusions);
+  const [picked, setPicked] = useState<string[]>([]);
+  const foods = excludableFoods(recipe).filter((id) => !exclusions?.some((e) => e.foodId === id));
+  if (!foods.length) return null;
+  const toggle = (id: string, on: boolean) => setPicked((cur) => (on ? [...cur, id] : cur.filter((x) => x !== id)));
+  return (
+    <Disclosure variant="inline" tone="quiet" title="Qualcosa non ti piace?" className="px-1" contentClassName="mt-3 flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Ingredienti da togliere">
+        {foods.map((id) => (
+          <Chip key={id} selected={picked.includes(id)} onChange={(on) => toggle(id, on)} className="h-11 px-4">
+            {capitalize(foodLabel(id))}
+          </Chip>
+        ))}
+      </div>
+      <p className="t-footnote text-pretty text-ink-2">Lo tolgo da menù, alternative, spesa, piano B e consigli del coach. Lo riattivi da Impostazioni › Gusti.</p>
+      {picked.length > 0 && (
+        <Button
+          variant="secondary"
+          className="self-start"
+          onClick={() => {
+            excludeFromPlan(picked, 'non-mi-piace', today);
+            setPicked([]);
+          }}
+        >
+          Togli dal piano
+        </Button>
+      )}
+    </Disclosure>
+  );
+}
+
 function Alternatives({
-  slot,
+  date,
+  today,
+  entry,
   dayType,
   scale,
   viewId,
@@ -359,7 +407,9 @@ function Alternatives({
   onPreview,
   onUse,
 }: {
-  slot: MealSlot;
+  date: ISODate;
+  today: ISODate;
+  entry: MealEntry;
   dayType: DayType;
   scale: number;
   viewId: string;
@@ -368,27 +418,31 @@ function Alternatives({
   onPreview: (id: string) => void;
   onUse: (id: string) => void;
 }) {
+  const alts = useAlternatives(date, entry, scale);
   const ids: string[] = [];
   const push = (id: string | undefined) => {
     if (id && RECIPES[id] && !ids.includes(id)) ids.push(id);
   };
   push(currentId);
   push(plannedId);
-  for (const r of swapOptions(plannedId || currentId, slot, 6)) push(r.id);
+  for (const r of alts.recipes) push(r.id);
   const [all, setAll] = useState(false);
-  const full = ids.filter((id) => id !== viewId).slice(0, 6);
+  const full = ids.filter((id) => id !== viewId);
   // Tre bastano per scegliere: le altre dietro un tocco.
   const list = all ? full : full.slice(0, ALT_SHOWN);
-  if (!full.length) return null;
+  const question = <TasteQuestion recipe={RECIPES[plannedId] ?? RECIPES[currentId]} today={today} />;
+  if (!full.length) return question;
   const view = recipeNutrition(RECIPES[viewId], dayType, FOODS, scale);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="ricetta-alternative">
       <SectionTitle
         id="ricetta-alternative"
         action={full.length > ALT_SHOWN ? { label: all ? 'Meno' : `Tutte (${full.length})`, onPress: () => setAll((v) => !v) } : undefined}
+        subtitle={alts.widened ? WIDENED_TEXT : undefined}
       >
         Alternative
       </SectionTitle>
+      {question}
       <Card padding="none">
         <ul>
           {list.map((id, i) => {
