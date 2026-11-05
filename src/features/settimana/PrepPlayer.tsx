@@ -3,10 +3,12 @@
  * volta con i passaggi, i timer delle cotture (uno per pentola, anche insieme) e l'avanzamento. Mentre una
  * cottura va, propone l'attività successiva. I timer vivono in `prepTimers`: chiudendo il lettore continuano
  * e a fine cottura avvisano comunque. Lo schermo resta acceso dove il browser lo consente.
+ * I compiti di un menù generato nascono dai componenti (docs/FASE2.md § 4.11): la guida è quella del componente
+ * (`PREP_GUIDE[id]`) e sotto il titolo, al posto della resa, i giorni dal frigo e dal freezer.
  */
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Flame, Play, Timer, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Flame, Play, Refrigerator, Snowflake, Timer, X } from 'lucide-react';
 import type { ISODate, PrepTask } from '../../domain/types';
 import { PREP_GUIDE, type PrepTimer } from '../../data/menu';
 import { RECIPES } from '../../data/recipes';
@@ -16,6 +18,7 @@ import { haptic } from '../../lib/haptics';
 import { Button, Card, FullScreenModal, IconButton, ProgressRing, toneRing } from '../../ui';
 import { cn } from '../../ui/cn';
 import { DishArt } from './art/DishArt';
+import { dayNames, type PrepStorage } from './menuInfo';
 import { clockLabel, prepTimers, type PotTimer } from './prepTimers';
 
 export interface PrepPlayerProps {
@@ -23,6 +26,8 @@ export interface PrepPlayerProps {
   weekStart: ISODate;
   /** Attività nell'ordine consigliato. */
   tasks: PrepTask[];
+  /** Compiti generati per componente: giorni dal frigo e dal freezer (`prepStorage`). */
+  storage?: Record<string, PrepStorage>;
   /** Id delle attività già fatte. */
   done: readonly string[];
   onToggle: (task: PrepTask) => void;
@@ -77,7 +82,7 @@ function useWakeLock(on: boolean) {
   }, [on]);
 }
 
-export function PrepPlayer({ open, weekStart, tasks, done, onToggle, onClose }: PrepPlayerProps) {
+export function PrepPlayer({ open, weekStart, tasks, storage, done, onToggle, onClose }: PrepPlayerProps) {
   const doneSet = useMemo(() => new Set(done), [done]);
   const [index, setIndex] = useState(() => Math.max(0, tasks.findIndex((t) => !doneSet.has(t.id))));
   const timers = useSyncExternalStore(prepTimers.subscribe, () => prepTimers.get(weekStart), () => prepTimers.get(weekStart));
@@ -167,6 +172,7 @@ export function PrepPlayer({ open, weekStart, tasks, done, onToggle, onClose }: 
               <TaskStep
                 week={weekStart}
                 task={task}
+                storage={storage?.[task.id]}
                 position={i + 1}
                 count={tasks.length}
                 isDone={doneSet.has(task.id)}
@@ -285,6 +291,7 @@ function OnTheFire({ week, timers, tasks, now }: { week: ISODate; timers: PotTim
 function TaskStep({
   week,
   task,
+  storage,
   position,
   count,
   isDone,
@@ -295,6 +302,7 @@ function TaskStep({
 }: {
   week: ISODate;
   task: PrepTask;
+  storage?: PrepStorage;
   position: number;
   count: number;
   isDone: boolean;
@@ -327,7 +335,7 @@ function TaskStep({
           )}
         </p>
         <h2 className={cn('t-title', isDone ? 'text-ink-2' : 'text-ink')}>{task.title}</h2>
-        <p className="t-callout text-ink-2">{task.yields}</p>
+        {storage && (storage.fridge.length > 0 || storage.freezer.length > 0) ? <StorageRows storage={storage} /> : <p className="t-callout text-ink-2">{task.yields}</p>}
       </header>
 
       {pots.length > 0 && !isDone && (
@@ -386,6 +394,26 @@ function TaskStep({
         </section>
       )}
     </article>
+  );
+}
+
+/** Giorni dal frigo e dal freezer di un compito generato: si legge mentre si mette via. */
+function StorageRows({ storage }: { storage: PrepStorage }) {
+  // La regola della sera prima è nella guida del componente: qui solo i giorni.
+  const rows = [
+    storage.fridge.length ? { icon: Refrigerator, label: 'In frigo', days: dayNames(storage.fridge) } : null,
+    storage.freezer.length ? { icon: Snowflake, label: 'In freezer', days: dayNames(storage.freezer) } : null,
+  ].filter((r) => r !== null);
+  return (
+    <dl className="mt-1 flex flex-col gap-1.5">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-start gap-2.5">
+          <r.icon aria-hidden size={16} strokeWidth={2.3} className="mt-[3px] shrink-0 text-ink-3" />
+          <dt className="t-callout shrink-0 font-semibold text-ink">{r.label}</dt>
+          <dd className="t-callout min-w-0 text-ink-2">{r.days}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

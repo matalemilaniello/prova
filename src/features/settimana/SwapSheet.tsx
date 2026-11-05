@@ -195,7 +195,13 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
       open={open}
       onClose={onClose}
       title={`Alternative per ${SLOT_ARTICLE[slot]}`}
-      subtitle={title && title.toLowerCase() !== slot ? `${title}. Valori adattati a questo giorno.` : 'Valori adattati a questo giorno. Tocca per scegliere.'}
+      subtitle={
+        !entry.recipe
+          ? 'Ricette del pasto senza gli alimenti tolti, con i valori di questo giorno. Tocca per scegliere.'
+          : title && title.toLowerCase() !== slot
+            ? `${title}. Valori adattati a questo giorno.`
+            : 'Valori adattati a questo giorno. Tocca per scegliere.'
+      }
     >
       <TasteQuestion recipe={RECIPES[entry.plannedId] ?? entry.recipe} today={today} className="mb-4" />
       {entry.recipe && (
@@ -229,7 +235,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
                     <span className="t-callout line-clamp-2 font-medium text-ink">{r.name}</span>
                     <span className="t-footnote flex flex-col text-ink-2">
                       <span>
-                        <span className="tabular">{fmtNumber(Math.round(n.kcal))} kcal</span> <Delta v={dk} unit="kcal" />
+                        <span className="tabular">{fmtNumber(Math.round(n.kcal))} kcal</span> {entry.recipe && <Delta v={dk} unit="kcal" />}
                         <span aria-hidden className="text-ink-3"> · </span>
                         <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
                           <Clock aria-hidden size={12} strokeWidth={2.2} />
@@ -237,7 +243,7 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
                         </span>
                       </span>
                       <span>
-                        <span className="tabular">{fmtNumber(Math.round(n.proteinG))}</span> g di proteine <Delta v={dp} unit="g" />
+                        <span className="tabular">{fmtNumber(Math.round(n.proteinG))}</span> g di proteine {entry.recipe && <Delta v={dp} unit="g" />}
                       </span>
                     </span>
                   </span>

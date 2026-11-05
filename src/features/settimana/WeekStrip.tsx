@@ -2,7 +2,8 @@
  * Striscia dei 7 giorni: giorno, data, attività (calcio, palestra, fisio) e barra col colore del tipo
  * di giorno. Un segnale per cosa: il giorno scelto ha un fondo appena più chiaro con un anello sottile del
  * suo colore, che scorre da un giorno all'altro; oggi ha la data in luce ambra con un puntino sotto;
- * i giorni passati riusciti hanno una piccola spunta.
+ * i giorni passati riusciti hanno una piccola spunta. Con una proposta di menù aperta, i giorni con un pasto che
+ * cambierebbe hanno un punto ambra in alto a destra (`marked`).
  */
 import { motion, useReducedMotion } from 'motion/react';
 import { Activity, Check, Dumbbell } from 'lucide-react';
@@ -29,9 +30,11 @@ export interface WeekStripProps {
   onSelect: (d: ISODate) => void;
   /** Giornate passate riuscite (undefined = non noto). */
   success?: Record<ISODate, boolean | undefined>;
+  /** Giorni con un pasto che cambia nel menù nuovo proposto (punto ambra). */
+  marked?: ReadonlySet<ISODate>;
 }
 
-export function WeekStrip({ dates, plan, today, selected, onSelect, success }: WeekStripProps) {
+export function WeekStrip({ dates, plan, today, selected, onSelect, success, marked }: WeekStripProps) {
   const reduce = useReducedMotion();
   const hasPhysio = useApp((s) => s.physio.exercises.length > 0);
   return (
@@ -46,12 +49,14 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
           const isToday = d === today;
           const past = d < today;
           const ok = past ? success?.[d] : undefined;
+          const changes = marked?.has(d) ?? false;
           const label = [
             formatDayLong(d),
             isToday ? 'oggi' : null,
             DAY_TYPE_LABEL[dayType].toLowerCase(),
             ...acts.map((a) => a.label.toLowerCase()),
             ok ? 'giornata riuscita' : null,
+            changes ? 'cambia nel menù nuovo' : null,
           ]
             .filter(Boolean)
             .join(', ');
@@ -76,6 +81,9 @@ export function WeekStrip({ dates, plan, today, selected, onSelect, success }: W
                   style={{ background: 'var(--card-2)', boxShadow: `inset 0 0 0 1.5px ${toneColor(dayType)}` }}
                   transition={reduce ? { duration: 0 } : spring}
                 />
+              )}
+              {changes && (
+                <span aria-hidden className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-accent" style={{ boxShadow: '0 0 6px var(--accent)' }} />
               )}
               <span className={cn('t-label relative flex items-center gap-0.5 leading-none', isSel ? 'text-ink-2' : 'text-ink-3')}>
                 {WEEKDAY_SHORT[wd]}

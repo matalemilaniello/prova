@@ -2,10 +2,12 @@
  * Scheda Preparazione: le attività della domenica che servono ai pasti della settimana, in ordine
  * consigliato (prima ciò che cuoce più a lungo), con minuti, resa, spunte salvate, tempo totale e
  * stima con due fuochi accesi insieme. Ogni attività porta alle ricette che prepara.
+ * Con un menù generato i compiti nascono dai componenti (docs/FASE2.md § 4.11): la resa dice i giorni dal frigo e dal
+ * freezer, e una riga sotto l'elenco ricorda cosa va in freezer e quando passa in frigo (`prepStorage`, `freezerNote`).
  */
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, ChefHat, ChevronRight, Flame, Play, Sparkles, Timer } from 'lucide-react';
+import { Check, ChefHat, ChevronRight, Flame, Play, Snowflake, Sparkles, Timer } from 'lucide-react';
 import type { AppData, ISODate, MealSlot, Plan, PrepTask } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { addDays, daysBetween, formatDayLong, weekDates, weekdayOf } from '../../engine/dates';
@@ -18,6 +20,7 @@ import { cn } from '../../ui/cn';
 import { toneInk, toneRing, toneSoft } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import { firstUseDate, parallelMinutes, prepSkipped } from './helpers';
+import { freezerNote, prepStorage } from './menuInfo';
 import { PrepPlayer } from './PrepPlayer';
 
 const EMPTY: string[] = [];
@@ -45,6 +48,9 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
   const [playing, setPlaying] = useState(Boolean(autoPlay));
   // Compiti del menù in vigore quel lunedì, con le esclusioni applicate.
   const tasks = useMemo(() => orderPrep(prepInForce(weekStart, plan)), [weekStart, plan]);
+  // Compiti generati per componente: giorni dal frigo e dal freezer.
+  const storage = useMemo(() => prepStorage(weekStart, plan, tasks), [weekStart, plan, tasks]);
+  const freezer = freezerNote(storage);
   const done = useApp((s) => s.prepDone[weekStart] ?? EMPTY);
   const togglePrep = useApp((s) => s.togglePrep);
   const doneSet = new Set(done);
@@ -223,6 +229,12 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
             })}
           </ol>
         </Card>
+        {freezer && !allDone && (
+          <p className="t-footnote flex gap-2 px-1 text-ink-2">
+            <Snowflake aria-hidden size={14} strokeWidth={2.4} className="mt-[3px] shrink-0 text-ink-3" />
+            <span>{freezer}</span>
+          </p>
+        )}
       </section>
 
       {playing && (
@@ -230,6 +242,7 @@ export function PrepTab({ weekStart, plan, dayLogs, offset, today, autoPlay, onO
           open
           weekStart={weekStart}
           tasks={tasks}
+          storage={storage}
           done={done}
           onToggle={(t) => toggle(t)}
           onClose={() => setPlaying(false)}

@@ -8,6 +8,9 @@
  * Parametri nell'hash (li usa Oggi): `settimana=prossima` apre la settimana dopo, `settimana=corrente` quella in
  * corso (la spesa di avvio), `guida=1` con `tab=preparazione` avvia subito il lettore della preparazione.
  * Per tornare a questa settimana c'è un solo comando, "Oggi" accanto alle frecce.
+ *
+ * Dal venerdì alle 12:00 nasce la proposta del menù della settimana dopo (`useMenuProposalTrigger`, docs/FASE2.md
+ * § 4.10): la Spesa la mostra in cima e il Menù della settimana dopo con un punto ambra sui pasti che cambiano.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'motion/react';
@@ -25,14 +28,22 @@ import { MenuTab } from './MenuTab';
 import { PrepTab } from './PrepTab';
 import { ShoppingTab } from './ShoppingTab';
 import { TabSwitch } from './TabSwitch';
+import { proposalMondayFor, useMenuProposalTrigger, useMenuProposalView } from './useMenuProposal';
 import { WeekStrip } from './WeekStrip';
 import { daySuccessfulSafe, isWeekend, prepSkipped, relativeWeekLabel, shoppingFromDate, shoppingLeadSafe, starterShoppingSafe } from './helpers';
 
 type Tab = 'menu' | 'spesa' | 'preparazione';
 
 const parseTab = (v: string | null): Tab => (v === 'spesa' || v === 'preparazione' ? v : 'menu');
+
 const MAX_AHEAD = 8;
 const EMPTY: string[] = [];
+
+/** Fa nascere la proposta del menù quando serve: un componente a sé, perché ridisegna ogni minuto per l'orario. */
+function MenuProposalWatcher() {
+  useMenuProposalTrigger();
+  return null;
+}
 
 export default function SettimanaScreen() {
   const today = usePlanDay();
@@ -97,6 +108,12 @@ export default function SettimanaScreen() {
   // Nella settimana di avvio non c'è niente da preparare: il contatore resta spento.
   const prepTasks = prepSkipped(plan, prepMonday, isStarterDay(prepMonday, plan)) ? [] : prepInForce(prepMonday, plan);
   const prepLeft = prepTasks.filter((t) => !prepDone.includes(t.id)).length;
+
+  // Proposta aperta del menù del lunedì dopo: card nella Spesa e nel Menù di quella settimana, punto ambra nella striscia.
+  const proposal = useMenuProposalView(addDays(thisMonday, 7));
+  const proposalHere = proposal && proposal.monday === monday ? proposal : null;
+  const proposalInShopping = proposal && proposal.monday === proposalMondayFor(monday, thisMonday, today) ? proposal : null;
+  const marked = useMemo(() => new Set(proposalHere ? Object.keys(proposalHere.changed) : []), [proposalHere]);
 
   // Giornate passate riuscite (spunta nella striscia).
   const success = useMemo(() => {
@@ -237,7 +254,8 @@ export default function SettimanaScreen() {
     >
       <div ref={rootRef} className="flex flex-col gap-6">
         {/* La striscia sceglie il giorno del menù: Spesa e Preparazione valgono per tutta la settimana e partono subito. */}
-        {tab === 'menu' && <WeekStrip dates={dates} plan={plan} today={today} selected={selected} onSelect={pickDay} success={success} />}
+        <MenuProposalWatcher />
+        {tab === 'menu' && <WeekStrip dates={dates} plan={plan} today={today} selected={selected} onSelect={pickDay} success={success} marked={marked} />}
         <motion.div id={panelId} role="tabpanel" aria-label={tab === 'menu' ? 'Menù' : tab === 'spesa' ? 'Spesa' : 'Preparazione'} onPanEnd={onPanEnd} style={{ touchAction: 'pan-y' }}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -247,7 +265,7 @@ export default function SettimanaScreen() {
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
-              {tab === 'menu' && <MenuTab date={selected} plan={plan} dayLogs={dayLogs} onOpenShopping={openStarterShopping} />}
+              {tab === 'menu' && <MenuTab date={selected} plan={plan} dayLogs={dayLogs} onOpenShopping={openStarterShopping} proposal={proposalHere} />}
               {tab === 'spesa' && (
                 <ShoppingTab
                   weekStart={monday}
@@ -258,6 +276,7 @@ export default function SettimanaScreen() {
                   lead={lead}
                   onOpenWeek={(o) => goWeek(o)}
                   onGoPrep={() => changeTab('preparazione')}
+                  proposal={proposalInShopping}
                 />
               )}
               {tab === 'preparazione' && (

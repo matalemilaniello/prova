@@ -6,17 +6,24 @@
  * (`dayTargetFor`: con il minimo di carboidrati di partita e vigilia, come in Oggi).
  * Nei giorni di avvio, finché la spesa di avvio non è fatta, una riga sola con l'orario della spesa, la lista e il
  * piano B; la pillola "Dopo la spesa" resta solo nel giorno della spesa, dove separa i pasti di prima da quelli dopo.
+ *
+ * Fase 2 (docs/FASE2.md § 4.10, § 6.4, § 11.5): accanto a «Pasti del giorno» la provenienza del menù (di avvio, di
+ * base, approvato, ripetuto, con la settimana ripetuta sotto i pasti); un pasto rimasto vuoto per un'esclusione è una
+ * card «Scegli tu» con le ricette del pasto e il piano B; nella settimana dopo, con una proposta aperta, la card «Menù
+ * nuovo» in cima e un punto ambra con la ricetta nuova sui pasti che cambierebbero.
  */
 import { useId, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Activity, ArrowLeftRight, BriefcaseBusiness, ChefHat, ChevronDown, Dumbbell, ShoppingBasket, UtensilsCrossed } from 'lucide-react';
+import { Activity, ArrowLeftRight, BadgeCheck, BriefcaseBusiness, ChefHat, ChevronDown, Dumbbell, Layers, Repeat, ShoppingBasket, Sparkles, Store, UtensilsCrossed } from 'lucide-react';
 import type { DayType, ISODate, IngredientLine, MealSlot, Plan, AppData } from '../../domain/types';
 import { FOODS } from '../../data/foods';
+import { RECIPES } from '../../data/recipes';
 import { formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
 import { workBlocksFor } from '../../engine/mealTimes';
-import { mealsForDate, type MealEntry } from '../../engine/menu';
+import { MEAL_SLOTS, mealsForDate, type MealEntry, type MenuSource } from '../../engine/menu';
 import { dayNutritionDetail, nutritionStateOf, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
+import { CLEARED_MEAL_DETAIL } from '../../engine/timeline';
 import { formatWork } from '../../engine/work';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
@@ -40,9 +47,13 @@ import {
   type FirstShoppingInfo,
   type ActivityKind,
 } from './helpers';
+import { MenuProposalCard } from './MenuProposalCard';
+import { clearedReason, menuSourceInfo } from './menuInfo';
 import { SwapSheet } from './SwapSheet';
+import type { MenuProposalView } from './useMenuProposal';
 
 const ACT_ICON: Record<ActivityKind, IconLike> = { calcio: BallIcon, palestra: Dumbbell, fisio: Activity };
+const SOURCE_ICON: Record<MenuSource, IconLike> = { avvio: Sparkles, rotazione: Layers, approvato: BadgeCheck, ripetuto: Repeat };
 const NO_SLOTS = new Set<MealSlot>();
 
 export interface MenuTabProps {
@@ -51,9 +62,16 @@ export interface MenuTabProps {
   dayLogs: AppData['dayLogs'];
   /** Apre la scheda Spesa sulla prima spesa (giorni di avvio). */
   onOpenShopping?: () => void;
+  /** Proposta aperta del menù di questa settimana (la settimana dopo, dal venerdì): card in cima e punto ambra sui pasti cambiati. */
+  proposal?: MenuProposalView | null;
 }
 
-export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
+/** Voce di un pasto rimasto vuoto per un'esclusione: per scegliere un'altra ricetta dal foglio delle alternative. */
+function clearedEntry(slot: MealSlot, removedId: string): MealEntry {
+  return { slot, recipeId: '', recipe: undefined, plannedId: '', swapped: false, excludedFrom: removedId };
+}
+
+export function MenuTab({ date, plan, dayLogs, onOpenShopping, proposal }: MenuTabProps) {
   // Con controlli e profilo il minimo di carboidrati di partita e vigilia usa il peso recente, come in Oggi;
   // con le revisioni il deficit tiene conto delle correzioni accettate.
   const checkIns = useApp((s) => s.checkIns);
@@ -74,7 +92,13 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
   const hasPhysio = useApp((s) => s.physio.exercises.length > 0);
   const acts = dayActivities(day, hasPhysio);
   const [swapSlot, setSwapSlot] = useState<MealSlot | null>(null);
-  const swapEntry = swapSlot ? meals.bySlot[swapSlot] : undefined;
+  const cleared = meals.cleared ?? {};
+  const swapEntry = swapSlot ? (meals.bySlot[swapSlot] ?? (cleared[swapSlot] ? clearedEntry(swapSlot, cleared[swapSlot] as string) : undefined)) : undefined;
+  // Pasti in ordine di giornata, con quelli rimasti vuoti per un'esclusione (§ 6.4: «Scegli tu»).
+  const slots = MEAL_SLOTS.filter((sl) => meals.bySlot[sl] || cleared[sl]);
+  const source = useMemo(() => menuSourceInfo(meals.source, date, plan), [meals.source, date, plan]);
+  // Proposta aperta di questa settimana: i pasti che cambierebbero con il menù nuovo.
+  const proposed = proposal?.changed[date];
   const scale = detail.carbScale;
   const factor = totalCarbFactor(dayType, scale);
 
@@ -112,9 +136,11 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
         </div>
       </header>
 
+      {proposal && <MenuProposalCard view={proposal} />}
+
       {meals.starter && <StarterNote date={date} shop={shop} onOpenShopping={onOpenShopping} />}
 
-      {meals.meals.length === 0 ? (
+      {slots.length === 0 ? (
         <Card>
           <EmptyState compact icon={UtensilsCrossed} title="Nessun pasto previsto" text="Il menù di questo giorno non è disponibile. Prova un altro giorno." />
         </Card>
@@ -125,6 +151,11 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
           <section className="flex flex-col gap-3" aria-labelledby="settimana-pasti">
             <SectionTitle
               id="settimana-pasti"
+              action={
+                <Pill tone="neutral" icon={SOURCE_ICON[source.source]}>
+                  {source.label}
+                </Pill>
+              }
               subtitle={
                 <PortionNote
                   dayType={dayType}
@@ -138,24 +169,41 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping }: MenuTabProps) {
               Pasti del giorno
             </SectionTitle>
             <ul className="flex flex-col gap-3">
-              {meals.meals.map((m, i) => (
-                <motion.li key={`${date}-${m.slot}`} {...staggerItem(i)}>
-                  <MealCard
-                    entry={m}
-                    date={date}
-                    dayType={dayType}
-                    colorType={colorType}
-                    scale={scale}
-                    title={(schedule[m.slot]?.title ?? capitalize(m.slot)).split(',')[0]}
-                    time={schedule[m.slot]?.time}
-                    carry={schedule[m.slot]?.carry}
-                    beforeShop={mixedShop && beforeShop.has(m.slot)}
-                    sunday={sunday}
-                    onSwap={() => setSwapSlot(m.slot)}
-                  />
-                </motion.li>
-              ))}
+              {slots.map((slot, i) => {
+                const m = meals.bySlot[slot];
+                const title = (schedule[slot]?.title ?? capitalize(slot)).split(',')[0];
+                return (
+                  <motion.li key={`${date}-${slot}`} {...staggerItem(i)}>
+                    {m ? (
+                      <MealCard
+                        entry={m}
+                        date={date}
+                        dayType={dayType}
+                        colorType={colorType}
+                        scale={scale}
+                        title={title}
+                        time={schedule[slot]?.time}
+                        carry={schedule[slot]?.carry}
+                        beforeShop={mixedShop && beforeShop.has(slot)}
+                        sunday={sunday}
+                        proposed={proposed?.[slot]}
+                        onSwap={() => setSwapSlot(slot)}
+                      />
+                    ) : (
+                      <ClearedMealCard
+                        slot={slot}
+                        title={title}
+                        time={schedule[slot]?.time}
+                        reason={clearedReason(cleared[slot], plan, date)}
+                        proposed={proposed?.[slot]}
+                        onSwap={() => setSwapSlot(slot)}
+                      />
+                    )}
+                  </motion.li>
+                );
+              })}
             </ul>
+            {source.note && <p className="t-footnote px-1 text-ink-3">{source.note}</p>}
           </section>
           <Disclosure variant="inline" tone="quiet" title="Come si misurano le porzioni" className="px-1">
             Palmo, pugno e mano a coppa sono quelli della tua mano: crescono con te. Accanto a ogni porzione ci sono i
@@ -332,6 +380,85 @@ function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; 
   );
 }
 
+// ───────────────────────── Menù nuovo e caselle vuote ─────────────────────────
+
+/** Punto ambra con la ricetta del menù nuovo: il pasto cambia se si approva la proposta. */
+function ProposedLine({ recipeId }: { recipeId: string }) {
+  const name = RECIPES[recipeId]?.name;
+  return (
+    <span className="t-footnote mt-1.5 flex items-start gap-1.5 text-ink-2">
+      <span aria-hidden className="mt-[6px] size-1.5 shrink-0 rounded-full bg-accent" style={{ boxShadow: '0 0 6px var(--accent)' }} />
+      <span className="min-w-0">
+        Nel menù nuovo: <span className="font-medium text-ink">{name ?? 'un’altra ricetta'}</span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Pasto rimasto vuoto perché la ricetta prevista contiene un alimento escluso e nessuna alternativa ha valori simili
+ * (§ 6.4): «Scegli tu» con lo schema del piatto, perché, e due collegamenti, le ricette del pasto e il piano B al bar.
+ */
+function ClearedMealCard({
+  slot,
+  title,
+  time,
+  reason,
+  proposed,
+  onSwap,
+}: {
+  slot: MealSlot;
+  title: string;
+  time?: string;
+  reason: string;
+  proposed?: string;
+  onSwap: () => void;
+}) {
+  const scheme = CLEARED_MEAL_DETAIL.replace(/^Scegli tu: /, '');
+  return (
+    <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: scegli tu`}>
+      <div className="flex items-start gap-3.5 p-4 pb-3">
+        <span
+          aria-hidden
+          className="grid size-14 shrink-0 place-items-center rounded-[14px] text-ink-3"
+          style={{ boxShadow: 'inset 0 0 0 1.5px var(--line-strong)' }}
+        >
+          <UtensilsCrossed size={22} strokeWidth={2} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="t-label truncate text-ink-3">{title}</span>
+            {time && <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{time}</span>}
+          </span>
+          <span className="t-headline mt-0.5 text-ink">Scegli tu</span>
+          <span className="t-footnote mt-1 text-ink-2">{capitalize(scheme)}. {reason}</span>
+          {proposed && <ProposedLine recipeId={proposed} />}
+        </span>
+      </div>
+      <div className="-mt-1 flex items-center gap-5 pb-2.5 pl-[86px] pr-4">
+        <button
+          type="button"
+          onClick={onSwap}
+          aria-label={`Scegli una ricetta per ${title.toLowerCase()}`}
+          className="hit-44 t-footnote inline-flex h-8 items-center gap-1.5 font-semibold text-ink-2 transition-opacity duration-150 active:opacity-60"
+        >
+          <ArrowLeftRight aria-hidden size={14} strokeWidth={2.4} className="text-accent-ink" />
+          Ricette
+        </button>
+        <button
+          type="button"
+          onClick={() => useUi.getState().open({ type: 'barPlanB', slot })}
+          aria-label={`Piano B al bar per ${title.toLowerCase()}`}
+          className="hit-44 t-footnote inline-flex h-8 items-center gap-1.5 font-semibold text-ink-2 transition-opacity duration-150 active:opacity-60"
+        >
+          <Store aria-hidden size={14} strokeWidth={2.4} className="text-accent-ink" />
+          Piano B
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 // ───────────────────────── Card del pasto ─────────────────────────
 
 interface MealCardProps {
@@ -350,6 +477,8 @@ interface MealCardProps {
   beforeShop?: boolean;
   /** Il giorno mostrato è domenica: la parte da preparazione viene da quella di oggi. */
   sunday?: boolean;
+  /** Ricetta del menù nuovo per questo pasto, con una proposta aperta che lo cambia (punto ambra). */
+  proposed?: string;
   onSwap: () => void;
 }
 
@@ -361,7 +490,7 @@ function portionChanged(line: IngredientLine, dayType: DayType, scale: number): 
   return portionParts(line, dayType, FOODS, scale).portion !== portionParts(line, 'palestra', FOODS, 1).portion;
 }
 
-function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, beforeShop, sunday, onSwap }: MealCardProps) {
+function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, beforeShop, sunday, proposed, onSwap }: MealCardProps) {
   const recipe = entry.recipe;
   const n = useMemo(() => recipeNutrition(recipe, dayType, FOODS, scale), [recipe, dayType, scale]);
   const [open, setOpen] = useState(false);
@@ -393,7 +522,12 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, 
 
   return (
     <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: ${recipe.name}`}>
-      <Pressable onPress={openRecipe} pressScale={0.985} className="flex w-full items-center gap-3.5 p-4 pb-3.5" aria-label={`${title}, ${recipe.name}${carry ? ', da portare al lavoro' : ''}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}. Apri la ricetta`}>
+      <Pressable
+        onPress={openRecipe}
+        pressScale={0.985}
+        className="flex w-full items-center gap-3.5 p-4 pb-3.5"
+        aria-label={`${title}, ${recipe.name}${carry ? ', da portare al lavoro' : ''}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}${proposed ? `, nel menù nuovo ${RECIPES[proposed]?.name ?? 'un’altra ricetta'}` : ''}. Apri la ricetta`}
+      >
         <span className="relative size-14 shrink-0 self-start">
           <DishArt recipe={recipe} dayType={colorType} variant="thumb" className="size-full" />
         </span>
@@ -435,6 +569,7 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, 
               ))}
             </span>
           )}
+          {proposed && <ProposedLine recipeId={proposed} />}
           {(entry.swapped || beforeShop || recipe.batch) && (
             <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
               {entry.swapped ? (

@@ -8,6 +8,9 @@
  * Nella prima settimana di chi inizia a metà settimana la lista parte dal giorno di inizio.
  * Nei giorni di avvio (niente preparazione della domenica) è la spesa di avvio: lo dicono l'etichetta e la riga sotto
  * il titolo, senza un riquadro in più. I giorni compresi stanno nella stessa riga.
+ * Dal venerdì, con una proposta di menù aperta, la card della spesa ha dentro «Menù nuovo · Vedi»: la lista resta quella
+ * del menù in vigore e spuntarla non approva niente (docs/FASE2.md § 5.3). Un menù approvato a spesa cominciata porta in
+ * cima il gruppo «Da comprare in più» (`useExtraShopping`).
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -23,6 +26,7 @@ import {
   Fish,
   Milk,
   Package,
+  PackagePlus,
   RotateCcw,
   ShoppingBasket,
   ShoppingCart,
@@ -33,13 +37,16 @@ import {
 import type { ISODate, ShopCategory } from '../../domain/types';
 import { addDays, formatDayTitle, formatWeekRange, weekdayOf } from '../../engine/dates';
 import type { NutritionState } from '../../engine/nutrition';
-import { shoppingList, shoppingProgress, shoppingText, type ShoppingItem, type ShoppingLead } from '../../engine/shopping';
+import { shoppingList, shoppingProgress, shoppingText, type ShoppingItem, type ShoppingLead, type ShoppingOptions } from '../../engine/shopping';
 import { WEEKDAY_LONG, listIt, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, Card, CheckRow, Disclosure, EmptyState, ProgressRing, Sheet } from '../../ui';
 import { copyText } from './clipboard';
+import { useExtraShopping, type ExtraShoppingRow } from './extraShopping';
 import { dateSpanText, daysText, lowerFirst, shoppingDateFor } from './helpers';
+import { MenuProposalCard } from './MenuProposalCard';
+import type { MenuProposalView } from './useMenuProposal';
 
 /** Icona del reparto. Niente colori dei tipi di giorno: i reparti sono neutri, come le corsie. */
 const CATEGORY_ICON: Record<ShopCategory, LucideIcon> = {
@@ -68,6 +75,8 @@ export interface ShoppingTabProps {
   lead?: ShoppingLead;
   onOpenWeek: (offset: number) => void;
   onGoPrep: () => void;
+  /** Proposta aperta del menù da mostrare nella card della spesa (dal venerdì, per il lunedì dopo). */
+  proposal?: MenuProposalView | null;
 }
 
 /** Riga sotto il titolo: pasti e giorni, e per la spesa di avvio cosa viene dopo. */
@@ -79,18 +88,22 @@ function spanText(dates: ISODate[], mealCount: number, opts: { lead: boolean; st
   return opts.starter || opts.lead ? `${base}. Poi spesa il sabato e preparazione la domenica.` : base;
 }
 
-export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, onOpenWeek, onGoPrep }: ShoppingTabProps) {
+export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, onOpenWeek, onGoPrep, proposal }: ShoppingTabProps) {
   // La spesa di avvio cade quando cade: il fresco si conta da quel giorno, non dal sabato.
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
   const shopDate = useMemo(() => shoppingDateFor(state.plan, weekStart, { physio, workoutLogs }), [state.plan, weekStart, physio, workoutLogs]);
-  const list = useMemo(() => shoppingList(weekStart, state, { fromDate, lead, shopDate }), [weekStart, state, fromDate, lead, shopDate]);
+  const opts = useMemo<ShoppingOptions>(() => ({ fromDate, lead, shopDate }), [fromDate, lead, shopDate]);
+  const list = useMemo(() => shoppingList(weekStart, state, opts), [weekStart, state, opts]);
   const checked = useApp((s) => s.shoppingChecked[weekStart] ?? EMPTY);
   const toggleShopping = useApp((s) => s.toggleShopping);
   const toast = useUi((s) => s.toast);
   const [fallback, setFallback] = useState<string | null>(null);
   const progress = shoppingProgress(list, checked);
   const checkedSet = useMemo(() => new Set(checked), [checked]);
+  // Menù approvato a spesa cominciata: i prodotti nuovi stanno nel gruppo in cima, non anche nel loro reparto.
+  const extra = useExtraShopping(list, state, opts, checkedSet);
+  const extraKeys = useMemo(() => new Set((extra ?? []).filter((r) => !r.before).map((r) => r.key)), [extra]);
   const remaining = progress.total - progress.done;
   const allDone = progress.total > 0 && remaining === 0;
   const range = formatWeekRange(weekStart);
@@ -161,6 +174,7 @@ export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, o
             </p>
           </div>
         </div>
+        {proposal && <MenuProposalCard view={proposal} nested ahead={proposal.monday !== weekStart} className="mt-4" />}
         {/* Una sola azione: copiare la lista finché c'è da comprare, poi la preparazione della domenica se deve ancora venire. */}
         {!allDone ? (
           <Button icon={Copy} onClick={copy} fullWidth className="mt-4">
@@ -191,8 +205,15 @@ export function ShoppingTab({ weekStart, state, offset, today, fromDate, lead, o
 
       {/* I reparti sono una lista sola: tra un reparto e l'altro 16 px, i 24 px restano tra la lista e il resto. */}
       <div className="flex flex-col gap-4">
+        {extra && <ExtraSection rows={extra} onToggle={(k) => toggleShopping(weekStart, k)} />}
         {list.groups.map((g) => (
-          <CategorySection key={g.category} category={g.category} items={g.items} checked={checkedSet} onToggle={(k) => toggleShopping(weekStart, k)} />
+          <CategorySection
+            key={g.category}
+            category={g.category}
+            items={extraKeys.size ? g.items.filter((i) => !extraKeys.has(i.key)) : g.items}
+            checked={checkedSet}
+            onToggle={(k) => toggleShopping(weekStart, k)}
+          />
         ))}
 
         {inCart.length > 0 && <CartSection items={inCart} onToggle={(k) => toggleShopping(weekStart, k)} onReset={reset} />}
@@ -324,6 +345,49 @@ function CategorySection({
           </ul>
         </Card>
         <FreezeNote items={freeze} />
+      </GroupBody>
+    </section>
+  );
+}
+
+/**
+ * «Da comprare in più» (§ 5.3): il menù approvato dopo la spesa chiede prodotti che non erano in lista, o più confezioni di
+ * quelli già nel carrello. Aperto, in cima; una riga spuntata sparisce, il gruppo con l'ultima.
+ */
+function ExtraSection({ rows, onToggle }: { rows: ExtraShoppingRow[]; onToggle: (key: string) => void }) {
+  const [open, setOpen] = useState(true);
+  const id = 'spesa-in-piu';
+  return (
+    <section className="flex flex-col gap-1.5" aria-labelledby={id}>
+      <GroupHeader id={id} icon={PackagePlus} title="Da comprare in più" count={`${rows.length} da prendere`} open={open} controls={`${id}-lista`} onToggle={() => setOpen((v) => !v)} />
+      <GroupBody id={`${id}-lista`} open={open}>
+        <Card padding="none">
+          <ul>
+            <AnimatePresence initial={false}>
+              {rows.map((r, i) => (
+                <motion.li
+                  key={r.key}
+                  layout="position"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={i > 0 ? DIVIDER : undefined}
+                >
+                  <CheckRow
+                    checked={false}
+                    onChange={() => onToggle(r.key)}
+                    title={r.item.name}
+                    subtitle={r.before ? `Nel carrello: ${r.before.qty}` : itemSubtitle(r.item, r.item.category)}
+                    meta={r.item.amount}
+                    tone="good"
+                  />
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </ul>
+        </Card>
+        <p className="t-footnote mt-2 px-1 text-ink-3">Il menù nuovo è arrivato dopo la spesa: questi mancano.</p>
       </GroupBody>
     </section>
   );
