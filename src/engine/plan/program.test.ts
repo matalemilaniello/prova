@@ -217,3 +217,38 @@ describe('deriveItem', () => {
 beforeEach(() => {
   useApp.getState().resetAll();
 });
+
+describe('ritocchi del coach accettati (Program.edits)', () => {
+  it('si applicano dopo la derivazione della settimana, nella seduta e nella settimana indicate', () => {
+    const base = SESSIONS.B;
+    const program: Program = {
+      blockId: 'ritocchi',
+      start: '2026-11-09',
+      weeks: ['carico', 'carico'],
+      dose: [BASE_DOSE, BASE_DOSE],
+      phase: 'stagione',
+      stage: 'stagione',
+      primary: 'forza',
+      sessions: { B: base },
+      edits: [
+        { op: 'sostituisci', slot: 'B', week: 2, exerciseId: 'stacco-trap-bar', with: 'stacco-rumeno-manubri', reason: 'variante' },
+        { op: 'serie', slot: 'B', exerciseId: 'hip-thrust-bilanciere', sets: 2, reason: 'meno volume' },
+        { op: 'nota', slot: 'B', exerciseId: 'dead-bug', note: 'Lento' },
+        { op: 'serie', slot: 'A', exerciseId: 'panca-manubri-presa-neutra', sets: 5, reason: 'altra seduta' },
+      ],
+    };
+    const plan = { program };
+    const w1 = sessionFor('B', '2026-11-13', plan)!;
+    const w2 = sessionFor('B', '2026-11-20', plan)!;
+    const ids = (s: typeof w1) => s.blocks.flatMap((b) => b.items.map((it) => it.exerciseId));
+    expect(ids(w1)).toContain('stacco-trap-bar');
+    expect(ids(w2)).toContain('stacco-rumeno-manubri');
+    expect(ids(w2)).not.toContain('stacco-trap-bar');
+    for (const s of [w1, w2]) {
+      const items = s.blocks.flatMap((b) => b.items);
+      expect(items.find((it) => it.exerciseId === 'hip-thrust-bilanciere')!.sets).toBe(2);
+      expect(items.find((it) => it.exerciseId === 'dead-bug')!.note).toBe('Lento');
+    }
+    expect(sessionFor('B', '2026-11-13', plan)).toBe(w1);
+  });
+});

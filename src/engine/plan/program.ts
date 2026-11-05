@@ -21,6 +21,7 @@
 import type {
   ISODate,
   Plan,
+  PlanEdit,
   Program,
   ScheduleDay,
   SessionExercise,
@@ -194,13 +195,54 @@ export function sessionFor(
   const dose = program && base ? programWeekDose(program, week) : null;
   if (program && base && dose) {
     const legsRirFloor = program.phase === 'stagione' ? 2 : 1;
-    if (kind === 'scarico') return memo(base, `scarico|${legsRirFloor}`, () => deriveSession(base, DELOAD_DOSE, { legsRirFloor }));
-    const derived = memo(base, `${JSON.stringify(dose.dose)}|${legsRirFloor}`, () => deriveSession(base, dose.dose, { legsRirFloor }));
+    const edited = (x: WorkoutSession) => withEdits(x, program.edits, slot, week + 1);
+    if (kind === 'scarico') return edited(memo(base, `scarico|${legsRirFloor}`, () => deriveSession(base, DELOAD_DOSE, { legsRirFloor })));
+    const derived = edited(memo(base, `${JSON.stringify(dose.dose)}|${legsRirFloor}`, () => deriveSession(base, dose.dose, { legsRirFloor })));
     return kind === 'leggera' ? memo(derived, 'leggera', () => lightenSession(derived)) : derived;
   }
   const fixed = SESSIONS[slot];
   if (!fixed) return undefined;
   return withOverride(fixed, kind, fixed, 'fissa');
+}
+
+/**
+ * Ritocchi del coach accettati (`Program.edits`, § 10.5), applicati dopo la derivazione della settimana `week` (1 = la
+ * prima): «sostituisci» cambia l'esercizio tenendo la dose, «serie» fissa le serie, «ordine» riordina gli esercizi della
+ * seduta (quelli non nominati restano dopo, nel loro ordine), «nota» aggiunge una nota. Un ritocco con `week` vale solo in
+ * quella settimana. Chi li accetta li ha già validati (`validateWeek`); qui si applicano e basta.
+ */
+export function applyEdits(session: WorkoutSession, edits: readonly PlanEdit[], slot: string, week: number): WorkoutSession {
+  let blocks = session.blocks.map((b) => ({ ...b, items: b.items.slice() }));
+  for (const e of edits) {
+    if (e.slot !== slot) continue;
+    if ((e.op === 'sostituisci' || e.op === 'serie') && e.week !== undefined && e.week !== week) continue;
+    switch (e.op) {
+      case 'sostituisci':
+        blocks = blocks.map((b) => ({ ...b, items: b.items.map((it) => (it.exerciseId === e.exerciseId ? { ...it, exerciseId: e.with } : it)) }));
+        break;
+      case 'serie':
+        blocks = blocks.map((b) => ({ ...b, items: b.items.map((it) => (it.exerciseId === e.exerciseId ? { ...it, sets: Math.max(1, Math.round(e.sets)) } : it)) }));
+        break;
+      case 'nota':
+        blocks = blocks.map((b) => ({ ...b, items: b.items.map((it) => (it.exerciseId === e.exerciseId ? { ...it, note: e.note } : it)) }));
+        break;
+      case 'ordine': {
+        const rank = (id: string) => {
+          const i = e.order.indexOf(id);
+          return i < 0 ? e.order.length : i;
+        };
+        blocks = blocks.map((b) => ({ ...b, items: b.items.map((it, i) => ({ it, i })).sort((a, b2) => rank(a.it.exerciseId) - rank(b2.it.exerciseId) || a.i - b2.i).map((x) => x.it) }));
+        break;
+      }
+    }
+  }
+  return { ...session, blocks, estMin: Math.max(1, session.estMin + blockMinutes({ blocks }) - blockMinutes(session)) };
+}
+
+function withEdits(session: WorkoutSession, edits: readonly PlanEdit[] | undefined, slot: string, week: number): WorkoutSession {
+  const mine = (edits ?? []).filter((e) => e.slot === slot && !((e.op === 'sostituisci' || e.op === 'serie') && e.week !== undefined && e.week !== week));
+  if (!mine.length) return session;
+  return memo(session, `ritocchi|${week}|${JSON.stringify(mine)}`, () => applyEdits(session, mine, slot, week));
 }
 
 /**
