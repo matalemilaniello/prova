@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronRight, Dumbbell, HeartPulse, Plus, Trophy } from 'lucide-react';
-import type { AppData, ISODate, Plan, WorkoutLog } from '../../../domain/types';
+import type { AppData, ISODate, Plan, Weekday, WorkoutLog } from '../../../domain/types';
 import { SESSION_LIST } from '../../../data/sessions';
 import { formatWeekdayShort, fromISO } from '../../../engine/dates';
 import { introLevel, physioCoverage, sessionDuration, sessionLoad, type PersonalRecord } from '../../../engine/training';
@@ -10,35 +10,65 @@ import { haptic } from '../../../lib/haptics';
 import { Button, Card, Disclosure, EmptyState, SectionTitle, cn, springSnappy, staggerItem, toneInk, toneRing, toneSoft } from '../../../ui';
 import { daysPhrase, doseLabel, exerciseFor, physioWeekdays, sessionTone, shortName } from '../lib';
 import { agoLabel, type StrengthRow } from '../useTraining';
+import { sessionName, type BlockSessionRow } from '../blocks';
 import { SessionGlyph } from './SessionGlyph';
 
-// ───────────────────────── Sedute A, B, C ─────────────────────────
+// ───────────────────────── Sedute A, B, C (o del blocco) ─────────────────────────
+
+interface SessionRowData {
+  id: string;
+  name: string;
+  subtitle: string;
+  minutes: number;
+  when: string;
+  optional: boolean;
+}
 
 export function SessionsSection({
   plan,
   history,
   today,
   physio,
+  blockRows,
   onOpen,
 }: {
   plan: Plan;
   history: WorkoutLog[];
   today: ISODate;
   physio?: AppData['physio'];
+  /** Sedute del blocco in vigore (`blockSessions`): al posto delle sedute fisse A, B, C. */
+  blockRows?: BlockSessionRow[] | null;
   onOpen: (id: string) => void;
 }) {
   // Minuti come nel lettore: fase di ingresso compresa, senza i doppioni del fisioterapista (il loro blocco ha i
   // suoi minuti, scritti nella card della prossima seduta e nell'anteprima).
-  const durations = SESSION_LIST.map((s) => sessionDuration(s, physio, { intro: introLevel(s.id, history) !== null }));
+  const whenOf = (weekdays: Weekday[]) => (weekdays.length ? weekdays.map((d) => WEEKDAY_LONG[d]).join(' e ') : 'fuori programma');
+  const rows: SessionRowData[] = blockRows
+    ? blockRows.map((r) => ({
+        id: r.slot,
+        name: r.session.name,
+        subtitle: r.session.subtitle,
+        minutes: sessionDuration(r.session, physio, { intro: introLevel(r.slot, history) !== null }).own,
+        when: whenOf(r.weekdays),
+        optional: r.optional,
+      }))
+    : SESSION_LIST.map((s) => {
+        const days = plan.week.filter((d) => d.gymSessionId === s.id);
+        return {
+          id: s.id,
+          name: s.name,
+          subtitle: s.subtitle,
+          minutes: sessionDuration(s, physio, { intro: introLevel(s.id, history) !== null }).own,
+          when: whenOf(days.map((d) => d.weekday)),
+          optional: days.some((d) => d.gymOptional),
+        };
+      });
   return (
     <section className="flex flex-col gap-3" aria-labelledby="sedute-titolo">
-      <SectionTitle id="sedute-titolo">Le sedute</SectionTitle>
+      <SectionTitle id="sedute-titolo">{blockRows ? 'Le sedute del blocco' : 'Le sedute'}</SectionTitle>
       <ul className="overflow-hidden rounded-card bg-card shadow-card">
-        {SESSION_LIST.map((s, i) => {
-          const days = plan.week.filter((d) => d.gymSessionId === s.id);
+        {rows.map((s, i) => {
           const last = history.find((w) => w.sessionId === s.id);
-          const when = days.length ? days.map((d) => WEEKDAY_LONG[d.weekday]).join(' e ') : 'fuori programma';
-          const optional = days.some((d) => d.gymOptional);
           return (
             <motion.li key={s.id} {...staggerItem(i)} className={cn(i > 0 && 'border-t border-line')}>
               <motion.button
@@ -53,13 +83,13 @@ export function SessionsSection({
                 <SessionGlyph letter={s.id} size="md" tone={sessionTone(s.id, plan)} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">
-                    <span className="t-headline text-ink">{s.name}</span>
-                    <span className="t-footnote text-ink-3 tabular">{durations[i].own}&nbsp;min</span>
+                    <span className="t-headline min-w-0 text-ink">{s.name}</span>
+                    <span className="t-footnote shrink-0 text-ink-3 tabular">{s.minutes}&nbsp;min</span>
                   </span>
                   <span className="t-footnote mt-0.5 block text-ink-2">{s.subtitle}</span>
                   <span className="t-caption mt-1 block text-ink-3">
-                    {when}
-                    {optional ? ', facoltativa' : ''}
+                    {s.when}
+                    {s.optional ? ', facoltativa' : ''}
                     {last ? ` · fatta ${agoLabel(last.date, today)}` : ''}
                   </span>
                 </span>
@@ -201,10 +231,13 @@ export function HistorySection({
   history,
   recordById,
   physio,
+  plan,
   onOpen,
   onStart,
 }: {
   history: WorkoutLog[];
+  /** Per il nome delle sedute del blocco («Corsa intermittente» al posto di «Seduta K»). */
+  plan: Plan;
   /** Record ancora imbattuto della seduta (uno al massimo), per id. */
   recordById: Record<string, PersonalRecord | null>;
   physio: AppData['physio'];
@@ -239,7 +272,7 @@ export function HistorySection({
                     <span className="t-num text-[1.25rem] text-ink">{fromISO(w.date).getDate()}</span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="t-callout block font-semibold text-ink">Seduta {w.sessionId}</span>
+                    <span className="t-callout block font-semibold text-ink">{sessionName(w.sessionId, w.date, plan)}</span>
                     <span className="t-footnote mt-0.5 block text-ink-2 tabular">
                       {w.durationMin} min · RPE {w.rpe} · {fmtNumber(sessionLoad(w.durationMin, w.rpe))} UA
                     </span>

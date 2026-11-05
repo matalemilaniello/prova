@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { BedDouble, CalendarDays, Check, ChefHat, ClipboardList, Ellipsis, Flag, ListChecks, MoonStar, Play, ShoppingBasket, Store, Timer } from 'lucide-react';
-import type { DayType, HHMM, MealSlot, Nutrients } from '../../../domain/types';
+import type { DayType, HHMM, ISODate, MealSlot, Nutrients } from '../../../domain/types';
+import { daySession } from '../../../engine/plan/program';
 import { gymDuration, type AdherenceSummary, type DayItem, type NowPick, type StreakInfo } from '../../../engine/timeline';
 import { useApp } from '../../../state/store';
 import { Button, Card, IconButton, cn, spring, toneColor, toneInk } from '../../../ui';
@@ -10,6 +11,8 @@ import { eyebrowKicker, nowContent, stateLabel } from '../nowContent';
 
 export interface NowCardProps {
   pick: NowPick | null;
+  /** Giornata del piano: la seduta e la sua durata sono quelle della data (blocco in vigore, variante del giorno). */
+  date: ISODate;
   dayType: DayType;
   summary: AdherenceSummary;
   successful: boolean;
@@ -46,16 +49,23 @@ export interface NowCardProps {
 
 /** Card "Adesso": la prossima voce da fare, grande, con l'azione principale a portata di pollice. */
 export function NowCard(props: NowCardProps) {
-  const { pick, dayType, curfewIn, bed, lockedUntil, lockedAction, ritual, mealValues, shopping, onMark, onOpen, onOptions, onRitual, onPlanB } = props;
+  const { pick, date, dayType, curfewIn, bed, lockedUntil, lockedAction, ritual, mealValues, shopping, onMark, onOpen, onOptions, onRitual, onPlanB } = props;
   const physio = useApp((s) => s.physio);
   const workoutLogs = useApp((s) => s.workoutLogs);
+  const plan = useApp((s) => s.plan);
+  const footballLogs = useApp((s) => s.footballLogs);
+  const checkIns = useApp((s) => s.checkIns);
+  const profile = useApp((s) => s.profile);
   if (!pick) return <DoneCard {...props} />;
   const { item } = pick;
-  const gym = item.kind === 'palestra' && item.ref ? gymDuration(item.ref, { physio, workoutLogs }) : null;
+  // La seduta della data e la sua durata: blocco in vigore, settimana scaricata o leggera, variante del giorno.
+  const gymState = { physio, workoutLogs, plan, footballLogs, checkIns, profile };
+  const day = item.kind === 'palestra' && item.ref ? daySession(item.ref, date, gymState) : null;
+  const gym = item.kind === 'palestra' && item.ref ? gymDuration(item.ref, gymState, date) : null;
   const tone = itemTone(item, dayType);
   const Icon = itemIcon(item);
   const label = stateLabel(pick);
-  const c = nowContent(item, { mealValues, curfewIn, bed, timeShown: Boolean(label.time), gym, shopping });
+  const c = nowContent(item, { mealValues, curfewIn, bed, timeShown: Boolean(label.time), gym, shopping, session: day?.session ?? null, variant: day?.variant });
   const late = pick.state === 'in-ritardo';
   const allDay = item.kind === 'minima' && item.id !== 'minima:telefono' && pick.state === 'adesso';
   const ink = tone === 'neutral' ? 'var(--ink-2)' : toneInk(tone);

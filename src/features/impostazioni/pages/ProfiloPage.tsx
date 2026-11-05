@@ -1,4 +1,7 @@
-/** Profilo: nome, sesso, anno, altezza, peso di partenza, obiettivo, acqua, competenze. Si salva mentre scrivi. */
+/**
+ * Profilo: nome, sesso, anno, altezza, peso di partenza, acqua, competenze. Si salva mentre scrivi. L'obiettivo del corpo
+ * si sceglie nella pagina Obiettivi, dove diventa una proposta da approvare (docs/FASE2.md § 2.1): qui resta il collegamento.
+ */
 import { useState } from 'react';
 import { Droplets, Target } from 'lucide-react';
 import type { Profile } from '../../../domain/types';
@@ -6,8 +9,8 @@ import { currentDate } from '../../../engine/dates';
 import { fmtDateShort, fmtKg, fmtNumber } from '../../../lib/format';
 import { latestWeight, useApp } from '../../../state/store';
 import { Field, ListGroup, ListRow, Segmented, TextInput } from '../../../ui';
-import { ChoiceCards, FormRow, InlineNumber, InlineText, MiniStepper } from '../components/controls';
-import { GOAL_OPTIONS, validateBody } from '../lib';
+import { FormRow, InlineNumber, InlineText, MiniStepper } from '../components/controls';
+import { GOAL_LABEL, validateBody } from '../lib';
 import { Page, type PageProps } from './Page';
 
 type Body = Pick<Profile, 'birthYear' | 'heightCm' | 'startWeightKg'>;
@@ -92,15 +95,8 @@ export default function ProfiloPage({ onBack, open, backLabel }: PageProps) {
         </FormRow>
       </ListGroup>
 
-      <section className="flex flex-col gap-2" aria-labelledby="pr-obiettivo">
-        <h3 id="pr-obiettivo" className="t-label px-1 text-ink-3">
-          Obiettivo
-        </h3>
-        <ChoiceCards aria-label="Obiettivo" value={profile.goal} onChange={(goal) => update({ goal })} options={GOAL_OPTIONS} />
-      </section>
-
-      <ListGroup footer="Calorie e macro non cambiano da sole: ricalcolale quando vuoi.">
-        <ListRow icon={Target} iconTone="accent" title="Ricalcola gli obiettivi" onPress={() => open('obiettivi')} />
+      <ListGroup footer="Corpo, allenamento e stagione: ogni cambio diventa una proposta da approvare.">
+        <ListRow icon={Target} iconTone="accent" title="Obiettivi" value={GOAL_LABEL[profile.goal]} onPress={() => open('obiettivi')} />
       </ListGroup>
 
       <ListGroup title="Acqua" footer="Bicchieri da 250 ml nella schermata Oggi.">

@@ -8,7 +8,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Activity, AlarmClock, BedDouble, Check, Scale, Zap } from 'lucide-react';
-import type { CheckIn, HHMM, ISODate } from '../../domain/types';
+import type { AppData, CheckIn, HHMM, ISODate } from '../../domain/types';
+import { daySession } from '../../engine/plan/program';
+import { readinessText } from '../../engine/plan/readiness';
+import { plannedSessionFor } from '../../engine/training';
+import { sessionName } from '../allenamento/sessionNames';
 import { addDays, addMinutes, daysBetween, formatDayLong, formatRelativeDay, hhmmToMin, minToHHMM, nightMinutes, todayISO } from '../../engine/dates';
 import { buildTimeline } from '../../engine/timeline';
 import { bedtimeFor, estimatedSleepLabel, isOnTargetFor, sleepHours } from '../../engine/sleep';
@@ -19,6 +23,19 @@ import { Button, Card, Chip, EmptyState, Pill, RatingPicker, ScaleSlider, Sheet,
 import { PAIN_TEST_ALERT, customPainTests, isImpactTest, testGesture, testSafety } from './painTests';
 
 const QUALITY_LABELS = ['Pessima', 'Scarsa', 'Discreta', 'Buona', 'Ottima'];
+
+/**
+ * Avviso del controllo salvato quando la seduta di palestra della data non è piena (§ 11.2): «Seduta B ridotta: 5 h 50 a
+ * letto ed energia bassa». Null senza seduta, con la piena o senza blocco in vigore (l'app di prima).
+ */
+export function adaptedGymText(date: ISODate, state: AppData): string | null {
+  const planned = plannedSessionFor(date, state.plan);
+  if (!planned) return null;
+  const day = daySession(planned.sessionId, date, state);
+  if (!day || day.variant === 'piena') return null;
+  const text = readinessText(day);
+  return text ? text.replace(/^Oggi /, `${sessionName(planned.sessionId, date, state.plan)} `) : null;
+}
 
 const painWord = (v: number) => (v === 0 ? 'nessuno' : v <= 3 ? 'lieve' : v <= 6 ? 'moderato' : 'forte');
 const energyWord = (v: number) => (v <= 3 ? 'bassa' : v <= 6 ? 'media' : v <= 8 ? 'buona' : 'ottima');
@@ -186,7 +203,10 @@ export default function CheckInSheet({ date, onClose }: { date: ISODate; onClose
       const hasBed = buildTimeline(yesterday, app).some((i) => i.id === 'letto');
       if (hasBed) app.setItemStatus(yesterday, 'letto', 'fatto');
     }
-    useUi.getState().toast(hours !== undefined ? `Controllo salvato · ${fmtHours(hours)} a letto` : 'Controllo salvato', 'good');
+    // Con un blocco in vigore la seduta del giorno si adatta al controllo (docs/FASE2.md § 3.9): l'avviso dice perché.
+    const adapted = adaptedGymText(date, useApp.getState());
+    if (adapted) useUi.getState().toast(adapted, 'neutral');
+    else useUi.getState().toast(hours !== undefined ? `Controllo salvato · ${fmtHours(hours)} a letto` : 'Controllo salvato', 'good');
     onClose();
   };
 

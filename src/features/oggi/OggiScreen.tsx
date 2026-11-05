@@ -43,6 +43,7 @@ import { DayValues } from './components/DayValues';
 import { EveningRitual } from './components/EveningRitual';
 import { ItemActionsSheet } from './components/ItemActionsSheet';
 import { NowCard } from './components/NowCard';
+import { sessionName, sessionWithArticle } from '../allenamento/sessionNames';
 import { PhysioSheet } from './components/PhysioSheet';
 import { QuickWorkoutSheet } from './components/QuickWorkoutSheet';
 import { CheckInPrompt, CurfewCard, SetupRow, TipCard } from './components/SmallCards';
@@ -376,12 +377,13 @@ export default function OggiScreen() {
     const gym = items.find((i) => i.kind === 'palestra');
     if (gym && day?.gymSessionId) {
       const st = status[gym.id];
-      const name = `Seduta ${day.gymSessionId}`;
+      // Il nome della seduta della data: con un blocco anche «Corsa intermittente» o «Uscita facile», mai «Seduta K».
+      const name = sessionName(day.gymSessionId, today, plan);
       if (st === 'fatto') return { text: `${name} fatta`, tone: 'good', icon: Check };
       if (st === 'saltato') return { text: `${name} saltata`, tone: 'neutral', icon: Clock };
       if (st === 'sostituito') return { text: `${name} sostituita`, tone: 'neutral', icon: Clock };
-      const end = dayMinutes(gym.time, plan) + gymTotalMin(day.gymSessionId, state);
-      if (nowM >= end) return { text: `Segna la seduta ${day.gymSessionId}`, tone: 'neutral', icon: Timer, onPress: () => openQuickGym(gym) };
+      const end = dayMinutes(gym.time, plan) + gymTotalMin(day.gymSessionId, { ...state, profile }, today);
+      if (nowM >= end) return { text: `Segna ${sessionWithArticle(name)}`, tone: 'neutral', icon: Timer, onPress: () => openQuickGym(gym) };
       return { text: `${name}${day.gymOptional ? ' facoltativa' : ''} alle ${gym.time}`, tone: 'neutral', icon: Clock };
     }
     return null;
@@ -572,6 +574,7 @@ export default function OggiScreen() {
       <div className="flex flex-col gap-1.5">
         <NowCard
           pick={data.now}
+          date={today}
           dayType={data.dayType}
           summary={summary}
           successful={successful}

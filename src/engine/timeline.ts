@@ -48,7 +48,7 @@ import { estimateDetail } from './estimate';
 import { isEveningFootball, mealSchedule, mealTimesFor, PRE_FOOTBALL_MIN_GAP_MIN } from './mealTimes';
 import { MEAL_SLOTS, isStarterDay, mealsForDate, prepInForce } from './menu';
 import { eatenMeal } from './nutrition';
-import { daySession, droppedByOverride, sessionFor } from './plan/program';
+import { daySession, droppedByOverride, sessionFor, type DaySession } from './plan/program';
 import { shoppingList, type ShoppingLead, type ShoppingOptions } from './shopping';
 import { bedtimeFor, curfewFor, dayMinutes, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
@@ -281,26 +281,38 @@ function minimalItems(iso: ISODate, state: TimelineState): TimelineItem[] {
   return sortTimeline([...items, ...appointments], plan);
 }
 
-/** Stato per la durata della seduta: diario delle sedute e fisioterapista; con il piano, la seduta della data. */
-type GymState = Pick<TimelineState, 'physio' | 'workoutLogs'> & Partial<Pick<TimelineState, 'plan' | 'footballLogs' | 'checkIns'>>;
+/**
+ * Stato per la durata della seduta: diario delle sedute e fisioterapista; con il piano, la seduta della data. Il profilo,
+ * se c'è, porta le zone di dolore alla variante del giorno (la regola del dolore a «riduci» la riduce).
+ */
+type GymState = Pick<TimelineState, 'physio' | 'workoutLogs'> &
+  Partial<Pick<TimelineState, 'plan' | 'footballLogs' | 'checkIns'>> &
+  Partial<Pick<AppData, 'profile'>>;
+
+/**
+ * Seduta del giorno (`daySession`): blocco in vigore, settimana scaricata o leggera, fermo degli impatti e, con un
+ * blocco, la variante del controllo del mattino. Null senza piano nello stato o se lo slot non ha una seduta.
+ */
+function gymDaySession(sessionId: string, state: GymState, iso: ISODate): DaySession | null {
+  if (!state.plan) return null;
+  return daySession(sessionId, iso, {
+    plan: state.plan,
+    workoutLogs: state.workoutLogs ?? [],
+    footballLogs: state.footballLogs ?? [],
+    ...(state.checkIns ? { checkIns: state.checkIns } : {}),
+    ...(state.physio ? { physio: state.physio } : {}),
+    ...(state.profile ? { profile: state.profile } : {}),
+  });
+}
 
 /**
  * Durata prevista della seduta, la stessa di Allenamento: senza gli esercizi già nel programma del
  * fisioterapista, con una serie in meno nella fase di ingresso, più il blocco del fisioterapista. Null se la
  * seduta non esiste. Con la data (e il piano nello stato) la seduta è quella del giorno (`daySession`: blocco in
- * vigore, settimana scaricata o leggera); senza, la seduta fissa dello slot.
+ * vigore, settimana scaricata o leggera, variante del giorno); senza, la seduta fissa dello slot.
  */
 export function gymDuration(sessionId: string, state: GymState, iso?: ISODate): SessionDuration | null {
-  const session =
-    iso && state.plan
-      ? daySession(sessionId, iso, {
-          plan: state.plan,
-          workoutLogs: state.workoutLogs ?? [],
-          footballLogs: state.footballLogs ?? [],
-          ...(state.checkIns ? { checkIns: state.checkIns } : {}),
-          ...(state.physio ? { physio: state.physio } : {}),
-        })?.session
-      : SESSIONS[sessionId];
+  const session = iso && state.plan ? gymDaySession(sessionId, state, iso)?.session : SESSIONS[sessionId];
   if (!session) return null;
   return sessionDuration(session, state.physio, { intro: introLevel(sessionId, state.workoutLogs ?? []) !== null });
 }
@@ -325,17 +337,26 @@ function gymDayOn(iso: ISODate, day: ScheduleDay | undefined, plan: Pick<Plan, '
   return { ...day, gymSessionId: undefined, gymTime: undefined, gymOptional: undefined };
 }
 
+/** Dettaglio della palestra con la variante del giorno non piena (docs/FASE2.md § 11.2): «Ridotta · 40 min». */
+export const GYM_VARIANT_LABEL = { ridotta: 'Ridotta', minima: 'Minima' } as const;
+/** Dettaglio della palestra con gli impatti fermi: la frase che Oggi usa già per i balzi (§ 3.8). */
+export const GYM_NO_IMPACT_DETAIL = 'Niente balzi e salti oggi';
+
 function gymItem(day: ScheduleDay | undefined, state: GymState & Pick<TimelineState, 'plan'>, iso: ISODate): TimelineItem | null {
   if (!day?.gymSessionId) return null;
   const id = day.gymSessionId;
+  // Il titolo resta quello della seduta; il dettaglio dice la variante quando non è piena, o il fermo degli impatti.
   const session = sessionFor(id, iso, state.plan);
-  const d = gymDuration(id, state, iso);
+  const ds = gymDaySession(id, state, iso);
+  const d = ds ? sessionDuration(ds.session, state.physio, { intro: introLevel(id, state.workoutLogs ?? []) !== null }) : gymDuration(id, state, iso);
+  const held = ds?.reasons.includes('impatti fermi') && session !== ds.session;
+  const what = ds && ds.variant !== 'piena' ? GYM_VARIANT_LABEL[ds.variant] : held ? GYM_NO_IMPACT_DETAIL : (session?.subtitle ?? '');
   return {
     id: `palestra:${id}`,
     time: day.gymTime ?? DEFAULT_GYM_TIME,
     kind: 'palestra',
     title: session?.name ?? `Seduta ${id}`,
-    detail: [day.gymOptional ? 'Facoltativa' : '', session?.subtitle ?? '', d ? gymDurationShort(d) : fmtMinutes(55)].filter(Boolean).join(' · '),
+    detail: [day.gymOptional ? 'Facoltativa' : '', what, d ? gymDurationShort(d) : fmtMinutes(55)].filter(Boolean).join(' · '),
     ref: id,
   };
 }

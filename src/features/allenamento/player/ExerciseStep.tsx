@@ -22,7 +22,7 @@ import { IS_PREVIEW } from '../../../app/env';
 import { EXERCISES, startLoads } from '../../../data/exercises';
 import { formatShort, formatWeekdayShort } from '../../../engine/dates';
 import { SWITCH_REDUCE_FACTOR, bestSet, workingWeight, type LastEntry, type PainFlag, type Suggestion, type SuggestionKind } from '../../../engine/training';
-import { fmtNumber } from '../../../lib/format';
+import { capitalize, fmtNumber } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { Button, Callout, Card, Disclosure, IconButton, Pill, cn, spring, springSnappy, toneInk, toneRing, toneSoft } from '../../../ui';
 import { BigStepper } from './BigStepper';
@@ -159,7 +159,9 @@ function ExerciseStepBase(props: ExerciseStepProps) {
             {doseLabel(item)}
           </Pill>
           {rir !== undefined && <Pill size="md">RIR {rir}</Pill>}
-          <Pill size="md">Recupero {restLabel(item.restSec)}</Pill>
+          {/* Sprint, intervalli e salti: l'intensità si dice a parole (docs/FASE2.md § 3.4). */}
+          {item.effort && <Pill size="md">{capitalize(item.effort)}</Pill>}
+          {item.restSec > 0 && <Pill size="md">Recupero {restLabel(item.restSec)}</Pill>}
         </div>
       </header>
 

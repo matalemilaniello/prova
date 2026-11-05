@@ -30,11 +30,23 @@ export interface SessionDraft {
   logs: Record<string, ExerciseLog>;
   rest: RestState | null;
   updatedAt: number;
+  /**
+   * Variante con cui la seduta è partita (docs/FASE2.md § 3.9): ripresa la seduta, il lettore ricostruisce la stessa,
+   * anche se nel frattempo il controllo del mattino è cambiato. Assente = quella del giorno.
+   */
+  variant?: 'piena' | 'ridotta' | 'minima';
+  /** La prova del saltello è stata scelta («Fai la prova del saltello»). */
+  hopTest?: boolean;
+}
+
+export interface DraftStartOptions {
+  variant?: SessionDraft['variant'];
+  hopTest?: boolean;
 }
 
 interface DraftStore {
   draft: SessionDraft | null;
-  start: (sessionId: string, date: ISODate, now?: number) => SessionDraft;
+  start: (sessionId: string, date: ISODate, now?: number, opts?: DraftStartOptions) => SessionDraft;
   patch: (fn: (d: SessionDraft) => SessionDraft) => void;
   clear: () => void;
 }
@@ -45,8 +57,18 @@ export const useSessionDraft = create<DraftStore>()(
   persist(
     (set) => ({
       draft: null,
-      start: (sessionId, date, now = Date.now()) => {
-        const draft: SessionDraft = { sessionId, date, startedAt: now, step: 0, logs: {}, rest: null, updatedAt: now };
+      start: (sessionId, date, now = Date.now(), opts = {}) => {
+        const draft: SessionDraft = {
+          sessionId,
+          date,
+          startedAt: now,
+          step: 0,
+          logs: {},
+          rest: null,
+          updatedAt: now,
+          ...(opts.variant ? { variant: opts.variant } : {}),
+          ...(opts.hopTest ? { hopTest: true } : {}),
+        };
         set({ draft });
         return draft;
       },

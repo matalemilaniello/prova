@@ -7,7 +7,7 @@ import { effectiveDayType, isMatchEve } from '../../engine/menu';
 import { dayCarbScale, dayNutritionDetail, recipeNutrition } from '../../engine/nutrition';
 import { buildDay, type DayItem } from '../../engine/timeline';
 import { fmtKcal, fmtMinutes } from '../../lib/format';
-import { CARRY_META, eyebrowKicker, mealNutrientsFor, nowContent, stateLabel } from './nowContent';
+import { CARRY_META, MINIMAL_GYM_HEADLINE, eyebrowKicker, mealNutrientsFor, nowContent, stateLabel } from './nowContent';
 
 const MON: ISODate = '2026-11-02';
 const SUN: ISODate = '2026-11-01';
@@ -123,5 +123,27 @@ describe('pasti da portare al lavoro', () => {
     const supp: DayItem = { id: 'integratori:pranzo', time: '14:15', kind: 'integratori', title: 'Integratori a pranzo', detail: 'Magnesio', carry: true };
     expect(nowContent(supp, ctx).meta).toEqual(['Da portare con il pasto']);
     expect(nowContent({ ...supp, carry: undefined }, ctx).meta).toEqual(['Con il pasto']);
+  });
+});
+
+describe('card Adesso: seduta del giorno adattata (fase 2, § 11.2)', () => {
+  const gym: DayItem = { id: 'palestra:B', time: '18:00', kind: 'palestra', title: 'Seduta B', detail: 'Ridotta · 40 min', ref: 'B' };
+  const session = { id: 'B', name: 'Seduta B', subtitle: 'Forza gambe, Nordic e polpacci', estMin: 40, focus: '', blocks: [] };
+  const ctx = { mealValues: {}, curfewIn: 600, bed: '23:15' as const, timeShown: false, gym: { own: 40, physio: 0 }, session };
+
+  it('la variante non piena sta tra i dettagli, la piena no', () => {
+    expect(nowContent(gym, { ...ctx, variant: 'ridotta' }).meta).toContain('Ridotta');
+    expect(nowContent(gym, { ...ctx, variant: 'piena' }).meta).not.toContain('Piena');
+    expect(nowContent(gym, { ...ctx, variant: 'ridotta' }).headline).toBe(session.subtitle);
+  });
+
+  it('con la minima il titolo dice cosa resta', () => {
+    const c = nowContent(gym, { ...ctx, variant: 'minima' });
+    expect(c.headline).toBe(MINIMAL_GYM_HEADLINE);
+    expect(c.meta).toContain('Minima');
+  });
+
+  it('senza la seduta del giorno non si indovina dallo slot: resta il titolo della voce', () => {
+    expect(nowContent(gym, { mealValues: {}, curfewIn: 600, bed: '23:15', timeShown: false }).headline).toBe('Seduta B');
   });
 });

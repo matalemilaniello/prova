@@ -1,15 +1,16 @@
 import { motion } from 'motion/react';
-import { Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
+import { BatteryMedium, Clock, Layers, ListOrdered, Play, RotateCcw, Sprout, TrendingUp } from 'lucide-react';
 import type { ISODate } from '../../../domain/types';
 import { sessionFor } from '../../../engine/plan/program';
 import type { PainGate, PlannedSession } from '../../../engine/training';
-import { capitalize, fmtMinutes } from '../../../lib/format';
+import { capitalize, fmtMinutes, plural } from '../../../lib/format';
 import { useApp } from '../../../state/store';
 import { useNowHHMM } from '../../../state/hooks';
 import { compareHHMM, formatDayLong } from '../../../engine/dates';
 import { Button, Callout, Card, Pill, ProgressRing, cn, staggerItem } from '../../../ui';
 import type { SessionDraft } from '../draft';
 import { buildPlayerPlan, durationLabel, plannedSets, sessionTone, suggestionForItem } from '../lib';
+import { dayVariantSession, sessionName, sessionWithArticle } from '../blocks';
 import { SessionGlyph } from './SessionGlyph';
 import { relativeDayShort } from '../useTraining';
 
@@ -28,15 +29,21 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
   const history = useApp((s) => s.workoutLogs);
   const plan = useApp((s) => s.plan);
   const physio = useApp((s) => s.physio);
+  const footballLogs = useApp((s) => s.footballLogs);
+  const checkIns = useApp((s) => s.checkIns);
+  const profile = useApp((s) => s.profile);
   const nowHHMM = useNowHHMM();
-  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa).
-  const session = sessionFor(next.sessionId, next.date, plan);
+  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa); oggi anche con la
+  // variante del controllo del mattino e i freni di sicurezza (`daySession`).
+  const day =
+    next.daysAway === 0 ? dayVariantSession(next.sessionId, next.date, { plan, workoutLogs: history, footballLogs, checkIns, profile, physio }) : null;
+  const session = day?.session ?? sessionFor(next.sessionId, next.date, plan);
   if (!session) return null;
   // Numeri della seduta senza il blocco del fisioterapista (e senza i suoi doppioni), con la dose di oggi.
   const pplan = buildPlayerPlan(session, physio, plan, next.date, { gate, intro });
   const own = pplan.items.filter((i) => !i.physio);
   const sets = plannedSets(own);
-  const increases = own.filter((it) => suggestionForItem(it, { history, gate, intro: Boolean(intro) }).kind === 'aumenta').length;
+  const increases = own.filter((it) => suggestionForItem(it, { history, gate, intro: Boolean(intro), variant: day?.variant }).kind === 'aumenta').length;
   // Balzi del riscaldamento senza volo: l'unica sostituzione possibile con la regola del dolore a posto.
   const swapped = own.find((i) => i.replacedKind === 'impatto');
   const showGate = gate.level !== 'ok' || Boolean(swapped);
@@ -71,8 +78,8 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           {[
             { icon: Clock, text: durationLabel(pplan.duration) },
-            { icon: ListOrdered, text: `${own.length} esercizi` },
-            { icon: Layers, text: `${sets} serie` },
+            { icon: ListOrdered, text: plural(own.length, 'esercizio', 'esercizi') },
+            { icon: Layers, text: plural(sets, 'serie', 'serie') },
             ...(increases > 0 ? [{ icon: TrendingUp, text: `${increases} in aumento`, good: true }] : []),
           ].map((m, i) => (
             <motion.li key={m.text} {...staggerItem(i)} className={cn('t-footnote inline-flex items-center gap-1.5 font-medium', 'good' in m ? 'text-good-ink' : 'text-ink')}>
@@ -81,6 +88,13 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
             </motion.li>
           ))}
         </ul>
+
+        {day?.text && (
+          <p className="t-footnote -mt-1 flex items-start gap-2 text-ink-2">
+            <BatteryMedium size={15} strokeWidth={2.3} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
+            <span>{day.text}</span>
+          </p>
+        )}
 
         {intro && (
           <p className="t-footnote -mt-1 flex items-start gap-2 text-ink-2">
@@ -104,7 +118,7 @@ export function NextSessionCard({ next, after, today, gate, intro = null, onStar
 
         {next.optional && after && (
           <p className="t-footnote -mt-1 text-balance text-center text-ink-3">
-            Se la salti, la prossima è la {sessionFor(after.sessionId, after.date, plan)?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} {relativeDayShort(after.date, today)}.
+            Se la salti, la prossima è {sessionWithArticle(sessionName(after.sessionId, after.date, plan))} {relativeDayShort(after.date, today)}.
           </p>
         )}
       </div>
@@ -150,7 +164,7 @@ export function ResumeCard({ draft, today, now, doneSets, totalSets, onResume, o
             <span className="t-num text-[1.375rem] text-ink">{doneSets}</span>
           </ProgressRing>
           <div className="min-w-0">
-            <h2 className="t-title text-ink">{session?.name ?? 'Seduta'}</h2>
+            <h2 className="t-title text-ink">{session?.name ?? sessionName(draft.sessionId, draft.date, plan)}</h2>
             <p className="t-callout mt-0.5 text-ink-2">
               {doneSets} serie su {totalSets}, iniziata alle {startedAt}
             </p>

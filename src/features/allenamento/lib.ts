@@ -19,6 +19,7 @@ import {
   sessionDuration,
   standingRecords,
   suggestNext,
+  type ExerciseIntro,
   type PainGate,
   type PersonalRecord,
   type SessionDuration,
@@ -58,6 +59,13 @@ export interface PlayerItem {
    * Resta nell'anteprima, barrato, ma non è un passo del lettore e non conta in serie e minuti.
    */
   coveredBy?: { exerciseId: string; name: string };
+  /**
+   * Fase di ingresso dell'esercizio in un blocco generato (`exerciseIntro`, docs/FASE2.md § 3.3 e § 3.10): una serie in
+   * meno e una ripetizione di riserva in più, con il carico × 0,8 nella ripresa dopo una pausa lunga.
+   */
+  exIntro?: ExerciseIntro;
+  /** La prova del saltello del rientro (§ 3.8): un passo del lettore solo dopo il tocco «Fai la prova del saltello». */
+  hop?: boolean;
 }
 
 export type PlayerStep = { kind: 'warmup'; key: string; blockTitle: string; items: PlayerItem[] } | { kind: 'exercise'; key: string; item: PlayerItem };
@@ -79,6 +87,10 @@ export interface PlayerPlan {
   physioDays: string[];
   /** Fase di ingresso: prima o seconda esecuzione della seduta (volume ridotto), null dopo. */
   intro: 1 | 2 | null;
+  /** Esercizi in fase di ingresso per esercizio (blocchi generati) e se è la ripresa dopo una pausa lunga. */
+  exIntro: { count: number; resume: boolean };
+  /** La seduta ha la prova del saltello (fuori dai passi finché non la scegli). */
+  hopTest: { present: boolean; included: boolean };
 }
 
 export interface PlayerPlanOptions {
@@ -86,7 +98,14 @@ export interface PlayerPlanOptions {
   gate?: PainGate;
   /** Fase di ingresso della seduta (da introLevel). */
   intro?: 1 | 2 | null;
+  /** Fase di ingresso per esercizio (blocchi generati, `exerciseIntro`): al posto di quella della seduta. */
+  introFor?: (exerciseId: string) => ExerciseIntro | null;
+  /** La prova del saltello entra nei passi (dopo il tocco «Fai la prova del saltello»). */
+  hopTest?: boolean;
 }
+
+/** Esercizio della prova del saltello (§ 3.8): fuori dal conteggio dei contatti e dietro un tocco nel lettore. */
+export const HOP_TEST_ID = 'prova-saltello';
 
 const WARMUP_RE = /riscaldamento/i;
 
@@ -150,6 +169,8 @@ export function buildPlayerPlan(
         }
         const c = cover.get(`${bi}:${ii}`);
         const coveredBy = c ? { exerciseId: c.physioId, name: exerciseFor(c.physioId, physio)?.name ?? c.physioId } : undefined;
+        const hop = base.exerciseId === HOP_TEST_ID;
+        const exIntro = !warmup && !hop && opts.introFor ? (opts.introFor(base.exerciseId) ?? undefined) : undefined;
         return {
           key: `b${bi}:${ii}`,
           blockTitle: b.title,
@@ -157,13 +178,15 @@ export function buildPlayerPlan(
           // Posizione tra gli esercizi che si fanno davvero ("Prevenzione · 2 di 3").
           indexInBlock: coveredBy ? pos : pos++,
           blockSize: active,
-          item: intro ? introItem(base) : base,
+          item: intro || exIntro ? introItem(base) : base,
           base,
           exercise,
           physio: false,
           warmup,
           ...(replacedFrom ? { replacedFrom, replacedReason, replacedKind } : {}),
           ...(coveredBy ? { coveredBy } : {}),
+          ...(exIntro ? { exIntro } : {}),
+          ...(hop ? { hop: true } : {}),
         };
       }),
     };
@@ -188,18 +211,22 @@ export function buildPlayerPlan(
       })),
     });
   }
+  // La prova del saltello è un passo solo dopo il tocco; fino ad allora non conta nemmeno in serie e minuti.
+  const todoOf = (it: PlayerItem) => !it.coveredBy && (!it.hop || Boolean(opts.hopTest));
   const steps: PlayerStep[] = [];
   for (const b of blocks) {
-    const todo = b.items.filter((it) => !it.coveredBy);
+    const todo = b.items.filter(todoOf);
     if (!todo.length) continue;
     if (todo[0].warmup) steps.push({ kind: 'warmup', key: `w:${todo[0].blockIndex}`, blockTitle: b.title, items: todo });
     else for (const it of todo) steps.push({ kind: 'exercise', key: it.key, item: it });
   }
   const day = plan.week.find((d) => d.weekday === weekdayOf(date));
   const all = blocks.flatMap((b) => b.items);
+  const withIntro = all.filter((it) => it.exIntro && !it.coveredBy);
+  const hopPresent = all.some((it) => it.hop);
   return {
     session,
-    items: all.filter((it) => !it.coveredBy),
+    items: all.filter(todoOf),
     steps,
     blocks,
     covered: all.filter((it) => it.coveredBy),
@@ -207,6 +234,8 @@ export function buildPlayerPlan(
     physioDay: Boolean(day?.physio),
     physioDays: physioWeekdays(plan),
     intro,
+    exIntro: { count: withIntro.length, resume: withIntro.some((it) => it.exIntro?.resume) },
+    hopTest: { present: hopPresent, included: hopPresent && Boolean(opts.hopTest) },
   };
 }
 
@@ -218,18 +247,50 @@ export function buildPlayerPlan(
  */
 export function suggestionForItem(
   it: PlayerItem,
-  ctx: { history: readonly WorkoutLog[]; gate: PainGate; intro: boolean; catalog?: Record<string, Exercise>; exerciseId?: string },
+  ctx: {
+    history: readonly WorkoutLog[];
+    gate: PainGate;
+    intro: boolean;
+    catalog?: Record<string, Exercise>;
+    exerciseId?: string;
+    /** Giorno adattato non pieno (docs/FASE2.md § 3.9): niente progressione di carico, con il motivo del giorno. */
+    variant?: 'piena' | 'ridotta' | 'minima';
+  },
 ): Suggestion {
   const id = ctx.exerciseId ?? it.item.exerciseId;
   const ex = (ctx.catalog ?? EXERCISES)[id];
   const [last = null, previous = null] = recentLogsFor(id, ctx.history, 2);
-  return suggestNext({ ...it.base, exerciseId: id }, last, {
-    gate: gateForExercise(ex, ctx.gate),
-    painNote: painNoteForExercise(ex, ctx.gate),
-    intro: !it.physio && ctx.intro,
+  const level = gateForExercise(ex, ctx.gate);
+  const held = level === 'ok' && (ctx.variant === 'ridotta' || ctx.variant === 'minima');
+  const s = suggestNext({ ...it.base, exerciseId: id }, last, {
+    gate: held ? 'mantieni' : level,
+    painNote: held ? VARIANT_NOTE : painNoteForExercise(ex, ctx.gate),
+    intro: !it.physio && (ctx.intro || Boolean(it.exIntro)),
     previous,
     switched: it.replacedKind === 'gomito' && id === it.item.exerciseId,
   });
+  return resumeLoad(s, it);
+}
+
+/** Motivo dei carichi fermi nel giorno adattato: «Giornata più leggera: niente aumenti di carico oggi». */
+export const VARIANT_NOTE = 'Giornata più leggera';
+
+/**
+ * Ripresa dopo una pausa lunga (§ 3.10, `RESUME_LOAD_FACTOR`): il carico suggerito scende del 20%, arrotondato
+ * all'incremento dell'esercizio. Solo con un carico da cui partire.
+ */
+export function resumeLoad(s: Suggestion, it: Pick<PlayerItem, 'exIntro' | 'base'>): Suggestion {
+  const f = it.exIntro?.loadFactor ?? 1;
+  if (!(f < 1) || !(s.weightKg > 0)) return s;
+  const step = it.base.incrementKg && it.base.incrementKg > 0 ? it.base.incrementKg : 2.5;
+  const scale = (w: number) => (w > 0 ? Math.max(step, Math.round((w * f) / step) * step) : w);
+  const weightKg = scale(s.weightKg);
+  return {
+    ...s,
+    weightKg,
+    sets: s.sets.map((x) => ({ ...x, weightKg: scale(x.weightKg) })),
+    reason: `Ripresa dopo una pausa: carico −${Math.round((1 - f) * 100)}%`,
+  };
 }
 
 /**
@@ -264,13 +325,30 @@ export function repRange(item: Pick<SessionExercise, 'repMin' | 'repMax'>): stri
   return item.repMin === item.repMax ? `${item.repMin}` : `${item.repMin}-${item.repMax}`;
 }
 
-/** "3 × 6-10", "3 × 30-40 s", "1 × 2 min", con "per lato" se serve. */
+/** "45 s", "3 min": la durata di un intervallo o di una tenuta. */
+export function secondsText(sec: number): string {
+  // Spazio indivisibile: "45 s" non va a capo a metà.
+  return sec >= 60 && sec % 60 === 0 ? `${sec / 60}\u00a0min` : `${sec}\u00a0s`;
+}
+
+/**
+ * "3 × 6-10", "3 × 30-40 s", "1 × 2 min", "25-30 min", con "per lato" se serve. Le esercitazioni senza carico dicono
+ * la dose che conta: metri per ripetizione ("6-8 × 10 m") o lavoro di ogni ripetuta ("12-16 × 15 s").
+ */
 export function doseLabel(item: SessionExercise, opts: { perSide?: boolean } = {}): string {
   const { perSide = true } = opts;
   let body: string;
   if (item.unit === 'secondi') {
-    body = item.repMin === item.repMax && item.repMin % 60 === 0 && item.repMin >= 60 ? `${item.repMin / 60} min` : `${repRange(item)} s`;
-  } else body = repRange(item);
+    const minutes = item.repMin >= 120 && item.repMin % 60 === 0 && item.repMax % 60 === 0;
+    body =
+      item.repMin === item.repMax && item.repMin % 60 === 0 && item.repMin >= 60
+        ? `${item.repMin / 60} min`
+        : minutes
+          ? `${item.repMin / 60}-${item.repMax / 60} min`
+          : `${repRange(item)} s`;
+  } else if (item.distanceM && item.distanceM > 0) body = `${repRange(item)} × ${fmtNumber(item.distanceM)} m`;
+  else if (item.workSec && item.workSec > 0) body = `${repRange(item)} × ${secondsText(item.workSec)}`;
+  else body = repRange(item);
   const sets = item.sets > 1 ? `${item.sets} × ${body}` : body;
   return `${sets}${perSide && item.perSide ? ' per lato' : ''}`;
 }

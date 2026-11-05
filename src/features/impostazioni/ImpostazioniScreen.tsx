@@ -1,7 +1,7 @@
 /**
  * Impostazioni: elenco raggruppato in stile iOS con sotto-pagine che entrano da destra.
  * Il gesto o tasto "indietro" del sistema chiude la sotto-pagina (fuori dall'anteprima).
- * Anteprime: #impostazioni?sezione=profilo|obiettivi|settimana|pasti|gusti|sonno|integratori|dolore|fisio|promemoria|coach|backup|info
+ * Anteprime: #impostazioni?sezione=profilo|obiettivi|macro|storico|settimana|pasti|gusti|sonno|integratori|dolore|fisio|promemoria|coach|backup|info
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -13,6 +13,7 @@ import {
   Clock,
   Database,
   FlaskConical,
+  Flame,
   HeartPulse,
   Info,
   Moon,
@@ -43,11 +44,14 @@ import { ThemePicker } from './components/Pickers';
 import { canSuggestInstall } from './install';
 import { GOAL_LABEL, MEAL_ORDER, ageOf, initials, painSummary, weekSummary } from './lib';
 import { foodLabel, userExclusions } from '../../engine/exclusions';
+import { trainingSummary } from '../allenamento/goals';
 import { PAGE_IDS, PAGE_TITLE, type PageId, type PageProps } from './pages/Page';
 import { clearReminderPrefs, useCalendarStatus } from './reminders';
 
 const ProfiloPage = lazy(() => import('./pages/ProfiloPage'));
 const ObiettiviPage = lazy(() => import('./pages/ObiettiviPage'));
+const MacroPage = lazy(() => import('./pages/MacroPage'));
+const StoricoPage = lazy(() => import('../piano/StoricoPage'));
 const PromemoriaPage = lazy(() => import('./pages/PromemoriaPage'));
 const CoachPage = lazy(() => import('./pages/CoachPage'));
 const BackupPage = lazy(() => import('./pages/BackupPage'));
@@ -64,6 +68,8 @@ const GustiPage = lazy(() => import('./pages/GustiPage'));
 const PAGES: Record<PageId, ComponentType<PageProps>> = {
   profilo: ProfiloPage,
   obiettivi: ObiettiviPage,
+  macro: MacroPage,
+  storico: StoricoPage,
   settimana: SettimanaPage,
   pasti: PastiPage,
   gusti: GustiPage,
@@ -317,12 +323,13 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
       </Card>
 
       <ListGroup title="Piano">
+        <ListRow icon={Target} iconTone="accent" title="Obiettivi" subtitle={`${GOAL_LABEL[profile.goal]} · ${trainingSummary(plan.training)}`} onPress={() => open('obiettivi')} />
         <ListRow
-          icon={Target}
-          iconTone="accent"
-          title="Obiettivi per tipo di giorno"
+          icon={Flame}
+          iconTone="calcio"
+          title="Calorie e macro"
           subtitle={`${fmtNumber(Math.min(...kcals))}-${fmtNumber(Math.max(...kcals))} kcal · proteine ${fmtNumber(plan.targets.palestra.proteinG)} g`}
-          onPress={() => open('obiettivi')}
+          onPress={() => open('macro')}
         />
         <ListRow icon={CalendarDays} iconTone="palestra" title="Settimana" subtitle={weekSummary(plan.week)} onPress={() => open('settimana')} />
         <ListRow

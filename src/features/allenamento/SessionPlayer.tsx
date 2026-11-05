@@ -14,7 +14,9 @@ import type { ExerciseLog, ISODate, SetLog, WorkoutLog, WorkoutSession } from '.
 import { EXERCISES } from '../../data/exercises';
 import { weekStart } from '../../engine/dates';
 import { sessionFor } from '../../engine/plan/program';
+import type { Variant } from '../../engine/plan/readiness';
 import {
+  exerciseIntro,
   introLevel,
   lastEntryFor,
   loadStatus,
@@ -31,8 +33,9 @@ import { uid } from '../../lib/id';
 import { usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
 import { Button, Callout, EmptyState, FullScreenModal, IconButton, spring } from '../../ui';
+import { blockStamp, dayVariantSession, sessionName, sessionWithArticle } from './blocks';
 import { draftDoneSets, useSessionDraft, type SessionDraft } from './draft';
-import { buildPlayerPlan, exerciseFor, isBodyweight, kgLabel, plannedSets, sessionTone, strengthRecords, suggestionForItem, type PlayerItem, type PlayerStep } from './lib';
+import { buildPlayerPlan, exerciseFor, isBodyweight, kgLabel, plannedSets, secondsText, sessionTone, strengthRecords, suggestionForItem, type PlayerItem, type PlayerStep } from './lib';
 import { ExerciseStep } from './player/ExerciseStep';
 import { FinishStep } from './player/FinishStep';
 import { IntroStep } from './player/IntroStep';
@@ -48,9 +51,27 @@ export interface SessionPlayerProps {
 }
 
 export default function SessionPlayer({ sessionId, date, onClose }: SessionPlayerProps) {
-  // La seduta del giorno: blocco in vigore, settimana scaricata o leggera (senza, la seduta fissa dello slot).
+  // La seduta del giorno (`daySession`): blocco in vigore, settimana scaricata o leggera, fermo degli impatti e variante
+  // del controllo del mattino (senza blocco, la seduta fissa dello slot, piena). «Fai la piena» ignora la variante; una
+  // seduta in corso riparte con la variante e la prova del saltello con cui era partita.
   const plan = useApp((s) => s.plan);
-  const session = sessionFor(sessionId, date, plan);
+  const workoutLogs = useApp((s) => s.workoutLogs);
+  const footballLogs = useApp((s) => s.footballLogs);
+  const checkIns = useApp((s) => s.checkIns);
+  const profile = useApp((s) => s.profile);
+  const physio = useApp((s) => s.physio);
+  const draft = useSessionDraft((s) => s.draft);
+  const mine = draft && draft.sessionId === sessionId && draft.date === date ? draft : null;
+  const [choice, setChoice] = useState<Variant | undefined>();
+  const [hopChoice, setHopChoice] = useState(false);
+  // Storico all'apertura: la seduta salvata alla fine non cambia la variante mentre si guarda il riepilogo.
+  const [logsAtOpen] = useState(workoutLogs);
+  const chosen = mine?.variant ?? choice;
+  const day = useMemo(
+    () => dayVariantSession(sessionId, date, { plan, workoutLogs: logsAtOpen, footballLogs, checkIns, profile, physio }, chosen),
+    [sessionId, date, plan, logsAtOpen, footballLogs, checkIns, profile, physio, chosen],
+  );
+  const session = day?.session ?? sessionFor(sessionId, date, plan);
   if (!session) {
     return (
       <FullScreenModal open onClose={onClose} title="Seduta">
@@ -58,7 +79,19 @@ export default function SessionPlayer({ sessionId, date, onClose }: SessionPlaye
       </FullScreenModal>
     );
   }
-  return <Player session={session} date={date} onClose={onClose} />;
+  return (
+    <Player
+      key={day?.variant ?? 'piena'}
+      session={session}
+      date={date}
+      onClose={onClose}
+      variant={day?.variant ?? 'piena'}
+      readiness={day && day.suggested !== 'piena' && chosen !== 'piena' ? day.text : null}
+      onFull={() => setChoice('piena')}
+      hopTest={mine?.hopTest ?? hopChoice}
+      onHopTest={setHopChoice}
+    />
+  );
 }
 
 type Phase = 'intro' | 'run' | 'finish' | 'summary';
@@ -116,7 +149,21 @@ function elapsedLabel(totalSec: number): string {
 
 const stepItems = (st: PlayerStep): PlayerItem[] => (st.kind === 'warmup' ? st.items : [st.item]);
 
-function Player({ session, date, onClose }: { session: WorkoutSession; date: ISODate; onClose: () => void }) {
+interface PlayerProps {
+  session: WorkoutSession;
+  date: ISODate;
+  onClose: () => void;
+  /** Variante della seduta di oggi (si salva in `WorkoutLog.variant` con un blocco in vigore o se non è piena). */
+  variant: Variant;
+  /** «Oggi ridotta: 5 h 50 a letto ed energia bassa»: il `Callout` dell'anteprima con «Fai la piena». */
+  readiness: string | null;
+  onFull: () => void;
+  /** La prova del saltello è nei passi. */
+  hopTest: boolean;
+  onHopTest: (on: boolean) => void;
+}
+
+function Player({ session, date, onClose, variant, readiness, onFull, hopTest, onHopTest }: PlayerProps) {
   const reduce = useReducedMotion();
   const today = usePlanDay();
   const toast = useUi((s) => s.toast);
@@ -133,13 +180,20 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   // Storico all'apertura: la seduta salvata alla fine non deve cambiare la fase di ingresso né la regola del
   // dolore mentre si guarda il riepilogo.
   const [historyAtOpen] = useState(history);
-  const [intro] = useState(() => introLevel(session.id, history));
+  // Con un blocco in vigore la fase di ingresso è per esercizio (`exerciseIntro`, con il carico −20% dopo una pausa
+  // lunga); senza, quella della seduta, come prima.
+  const stamp = blockStamp(plan, date, session.id);
+  const [intro] = useState(() => (stamp ? null : introLevel(session.id, history)));
+  const introFor = useMemo(() => (stamp ? (id: string) => exerciseIntro(id, historyAtOpen, date) : undefined), [stamp, historyAtOpen, date]);
   // La regola letta per questa seduta: il titolo va sulla zona che la seduta carica (il gomito nella A).
   const gate = useMemo(
     () => painGate({ plan, checkIns, profile, workoutLogs: historyAtOpen, footballLogs }, date, { sessionId: session.id }),
     [plan, checkIns, profile, historyAtOpen, footballLogs, date, session.id],
   );
-  const pplan = useMemo(() => buildPlayerPlan(session, physio, plan, date, { gate, intro }), [session, physio, plan, date, gate, intro]);
+  const pplan = useMemo(
+    () => buildPlayerPlan(session, physio, plan, date, { gate, intro, ...(introFor ? { introFor } : {}), hopTest }),
+    [session, physio, plan, date, gate, intro, introFor, hopTest],
+  );
   const catalog = useMemo(() => ({ ...EXERCISES, ...Object.fromEntries(physio.exercises.map((e) => [e.id, e])) }), [physio.exercises]);
   const planned = plannedSessionFor(date, plan);
   const lastSession = useMemo(
@@ -190,8 +244,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
 
   // Suggerimento per un esercizio: le ultime due esecuzioni servono a riconoscere uno stallo.
   const suggestFor = useCallback(
-    (it: PlayerItem, id: string): Suggestion => suggestionForItem(it, { history, gate, intro: Boolean(pplan.intro), catalog, exerciseId: id }),
-    [catalog, gate, history, pplan.intro],
+    (it: PlayerItem, id: string): Suggestion => suggestionForItem(it, { history, gate, intro: Boolean(pplan.intro), catalog, exerciseId: id, variant }),
+    [catalog, gate, history, pplan.intro, variant],
   );
 
   const suggestionFor = useCallback((it: PlayerItem): Suggestion => suggestFor(it, currentIdOf(it)), [suggestFor, currentIdOf]);
@@ -331,7 +385,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
   // ── Avvio, uscita, salvataggio ──
 
   const startSession = () => {
-    useSessionDraft.getState().start(session.id, date);
+    useSessionDraft.getState().start(session.id, date, Date.now(), { variant, ...(hopTest ? { hopTest: true } : {}) });
     haptic('medium');
     setDir(1);
     setPhase('run');
@@ -384,6 +438,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       .filter((l): l is ExerciseLog => Boolean(l?.sets.some((s) => s.done)))
       .map((l) => ({ ...l, sets: l.sets.filter((s) => s.done) }));
     const painDone = Object.fromEntries(Object.entries(pain).filter((e): e is [string, number] => typeof e[1] === 'number'));
+    // Con un blocco in vigore la seduta dice di quale blocco e di quale settimana è, e la variante del giorno (anche
+    // piena); senza blocco solo una variante non piena, così le sedute fisse restano come prima.
     const log: WorkoutLog = {
       id: uid('w'),
       date,
@@ -393,6 +449,8 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       pain: painDone,
       exercises,
       ...(notes.trim() ? { notes: notes.trim() } : {}),
+      ...(stamp ? { blockId: stamp.blockId, weekIndex: stamp.weekIndex } : {}),
+      ...(stamp || variant !== 'piena' ? { variant } : {}),
     };
     const records = strengthRecords(log, history, physio);
     useApp.getState().saveWorkout(log);
@@ -487,7 +545,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
       const set = currentLog.sets[firstOpen];
       if (current.item.unit === 'secondi' && !holdRunning) {
         main = {
-          label: current.item.perSide ? `Lato ${holdSide + 1} · ${set.reps} s` : `Avvia ${set.reps} s`,
+          label: current.item.perSide ? `Lato ${holdSide + 1} · ${secondsText(set.reps)}` : `Avvia ${secondsText(set.reps)}`,
           icon: Timer,
           onClick: () => {
             haptic('medium');
@@ -596,7 +654,7 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           <div className="pt-3">
             <Callout
               tone="accent"
-              title={`Hai una ${sessionFor(other.sessionId, other.date, plan)?.name.replace(/^Seduta/, 'seduta') ?? 'seduta'} in corso`}
+              title={`Hai ${sessionWithArticle(sessionName(other.sessionId, other.date, plan)).replace(/^la /, 'una ').replace(/^l’/, 'un’')} in corso`}
               action={
                 <Button size="sm" variant="ghost" onClick={() => useUi.getState().open({ type: 'session', sessionId: other.sessionId, date: other.date })}>
                   Riprendila
@@ -617,6 +675,10 @@ function Player({ session, date, onClose }: { session: WorkoutSession; date: ISO
           lastSession={lastSession}
           suggestions={suggestions}
           tone={sessionTone(session.id, plan)}
+          readiness={readiness}
+          variant={variant}
+          onFull={onFull}
+          onHopTest={onHopTest}
         />
       </>
     );

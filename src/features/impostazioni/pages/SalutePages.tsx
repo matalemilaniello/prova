@@ -1,6 +1,9 @@
-/** Salute: zone di dolore con soglia, esercizi del fisioterapista. */
+/** Salute: zone di dolore con soglia e segnali d'allarme sotto il ginocchio (docs/FASE2.md § 3.8), esercizi del fisioterapista. */
 import { Activity, ClipboardCheck, Footprints, Hand, ShieldCheck, TrendingDown } from 'lucide-react';
 import PhysioEditor from '../../allenamento/PhysioEditor';
+import { WarningSigns } from '../../allenamento/components/WarningSigns';
+import { impactHoldOn } from '../../../engine/training';
+import { usePlanDay } from '../../../state/hooks';
 import { useApp } from '../../../state/store';
 import { Card, Disclosure, Field, ScaleSlider, TextInput, type AnyTone } from '../../../ui';
 import { testGesture } from '../../oggi/painTests';
@@ -136,8 +139,14 @@ export function DolorePage({ onBack, backLabel }: PageProps) {
   const sites = useApp((s) => s.profile.painSites);
   const threshold = useApp((s) => s.plan.painThreshold);
   const ownImpact = useApp((s) => s.plan.impactThreshold);
+  const hold = useApp((s) => s.plan.impactHold);
+  const today = usePlanDay();
   const impact = impactThresholdView({ painThreshold: threshold, impactThreshold: ownImpact }).value;
   const rules = painRules(sites, threshold, impact);
+  const lower = lowerLegSites(sites);
+  // Con il fermo già messo basta un avviso solo, con il via libera.
+  const held = impactHoldOn({ impactHold: hold }, today);
+  const signSites = held ? [held.site] : lower;
 
   return (
     <Page title="Zone di dolore" subtitle="Le segni da 0 a 10 nel controllo del mattino e a fine seduta." onBack={onBack} backLabel={backLabel}>
@@ -195,6 +204,18 @@ export function DolorePage({ onBack, backLabel }: PageProps) {
           </div>
         </Card>
       </section>
+
+      {(lower.length > 0 || held) && (
+        <section className="flex flex-col gap-2.5" aria-labelledby="segnali-imp">
+          <h3 id="segnali-imp" className="t-label px-1 text-ink-3">
+            Segnali d’allarme
+          </h3>
+          {signSites.map((site) => (
+            <WarningSigns key={site} site={site} today={today} label={signSites.length > 1 ? site : undefined} />
+          ))}
+          {!held && <p className="t-footnote px-1 text-pretty text-ink-3">Un tocco ferma balzi, salti e corsa in ogni seduta, da subito. Non è una diagnosi.</p>}
+        </section>
+      )}
     </Page>
   );
 }

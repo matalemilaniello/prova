@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowLeftRight, ChevronDown, Clock, HeartPulse, History, Layers, ListOrdered, Sprout, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, BatteryMedium, ChevronDown, Clock, Footprints, HeartPulse, History, Layers, ListOrdered, Sprout, TrendingDown, TrendingUp } from 'lucide-react';
 import type { ISODate, WorkoutLog } from '../../../domain/types';
 import { compareHHMM, formatDayLong, formatRelativeDay } from '../../../engine/dates';
 import { useNowHHMM } from '../../../state/hooks';
 import type { PainGate, Suggestion } from '../../../engine/training';
 import { capitalize as capitalizeFirst } from '../../../lib/format';
-import { Callout, Disclosure, Pill, cn, staggerItem } from '../../../ui';
+import { Button, Callout, Disclosure, Pill, cn, staggerItem } from '../../../ui';
 import { haptic } from '../../../lib/haptics';
 import { SessionGlyph } from '../components/SessionGlyph';
 import { coveredPhrase, daysPhrase, doseLabel, estimateMinutes, exerciseFor, kgLabel, plannedSets, shortName, type PlayerPlan } from '../lib';
@@ -23,10 +23,18 @@ export interface IntroStepProps {
   suggestions: Record<string, Suggestion>;
   /** Colore del tipo di giorno della seduta. */
   tone: 'palestra' | 'leggero' | 'riposo';
+  /** Variante del giorno non piena: «Oggi ridotta: 5 h 50 a letto ed energia bassa» (docs/FASE2.md § 11.5). */
+  readiness?: string | null;
+  /** Variante della seduta di oggi: con la ridotta o la minima i carichi non salgono. */
+  variant?: 'piena' | 'ridotta' | 'minima';
+  /** «Fai la piena»: la seduta torna quella del blocco, la regola del dolore resta esercizio per esercizio. */
+  onFull?: () => void;
+  /** «Fai la prova del saltello» (rientro, stadio 2 con il via libera): la prova entra nei passi, o ne esce. */
+  onHopTest?: (on: boolean) => void;
 }
 
 /** Anteprima della seduta: cosa ti aspetta, quanto dura, cosa è cambiato dall'ultima volta. */
-export function IntroStep({ plan, date, today, time, optional, gate, lastSession, suggestions, tone }: IntroStepProps) {
+export function IntroStep({ plan, date, today, time, optional, gate, lastSession, suggestions, tone, readiness, variant = 'piena', onFull, onHopTest }: IntroStepProps) {
   const { session } = plan;
   // Numeri della seduta, senza il blocco del fisioterapista (facoltativo, ha i suoi minuti).
   const own = plan.items.filter((i) => !i.physio);
@@ -86,6 +94,46 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
         </Disclosure>
       </header>
 
+      {readiness && (
+        <Callout
+          tone="neutral"
+          icon={BatteryMedium}
+          title={readiness}
+          action={
+            onFull ? (
+              <Button size="sm" variant="ghost" onClick={onFull}>
+                Fai la piena
+              </Button>
+            ) : undefined
+          }
+        >
+          {variant === 'minima' ? 'Solo prevenzione e mobilità, in pochi minuti: conta come fatta.' : 'Meno serie e niente aumenti di carico: oggi conta farla.'}
+        </Callout>
+      )}
+
+      {!plan.intro && plan.exIntro.count > 0 && (
+        <Callout tone="good" icon={Sprout} title={plan.exIntro.resume ? 'Ripresa dopo una pausa' : plan.exIntro.count === 1 ? 'Un esercizio nuovo' : `${plan.exIntro.count} esercizi nuovi`}>
+          {plan.exIntro.resume
+            ? 'Le prime due volte di ogni esercizio: una serie in meno, una ripetizione di riserva in più e il carico −20%.'
+            : 'Le prime due volte: una serie in meno e una ripetizione di riserva in più.'}
+        </Callout>
+      )}
+
+      {plan.hopTest.present && onHopTest && (
+        <Callout
+          tone="accent"
+          icon={Footprints}
+          title={plan.hopTest.included ? 'Prova del saltello nella seduta' : 'Prova del saltello'}
+          action={
+            <Button size="sm" variant="ghost" onClick={() => onHopTest(!plan.hopTest.included)}>
+              {plan.hopTest.included ? 'Toglila' : 'Fai la prova del saltello'}
+            </Button>
+          }
+        >
+          10 saltelli su una gamba, poi sull’altra, una volta sola. Se fa male fermati: la prova si rimanda.
+        </Callout>
+      )}
+
       {plan.intro && (
         <Callout tone="good" icon={Sprout} title={plan.intro === 1 ? 'Prima volta con questa seduta' : 'Seconda volta con questa seduta'}>
           Una serie in meno per esercizio e una ripetizione di riserva in più.{' '}
@@ -115,13 +163,14 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
           <p className="t-footnote text-ink-2">
             <span className="block font-semibold text-ink">Ultima volta {formatDayLong(lastSession.date)}</span>
             {`${lastSession.durationMin}\u00a0min, RPE\u00a0${lastSession.rpe}. `}
-            {progressPhrase(increases, stalls, braked)}
+            {variant === 'piena' ? progressPhrase(increases, stalls, braked) : 'Oggi carichi dell’ultima volta, senza aumenti.'}
           </p>
         </div>
       )}
 
       {plan.blocks.map((b, bi) => {
-        const todo = b.items.filter((i) => !i.coveredBy);
+        const todo = b.items.filter((i) => !i.coveredBy && (!i.hop || plan.hopTest.included));
+        if (!b.items.some((i) => !i.hop || plan.hopTest.included)) return null;
         const min = estimateMinutes(todo.map((i) => i.item));
         const collapsible = b.physio || b.items.every((i) => i.warmup);
         const open = !collapsible || Boolean(openBlocks[b.title]);
@@ -146,7 +195,7 @@ export function IntroStep({ plan, date, today, time, optional, gate, lastSession
         );
         const list = (
           <ol id={listId} className="overflow-hidden rounded-card bg-card shadow-card">
-            {b.items.map((it, i) => {
+            {b.items.filter((it) => !it.hop || plan.hopTest.included).map((it, i) => {
               const s = suggestions[it.key];
               const w = s?.weightKg ?? 0;
               const n = it.coveredBy ? null : it.indexInBlock + 1;

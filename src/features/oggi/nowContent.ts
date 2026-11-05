@@ -6,8 +6,7 @@
  */
 import type { HHMM, MealSlot, Nutrients, WorkoutSession } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
-import { SESSIONS } from '../../data/sessions';
-import { STARTER_SHOPPING_ID, type DayItem, type NowPick } from '../../engine/timeline';
+import { GYM_VARIANT_LABEL, STARTER_SHOPPING_ID, type DayItem, type NowPick } from '../../engine/timeline';
 import type { SessionDuration } from '../../engine/training';
 import { fmtKcal, fmtMinutes } from '../../lib/format';
 
@@ -28,8 +27,13 @@ export interface NowContentContext {
   timeShown: boolean;
   /** Durata della seduta come in Allenamento (`gymDuration`): senza, vale `estMin`. */
   gym?: Pick<SessionDuration, 'own' | 'physio'> | null;
-  /** Seduta del giorno (`sessionFor`: blocco in vigore, settimana scaricata o leggera); senza, la seduta fissa dello slot. */
+  /**
+   * Seduta del giorno (`daySession` con la data: blocco in vigore, settimana scaricata o leggera, variante del giorno).
+   * Senza, il titolo della voce: la seduta fissa non si indovina più dallo slot.
+   */
   session?: WorkoutSession | null;
+  /** Variante del giorno (`daySession`): ridotta o minima la dice tra i dettagli (docs/FASE2.md § 11.2). */
+  variant?: 'piena' | 'ridotta' | 'minima';
   /** Prima spesa dei giorni di avvio, per i pasti che vengono prima (`DayItem.preShopping`). */
   shopping?: { time: HHMM; tomorrow: boolean } | null;
 }
@@ -41,6 +45,9 @@ function preShoppingSub(shopping: NowContentContext['shopping']): string {
   const when = !shopping ? '' : shopping.tomorrow ? ` di domani alle ${shopping.time}` : ` delle ${shopping.time}`;
   return `Proteine, un carboidrato e frutta o verdura. Il menù parte dopo la spesa${when}.`;
 }
+
+/** Titolo della card Adesso con la variante minima della seduta (§ 3.9): pavimenti della settimana e mobilità. */
+export const MINIMAL_GYM_HEADLINE = 'Prevenzione e mobilità';
 
 /** Pillola dei pasti che cadono durante il lavoro (`DayItem.carry`). */
 export const CARRY_META = 'Da portare';
@@ -89,14 +96,17 @@ export function nowContent(item: DayItem, ctx: NowContentContext): NowContent {
       };
     }
     case 'palestra': {
-      const s = ctx.session ?? SESSIONS[item.ref ?? ''];
+      const s = ctx.session;
+      const variant = ctx.variant && ctx.variant !== 'piena' ? ctx.variant : null;
       return {
         kicker: item.title,
-        headline: s?.subtitle ?? item.title,
+        // La minima tiene solo prevenzione e mobilità: il sottotitolo della seduta piena non varrebbe.
+        headline: variant === 'minima' ? MINIMAL_GYM_HEADLINE : (s?.subtitle ?? item.title),
         // La seduta e, a parte, il blocco del fisioterapista: nella card protagonista "45 + 24 min" non si capirebbe.
         meta: [
           ctx.gym ? fmtMinutes(ctx.gym.own) : s ? fmtMinutes(s.estMin) : '',
           ctx.gym?.physio ? `+\u00a0${fmtMinutes(ctx.gym.physio)} dal fisioterapista` : '',
+          variant ? GYM_VARIANT_LABEL[variant] : '',
           item.detail?.startsWith('Facoltativa') ? 'Facoltativa' : '',
         ].filter(Boolean),
       };

@@ -8,6 +8,8 @@ import { Screen } from '../../../ui';
 export type PageId =
   | 'profilo'
   | 'obiettivi'
+  | 'macro'
+  | 'storico'
   | 'settimana'
   | 'pasti'
   | 'gusti'
@@ -20,11 +22,13 @@ export type PageId =
   | 'backup'
   | 'info';
 
-export const PAGE_IDS: PageId[] = ['profilo', 'obiettivi', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+export const PAGE_IDS: PageId[] = ['profilo', 'obiettivi', 'macro', 'storico', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
 export const PAGE_TITLE: Record<PageId, string> = {
   profilo: 'Profilo',
   obiettivi: 'Obiettivi',
+  macro: 'Calorie e macro',
+  storico: 'Storico del piano',
   settimana: 'Settimana',
   pasti: 'Orari dei pasti',
   gusti: 'Gusti',
