@@ -20,6 +20,7 @@ import { DOSE_PRESETS, estimateItemSec } from '../../data/sessions';
 import { fmtHours, listIt } from '../../lib/format';
 import { addDays, weekStart, weekdayOf } from '../dates';
 import { checkInSleepHours } from '../sleep';
+import type { AppData } from '../../domain/types';
 import {
   PHYSIO_REFERRAL_MARGIN,
   TYPICAL_RPE,
@@ -27,6 +28,7 @@ import {
   impactThresholdFor,
   isLowerLegSite,
   painGate,
+  physioCoverage,
   sessionLoad,
   type TrainingState,
 } from '../training';
@@ -231,12 +233,20 @@ export function floorsDoneThisWeek(iso: ISODate, state: Pick<TrainingState, 'wor
   return out;
 }
 
+/** Opzioni delle varianti: `noImpact` toglie ogni impatto; `physio` dice quali pavimenti copre il fisioterapista. */
+export interface VariantOptions {
+  noImpact?: boolean;
+  physio?: Pick<AppData['physio'], 'exercises' | 'prescriptions'>;
+}
+
 /**
  * Variante minima (§ 3.9): niente blocco principale, niente pliometria né sprint; i pavimenti della settimana non ancora
- * fatti (la forza di gambe no), la mobilità e, se servono, minuti di cyclette facile per scaldarsi. 15-20 minuti; con
- * `noImpact` nessun esercizio d'impatto. Gli esercizi del fisioterapista restano nel loro blocco, come sempre.
+ * fatti (la forza di gambe no), la mobilità e, se servono, minuti di cyclette facile per scaldarsi. 15-20 minuti di
+ * seduta propria: un pavimento coperto dal fisioterapista resta in vista ma non conta nei minuti, come nella durata che
+ * mostra il lettore (`sessionDuration` con il fisioterapista). Con `noImpact` nessun esercizio d'impatto. Gli esercizi
+ * del fisioterapista restano nel loro blocco, come sempre.
  */
-export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>, opts: { noImpact?: boolean } = {}): WorkoutSession {
+export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>, opts: VariantOptions = {}): WorkoutSession {
   const keep: SessionExercise[] = [];
   const mobility: SessionExercise[] = [];
   const seen = new Set<FloorId>();
@@ -258,7 +268,15 @@ export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>,
     }
   }
   const blocks: WorkoutBlock[] = [];
-  const total = (xs: SessionExercise[]) => xs.reduce((s, it) => s + estimateItemSec(it), 0) / 60;
+  // Pavimenti che copre il fisioterapista: restano, ma non contano nei minuti della seduta propria.
+  const covered = new Set<SessionExercise>();
+  if (keep.length && opts.physio?.prescriptions?.length) {
+    const cover = physioCoverage({ blocks: [{ title: 'Prevenzione', items: keep }] }, opts.physio);
+    keep.forEach((it, i) => {
+      if (cover.has(`0:${i}`)) covered.add(it);
+    });
+  }
+  const total = (xs: SessionExercise[]) => xs.reduce((s, it) => s + (covered.has(it) ? 0 : estimateItemSec(it)), 0) / 60;
   // Al massimo 20 minuti: si tolgono prima la mobilità in più, poi i pavimenti in fondo.
   while (total([...keep, ...mobility]) > MINIMAL_MAX_MIN && mobility.length) mobility.pop();
   while (total(keep) > MINIMAL_MAX_MIN && keep.length > 1) keep.pop();
@@ -293,7 +311,7 @@ export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>,
 }
 
 /** Seduta del giorno nella variante. */
-export function sessionForVariant(base: WorkoutSession, variant: Variant, done: ReadonlySet<FloorId>, opts: { noImpact?: boolean } = {}): WorkoutSession {
+export function sessionForVariant(base: WorkoutSession, variant: Variant, done: ReadonlySet<FloorId>, opts: VariantOptions = {}): WorkoutSession {
   if (variant === 'ridotta') return reducedSession(base);
   if (variant === 'minima') return minimalSession(base, done, opts);
   return base;

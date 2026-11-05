@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import type { AppData, DayLog, PlanProposal } from '../domain/types';
 import { defaultAppData } from '../data/defaults';
 import { RECIPES } from '../data/recipes';
-import { mealsForDate } from './menu';
+import { MENU_ROTATION } from '../data/menu';
+import { addDays } from './dates';
+import { EMPTY_MENU_CELL, mealsForDate } from './menu';
 import {
   buildDay,
   buildTimeline,
@@ -70,6 +72,35 @@ describe('pasto senza alternative in Oggi (§ 6.4)', () => {
       barMeals: { merenda: { label: 'Yogurt e frutta', nutrients: { kcal: 250, proteinG: 15, carbG: 30, fatG: 6, fiberG: 3 }, source: 'foto', items: [{ foodId: 'yogurt-greco-0', grams: 170 }] } },
     });
     expect(snack(photo)?.detail).toMatch(/^Dalla foto · /);
+  });
+});
+
+describe('casella vuota di un menù generato e approvato (§ 4.10)', () => {
+  /** Un menù approvato per il lunedì con la merenda del mercoledì vuota: il generatore non aveva candidati. */
+  function approvedWithEmpty(): AppData {
+    const s = defaultAppData(MON);
+    const week = JSON.parse(JSON.stringify(MENU_ROTATION[0])) as (typeof MENU_ROTATION)[number];
+    delete week.days[2].meals.merenda;
+    return { ...s, plan: { ...s.plan, startDate: addDays(MON, -21), menus: { [MON]: week } } };
+  }
+
+  it('la casella resta nel giorno con «Scegli tu»: in Oggi lo schema del pasto, senza ricetta da aprire', () => {
+    const s = approvedWithEmpty();
+    const meals = mealsForDate(WED, s);
+    expect(meals.source).toBe('approvato');
+    expect(meals.bySlot.merenda).toBeUndefined();
+    expect(meals.cleared?.merenda).toBe(EMPTY_MENU_CELL);
+    const item = snack(s)!;
+    expect(item.detail).toBe(CLEARED_MEAL_DETAILS['pre-calcio']);
+    expect(item.ref).toBeUndefined();
+    // Gli altri pasti del giorno restano quelli del menù.
+    expect(meals.cleared?.pranzo).toBeUndefined();
+    expect(meals.bySlot.pranzo?.recipeId).toBe(MENU_ROTATION[0].days[2].meals.pranzo);
+  });
+
+  it('senza menù approvati (rotazione) nessuna casella vuota: l’app di prima', () => {
+    const s = defaultAppData(MON);
+    expect(mealsForDate(WED, { ...s, plan: { ...s.plan, startDate: MON } }).cleared).toBeUndefined();
   });
 });
 

@@ -1081,3 +1081,32 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   - Valutato e lasciato: `planBasis('menu')` non legge `Plan.menus`. I menù approvati cambiano solo approvando una
     proposta di menù per quel lunedì, che al salvataggio supera già le aperte dello stesso lunedì; la ripetizione guarda
     solo i lunedì passati, che non si approvano più.
+- Fase 2, onda 2, correzioni dopo la verifica (nessun campo nuovo in `types.ts`):
+  - Menù generato: mosse di riparazione dei conteggi della settimana (`repairMoves` in `engine/menuGen/generate.ts`:
+    legumi nei giorni che non li hanno, pesce, uova, riso e carne rossa fuori dai limiti, partita e vigilia con i
+    carboidrati o le kcal fuori, prima delle mosse a caso e all'inizio di ogni ripartenza); `RESTART_EVALUATIONS` (3.000)
+    e `MenuGenInput.restartEvaluations`: valutazioni in più solo per le ripartenze e solo finché il migliore ha violazioni
+    (un menù valido si ferma entro `MAX_EVALUATIONS`; il test 17 controlla `maxEvaluations + restartEvaluations`). Carne
+    rossa (A4) e riso (A5) pesano come H1 (`CODE_FACTOR`); `NEVER_RELAXED` (H0, H1, A4, A5): tra il migliore e il seme
+    adattato il ripiego «fuori-limiti» sceglie quello che non li viola. Una violazione di partita o vigilia resta solo
+    quando un pasto del giorno non ha candidati. Due pranzi da portare con le lenticchie rosse e senza pesce
+    (`couscous-lenticchie-carote`, `pasta-fredda-lenticchie-zucchine`): nei giorni di calcio sono gli unici legumi
+    ammessi a pranzo. Misura in node: al più circa 300 ms nei casi con le ripartenze; da rimisurare nell'onda 4.
+  - `planBasis` dei blocchi e dei menù legge anche l'orario di lavoro (dall'onda 2 sposta le sedute e decide i pasti da
+    portare): cambiarlo supera le proposte aperte. `applyPatch` con `patch.week` tiene per ogni giorno il lavoro del piano
+    attuale (`withCurrentWork`): una toppa nata prima di un cambio di orario non lo riporta indietro. Cambia la decisione
+    dell'onda 0 («`planBasis` ignora il lavoro»).
+  - `daySession(slot, iso, state, opts?)` con `opts.ignoreReadiness` («Fai la piena», `fullDaySession`): toglie solo la
+    variante del controllo del mattino; con una zona sotto il ginocchio a soglia degli impatti + `PHYSIO_REFERRAL_MARGIN`
+    la seduta piena resta senza impatti (§ 3.6, freno 4). Le soglie del piano restano quelle vere.
+  - `blockTrigger`: `fine-blocco` in ogni settimana dall'ultima del blocco in poi (prima solo ogni 4); `blockProposalDue`
+    lo accetta di domenica, così una proposta scaduta senza decisione si rigenera la domenica dopo e chi non apre l'app
+    la domenica di fine blocco la trova la domenica dopo. La pausa di 28 giorni resta solo dopo «Tieni il piano attuale».
+  - `buildBlock`: prima l'obiettivo valido nella fase (con il nome dell'obiettivo pronto nell'avviso), poi il rientro
+    proposto dal fermo o dal riepilogo; con una zona fragile e un impatto come principale il rientro diventa la
+    principale con la prevenzione; con un rientro appena proposto la sequenza delle qualità non lo sostituisce.
+  - Variante minima: i 15-20 minuti si contano sulla seduta propria, senza i pavimenti coperti dal fisioterapista
+    (`VariantOptions.physio` in `minimalSession` e `sessionForVariant`), come la durata del lettore.
+  - `EMPTY_MENU_CELL` in `engine/menu.ts`: in un menù approvato o ripetuto una casella che il generatore ha lasciato vuota
+    finisce in `DayMeals.cleared` con questo valore; Menù mostra «Scegli tu» («Nessuna ricetta adatta con le tue
+    esclusioni.», `clearedReason`) e Oggi lo schema del pasto.

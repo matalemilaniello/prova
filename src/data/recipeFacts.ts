@@ -129,6 +129,8 @@ export const RECIPE_FACTS: Record<string, RecipeFacts> = {
   'zuppa-cavolo-nero-cannellini': { cooking: ['umido', 'forno'], prep: ['zuppa-cavolo-nero'] },
   // Il cous cous rinvenuto in acqua bollente non è una cottura; le zucchine sono crude, a nastri.
   'couscous-integrale-ceci-feta': { cooking: ['crudo'], carry: 'borsa-termica' },
+  'couscous-lenticchie-carote': { cooking: ['lesso', 'crudo'], carry: 'borsa-termica' },
+  'pasta-fredda-lenticchie-zucchine': { cooking: ['lesso', 'crudo'], carry: 'borsa-termica' },
   'pasta-integrale-pollo-peperoni': { cooking: ['lesso', 'padella'] },
   'salmone-couscous-fagiolini': { cooking: ['forno', 'microonde'], prep: ['salmone-forno'], carry: 'borsa-termica' },
   'pasta-integrale-sgombro-spinaci': { cooking: ['lesso', 'padella'] },

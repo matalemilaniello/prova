@@ -9,8 +9,8 @@
 import type { ISODate, MealSlot, MenuWeek, Plan, PrepTask } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
 import { addDays, formatWeekRange, isISODate, weekDates, weekdayOf, weekStart } from '../../engine/dates';
-import { excludedFoods, foodWithArticle } from '../../engine/exclusions';
-import { MEAL_SLOTS, mealsForDate, REPEAT_LOOKBACK_WEEKS, type MenuSource } from '../../engine/menu';
+import { excludedFoods, foodWithArticle, userExclusions } from '../../engine/exclusions';
+import { EMPTY_MENU_CELL, MEAL_SLOTS, mealsForDate, REPEAT_LOOKBACK_WEEKS, type MenuSource } from '../../engine/menu';
 import { prepPlan } from '../../engine/menuGen';
 import { listIt, WEEKDAY_LONG } from '../../lib/format';
 import { lowerFirst } from './helpers';
@@ -63,6 +63,8 @@ export function menuSourceInfo(source: MenuSource, date: ISODate, plan: Pick<Pla
  * non ha un piatto simile.»). Senza alimenti esclusi riconoscibili, una frase generica.
  */
 export function clearedReason(removedId: string | undefined, plan: Pick<Plan, 'exclusions'>, date: ISODate): string {
+  // Casella lasciata vuota dal menù generato: nessuna ricetta adatta (§ 4.10).
+  if (removedId === EMPTY_MENU_CELL) return userExclusions(plan).length ? 'Nessuna ricetta adatta con le tue esclusioni.' : 'Il menù non ha una ricetta adatta per questo pasto.';
   const r = removedId ? RECIPES[removedId] : undefined;
   const excluded = excludedFoods(plan, date);
   const foods = [...new Set((r?.ingredients ?? []).map((l) => l.foodId).filter((id) => excluded.has(id)))];

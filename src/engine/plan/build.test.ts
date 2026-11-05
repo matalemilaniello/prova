@@ -383,6 +383,30 @@ describe('rientro e fermo degli impatti (§ 13.7, 59, 60)', () => {
   });
 });
 
+describe('fermo degli impatti e obiettivo da sostituire nella fase nuova (§ 2.3, § 3.8)', () => {
+  it('precampionato con «Più forte» e il fermo: il rientro resta una qualità e nessuna qualità d’impatto', () => {
+    const season = { lastMatch: '2026-08-02', firstMatch: '2026-11-29', preseasonWeeks: 5 };
+    expect(seasonOn(MONDAY, season).phase).toBe('precampionato');
+    for (const training of [
+      { presetId: 'forte', primary: 'forza', secondary: 'prevenzione' },
+      { presetId: 'muscolo', primary: 'ipertrofia', secondary: 'forza' },
+    ] as const) {
+      const plan = basePlan({ season, impactHold: { site: 'Tibia', since: '2026-11-05' }, training: { ...training } });
+      const res = buildBlock(input(plan));
+      expect(res.program, training.presetId).not.toBeNull();
+      const t = res.training!;
+      expect([t.primary, t.secondary], training.presetId).toContain('rientro');
+      expect(t.rientro?.site).toBe('Tibia');
+      for (const q of [t.primary, t.secondary]) expect(['potenza', 'rapidita', 'velocita'], `${training.presetId}: ${q}`).not.toContain(q);
+      // L'avviso dice il nome dell'obiettivo pronto sostituito, non «Scelta libera».
+      const w = res.warnings.find((x) => x.includes('non vale in questa fase'));
+      expect(w, training.presetId).toBeDefined();
+      expect(w).not.toMatch(/Scelta libera/);
+      expect(res.violations).toEqual([]);
+    }
+  });
+});
+
 describe('R8 con la settimana predefinita (§ 13.7, 64)', () => {
   it('tibia sopra soglia negli ultimi 14 giorni: venerdì senza impatti, varianti di livello 0', () => {
     const checkIns: Record<string, CheckIn> = { '2026-11-03': { date: '2026-11-03', pain: { Tibia: 4 } } };

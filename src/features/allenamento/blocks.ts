@@ -4,8 +4,9 @@
  *
  * - registrazione dei generatori delle proposte di blocco e di obiettivi (`registerProposalBuilder`), al caricamento del
  *   modulo: il foglio della proposta li usa per ricalcolare una proposta superata e per «Un’altra proposta»;
- * - nascita della proposta di blocco (`blockProposalDue`, `ensureBlockProposal`): domenica dell'ultima settimana del
- *   blocco, cambio di fase, obiettivo di allenamento cambiato, primo blocco. Dopo «Tieni il piano attuale» non insiste:
+ * - nascita della proposta di blocco (`blockProposalDue`, `ensureBlockProposal`): ogni domenica dall'ultima settimana
+ *   del blocco in poi finché un blocco nuovo non si approva (una proposta scaduta senza decisione si rigenera la domenica
+ *   dopo), cambio di fase, obiettivo di allenamento cambiato, primo blocco. Dopo «Tieni il piano attuale» non insiste:
  *   la proposta dopo nasce 4 settimane più tardi, tranne quando cambia l'obiettivo. Niente si applica da solo: nasce
  *   una proposta da approvare;
  * - riepilogo del blocco che finisce (`endingBlockSummary`), salvato quando nasce la proposta del blocco dopo: R10 ha
@@ -64,7 +65,8 @@ export interface BlockDue {
 
 /**
  * Serve una proposta di blocco nella giornata (§ 5.3)? Sullo stato già proiettato (le approvate in attesa dentro):
- * - `fine-blocco` solo la domenica dell'ultima settimana del blocco (o del ciclo ripetuto);
+ * - `fine-blocco` solo di domenica, dall'ultima settimana del blocco in poi (anche se l'app non si è aperta quella
+ *   domenica, o se la proposta di allora è scaduta senza decisione);
  * - `fase`, `obiettivo`, `primo` in qualunque giorno;
  * - mai con un blocco già approvato in attesa, né con una proposta di blocco aperta per lo stesso lunedì;
  * - dopo «Tieni il piano attuale» si aspetta `BLOCK_REJECT_PAUSE_DAYS`, tranne quando cambia l'obiettivo.
@@ -222,15 +224,12 @@ export const VARIANT_LABEL: Record<Variant, string> = { piena: 'Piena', ridotta:
 
 /**
  * Seduta del giorno senza la variante del controllo del mattino, con i freni di sicurezza che restano (fermo degli
- * impatti, prova del saltello già fatta, richiamo dopo una partita breve): quella di «Fai la piena». La regola del dolore
- * resta esercizio per esercizio nel lettore. Si ottiene da `daySession` senza il controllo del mattino della data e con
- * le soglie del dolore al massimo, così la variante non scatta.
+ * impatti, niente impatti con una zona sotto il ginocchio molto sopra la soglia, prova del saltello già fatta, richiamo
+ * dopo una partita breve): quella di «Fai la piena». La regola del dolore resta esercizio per esercizio nel lettore. Le
+ * soglie del piano restano quelle vere: `daySession` con `ignoreReadiness` toglie solo la variante.
  */
 export function fullDaySession(slot: string, iso: ISODate, state: TrainingState): WorkoutSession | null {
-  const checkIns = { ...(state.checkIns ?? {}) };
-  delete checkIns[iso];
-  const plan: Plan = { ...state.plan, painThreshold: 10, impactThreshold: 10 };
-  return daySession(slot, iso, { ...state, plan, checkIns })?.session ?? null;
+  return daySession(slot, iso, state, { ignoreReadiness: true })?.session ?? null;
 }
 
 export interface DayVariantSession extends DaySession {
@@ -253,7 +252,7 @@ export function dayVariantSession(slot: string, iso: ISODate, state: TrainingSta
   const full = fullDaySession(slot, iso, state) ?? ds.session;
   if (chosen === 'piena') return { session: full, variant: 'piena', reasons: [], ...base };
   const r = dayReadiness(iso, state, { legs: sessionFocus(full) === 'basso', slot });
-  const session = sessionForVariant(full, chosen, floorsDoneThisWeek(iso, state), { noImpact: r.noImpact });
+  const session = sessionForVariant(full, chosen, floorsDoneThisWeek(iso, state), { noImpact: r.noImpact, ...(state.physio ? { physio: state.physio } : {}) });
   return { session, variant: chosen, reasons: ds.reasons, ...base };
 }
 

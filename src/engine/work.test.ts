@@ -177,11 +177,12 @@ describe('setScheduleDay con il lavoro', () => {
 });
 
 describe('proposte del piano', () => {
-  it('cambiare il lavoro non supera le proposte di blocco e di menù', () => {
+  it('cambiare il lavoro supera le proposte di blocco e di menù (dall’onda 2 sposta le sedute e i pasti da portare)', () => {
     const s = defaultAppData('2026-11-09');
     const withWork = { ...s, plan: { ...s.plan, week: s.plan.week.map((d) => (d.weekday === 1 ? { ...d, work: [{ from: '09:00', to: '13:00' }] } : d)) } };
-    expect(planBasis('blocco', withWork)).toBe(planBasis('blocco', s));
-    expect(planBasis('menu', withWork)).toBe(planBasis('menu', s));
+    expect(planBasis('blocco', withWork)).not.toBe(planBasis('blocco', s));
+    expect(planBasis('menu', withWork)).not.toBe(planBasis('menu', s));
+    expect(planBasis('obiettivi', withWork)).toBe(planBasis('obiettivi', s));
     // Un cambio vero della settimana sì.
     const gym = { ...s, plan: { ...s.plan, week: s.plan.week.map((d) => (d.weekday === 6 ? { ...d, gymSessionId: 'A' } : d)) } };
     expect(planBasis('menu', gym)).not.toBe(planBasis('menu', s));

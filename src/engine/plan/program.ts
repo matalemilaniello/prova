@@ -347,8 +347,16 @@ export const SHORT_MATCH_MIN = 45;
  * - la prova del saltello del rientro una volta sola: fatta, sparisce dalle sedute dopo;
  * - il richiamo in cyclette in coda alla seduta del giorno dopo una partita giocata meno di 45 minuti.
  * La regola del dolore resta esercizio per esercizio nel lettore, come oggi. La variante non si salva.
+ *
+ * Con `ignoreReadiness` («Fai la piena», § 3.9) la variante del controllo del mattino non scatta, ma i freni di sicurezza
+ * restano: con una zona sotto il ginocchio a soglia degli impatti + `PHYSIO_REFERRAL_MARGIN` la seduta piena non ha
+ * impatti (§ 3.6, freno 4), come la minima che il controllo avrebbe dato.
  */
-export function daySession(slot: string, iso: ISODate, state: TrainingState): DaySession | null {
+export interface DaySessionOptions {
+  ignoreReadiness?: boolean;
+}
+
+export function daySession(slot: string, iso: ISODate, state: TrainingState, opts: DaySessionOptions = {}): DaySession | null {
   const plan = state.plan;
   const base = sessionFor(slot, iso, plan);
   if (!base) return null;
@@ -385,10 +393,19 @@ export function daySession(slot: string, iso: ISODate, state: TrainingState): Da
     reasons.push('richiamo dopo una partita breve');
   }
   const r = dayReadiness(iso, state, { legs: sessionFocus(session) === 'basso', slot });
+  if (opts.ignoreReadiness) {
+    if (r.noImpact && !impactHoldActive(plan, iso)) {
+      session = withoutImpacts(session, availableSpaces(plan.training?.spaces));
+      reasons.push('impatti fermi');
+    }
+    return { session, variant: 'piena', reasons };
+  }
   if (r.variant === 'piena') return { session, variant: 'piena', reasons };
   const done = floorsDoneThisWeek(iso, state);
-  const key = `${r.variant}|${r.noImpact ? 1 : 0}|${[...done].sort().join(',')}`;
+  const physio = state.physio;
+  const covers = (physio?.prescriptions ?? []).map((p) => p.exerciseId).sort().join(',');
+  const key = `${r.variant}|${r.noImpact ? 1 : 0}|${[...done].sort().join(',')}|${covers}`;
   const from = session;
-  session = dayMemo(from, key, () => sessionForVariant(from, r.variant, done, { noImpact: r.noImpact }));
+  session = dayMemo(from, key, () => sessionForVariant(from, r.variant, done, { noImpact: r.noImpact, ...(physio ? { physio } : {}) }));
   return { session, variant: r.variant, reasons: [...r.reasons, ...reasons] };
 }

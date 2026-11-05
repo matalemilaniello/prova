@@ -52,6 +52,32 @@ export type RuleClass = 'H0' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6';
 export const VIOLATION_WEIGHT = 10_000;
 /** Fattore per classe: H0 e H1 non si scambiano mai con le altre, H6 si allenta per prima. */
 export const CLASS_FACTOR: Record<RuleClass, number> = { H0: 100, H1: 10, H2: 1, H3: 1, H4: 1, H5: 1, H6: 0.5 };
+/**
+ * Codici con un fattore proprio: carne rossa (A4) e riso (A5) sono limiti di prevenzione, non si allentano nemmeno nel
+ * ripiego e pesano come H1 (la tabella del § 4.10 li mette in H3, ma A1-A10 valgono su ogni menù generato, § 13.4).
+ */
+export const CODE_FACTOR: Readonly<Record<string, number>> = { 'carne-rossa-settimana': CLASS_FACTOR.H1, 'riso-settimana': CLASS_FACTOR.H1 };
+/**
+ * Codici che il ripiego «fuori-limiti» non accetta mai: H0, H1 e i limiti di prevenzione A4 e A5. Una casella senza
+ * candidati (`pasto-vuoto`) resta vuota e la scheda lo dice: non è una scelta del generatore.
+ */
+export const NEVER_RELAXED = new Set([
+  'escluso',
+  'vietato',
+  'pasto-sbagliato',
+  'pre-calcio',
+  'recupero',
+  'legumi-vigilia',
+  'legumi-calcio',
+  'preparazione-domenica',
+  'da-portare',
+  'fibre-pranzo-calcio',
+  'carboidrati-partita',
+  'prodotti',
+  'preparazione',
+  'carne-rossa-settimana',
+  'riso-settimana',
+]);
 
 /** H2 (generalizza i numeri di `menu.test.ts`). */
 export const KCAL_TOLERANCE = 0.08;
@@ -318,7 +344,7 @@ export class Sink {
   }
 
   add(cls: RuleClass, code: string, message: () => string, where?: Where, value?: number, limit?: number, magnitude = 0): void {
-    this.penalty += VIOLATION_WEIGHT * CLASS_FACTOR[cls] * (1 + Math.min(3, Math.max(0, Number.isFinite(magnitude) ? magnitude : 3)));
+    this.penalty += VIOLATION_WEIGHT * (CODE_FACTOR[code] ?? CLASS_FACTOR[cls]) * (1 + Math.min(3, Math.max(0, Number.isFinite(magnitude) ? magnitude : 3)));
     this.count++;
     if (this.trackCells) {
       if (where?.day !== undefined && where.slot) this.cells.add(where.day * SLOT_COUNT + MEAL_SLOTS.indexOf(where.slot));

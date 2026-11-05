@@ -8,7 +8,7 @@ import { MENU_ROTATION } from '../../data/menu';
 import { PREP_COMPONENTS } from '../../data/prepComponents';
 import { RECIPES } from '../../data/recipes';
 import { addDays, daysBetween } from '../../engine/dates';
-import { mealsForDate, prepInForce } from '../../engine/menu';
+import { EMPTY_MENU_CELL, mealsForDate, prepInForce } from '../../engine/menu';
 import { prepTasksFor, sameBatchLayout } from '../../engine/menuGen';
 import { fixtureState } from '../../engine/menuGen/testFixtures';
 import { clearedReason, freezerNote, menuSourceInfo, prepStorage, repeatedFromMonday } from './menuInfo';
@@ -54,6 +54,9 @@ describe('casella vuota', () => {
     expect(clearedReason(recipe.id, plan, NEXT)).toBe('Senza il tonno il menù non ha un piatto simile.');
     expect(clearedReason(recipe.id, { exclusions: [] }, NEXT)).toBe('Il menù non ha un piatto simile per questo pasto.');
     expect(clearedReason(undefined, plan, NEXT)).toBe('Il menù non ha un piatto simile per questo pasto.');
+    // Casella lasciata vuota dal menù generato (nessuna ricetta adatta).
+    expect(clearedReason(EMPTY_MENU_CELL, plan, NEXT)).toBe('Nessuna ricetta adatta con le tue esclusioni.');
+    expect(clearedReason(EMPTY_MENU_CELL, { exclusions: [] }, NEXT)).toBe('Il menù non ha una ricetta adatta per questo pasto.');
   });
 });
 

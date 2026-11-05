@@ -77,10 +77,18 @@ export interface DayMeals {
   bySlot: Partial<Record<MealSlot, MealEntry>>;
   /**
    * Pasti rimasti vuoti perché la ricetta prevista contiene un alimento escluso e nessuna alternativa è valida (§ 6.4):
-   * pasto → ricetta tolta. Oggi li mostra con «Scegli tu». Assente senza pasti vuoti.
+   * pasto → ricetta tolta. In un menù generato (approvato o ripetuto) una casella che il generatore ha lasciato vuota,
+   * perché nessuna ricetta era adatta (§ 4.10), vale `EMPTY_MENU_CELL`. Oggi e Menù li mostrano con «Scegli tu». Assente
+   * senza pasti vuoti.
    */
   cleared?: Partial<Record<MealSlot, string>>;
 }
+
+/**
+ * Valore di `DayMeals.cleared` per una casella vuota di un menù generato: nessuna ricetta era adatta (§ 4.10, «una casella
+ * senza candidati resta vuota e la scheda lo dice»). Non è l'id di una ricetta.
+ */
+export const EMPTY_MENU_CELL = 'casella-vuota';
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
@@ -344,8 +352,11 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
   const meals: MealEntry[] = [];
   const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
   const cleared: Partial<Record<MealSlot, string>> = {};
+  // Un menù generato può avere una casella vuota (nessuna ricetta adatta): la scheda lo dice, non sparisce.
+  const generated = planned.source === 'approvato' || planned.source === 'ripetuto';
   for (const slot of MEAL_SLOTS) {
     const base = planned.bySlot[slot];
+    if (!base && generated) cleared[slot] = EMPTY_MENU_CELL;
     const sub = subs?.[slot];
     // '' = nessuna alternativa valida: la casella resta vuota (resta lo scambio dell'utente, se c'è).
     const emptied = Boolean(base && sub === '');

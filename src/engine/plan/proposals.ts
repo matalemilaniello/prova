@@ -84,23 +84,30 @@ function touchedValues(plan: Plan, profile: Profile, patch: PlanPatch): Record<s
 }
 
 /**
- * Settimana tipo senza l'orario di lavoro: il lavoro sposta i pasti, non i tipi di giorno né le sedute, quindi
- * cambiarlo non supera le proposte di blocco e di menù. Senza lavoro l'impronta è quella di prima.
+ * Settimana di una toppa con il lavoro del piano attuale, giorno per giorno: il lavoro è un fatto dell'utente, non una
+ * parte del blocco, e una toppa scritta prima di un cambio di orario non lo riporta indietro.
  */
-const weekBasis = (week: readonly ScheduleDay[]) =>
-  week.map((d) => {
-    const { work: _work, ...rest } = d;
-    return rest;
+function withCurrentWork(week: readonly ScheduleDay[], current: readonly ScheduleDay[]): ScheduleDay[] {
+  return clone(week as ScheduleDay[]).map((d) => {
+    const { work: _old, ...rest } = d;
+    const work = current.find((c) => c.weekday === d.weekday)?.work;
+    return work ? { ...rest, work: clone(work) } : rest;
   });
+}
 
-/** Impronta delle parti del piano che il tipo di proposta legge (§ 5.2). */
+/**
+ * Impronta delle parti del piano che il tipo di proposta legge (§ 5.2). La settimana tipo entra con l'orario di lavoro:
+ * il lavoro decide dove vanno le sedute del blocco e quali pasti si portano nel menù, quindi cambiarlo supera le
+ * proposte di blocco e di menù aperte. Senza lavoro l'impronta è quella di prima (`stableStringify` non scrive le chiavi
+ * assenti).
+ */
 export function planBasis(kind: PlanChangeKind, state: ProposalState): string {
   const { plan, profile } = state;
   switch (kind) {
     case 'blocco':
       return fingerprint({
         kind,
-        week: weekBasis(plan.week),
+        week: plan.week,
         training: plan.training,
         season: plan.season,
         program: plan.program,
@@ -113,7 +120,7 @@ export function planBasis(kind: PlanChangeKind, state: ProposalState): string {
       // Tipi di giorno della settimana (settimana tipo, blocco, settimane alleggerite), obiettivi ed esclusioni.
       return fingerprint({
         kind,
-        week: weekBasis(plan.week),
+        week: plan.week,
         program: plan.program,
         weekOverrides: plan.weekOverrides,
         targets: plan.targets,
@@ -139,12 +146,13 @@ const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(
 
 /**
  * Applica una toppa: ogni campo nominato sostituisce quello del piano (o del profilo per `goal`); `null` lo toglie.
- * I menù si fondono per lunedì (`null` toglie quella settimana). Non cambia gli argomenti.
+ * I menù si fondono per lunedì (`null` toglie quella settimana). La settimana tipo tiene l'orario di lavoro del piano
+ * (`withCurrentWork`). Non cambia gli argomenti.
  */
 export function applyPatch(plan: Plan, profile: Profile, patch: PlanPatch): { plan: Plan; profile: Profile } {
   const next: Plan = { ...plan };
   let nextProfile = profile;
-  if (patch.week !== undefined) next.week = clone(patch.week);
+  if (patch.week !== undefined) next.week = withCurrentWork(patch.week, plan.week ?? []);
   if (patch.seasonWeek !== undefined) {
     if (patch.seasonWeek === null) delete next.seasonWeek;
     else next.seasonWeek = clone(patch.seasonWeek);

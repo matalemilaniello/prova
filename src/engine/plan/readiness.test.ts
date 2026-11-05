@@ -114,6 +114,23 @@ describe('varianti della seduta', () => {
     expect(sessionDuration(m).total).toBeLessThanOrEqual(20);
   });
 
+  it('minima con i pavimenti coperti dal fisioterapista: 15-20 minuti di seduta propria, come li conta il lettore', () => {
+    for (const slot of ['A', 'B', 'C'] as const) {
+      const plain = minimalSession(SESSIONS[slot], new Set());
+      const prev = plain.blocks.find((b) => /prevenzione/i.test(b.title));
+      if (!prev) continue;
+      for (const n of [1, prev.items.length]) {
+        // Il fisioterapista prescrive i primi `n` pavimenti della minima: restano in vista ma non contano nei minuti.
+        const physio = { exercises: [], prescriptions: prev.items.slice(0, n).map((it) => ({ ...it })) };
+        const m = minimalSession(SESSIONS[slot], new Set(), { physio });
+        const d = sessionDuration(m, physio);
+        expect(d.covered, `${slot} ${n}`).toBeGreaterThan(0);
+        expect(d.own, `${slot} ${n}`).toBeGreaterThanOrEqual(15);
+        expect(d.own, `${slot} ${n}`).toBeLessThanOrEqual(20);
+      }
+    }
+  });
+
   it('minima con i pavimenti già fatti: si completa con mobilità, riscaldamento e cyclette facile senza impatto, 15-20 minuti', () => {
     const all = new Set<FloorId>(['nordic', 'copenhagen', 'polpacci', 'tibiale', 'polso', 'forza-gambe']);
     for (const slot of ['A', 'B', 'C'] as const) {

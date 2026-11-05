@@ -73,6 +73,11 @@ export interface MenuGenInput {
   attempt: number;
   /** Tetto delle valutazioni della ricerca (3.000). */
   maxEvaluations: number;
+  /**
+   * Valutazioni in più solo per le ripartenze, finché il migliore trovato ha ancora violazioni (`RESTART_EVALUATIONS`);
+   * con un menù valido la ricerca si ferma entro `maxEvaluations` come sempre. Assente = 0.
+   */
+  restartEvaluations?: number;
 }
 
 export type MenuGenStatus = 'generato' | 'seme' | 'seme-adattato' | 'fuori-limiti';
@@ -108,6 +113,11 @@ export interface MenuValidationCtx {
 
 /** Tetto delle valutazioni della ricerca locale (§ 4.10). */
 export const MAX_EVALUATIONS = 3000;
+/**
+ * Valutazioni in più per le ripartenze quando restano violazioni (§ 4.10): servono nelle settimane strette (pranzi da
+ * portare, partita spostata), dove il tetto di 3.000 lasciava il menù fuori dai limiti. Un menù valido non le usa.
+ */
+export const RESTART_EVALUATIONS = 3000;
 /** Rampa delle fibre: la settimana dopo al massimo 6 g più della media misurata (§ 4.10). */
 export const FIBER_STEP = 6;
 /** Soglia alta delle fibre del punteggio. */
@@ -228,6 +238,7 @@ export interface MenuGenOptions {
   /** Giornata del piano: misura delle fibre e familiarità; assente = il lunedì prima. */
   today?: ISODate;
   maxEvaluations?: number;
+  restartEvaluations?: number;
 }
 
 /** Gli ingressi del generatore per il lunedì `monday`, dal piano (già proiettato) e dal diario. */
@@ -256,6 +267,7 @@ export function menuGenInput(monday: ISODate, s: MenuGenState, opts: MenuGenOpti
     weightKg: weight,
     attempt: Math.max(0, Math.trunc(opts.attempt ?? 0)),
     maxEvaluations: opts.maxEvaluations ?? MAX_EVALUATIONS,
+    restartEvaluations: opts.restartEvaluations ?? RESTART_EVALUATIONS,
   };
 }
 

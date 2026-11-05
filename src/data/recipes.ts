@@ -1548,6 +1548,52 @@ const RECIPE_LIST: Recipe[] = [
     tags: ['pre-calcio', 'digeribile', 'veloce'],
     swaps: ['pre-pane-ricotta-miele', 'pre-pane-confettura-mela'],
   },
+  // Pranzi da portare con le lenticchie rosse, senza pesce: nei giorni di calcio sono gli unici legumi ammessi (a pranzo),
+  // così chi lavora fuori casa arriva ai 4 pasti di legumi della settimana senza riempire di pesce i pranzi da portare.
+  {
+    id: 'couscous-lenticchie-carote',
+    name: 'Cous cous con lenticchie rosse, carote e grana',
+    slots: ['pranzo', 'cena'],
+    ingredients: [
+      i('couscous', 1.5, 'pugno', C),
+      i('lenticchie-rosse', 2, 'mano a coppa'),
+      i('carote', 1, 'pezzo', { note: 'grattugiata' }),
+      i('insalata', 2, 'manciata'),
+      i('grana', 4, 'cucchiaio'),
+      i('olio-evo', 1.5, 'cucchiaio'),
+      i('limone', 0.5, 'pezzo'),
+    ],
+    steps: [
+      'La sera prima cuoci le lenticchie rosse in acqua per 10 minuti, finché sono tenere ma intere, e scolale.',
+      'Copri il cous cous con acqua bollente salata alla pari, aspetta 5 minuti e sgranalo con una forchetta.',
+      "Unisci lenticchie, carota grattugiata, il formaggio, l’olio e il limone; l’insalata a parte. Si porta nella borsa termica.",
+    ],
+    prepMin: 12,
+    tags: ['legumi', 'vegetariana', 'giorno di calcio', 'da portare'],
+    swaps: ['pasta-fredda-lenticchie-zucchine', 'couscous-integrale-ceci-feta'],
+  },
+  {
+    id: 'pasta-fredda-lenticchie-zucchine',
+    name: 'Pasta fredda con lenticchie rosse, zucchine e feta',
+    slots: ['pranzo'],
+    ingredients: [
+      i('pasta', 1.5, 'pugno', C),
+      i('lenticchie-rosse', 1.5, 'mano a coppa'),
+      i('zucchine', 1.5, 'pugno'),
+      i('pomodorini', 1, 'manciata'),
+      i('feta', 1.5, 'fetta'),
+      i('olio-evo', 1, 'cucchiaio'),
+      i('origano', 0.5, 'cucchiaino'),
+    ],
+    steps: [
+      'La sera prima cuoci le lenticchie rosse in acqua per 10 minuti, finché sono tenere ma intere, e scolale.',
+      'Cuoci la pasta, raffreddala sotto l’acqua e condiscila con metà dell’olio.',
+      "Unisci lenticchie, zucchine a nastri sottili, pomodorini a metà, la feta sbriciolata, l’origano e l’olio rimasto. Si porta nella borsa termica.",
+    ],
+    prepMin: 15,
+    tags: ['legumi', 'vegetariana', 'giorno di calcio', 'da portare', 'freddo'],
+    swaps: ['couscous-lenticchie-carote', 'pasta-fredda-tonno'],
+  },
 ];
 
 /** Ricette indicizzate per id. */

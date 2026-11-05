@@ -1119,21 +1119,25 @@ export function buildBlock(input: TrainingBuildInput): TrainingBuildResult {
   // Rientro proposto: dal riepilogo del blocco, o dal fermo degli impatti senza rientro (§ 3.8).
   const hold = impactHoldActive(plan, monday) ? plan.impactHold : undefined;
   const wantReturn = nextPlan?.rientro ?? (hold && !activeReturn(plan) ? { site: hold.site, primary: false } : undefined);
-  if (wantReturn && !activeReturn({ training })) {
-    const rientro = { site: wantReturn.site, stage: 0 as const, since: monday };
-    const fragile = isFragileReturnSite(wantReturn.site);
-    training = wantReturn.primary || (fragile && IMPACT_QUALITIES.has(training.primary))
-      ? { ...stripPreset(training), primary: 'rientro', secondary: 'prevenzione', rientro }
-      : { ...stripPreset(training), secondary: 'rientro', rientro };
-    trainingChanged = true;
-  }
+  const addReturn = Boolean(wantReturn && !activeReturn({ training }));
+  // Prima l'obiettivo valido nella fase, con il nome dell'obiettivo pronto in vigore (l'avviso lo dice), poi il rientro:
+  // la sostituzione della fase non deve togliere la qualità del rientro né rimettere un impatto come principale.
   const tf = trainingForPhase(training, phaseCtx);
   if (tf.replaced) {
     training = tf.training;
     trainingChanged = true;
     warnings.push(`«${tf.replaced.from}» non vale in questa fase: diventa «${tf.replaced.to}»`);
   }
-  if (nextPlan?.suggested && phase !== 'precampionato' && !(stage === 'transizione')) {
+  if (addReturn && wantReturn) {
+    const rientro = { site: wantReturn.site, stage: 0 as const, since: monday };
+    const fragile = isFragileReturnSite(wantReturn.site);
+    // Con una zona fragile (sotto il ginocchio, flessori) e un impatto come principale, il rientro diventa la principale.
+    training = wantReturn.primary || (fragile && IMPACT_QUALITIES.has(training.primary))
+      ? { ...stripPreset(training), primary: 'rientro', secondary: 'prevenzione', rientro }
+      : { ...stripPreset(training), secondary: 'rientro', rientro };
+    trainingChanged = true;
+  }
+  if (!addReturn && nextPlan?.suggested && phase !== 'precampionato' && !(stage === 'transizione')) {
     const s = nextPlan.suggested;
     const candidate: TrainingGoal = { ...stripPreset(training), primary: s.primary, ...(s.secondary ? { secondary: s.secondary } : { secondary: undefined }) };
     if (!candidate.secondary) delete candidate.secondary;
@@ -1482,10 +1486,11 @@ function scaleVolume(s: WorkoutSession, f: number): WorkoutSession {
 export type BlockTrigger = 'fine-blocco' | 'fase' | 'obiettivo' | 'primo';
 
 /**
- * Perché serve una proposta di blocco nella giornata (§ 5.3), o null: domenica dell'ultima settimana del blocco o dopo
- * (anche nel blocco ripetuto senza approvazione, a ogni fine ciclo di 4 settimane), cambio di fase dal lunedì dopo,
- * obiettivo di allenamento diverso da quello del blocco. Senza blocco: `primo` se l'utente ha scelto un obiettivo o le
- * date della stagione.
+ * Perché serve una proposta di blocco nella giornata (§ 5.3), o null: dall'ultima settimana del blocco in poi, in ogni
+ * settimana finché non si approva un blocco nuovo (§ 3.1: una proposta aperta e non decisa si rigenera la domenica dopo,
+ * e chi non apre l'app la domenica di fine blocco la trova la domenica dopo; la pausa dopo «Tieni il piano attuale» la
+ * decide chi chiama), cambio di fase dal lunedì dopo, obiettivo di allenamento diverso da quello del blocco. Senza
+ * blocco: `primo` se l'utente ha scelto un obiettivo o le date della stagione.
  */
 export function blockTrigger(plan: Pick<Plan, 'program' | 'season' | 'training'>, today: ISODate): BlockTrigger | null {
   const monday = mondayOnOrAfter(addDays(today, 1));
@@ -1496,7 +1501,7 @@ export function blockTrigger(plan: Pick<Plan, 'program' | 'season' | 'training'>
   const t = plan.training;
   if (t && (t.primary !== p.primary || (t.secondary ?? null) !== (p.secondary ?? null))) return 'obiettivo';
   const weeks = Math.floor(daysBetween(p.start, monday) / 7);
-  if (weeks >= p.weeks.length && (weeks - p.weeks.length) % 4 === 0) return 'fine-blocco';
+  if (weeks >= p.weeks.length) return 'fine-blocco';
   return null;
 }
 

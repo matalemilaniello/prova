@@ -123,6 +123,25 @@ describe('planBasis e proposalId', () => {
     expect(planBasis('obiettivi', delta)).not.toBe(planBasis('obiettivi', s));
   });
 
+  it('l’orario di lavoro entra nella base del blocco e del menù (sposta le sedute e i pasti da portare), non in quella degli obiettivi', () => {
+    const s = baseState();
+    const office = (from: string, to: string): ProposalState => ({
+      ...s,
+      plan: { ...s.plan, week: s.plan.week.map((d) => (d.weekday < 5 ? { ...d, work: [{ from, to }] } : d)) },
+    });
+    const morning = office('09:00', '13:00');
+    const afternoon = office('14:00', '20:00');
+    expect(planBasis('blocco', afternoon)).not.toBe(planBasis('blocco', morning));
+    expect(planBasis('menu', afternoon)).not.toBe(planBasis('menu', morning));
+    expect(planBasis('obiettivi', afternoon)).toBe(planBasis('obiettivi', morning));
+    // Le proposte aperte nate con il lavoro di prima diventano superate.
+    const block = proposal({ kind: 'blocco', basis: planBasis('blocco', morning), approvableUntil: MON });
+    const menu = proposal({ kind: 'menu', basis: planBasis('menu', morning) });
+    expect(isSuperseded(block, morning, SUN)).toBe(false);
+    expect(isSuperseded(block, afternoon, SUN)).toBe(true);
+    expect(isSuperseded(menu, afternoon, SUN)).toBe(true);
+  });
+
   it('stessa base e tentativo → stesso id; un altro tentativo → un altro id', () => {
     const b = planBasis('blocco', baseState());
     expect(proposalId('blocco', MON, b, 0)).toBe(proposalId('blocco', MON, b, 0));
@@ -172,6 +191,22 @@ describe('applyPatch e beforeOf', () => {
     expect('goalDeltaKcal' in back.plan).toBe(false);
   });
 
+  it('una toppa con la settimana tiene l’orario di lavoro del piano attuale, giorno per giorno', () => {
+    const s = baseState();
+    // La toppa è nata con il lavoro di prima (mattina); nel frattempo il lavoro è cambiato (pomeriggio, e il venerdì libero).
+    const old = s.plan.week.map((d) => (d.weekday < 5 ? { ...d, work: [{ from: '09:00', to: '13:00' }] } : d));
+    const patchWeek = old.map((d) => (d.weekday === 1 ? { ...d, gymSessionId: 'A', gymTime: '17:00' } : d));
+    const now = s.plan.week.map((d) => (d.weekday < 4 ? { ...d, work: [{ from: '14:00', to: '20:00' }] } : d));
+    const { plan } = applyPatch({ ...s.plan, week: now }, s.profile, { week: patchWeek });
+    expect(plan.week.find((d) => d.weekday === 0)?.work).toEqual([{ from: '14:00', to: '20:00' }]);
+    expect(plan.week.find((d) => d.weekday === 1)?.work).toEqual([{ from: '14:00', to: '20:00' }]);
+    expect('work' in (plan.week.find((d) => d.weekday === 4) ?? {})).toBe(false);
+    // Il resto della settimana della toppa entra com'è.
+    expect(plan.week.find((d) => d.weekday === 1)?.gymTime).toBe('17:00');
+    // Gli argomenti non cambiano.
+    expect(patchWeek[4].work).toEqual([{ from: '09:00', to: '13:00' }]);
+  });
+
   it('applyPatch(applyPatch(p, x), beforeOf(p, x)) = p, per ogni toppa (proprietà)', () => {
     const r = rng(20261109);
     const s = baseState();
@@ -180,6 +215,7 @@ describe('applyPatch e beforeOf', () => {
       s.plan,
       { ...s.plan, program, menus: { [MON]: menuWeek }, training, goalDeltaKcal: -200, seasonWeek: s.plan.week },
       { ...s.plan, menus: { [NEXT_MON]: menuWeek } },
+      { ...s.plan, week: s.plan.week.map((d) => (d.weekday % 2 ? { ...d, work: [{ from: '08:00', to: '16:00' }] } : d)) },
     ];
     for (let i = 0; i < 300; i++) {
       const plan = pick(plans);

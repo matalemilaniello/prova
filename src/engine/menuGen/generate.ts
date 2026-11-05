@@ -10,7 +10,11 @@
  * 3. partenza: il seme; le caselle con una ricetta fuori bacino prendono il candidato a costo minore (seme adattato);
  * 4. ricerca locale con l'ordine dei vicini mescolato: (a) una casella cambia ricetta tra quelle del suo bacino, prima le
  *    caselle coinvolte in una violazione; (b) due giorni si scambiano lo stesso pasto. Si accetta la prima mossa che
- *    abbassa il costo, a parità con probabilità 0,1; stop dopo un giro senza miglioramenti o a `maxEvaluations`;
+ *    abbassa il costo, a parità con probabilità 0,1; stop dopo un giro senza miglioramenti o a `maxEvaluations` (più
+ *    `restartEvaluations` per le ripartenze, solo finché il migliore ha ancora violazioni). Quando
+ *    restano conteggi della settimana fuori dai limiti (legumi, pesce, uova, riso, carne rossa) vengono prima le mosse di
+ *    riparazione (`repairMoves`): una ricetta con legumi in un pranzo o in una cena di un giorno che non li ha ancora, una
+ *    senza pesce al posto di una con il pesce, e così via, invece di provarle tutte in ordine casuale;
  * 5. valutazione incrementale: una mossa ricalcola uno o due giorni, la settimana si somma dai riepiloghi;
  * 6. controllo finale con `validateMenuWeek`;
  * 7. ripiego: risultato valido, poi seme adattato valido (`seme-adattato`), poi seme puro (`seme`), poi il migliore con
@@ -25,11 +29,17 @@ import { chance, mulberry32, seedOf, shuffled, type Rng } from '../rng';
 import { FOOTBALL_LUNCH_MAX_FIBER_G } from '../similar';
 import type { MenuGenInput, MenuGenResult, MenuGenStatus } from './context';
 import { prepTasksFor, sameBatchLayout } from './prep';
+import { CARB_SCALE_MAX } from '../nutrition';
+import { LEGUME_MEAL_G, MIN_LEGUME_MEALS, RED_MEAT_MAX_MEALS, RICE_MAX_MEALS } from '../prevention';
 import {
   batchLayout,
   componentPrepSummary,
   daySummary,
+  EGG_MEALS,
+  FISH_MEALS,
   gridOf,
+  MATCH_KCAL_TOLERANCE,
+  NEVER_RELAXED,
   prepSummaryOf,
   recipeComponents,
   recipeStats,
@@ -243,11 +253,17 @@ export function generateMenuWeek(input: MenuGenInput): MenuGenResult {
   let bestGrid = grid.slice();
   let best = current;
   let kicks = 0;
-  while (search.evaluations < max) {
-    const moves = movesFor(grid, pools, poolSets, hotOf(grid, current), rng);
+  // Le valutazioni in più valgono solo finché il migliore ha violazioni: con un menù valido il tetto resta `max`.
+  const extra = Math.max(0, Math.trunc(input.restartEvaluations ?? 0) || 0);
+  const cap = () => (best.hard > 0 ? max + extra : max);
+  while (search.evaluations < cap()) {
+    // Prima le riparazioni mirate dei conteggi della settimana, poi i vicini di sempre (senza ripetere le stesse mosse).
+    const repairs = current.hard > 0 ? repairMoves(grid, current.days, input, pools, rng) : [];
+    const tried = new Set(repairs.map(moveKey));
+    const moves = [...repairs, ...movesFor(grid, pools, poolSets, hotOf(grid, current), rng).filter((mv) => !tried.has(moveKey(mv)))];
     let improved = false;
     for (const mv of moves) {
-      if (search.evaluations >= max) break;
+      if (search.evaluations >= cap()) break;
       const next = applyMove(grid, mv);
       if (!next) continue;
       const e = evaluate(next, current.days, changedDaysOf(mv));
@@ -270,13 +286,16 @@ export function generateMenuWeek(input: MenuGenInput): MenuGenResult {
     // Un giro senza miglioramenti: con un menù valido ci si ferma (§ 4.10). Se restano violazioni e valutazioni, si riparte
     // dal migliore con qualche mossa a caso del generatore (ricerca locale iterata): una confezione o un doppione a volte si
     // tolgono solo in due passi, e il primo da solo non conviene.
-    if (best.hard === 0 || search.evaluations >= max) break;
+    if (best.hard === 0 || search.evaluations >= cap()) break;
     kicks++;
     grid = bestGrid.slice();
     current = best;
-    const kick = movesFor(grid, pools, poolSets, hotOf(grid, current), rng).slice(0, KICK_MOVES + (kicks % 2));
+    // La ripartenza comincia da una riparazione dei conteggi, se ce n'è una: corregge un conteggio anche quando da sola
+    // rompe un'altra regola, che il giro dopo può sistemare.
+    const fix = repairMoves(grid, current.days, input, pools, rng).slice(0, 1);
+    const kick = [...fix, ...movesFor(grid, pools, poolSets, hotOf(grid, current), rng)].slice(0, KICK_MOVES + (kicks % 2));
     for (const mv of kick) {
-      if (search.evaluations >= max) break;
+      if (search.evaluations >= cap()) break;
       const next = applyMove(grid, mv);
       if (!next) continue;
       grid = next;
@@ -317,6 +336,14 @@ export function generateMenuWeek(input: MenuGenInput): MenuGenResult {
       products = seedEval.products;
     } else {
       status = 'fuori-limiti';
+      // Nel ripiego H0, H1 e i limiti di prevenzione A4 e A5 non si allentano: tra il migliore e il seme adattato vale
+      // quello che non li viola (a parità, il migliore).
+      if (severeCount(bestViolations) > 0 && severeCount(adaptedViolations) < severeCount(bestViolations)) {
+        week = adaptedWeek;
+        violations = adaptedViolations;
+        cost = adaptedEval.cost;
+        products = adaptedEval.products;
+      }
     }
   }
 
@@ -331,11 +358,115 @@ export function generateMenuWeek(input: MenuGenInput): MenuGenResult {
   return { week, status, violations, changed, products, cost: Math.round(cost * 1000) / 1000, evaluations: search.evaluations };
 }
 
+/** Violazioni che il ripiego non accetta (H0, H1, A4, A5). */
+const severeCount = (vs: readonly { code: string }[]): number => vs.filter((v) => NEVER_RELAXED.has(v.code)).length;
+
 const clonePrep = (prep: readonly PrepTask[]): PrepTask[] => prep.map((t) => ({ ...t, ...(t.recipeIds ? { recipeIds: [...t.recipeIds] } : {}) }));
 
 function sameGrid(a: readonly string[], b: readonly string[]): boolean {
   for (let c = 0; c < CELLS; c++) if ((a[c] ?? '') !== (b[c] ?? '')) return false;
   return true;
+}
+
+const moveKey = (mv: Move): string =>
+  mv.kind === 'cambia' ? `c${mv.cell}:${mv.id}` : mv.kind === 'scambia' ? `s${mv.a}:${mv.b}` : `t${mv.cells.join(',')}:${mv.id}`;
+
+/** Pranzo e cena nella griglia (posizioni dentro il giorno). */
+const MAIN_SLOTS = [MEAL_SLOTS.indexOf('pranzo'), MEAL_SLOTS.indexOf('cena')];
+
+/**
+ * Mosse di riparazione dei conteggi della settimana (H3 e H6), dai riepiloghi dei giorni dello stato accettato: per ogni
+ * conteggio fuori dal limite, le caselle che lo possono correggere con i soli candidati del bacino che lo correggono.
+ * - legumi sotto il minimo: pranzi e cene dei giorni senza legumi (al massimo una porzione al giorno), ricette con legumi;
+ * - pesce sopra il massimo: le caselle con il pesce, ricette senza (prima quelle con i legumi, se mancano); sotto il
+ *   minimo: pranzi e cene senza pesce, ricette con il pesce;
+ * - uova come il pesce, su tutte le caselle;
+ * - riso e carne rossa sopra il massimo (A4, A5): le caselle che li hanno, ricette senza;
+ * - partita e vigilia con i carboidrati che non arrivano al minimo o con le kcal sotto il 5% (H1): le caselle del giorno
+ *   con le ricette che hanno più carboidrati da scalare, dalla più ricca; con le kcal oltre il 5%, le più leggere.
+ * Le riparazioni di partita e vigilia vengono per prime, nel loro ordine; gli altri gruppi sono mescolati dal generatore
+ * con seme, prima i legumi.
+ */
+function repairMoves(grid: readonly string[], days: readonly DaySummary[], input: MenuGenInput, pools: readonly string[][], rng: Rng): Move[] {
+  let legumes = 0;
+  let fish = 0;
+  let eggs = 0;
+  let rice = 0;
+  let redMeat = 0;
+  for (const d of days) {
+    legumes += d.counts.legumeMeals;
+    fish += d.counts.fish;
+    eggs += d.counts.eggs;
+    rice += d.counts.rice;
+    redMeat += d.counts.redMeat;
+  }
+  const statOf = (c: number, id: string) => recipeStats(id, input.days[Math.floor(c / SLOT_COUNT)].dayType);
+  const isLegume = (c: number, id: string) => {
+    const st = statOf(c, id);
+    return Boolean(st && st.fixed.legumeG + st.scaled.legumeG >= LEGUME_MEAL_G - EPS);
+  };
+  const has = (c: number, id: string, what: 'fish' | 'wholeEgg' | 'rice') => Boolean(statOf(c, id)?.[what]);
+  const isRedMeat = (c: number, id: string) => {
+    const st = statOf(c, id);
+    return Boolean(st && st.fixed.redMeatG + st.scaled.redMeatG > EPS);
+  };
+  const groups: Move[][] = [];
+  const collect = (cells: readonly number[], from: (c: number) => boolean, to: (c: number, id: string) => boolean): Move[] => {
+    const out: Move[] = [];
+    for (const c of cells) {
+      if (!grid[c] || !from(c)) continue;
+      for (const id of pools[c]) if (id !== grid[c] && to(c, id)) out.push({ kind: 'cambia', cell: c, id });
+    }
+    return shuffled(out, rng);
+  };
+  const mainCells: number[] = [];
+  const allCells: number[] = [];
+  for (let d = 0; d < 7; d++) {
+    for (const s of MAIN_SLOTS) mainCells.push(d * SLOT_COUNT + s);
+    for (let s = 0; s < SLOT_COUNT; s++) allCells.push(d * SLOT_COUNT + s);
+  }
+  // Partita e vigilia (H1): carboidrati da scalare in più, o kcal in meno.
+  for (let d = 0; d < 7; d++) {
+    const ctx = input.days[d];
+    const sum = days[d];
+    if (!ctx || !sum || !(ctx.matchDay || ctx.matchEve)) continue;
+    const dev = ctx.target?.kcal > 0 ? sum.totals.kcal / ctx.target.kcal - 1 : 0;
+    const carbShort = sum.neededScale !== null && sum.neededScale > CARB_SCALE_MAX + EPS;
+    const low = carbShort || dev < -MATCH_KCAL_TOLERANCE - EPS;
+    const high = !low && dev > MATCH_KCAL_TOLERANCE + EPS;
+    if (!low && !high) continue;
+    const out: { mv: Move; gain: number }[] = [];
+    for (let s = 0; s < SLOT_COUNT; s++) {
+      const c = d * SLOT_COUNT + s;
+      const cur = grid[c] ? recipeStats(grid[c], ctx.dayType) : null;
+      for (const id of pools[c]) {
+        if (id === grid[c]) continue;
+        const st = recipeStats(id, ctx.dayType);
+        if (!st) continue;
+        const gain = low ? st.scaled.carbG - (cur?.scaled.carbG ?? 0) : (cur ? cur.fixed.kcal + cur.scaled.kcal : 0) - (st.fixed.kcal + st.scaled.kcal);
+        if (gain > EPS) out.push({ mv: { kind: 'cambia', cell: c, id }, gain });
+      }
+    }
+    out.sort((a, b) => b.gain - a.gain || moveKey(a.mv).localeCompare(moveKey(b.mv)));
+    groups.push(out.map((x) => x.mv));
+  }
+  const short = legumes < MIN_LEGUME_MEALS;
+  if (short) {
+    const free = mainCells.filter((c) => (days[Math.floor(c / SLOT_COUNT)]?.legumeServings ?? 0) === 0);
+    groups.push(collect(free, (c) => !isLegume(c, grid[c]), isLegume));
+  }
+  if (fish > FISH_MEALS.max) {
+    const out = collect(allCells, (c) => has(c, grid[c], 'fish'), (c, id) => !has(c, id, 'fish'));
+    // Con i legumi che mancano, prima le ricette senza pesce e con i legumi.
+    groups.push(short ? [...out.filter((m) => m.kind === 'cambia' && isLegume(m.cell, m.id)), ...out.filter((m) => !(m.kind === 'cambia' && isLegume(m.cell, m.id)))] : out);
+  } else if (fish < FISH_MEALS.min) {
+    groups.push(collect(mainCells, (c) => !has(c, grid[c], 'fish'), (c, id) => has(c, id, 'fish')));
+  }
+  if (eggs > EGG_MEALS.max) groups.push(collect(allCells, (c) => has(c, grid[c], 'wholeEgg'), (c, id) => !has(c, id, 'wholeEgg')));
+  else if (eggs < EGG_MEALS.min) groups.push(collect(allCells, (c) => !has(c, grid[c], 'wholeEgg'), (c, id) => has(c, id, 'wholeEgg')));
+  if (rice > RICE_MAX_MEALS) groups.push(collect(allCells, (c) => has(c, grid[c], 'rice'), (c, id) => !has(c, id, 'rice')));
+  if (redMeat > RED_MEAT_MAX_MEALS) groups.push(collect(allCells, (c) => isRedMeat(c, grid[c]), (c, id) => !isRedMeat(c, id)));
+  return groups.flat();
 }
 
 function changedDaysOf(mv: Move): number[] {

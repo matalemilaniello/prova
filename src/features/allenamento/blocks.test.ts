@@ -9,6 +9,7 @@ import { defaultAppData, defaultPlan } from '../../data/defaults';
 import { addDays } from '../../engine/dates';
 import { buildBlock } from '../../engine/plan/build';
 import { daySession, sessionFor } from '../../engine/plan/program';
+import { itemLevel } from '../../engine/plan/limits';
 import { useApp, useUi } from '../../state/store';
 import { hasProposalBuilder } from '../piano/actions';
 import {
@@ -92,6 +93,39 @@ describe('quando nasce la proposta di blocco (§ 5.3)', () => {
     expect(blockProposalDue({ plan }, lastSunday)?.trigger).toBe('fine-blocco');
     expect(blockProposalDue({ plan }, addDays(lastSunday, -1))).toBeNull();
     expect(blockProposalDue({ plan }, addDays(MON, 13))).toBeNull();
+  });
+
+  it('a fine blocco senza decisione ogni domenica dopo: la proposta scaduta il lunedì si rigenera (§ 3.1)', () => {
+    const { plan } = withBlock();
+    const lastSunday = addDays(MON, 4 * 7 - 1);
+    const nextSunday = addDays(lastSunday, 7);
+    // L'app non si è aperta la domenica di fine blocco: la domenica dopo la proposta nasce lo stesso.
+    expect(blockProposalDue({ plan }, nextSunday)).toEqual({ trigger: 'fine-blocco', monday: addDays(nextSunday, 1) });
+    expect(blockProposalDue({ plan }, addDays(nextSunday, 7))?.trigger).toBe('fine-blocco');
+    // Solo di domenica.
+    expect(blockProposalDue({ plan }, addDays(nextSunday, -3))).toBeNull();
+    // La proposta di fine blocco non decisa è scaduta il lunedì: la domenica dopo ne nasce un'altra, per il lunedì dopo.
+    const expired = proposal({ status: 'superata', effectiveFrom: addDays(lastSunday, 1), createdAt: `${lastSunday}T10:00:00.000Z` });
+    expect(blockProposalDue({ plan, planner: { proposals: [expired] } }, nextSunday)).toEqual({ trigger: 'fine-blocco', monday: addDays(nextSunday, 1) });
+    // Con «Tieni il piano attuale» invece aspetta la fine del ciclo ripetuto.
+    const kept = proposal({ status: 'scartata', effectiveFrom: addDays(lastSunday, 1), decidedAt: `${lastSunday}T10:00:00.000Z` });
+    expect(blockProposalDue({ plan, planner: { proposals: [kept] } }, nextSunday)).toBeNull();
+    expect(blockProposalDue({ plan, planner: { proposals: [kept] } }, addDays(lastSunday, BLOCK_REJECT_PAUSE_DAYS + 7))?.trigger).toBe('fine-blocco');
+  });
+
+  it('ensureBlockProposal a fine blocco: scaduta la prima senza decisione, la domenica dopo nasce la seconda', () => {
+    const { plan } = withBlock();
+    const lastSunday = addDays(MON, 4 * 7 - 1);
+    useApp.setState({ onboarded: true, plan, profile: { ...useApp.getState().profile, painSites: SITES } });
+    const first = ensureBlockProposal(lastSunday);
+    if (first?.status !== 'nata') throw new Error('proposta attesa');
+    // Il lunedì passa senza decisione: la proposta diventa superata.
+    useApp.setState((st) => ({ planner: { ...st.planner!, proposals: st.planner!.proposals.map((p) => (p.id === first.id ? { ...p, status: 'superata' as const } : p)) } }));
+    const second = ensureBlockProposal(addDays(lastSunday, 7));
+    expect(second?.status).toBe('nata');
+    const open = (useApp.getState().planner?.proposals ?? []).filter((p) => p.kind === 'blocco' && p.status === 'aperta');
+    expect(open).toHaveLength(1);
+    expect(open[0].effectiveFrom).toBe(addDays(lastSunday, 8));
   });
 
   it('dopo «Tieni il piano attuale» aspetta, tranne quando cambia l’obiettivo', () => {
@@ -233,6 +267,33 @@ describe('seduta del giorno nella variante (§ 3.9)', () => {
     expect(sets(full.session)).toBeGreaterThan(sets(d.session));
     // Senza il controllo cattivo la piena coincide con la seduta del giorno.
     expect(fullDaySession(slot, iso, { ...s, checkIns: {} })).toBe(daySession(slot, iso, { ...s, checkIns: {} })!.session);
+  });
+
+  it('«Fai la piena» tiene il freno degli impatti: zona sotto il ginocchio a soglia + 2, nessun esercizio d’impatto', () => {
+    const { plan } = withBlock({ presetId: 'calcio', primary: 'potenza', secondary: 'forza', spaces: ['corsia', 'campo'] });
+    // La seduta con i salti in testa (la B del venerdì nella settimana predefinita).
+    const day = plan.week.find((d) => d.gymSessionId && (() => {
+      const ses = sessionFor(d.gymSessionId!, addDays(MON, 7 + d.weekday), plan);
+      return ses?.blocks.some((b) => b.items.some((it) => itemLevel(it.exerciseId) > 0));
+    })());
+    expect(day).toBeDefined();
+    const iso = addDays(MON, 7 + day!.weekday);
+    const slot = day!.gymSessionId!;
+    const thr = plan.impactThreshold ?? 2;
+    const morning: CheckIn = { date: iso, sleepHours: 8, sleepQuality: 4, energy: 7, pain: { Caviglia: thr + 2 } };
+    const s = { plan, workoutLogs: [], footballLogs: [], checkIns: { [iso]: morning }, profile: { ...defaultAppData(START).profile, painSites: SITES } };
+    const levels = (w: { blocks: { items: { exerciseId: string }[] }[] }) => w.blocks.flatMap((b) => b.items).map((it) => itemLevel(it.exerciseId));
+    // Il controllo del mattino dà la minima senza impatti.
+    const d = dayVariantSession(slot, iso, s)!;
+    expect(d.variant).toBe('minima');
+    expect(Math.max(0, ...levels(d.session))).toBe(0);
+    // «Fai la piena»: la variante non c'è più, gli impatti restano fermi.
+    const full = fullDaySession(slot, iso, s)!;
+    expect(Math.max(0, ...levels(full))).toBe(0);
+    const chosen = dayVariantSession(slot, iso, s, 'piena')!;
+    expect(chosen.variant).toBe('piena');
+    expect(Math.max(0, ...levels(chosen.session))).toBe(0);
+    expect(sets(chosen.session)).toBeGreaterThan(sets(d.session));
   });
 
   it('una seduta partita ridotta resta ridotta anche se il controllo cambia dopo', () => {

@@ -4,7 +4,7 @@
  * vuote quando esiste una ricetta valida, pasti da portare.
  */
 import { describe, expect, it } from 'vitest';
-import type { AppData, MealSlot, MenuWeek } from '../../domain/types';
+import type { AppData, MealSlot, MenuWeek, ScheduleDay, Weekday } from '../../domain/types';
 import { factsOf, seasonAllows } from '../../data/foodFacts';
 import { RECIPES } from '../../data/recipes';
 import { recipeFactsOf } from '../../data/recipeFacts';
@@ -16,7 +16,8 @@ import { shoppingList } from '../shopping';
 import { menuGenInput, validationCtxOf, type MenuGenInput, type MenuGenResult } from './context';
 import { generateMenuWeek, menuCellPool, menuWeekCost } from './generate';
 import { prepPlan } from './prep';
-import { validateMenuWeek } from './validate';
+import { NEVER_RELAXED } from './stats';
+import { menuWeekSummary, validateMenuWeek } from './validate';
 import { EXCLUSION_SETS, fixtureState, GOALS, MONDAYS_2026, PHASES } from './testFixtures';
 
 const NEVER = new Set(['escluso', 'vietato', 'prodotti', 'fuori-stagione']);
@@ -24,7 +25,19 @@ const NEVER = new Set(['escluso', 'vietato', 'prodotti', 'fuori-stagione']);
 /** Le proprietà che valgono per ogni menù generato, valido o di ripiego. */
 function checkResult(r: MenuGenResult, input: MenuGenInput, s: AppData): void {
   const where = `${input.monday} (${r.status})`;
-  expect(r.evaluations, where).toBeLessThanOrEqual(input.maxEvaluations);
+  // Le valutazioni in più servono solo alle ripartenze, quando restano violazioni.
+  expect(r.evaluations, where).toBeLessThanOrEqual(input.maxEvaluations + (input.restartEvaluations ?? 0));
+  // Nemmeno il ripiego viola H0, H1, la carne rossa (A4) o il riso (A5): un giorno con una casella senza candidati è
+  // l'unica eccezione per le kcal di partita e vigilia, perché quel pasto non c'è.
+  const emptyDays = new Set(r.violations.filter((v) => v.code === 'pasto-vuoto').map((v) => v.where?.day));
+  for (const v of r.violations) {
+    if (!NEVER_RELAXED.has(v.code)) continue;
+    if (v.code === 'carboidrati-partita' && emptyDays.has(v.where?.day)) continue;
+    expect.fail(`${where}: ${v.message}`);
+  }
+  const summary = menuWeekSummary(r.week);
+  expect(summary.riceMeals, where).toBeLessThanOrEqual(3);
+  expect(summary.redMeatMeals, where).toBeLessThanOrEqual(1);
   // Le violazioni dichiarate sono quelle del validatore, e solo il ripiego ne ha.
   expect(validateMenuWeek(r.week, validationCtxOf(input)), where).toEqual(r.violations);
   if (r.status !== 'fuori-limiti') expect(r.violations, where).toEqual([]);
@@ -104,13 +117,54 @@ describe('generateMenuWeek', () => {
     const MON = '2026-03-09';
     const s = fixtureState(MON, { exclusions: ['yogurt-greco-2', 'banana'] });
     for (const max of [0, 1, 25, 200]) {
-      const input = { ...menuGenInput(MON, s, { today: addDays(MON, -3) }), maxEvaluations: max };
+      // Senza ripartenze il tetto è `maxEvaluations`; con le ripartenze si aggiungono al più `restartEvaluations`.
+      const restart = generateMenuWeek({ ...menuGenInput(MON, s, { today: addDays(MON, -3) }), maxEvaluations: max, restartEvaluations: max });
+      expect(restart.evaluations).toBeLessThanOrEqual(2 * max);
+      const input = { ...menuGenInput(MON, s, { today: addDays(MON, -3) }), maxEvaluations: max, restartEvaluations: 0 };
       const r = generateMenuWeek(input);
       expect(r.evaluations).toBeLessThanOrEqual(max);
       r.week.days.forEach((day, d) => {
         for (const slot of MEAL_SLOTS) if (!day.meals[slot]) expect(menuCellPool(input, d, slot)).toEqual([]);
       });
     }
+  });
+
+  it('lavoro 9-18 dal lunedì al venerdì: i pranzi si portano e il menù nasce valido, legumi compresi', () => {
+    const work = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [d, [{ from: '09:00', to: '18:00' }]]));
+    for (const MON of [0, 8, 16, 24, 32, 40, 48].map((i) => MONDAYS_2026[i])) {
+      const s = fixtureState(MON, { work });
+      const input = menuGenInput(MON, s, { today: addDays(MON, -3) });
+      for (let d = 0; d < 5; d++) expect(input.days[d].carry, `${MON} ${d}`).toContain('pranzo');
+      const r = generateMenuWeek(input);
+      expect(r.status, `${MON}: ${r.violations.map((v) => v.message).join(' | ')}`).not.toBe('fuori-limiti');
+      expect(menuWeekSummary(r.week).legumeMeals, MON).toBeGreaterThanOrEqual(4);
+      checkResult(r, input, s);
+    }
+  }, 60_000);
+
+  it('partita in ogni giorno della settimana (settimana predefinita ruotata): il menù nasce valido', () => {
+    const rotate = (week: readonly ScheduleDay[], shift: number): ScheduleDay[] =>
+      week.map((d) => ({ ...d, weekday: ((d.weekday + shift) % 7) as Weekday })).sort((a, b) => a.weekday - b.weekday);
+    for (let shift = 0; shift < 7; shift++) {
+      for (const MON of [MONDAYS_2026[4], MONDAYS_2026[20], MONDAYS_2026[44]]) {
+        const s = fixtureState(MON);
+        s.plan.week = rotate(s.plan.week, shift);
+        const input = menuGenInput(MON, s, { today: addDays(MON, -3) });
+        const r = generateMenuWeek(input);
+        expect(r.status, `${MON} partita di ${shift}: ${r.violations.map((v) => v.message).join(' | ')}`).not.toBe('fuori-limiti');
+        checkResult(r, input, s);
+      }
+    }
+  }, 120_000);
+
+  it('con molte esclusioni il ripiego tiene il riso entro 3 pasti (A5) e la carne rossa entro una porzione (A4)', () => {
+    const MON = '2026-11-16';
+    const s = fixtureState(MON, { exclusions: ['pane-integrale', 'yogurt-greco-2', 'grana', 'uova', 'pollo', 'tonno'] });
+    const input = menuGenInput(MON, s, { today: addDays(MON, -3) });
+    const r = generateMenuWeek(input);
+    expect(r.violations.map((v) => v.code)).not.toContain('riso-settimana');
+    expect(r.violations.map((v) => v.code)).not.toContain('carne-rossa-settimana');
+    checkResult(r, input, s);
   });
 
   it('i pasti che cadono nel lavoro hanno ricette da portare', () => {

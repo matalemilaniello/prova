@@ -4,7 +4,7 @@
  * - `isMenuProposalTime(oggi, ora)`, `menuProposalMonday`, `menuProposalShopping` (spesa prima e dopo, «Da comprare in più»);
  * - `generateMenuWeek(input)`, `menuGenInput(lunedì, stato)`, `validateMenuWeek(settimana, contesto)`, `prepTasksFor(settimana)`.
  */
-export { menuDaysFor, menuGenInput, validationCtxOf, MAX_EVALUATIONS, FIBER_STEP } from './context';
+export { menuDaysFor, menuGenInput, validationCtxOf, MAX_EVALUATIONS, RESTART_EVALUATIONS, FIBER_STEP } from './context';
 export type { MenuDayCtx, MenuGenInput, MenuGenResult, MenuGenStatus, MenuGenState, MenuValidationCtx, MenuGenOptions } from './context';
 export { generateMenuWeek, menuCellPool, menuWeekCost } from './generate';
 export { prepPlan, prepTasksFor, prepYield, sameBatchLayout } from './prep';
