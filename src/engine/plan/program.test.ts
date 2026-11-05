@@ -200,14 +200,17 @@ describe('blocco in vigore', () => {
 
 describe('deriveItem', () => {
   it('serie per eccesso, contatti e metri per difetto, mai sotto 1', () => {
-    const item: SessionExercise = { exerciseId: 'balzi-del-pattinatore', sets: 3, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', distanceM: 25 };
-    expect(deriveItem(item, DELOAD_DOSE)).toMatchObject({ sets: 2, repMin: 3, repMax: 4, distanceM: 12 });
-    expect(deriveItem({ ...item, sets: 1, repMin: 1, repMax: 1, distanceM: 1 }, DELOAD_DOSE)).toMatchObject({ sets: 1, repMin: 1, repMax: 1, distanceM: 1 });
+    // Salti: crescono e calano le ripetizioni (i contatti).
+    const item: SessionExercise = { exerciseId: 'balzi-del-pattinatore', sets: 3, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna' };
+    expect(deriveItem(item, DELOAD_DOSE)).toMatchObject({ sets: 2, repMin: 3, repMax: 4 });
+    expect(deriveItem({ ...item, sets: 1, repMin: 1, repMax: 1 }, DELOAD_DOSE)).toMatchObject({ sets: 1, repMin: 1, repMax: 1 });
     const rifinitura = { mainSetsAdd: 0, setsFactor: 0.6, rirDelta: 0, impactFactor: 0.6 };
-    expect(deriveItem(item, rifinitura)).toMatchObject({ sets: 2, repMin: 3, repMax: 4, distanceM: 15 });
-    // Un esercizio senza impatto tiene le ripetizioni.
-    expect(deriveItem({ ...item, exerciseId: 'stacco-trap-bar' }, DELOAD_DOSE)).toMatchObject({ repMin: 6, repMax: 8 });
-    expect(deriveSession(SESSIONS.A, BASE_DOSE)).toBe(SESSIONS.A);
+    expect(deriveItem(item, rifinitura)).toMatchObject({ sets: 2, repMin: 3, repMax: 4 });
+    // Sprint: cala la distanza della ripetuta, le ripetute restano (metri × fattore una volta sola).
+    const sprint: SessionExercise = { exerciseId: 'accelerazioni-10m', sets: 1, repMin: 6, repMax: 8, unit: 'reps', distanceM: 25, restSec: 60, progression: 'nessuna' };
+    expect(deriveItem(sprint, DELOAD_DOSE)).toMatchObject({ sets: 1, repMin: 6, repMax: 8, distanceM: 12 });
+    expect(deriveItem(sprint, rifinitura)).toMatchObject({ repMin: 6, repMax: 8, distanceM: 15 });
+    expect(deriveItem({ ...sprint, distanceM: 1 }, DELOAD_DOSE)).toMatchObject({ distanceM: 1 });
   });
 });
 

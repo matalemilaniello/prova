@@ -6,9 +6,11 @@
  *   o alleggerita dalla revisione (`Plan.weekOverrides`) applicata; con un blocco in vigore la seduta della settimana 1
  *   con i fattori della sua settimana (`deriveSession`). Senza i campi nuovi è `SESSIONS[slot]`, lo stesso oggetto: chi
  *   la usa vede l'app di prima.
- * - `daySession(slot, iso, state)`: la seduta del giorno con la variante. In questa onda la variante è sempre «piena»:
- *   il controllo del mattino (§ 3.9) arriva con il motore dei blocchi; la regola del dolore resta esercizio per esercizio
- *   nel lettore, come oggi.
+ * - `daySession(slot, iso, state)`: la seduta del giorno con la variante. Con il fermo degli impatti (`Plan.impactHold`)
+ *   ogni seduta, quelle fisse comprese, passa al livello 0 da subito; con un blocco in vigore la variante segue il
+ *   controllo del mattino (§ 3.9, `dayReadiness`) e dice perché. La regola del dolore resta esercizio per esercizio nel
+ *   lettore, come oggi. Senza blocco e senza fermo è la seduta fissa, piena e senza motivi.
+ * - `programInForce(iso, plan)`: il blocco vale dal suo lunedì e finché la fase della stagione resta la sua (§ 3.1).
  * - `weekOverrideFor`, `droppedByOverride`: la settimana «leggera» toglie la seduta facoltativa, che quindi non compare in
  *   Oggi né tra le sedute previste.
  *
@@ -25,10 +27,14 @@ import type {
   WeekDose,
   WorkoutSession,
 } from '../../domain/types';
-import { EXERCISES, type CatalogExercise } from '../../data/exercises';
+import { EXERCISES, type CatalogExercise, type ExerciseSpace } from '../../data/exercises';
 import { SESSIONS, estimateItemSec } from '../../data/sessions';
-import { daysBetween, isISODate, weekStart } from '../dates';
-import type { TrainingState } from '../training';
+import { addDays, daysBetween, isISODate, weekStart } from '../dates';
+import { doneSets, sessionFocus, type TrainingState } from '../training';
+import { availableSpaces, isImpactItem, substituteItem } from './limits';
+import { dayReadiness, floorsDoneThisWeek, sessionForVariant } from './readiness';
+import { impactHoldActive } from './returnStages';
+import { seasonOn } from './season';
 
 export type WeekOverrideKind = 'scarico' | 'leggera';
 
@@ -73,7 +79,8 @@ const sameDose = (a: WeekDose, b: WeekDose) =>
 /**
  * Esercizio con i fattori della settimana, arrotondamenti del § 3.4:
  * - serie = max(1, ⌈setsFactor × (serie_1 + mainSetsAdd)⌉), con `mainSetsAdd` solo nel blocco principale;
- * - ripetizioni degli esercizi d'impatto (contatti) e metri = max(1, ⌊impactFactor × valore_1⌋);
+ * - ripetizioni degli esercizi d'impatto (contatti) e metri della ripetuta = max(1, ⌊impactFactor × valore_1⌋): negli
+ *   sprint cresce la distanza (le ripetute restano quelle), nei salti le ripetizioni;
  * - RIR + rirDelta, tra 0 e 5; con un RIR in meno le gambe non scendono sotto 2 in stagione e sotto 1 altrove.
  */
 export function deriveItem(item: SessionExercise, dose: WeekDose, opts: { main?: boolean; legsRirFloor?: number } = {}): SessionExercise {
@@ -82,11 +89,13 @@ export function deriveItem(item: SessionExercise, dose: WeekDose, opts: { main?:
   out.sets = Math.max(1, Math.ceil(dose.setsFactor * (item.sets + add) - 1e-9));
   if (dose.impactFactor !== 1) {
     const scale = (v: number) => Math.max(1, Math.floor(dose.impactFactor * v + 1e-9));
-    if (isImpact(item.exerciseId) && item.unit === 'reps') {
+    // Metri di sprint e ripetute: cresce la distanza della ripetuta; contatti dei salti: crescono le ripetizioni. Mai
+    // tutte e due, così contatti e metri seguono il fattore una volta sola.
+    if (typeof item.distanceM === 'number' && item.distanceM > 0) out.distanceM = scale(item.distanceM);
+    else if (isImpact(item.exerciseId) && item.unit === 'reps' && !(item.workSec && item.workSec > 0)) {
       out.repMin = scale(item.repMin);
       out.repMax = Math.max(out.repMin, scale(item.repMax));
     }
-    if (typeof item.distanceM === 'number' && item.distanceM > 0) out.distanceM = scale(item.distanceM);
   }
   if (typeof item.rir === 'number' && dose.rirDelta) {
     let rir = item.rir + dose.rirDelta;
@@ -173,10 +182,14 @@ function withOverride(session: WorkoutSession, kind: WeekOverrideKind | undefine
  * derivata. Prima dell'inizio del blocco, o per uno slot che il blocco non ha, vale la seduta fissa. Una settimana
  * scaricata dalla revisione prende i fattori dello scarico al posto dei suoi; una leggera porta il RIR ad almeno 3.
  */
-export function sessionFor(slot: string, iso: ISODate, plan: Pick<Plan, 'program' | 'weekOverrides'>): WorkoutSession | undefined {
+export function sessionFor(
+  slot: string,
+  iso: ISODate,
+  plan: Pick<Plan, 'program' | 'weekOverrides'> & Partial<Pick<Plan, 'season'>>,
+): WorkoutSession | undefined {
   const kind = weekOverrideFor(iso, plan);
-  const program = plan.program;
-  const week = program && isISODate(iso) && isISODate(program.start) ? Math.floor(daysBetween(program.start, iso) / 7) : -1;
+  const program = programInForce(iso, plan);
+  const week = program ? Math.floor(daysBetween(program.start, iso) / 7) : -1;
   const base = program?.sessions?.[slot];
   const dose = program && base ? programWeekDose(program, week) : null;
   if (program && base && dose) {
@@ -190,17 +203,139 @@ export function sessionFor(slot: string, iso: ISODate, plan: Pick<Plan, 'program
   return withOverride(fixed, kind, fixed, 'fissa');
 }
 
+/**
+ * Blocco in vigore nella data, se c'è: dal suo lunedì in poi, e finché la fase della stagione resta quella del blocco
+ * (§ 3.1). A un cambio di fase senza approvazione il blocco della fase prima non si ripete (un blocco della pausa con il
+ * precampionato sopra sarebbe troppo): valgono le sedute fisse, cioè l'app di oggi, finché l'utente non approva la
+ * proposta della fase nuova. La transizione e lo sviluppo sono la stessa pausa: lì il blocco si ripete. Senza date della
+ * stagione la fase è sempre «in stagione».
+ */
+export function programInForce(iso: ISODate, plan: Pick<Plan, 'program'> & Partial<Pick<Plan, 'season'>>): Program | undefined {
+  const program = plan.program;
+  if (!program || !isISODate(iso) || !isISODate(program.start) || iso < program.start) return undefined;
+  if (plan.season && seasonOn(iso, plan.season).phase !== program.phase) return undefined;
+  return program;
+}
+
 export interface DaySession {
   session: WorkoutSession;
   variant: 'piena' | 'ridotta' | 'minima';
   reasons: string[];
 }
 
+/** Settimana (1 = la prima) del blocco in vigore nella data, o null. */
+export function programWeekOf(iso: ISODate, plan: Pick<Plan, 'program'> & Partial<Pick<Plan, 'season'>>): number | null {
+  const program = programInForce(iso, plan);
+  return program ? Math.floor(daysBetween(program.start, iso) / 7) + 1 : null;
+}
+
+const holdCache = new WeakMap<object, WorkoutSession>();
+
 /**
- * sessionFor + controllo del mattino + regola del dolore. In questa onda la variante è sempre «piena» e senza motivi:
- * la regola del dolore resta esercizio per esercizio nel lettore (`painGate`), come oggi.
+ * Seduta con gli impatti fermi (§ 3.8): ogni esercizio d'impatto passa al sostituto senza volo, oppure salta. È un
+ * freno di sicurezza come la regola del dolore: vale in ogni seduta, quelle fisse comprese, da subito.
+ */
+export function withoutImpacts(session: WorkoutSession, spaces: ReadonlySet<ExerciseSpace> = availableSpaces(undefined)): WorkoutSession {
+  const hit = holdCache.get(session);
+  if (hit) return hit;
+  let changed = false;
+  const blocks = session.blocks
+    .map((b) => {
+      const used = new Set(b.items.map((it) => it.exerciseId));
+      const items = b.items.flatMap((it) => {
+        if (!isImpactItem(it.exerciseId)) return [it];
+        changed = true;
+        const sub = substituteItem(it, { maxLevel: 0, spaces, exclude: used });
+        if (sub) used.add(sub.exerciseId);
+        return sub ? [sub] : [];
+      });
+      return { ...b, items };
+    })
+    .filter((b) => b.items.length);
+  const out = changed ? { ...session, blocks, estMin: Math.max(1, session.estMin + blockMinutes({ blocks }) - blockMinutes(session)) } : session;
+  holdCache.set(session, out);
+  return out;
+}
+
+const dayCache = new WeakMap<object, Map<string, WorkoutSession>>();
+function dayMemo(owner: object, key: string, make: () => WorkoutSession): WorkoutSession {
+  let m = dayCache.get(owner);
+  if (!m) {
+    m = new Map();
+    dayCache.set(owner, m);
+  }
+  const hit = m.get(key);
+  if (hit) return hit;
+  const v = make();
+  m.set(key, v);
+  return v;
+}
+
+/** Richiamo dopo una partita giocata poco (§ 3.10): cyclette 6 × 1 minuto forte e 1 facile, in coda alla seduta A. */
+export const RECALL_ITEM: SessionExercise = {
+  exerciseId: 'cyclette-intervalli',
+  sets: 1,
+  repMin: 6,
+  repMax: 6,
+  unit: 'reps',
+  workSec: 60,
+  restSec: 60,
+  progression: 'nessuna',
+  effort: 'RPE 8, poi 1 minuto facile',
+  note: 'Hai giocato poco: un richiamo breve in cyclette',
+};
+/** Minuti di partita sotto cui serve il richiamo. */
+export const SHORT_MATCH_MIN = 45;
+
+/**
+ * sessionFor + fermo degli impatti + controllo del mattino + regola del dolore (§ 3.9, § 3.10). Senza blocco e senza
+ * fermo è la seduta fissa, piena e senza motivi: l'app di prima. Con un blocco in vigore:
+ * - la variante del giorno (`dayReadiness`): ridotta o minima con i motivi («5 h 50 a letto», «energia bassa»);
+ * - la prova del saltello del rientro una volta sola: fatta, sparisce dalle sedute dopo;
+ * - il richiamo in cyclette in coda alla seduta del giorno dopo una partita giocata meno di 45 minuti.
+ * La regola del dolore resta esercizio per esercizio nel lettore, come oggi. La variante non si salva.
  */
 export function daySession(slot: string, iso: ISODate, state: TrainingState): DaySession | null {
-  const session = sessionFor(slot, iso, state.plan);
-  return session ? { session, variant: 'piena', reasons: [] } : null;
+  const plan = state.plan;
+  const base = sessionFor(slot, iso, plan);
+  if (!base) return null;
+  let session = base;
+  const reasons: string[] = [];
+  if (impactHoldActive(plan, iso)) {
+    const spaces = availableSpaces(plan.training?.spaces);
+    session = withoutImpacts(session, spaces);
+    reasons.push('impatti fermi');
+  }
+  const program = programInForce(iso, plan);
+  if (!program || !program.sessions[slot]) {
+    return { session, variant: 'piena', reasons };
+  }
+  // Prova del saltello: una volta sola dall'inizio dello stadio.
+  const since = plan.training?.rientro?.since ?? program.start;
+  const hopDone = (state.workoutLogs ?? []).some((w) => w.date >= since && w.date < iso && w.exercises.some((e) => e.exerciseId === 'prova-saltello' && doneSets(e).length));
+  if (hopDone && session.blocks.some((b) => b.items.some((it) => it.exerciseId === 'prova-saltello'))) {
+    const from = session;
+    session = dayMemo(from, 'senza-prova', () => {
+      const blocks = from.blocks.map((b) => ({ ...b, items: b.items.filter((it) => it.exerciseId !== 'prova-saltello') })).filter((b) => b.items.length);
+      return { ...from, blocks, estMin: Math.max(1, from.estMin + blockMinutes({ blocks }) - blockMinutes(from)) };
+    });
+  }
+  // Partita giocata poco ieri: richiamo in coda alla seduta senza gambe del giorno dopo.
+  const prev = addDays(iso, -1);
+  const shortMatch = (state.footballLogs ?? []).some((f) => f.date === prev && f.kind === 'partita' && f.durationMin < SHORT_MATCH_MIN);
+  if (shortMatch && sessionFocus(session) === 'alto' && !session.blocks.some((b) => b.items.some((it) => it === RECALL_ITEM))) {
+    const from = session;
+    session = dayMemo(from, 'richiamo', () => {
+      const blocks = [...from.blocks, { title: 'Richiamo', items: [RECALL_ITEM] }];
+      return { ...from, blocks, estMin: from.estMin + blockMinutes({ blocks: [{ title: 'Richiamo', items: [RECALL_ITEM] }] }) };
+    });
+    reasons.push('richiamo dopo una partita breve');
+  }
+  const r = dayReadiness(iso, state, { legs: sessionFocus(session) === 'basso', slot });
+  if (r.variant === 'piena') return { session, variant: 'piena', reasons };
+  const done = floorsDoneThisWeek(iso, state);
+  const key = `${r.variant}|${r.noImpact ? 1 : 0}|${[...done].sort().join(',')}`;
+  const from = session;
+  session = dayMemo(from, key, () => sessionForVariant(from, r.variant, done, { noImpact: r.noImpact }));
+  return { session, variant: r.variant, reasons: [...r.reasons, ...reasons] };
 }

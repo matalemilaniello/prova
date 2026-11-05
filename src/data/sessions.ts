@@ -45,16 +45,32 @@ export const SEC_PER_REP = 4;
 /** Secondi per prendere posizione o caricare l'attrezzo a ogni serie. */
 export const SETUP_SEC_PER_SET = 10;
 
+/** Secondi per metro di uno sprint, di un allungo o di un cambio di direzione (circa 5 m/s; il ritorno è nel recupero). */
+export const SEC_PER_METER = 0.2;
+
+/**
+ * Esercizio a ripetute (fase 2, § 3.7): sprint e cambi di direzione in metri (`distanceM`) o intervalli in secondi di
+ * lavoro (`workSec`). Il recupero (`restSec`) vale dopo ogni ripetuta, non solo tra le serie.
+ */
+const isRepeated = (item: SessionExercise) => item.unit === 'reps' && ((item.distanceM ?? 0) > 0 || (item.workSec ?? 0) > 0);
+
 /** Tempo di lavoro stimato di una serie, in secondi (entrambi i lati se l'esercizio è per lato). */
 export function estimateWorkSec(item: SessionExercise): number {
   const mid = (item.repMin + item.repMax) / 2;
+  if (isRepeated(item)) {
+    const once = (item.workSec ?? 0) > 0 ? item.workSec! : (item.distanceM ?? 0) * SEC_PER_METER;
+    return SETUP_SEC_PER_SET + mid * (once + item.restSec) * (item.perSide ? 2 : 1);
+  }
   const perSide = item.unit === 'secondi' ? mid : mid * SEC_PER_REP;
   return SETUP_SEC_PER_SET + perSide * (item.perSide ? 2 : 1);
 }
 
-/** Tempo totale stimato di un esercizio della seduta: serie × (lavoro + recupero), in secondi. */
+/**
+ * Tempo totale stimato di un esercizio della seduta: serie × (lavoro + recupero), in secondi. Negli esercizi a ripetute
+ * (metri o secondi di lavoro) il recupero è già dentro ogni ripetuta.
+ */
 export function estimateItemSec(item: SessionExercise): number {
-  return item.sets * (estimateWorkSec(item) + item.restSec);
+  return item.sets * (estimateWorkSec(item) + (isRepeated(item) ? 0 : item.restSec));
 }
 
 /** Durata stimata della seduta in minuti, arrotondata. */
@@ -189,3 +205,94 @@ export const SESSION_LIST: readonly WorkoutSession[] = [
 
 /** Sedute di palestra per id ('A' | 'B' | 'C', come in `ScheduleDay.gymSessionId`). */
 export const SESSIONS: Record<string, WorkoutSession> = Object.fromEntries(SESSION_LIST.map((s) => [s.id, s]));
+
+// ───────────────────────── Dosi di riferimento (fase 2) ─────────────────────────
+
+type Dose = Omit<SessionExercise, 'exerciseId'>;
+
+/**
+ * Dosi di riferimento delle esercitazioni della fase 2 (§ 3.4, § 3.6, § 3.7): da qui parte il generatore dei blocchi e
+ * da qui prende la dose una sostituzione verso un esercizio che si dosa in un altro modo (per esempio un salto che
+ * diventa uno sprint in cyclette). Salti in ripetizioni (contatti), sprint in metri per ripetuta (`distanceM`),
+ * intervalli in secondi di lavoro (`workSec`), con il recupero dopo ogni ripetuta. L'intensità si dice a parole
+ * (`effort`). Volumi bassi, da richiamo in stagione: i tetti del § 3.6 valgono anche dopo i fattori delle settimane.
+ */
+const PHASE2_DOSES: Record<string, Dose> = {
+  'salto-sul-box': { sets: 3, repMin: 4, repMax: 5, unit: 'reps', restSec: 60, progression: 'nessuna', note: 'Scendi dal box a piedi' },
+  'salto-verticale-fermo': { sets: 3, repMin: 4, repMax: 5, unit: 'reps', restSec: 60, progression: 'nessuna' },
+  'salti-corda': { sets: 2, repMin: 10, repMax: 15, unit: 'reps', restSec: 45, progression: 'nessuna' },
+  'pogo-bilaterali': { sets: 3, repMin: 6, repMax: 8, unit: 'reps', restSec: 60, progression: 'nessuna' },
+  'salto-in-lungo-fermo': { sets: 3, repMin: 3, repMax: 4, unit: 'reps', restSec: 60, progression: 'nessuna' },
+  'balzi-laterali-fermata': { sets: 2, repMin: 4, repMax: 6, unit: 'reps', restSec: 45, progression: 'nessuna', perSide: true },
+  'salti-ostacolini': { sets: 3, repMin: 5, repMax: 6, unit: 'reps', restSec: 90, progression: 'nessuna' },
+  'saltelli-una-gamba': { sets: 2, repMin: 6, repMax: 8, unit: 'reps', restSec: 60, progression: 'nessuna', perSide: true },
+  'prova-saltello': { sets: 1, repMin: 10, repMax: 10, unit: 'reps', restSec: 60, progression: 'nessuna', perSide: true, note: 'Solo con il via libera del fisioterapista, una volta: fuori dal conteggio dei contatti' },
+  'balzi-alternati': { sets: 3, repMin: 6, repMax: 8, unit: 'reps', restSec: 90, progression: 'nessuna' },
+  'drop-jump-basso': { sets: 3, repMin: 4, repMax: 5, unit: 'reps', restSec: 90, progression: 'nessuna' },
+  'lancio-palla-medica-dal-basso': { sets: 3, repMin: 5, repMax: 6, unit: 'reps', restSec: 60, progression: 'nessuna' },
+  'lancio-palla-medica-rotazionale': { sets: 3, repMin: 5, repMax: 6, unit: 'reps', restSec: 45, progression: 'nessuna', perSide: true },
+  'sprint-cyclette': { sets: 1, repMin: 6, repMax: 6, unit: 'reps', workSec: 8, restSec: 60, progression: 'nessuna', effort: 'al massimo' },
+  'trap-bar-veloce': { sets: 3, repMin: 3, repMax: 5, unit: 'reps', restSec: 120, progression: 'nessuna', note: 'Ogni ripetizione il più veloce possibile' },
+  'polpacci-esplosivi': { sets: 3, repMin: 8, repMax: 10, unit: 'reps', rir: 2, restSec: 60, progression: 'doppia', incrementKg: 5 },
+  'accelerazioni-10m': { sets: 1, repMin: 6, repMax: 8, unit: 'reps', distanceM: 10, restSec: 60, progression: 'nessuna', effort: 'al massimo' },
+  'frenate-tre-passi': { sets: 1, repMin: 6, repMax: 6, unit: 'reps', distanceM: 10, restSec: 45, progression: 'nessuna', effort: 'forte ma controllato' },
+  'cambi-direzione-45-90': { sets: 1, repMin: 6, repMax: 8, unit: 'reps', distanceM: 10, restSec: 60, progression: 'nessuna', effort: 'forte ma controllato' },
+  'navetta-5-0-5': { sets: 1, repMin: 4, repMax: 6, unit: 'reps', distanceM: 20, restSec: 90, progression: 'nessuna', effort: 'al massimo' },
+  'skip-tecnica': { sets: 2, repMin: 2, repMax: 2, unit: 'reps', distanceM: 15, restSec: 30, progression: 'nessuna', effort: 'sciolto' },
+  allunghi: { sets: 1, repMin: 4, repMax: 5, unit: 'reps', distanceM: 60, restSec: 90, progression: 'nessuna', effort: 'al 70, 80 e 90%' },
+  'sprint-lanciati-20m': { sets: 1, repMin: 3, repMax: 4, unit: 'reps', distanceM: 20, restSec: 150, progression: 'nessuna', effort: 'forte ma sciolto' },
+  'sprint-salita': { sets: 1, repMin: 6, repMax: 6, unit: 'reps', distanceM: 15, restSec: 75, progression: 'nessuna', effort: 'forte' },
+  'corsa-facile': { sets: 1, repMin: 1500, repMax: 1800, unit: 'secondi', restSec: 0, progression: 'nessuna', effort: 'RPE 4-5' },
+  'intermittente-15-15': { sets: 2, repMin: 12, repMax: 16, unit: 'reps', workSec: 15, restSec: 15, progression: 'nessuna', effort: 'RPE 8' },
+  'ripetute-sprint': { sets: 2, repMin: 6, repMax: 6, unit: 'reps', distanceM: 25, restSec: 25, progression: 'nessuna', effort: 'al massimo' },
+  'cammino-corsa': { sets: 1, repMin: 10, repMax: 10, unit: 'reps', workSec: 60, restSec: 60, progression: 'nessuna', effort: 'corsa facile' },
+  'cyclette-facile': { sets: 1, repMin: 600, repMax: 600, unit: 'secondi', restSec: 0, progression: 'nessuna', effort: 'facile' },
+  'cyclette-intervalli': { sets: 1, repMin: 4, repMax: 4, unit: 'reps', workSec: 180, restSec: 120, progression: 'nessuna', effort: 'RPE 8' },
+  'ellittica-intervalli': { sets: 1, repMin: 4, repMax: 4, unit: 'reps', workSec: 180, restSec: 120, progression: 'nessuna', effort: 'RPE 8' },
+  'copenhagen-isometrico': { sets: 2, repMin: 20, repMax: 30, unit: 'secondi', restSec: 30, progression: 'nessuna', perSide: true },
+  'adduttori-pallone': { sets: 3, repMin: 20, repMax: 30, unit: 'secondi', restSec: 30, progression: 'nessuna' },
+  'ponte-flessori-isometrico': { sets: 3, repMin: 20, repMax: 30, unit: 'secondi', restSec: 30, progression: 'nessuna' },
+  'leg-curl-scivolando': { sets: 2, repMin: 6, repMax: 10, unit: 'reps', restSec: 45, progression: 'nessuna' },
+  'soleo-isometria': { sets: 3, repMin: 30, repMax: 45, unit: 'secondi', restSec: 45, progression: 'nessuna' },
+  'squat-macchina': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 120, progression: 'doppia', incrementKg: 5 },
+  'nordic-assistito-elastico': { sets: 2, repMin: 4, repMax: 6, unit: 'reps', restSec: 120, progression: 'nessuna' },
+  'copenhagen-leva-lunga': { sets: 2, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 30, progression: 'nessuna', perSide: true },
+  'leg-press': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 120, progression: 'doppia', incrementKg: 5 },
+  'stacco-rumeno-manubri': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2 },
+  'affondi-indietro-manubri': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 75, progression: 'doppia', incrementKg: 2, perSide: true },
+  'ponte-glutei-una-gamba': { sets: 2, repMin: 8, repMax: 12, unit: 'reps', restSec: 45, progression: 'nessuna', perSide: true },
+  'leg-curl-seduto': { sets: 2, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 60, progression: 'doppia', incrementKg: 2.5 },
+  'chest-press-presa-neutra': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 120, progression: 'doppia', incrementKg: 2.5 },
+  'distensioni-ai-cavi-presa-neutra': { sets: 2, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 2.5 },
+  'lento-manubri-presa-neutra': { sets: 2, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 90, progression: 'doppia', incrementKg: 1 },
+  'pulley-basso-presa-neutra': { sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 75, progression: 'doppia', incrementKg: 2.5 },
+  'polpacci-una-gamba-manubrio': { sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 45, progression: 'doppia', incrementKg: 2, perSide: true },
+  'soleo-una-gamba-ginocchio-piegato': { sets: 3, repMin: 8, repMax: 12, unit: 'reps', rir: 2, restSec: 45, progression: 'doppia', incrementKg: 2, perSide: true },
+  'eccentrico-estensori-polso': { sets: 3, repMin: 15, repMax: 15, unit: 'reps', restSec: 30, progression: 'nessuna' },
+  'adduttori-alla-macchina': { sets: 2, repMin: 10, repMax: 12, unit: 'reps', rir: 2, restSec: 45, progression: 'doppia', incrementKg: 2.5 },
+  'plank-sugli-avambracci': { sets: 2, repMin: 30, repMax: 40, unit: 'secondi', restSec: 30, progression: 'nessuna' },
+  'bird-dog': { sets: 2, repMin: 6, repMax: 8, unit: 'reps', restSec: 30, progression: 'nessuna', perSide: true },
+  'trazioni-presa-neutra': { sets: 3, repMin: 4, repMax: 8, unit: 'reps', rir: 2, restSec: 120, progression: 'nessuna' },
+  'step-up-manubri': { sets: 3, repMin: 6, repMax: 10, unit: 'reps', rir: 2, restSec: 75, progression: 'doppia', incrementKg: 2, perSide: true },
+  'passi-laterali-elastico': { sets: 1, repMin: 6, repMax: 8, unit: 'reps', restSec: 15, progression: 'nessuna', perSide: true },
+  'ellittica-ritmo-crescente': { sets: 1, repMin: 120, repMax: 120, unit: 'secondi', restSec: 10, progression: 'nessuna' },
+};
+
+/**
+ * Dose di riferimento di ogni esercizio che il generatore usa: quella della prima seduta fissa che lo contiene (senza la
+ * nota, che dipende dalla seduta), poi quelle della fase 2. Le sedute fisse non cambiano.
+ */
+export const DOSE_PRESETS: Readonly<Record<string, SessionExercise>> = (() => {
+  const out: Record<string, SessionExercise> = {};
+  for (const s of SESSION_LIST) {
+    for (const b of s.blocks) {
+      for (const it of b.items) {
+        if (out[it.exerciseId]) continue;
+        const { note: _note, ...rest } = it;
+        out[it.exerciseId] = rest;
+      }
+    }
+  }
+  for (const [id, d] of Object.entries(PHASE2_DOSES)) out[id] = { exerciseId: id, ...d };
+  return out;
+})();

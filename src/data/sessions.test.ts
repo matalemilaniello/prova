@@ -54,6 +54,8 @@ function checkTitleCase(label: string, title: string): string[] {
 }
 
 const allItems = (s: WorkoutSession) => s.blocks.flatMap((b) => b.items);
+/** La prova del saltello del rientro non ha alternative: se non si può fare, si rimanda (§ 3.7). */
+const NO_ALTERNATIVE = new Set(['prova-saltello']);
 const exOf = (it: SessionExercise): Exercise => EXERCISES[it.exerciseId];
 const usedIn = (ids: string[], sessions: WorkoutSession[]) =>
   sessions.filter((s) => allItems(s).some((it) => ids.includes(it.exerciseId)));
@@ -70,9 +72,9 @@ function incrementRange(equipment: string): [number, number] | null {
 // ───────────────────────── Catalogo degli esercizi ─────────────────────────
 
 describe('catalogo degli esercizi', () => {
-  it('ha 45-60 esercizi con id univoci in kebab-case', () => {
-    expect(EXERCISE_LIST.length).toBeGreaterThanOrEqual(45);
-    expect(EXERCISE_LIST.length).toBeLessThanOrEqual(60);
+  it('ha 60 esercizi della fase 1 e 37 della fase 2, con id univoci in kebab-case', () => {
+    // Fase 2 (docs/FASE2.md § 3.7): 37 esercitazioni nuove (pliometria, sprint, condizionamento, rientro).
+    expect(EXERCISE_LIST.length).toBe(97);
     const ids = EXERCISE_LIST.map((e) => e.id);
     const dup = ids.filter((id, i) => ids.indexOf(id) !== i);
     expect(dup, `id duplicati: ${dup.join(', ')}`).toEqual([]);
@@ -106,7 +108,7 @@ describe('catalogo degli esercizi', () => {
     const errors: string[] = [];
     for (const e of EXERCISE_LIST) {
       const alts = e.alternatives ?? [];
-      if (alts.length === 0) errors.push(`${e.id}: nessuna alternativa`);
+      if (alts.length === 0 && !NO_ALTERNATIVE.has(e.id)) errors.push(`${e.id}: nessuna alternativa`);
       if (new Set(alts).size !== alts.length) errors.push(`${e.id}: alternative ripetute`);
       for (const a of alts) {
         if (a === e.id) errors.push(`${e.id}: è alternativa di sé stesso`);
@@ -132,7 +134,7 @@ describe('catalogo degli esercizi', () => {
   });
 
   it('gli esercizi d’impatto hanno un’alternativa senza volo', () => {
-    const impact = EXERCISE_LIST.filter((e) => e.impact);
+    const impact = EXERCISE_LIST.filter((e) => e.impact && !NO_ALTERNATIVE.has(e.id));
     expect(impact.map((e) => e.id)).toContain('balzi-del-pattinatore');
     for (const e of impact) {
       const safe = (e.alternatives ?? []).filter((a) => EXERCISES[a] && !EXERCISES[a].impact);

@@ -23,8 +23,9 @@
  * revisione perché il deficit in vigore resti dentro i limiti. Senza deficit (ricomposizione e mantenimento senza
  * correzioni, massa) niente cambia.
  */
-import type { CheckIn, DayType, ISODate, Plan, Profile, SeasonCalendar, WeeklyReview } from '../domain/types';
+import type { CheckIn, DayType, ISODate, Plan, Profile, WeeklyReview } from '../domain/types';
 import { addDays, isISODate } from './dates';
+import { DEFAULT_PRESEASON_WEEKS, isPreseason as seasonIsPreseason } from './plan/season';
 import { effectiveDayType, isMatchDay, isMatchEve } from './menu';
 import { GOAL_DELTA_KCAL } from './targets';
 import { impactThresholdFor, isLowerLegSite } from './training';
@@ -47,8 +48,8 @@ export const PROTECTED_DEFICIT_KCAL = 250;
 export const LOWER_LEG_WINDOW_DAYS = 14;
 /** Surplus massimo salvato in `Plan.goalDeltaKcal` (lo stesso tetto della normalizzazione). */
 export const MAX_SURPLUS_KCAL = 500;
-/** Settimane di precampionato senza un valore nel piano. */
-export const DEFAULT_PRESEASON_WEEKS = 5;
+/** Settimane di precampionato senza un valore nel piano (engine/plan/season.ts). */
+export { DEFAULT_PRESEASON_WEEKS };
 
 const DAY_TYPES: DayType[] = ['calcio', 'palestra', 'leggero', 'riposo'];
 
@@ -92,19 +93,11 @@ export function maxDeficitKcal(plan: Plan, deltaKcal: number): number {
 }
 
 /**
- * Precampionato: le settimane prima della prima partita della nuova stagione (`SeasonCalendar.preseasonWeeks`, 3-8,
- * predefinito 5), dopo l'ultima partita della stagione se c'è. Senza date non c'è mai. È la regola delle date del
- * § 2.4 ridotta a quello che serve qui; la fase completa la calcola engine/plan/season.ts.
+ * Precampionato nella data: le fasi della stagione del § 2.4 (engine/plan/season.ts). Le settimane prima della prima
+ * partita della nuova stagione (`SeasonCalendar.preseasonWeeks`, 3-8, predefinito 5), mai prima del giorno dopo l'ultima
+ * partita della stagione prima. Senza date non c'è mai.
  */
-export function isPreseason(iso: ISODate, season: SeasonCalendar | undefined): boolean {
-  const first = season?.firstMatch;
-  if (!isISODate(iso) || !isISODate(first) || iso >= first) return false;
-  const raw = finite(season?.preseasonWeeks) ? Math.round(season.preseasonWeeks) : DEFAULT_PRESEASON_WEEKS;
-  const weeks = Math.min(8, Math.max(3, raw));
-  if (iso < addDays(first, -7 * weeks)) return false;
-  const last = season?.lastMatch;
-  return !(isISODate(last) && iso <= last);
-}
+export const isPreseason = seasonIsPreseason;
 
 /**
  * Una zona sotto il ginocchio frena il deficit nella data: dolore del mattino sopra la soglia degli impatti almeno una

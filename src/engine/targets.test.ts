@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../domain/types';
 import { DEFAULT_PROFILE } from '../data/defaults';
-import { ageFrom, bmrMifflin, computeTargets, tdee } from './targets';
+import { PROTEIN_G_PER_KG_BY_GOAL, ageFrom, bmrMifflin, computeTargets, targetsForGoal, tdee } from './targets';
 
 const NOW = new Date(2026, 10, 10);
 // Profilo di prova generico (36 anni nel 2026, 178 cm, 74 kg): nessun dato reale.
@@ -56,5 +56,35 @@ describe('obiettivi', () => {
     const cut = computeTargets({ ...profile, goal: 'dimagrimento' }, 74, NOW);
     expect(cut.palestra.kcal).toBeLessThan(base.palestra.kcal);
     expect(cut.palestra.proteinG).toBe(base.palestra.proteinG);
+  });
+});
+
+describe('obiettivi delle proposte (fase 2, § 2.1)', () => {
+  const targets = computeTargets(profile, 74, NOW);
+
+  it('dimagrimento: −350 kcal dal dispendio, proteine 2,2 g/kg, grassi e fibre come oggi', () => {
+    const t = targetsForGoal(targets, 0, 'dimagrimento', { weightKg: 74, maxDeficitKcal: 500 });
+    expect(t.goalDeltaKcal).toBe(-350);
+    expect(t.capped).toBe(false);
+    expect(t.targets.palestra.kcal).toBe(targets.palestra.kcal - 350);
+    expect(t.targets.palestra.proteinG).toBe(Math.round((PROTEIN_G_PER_KG_BY_GOAL.dimagrimento * 74) / 5) * 5);
+    expect(t.targets.palestra.fatG).toBe(targets.palestra.fatG);
+    expect(t.targets.riposo.fiberG).toBe(targets.riposo.fiberG);
+    for (const d of Object.values(t.targets)) expect(Math.abs(d.proteinG * 4 + d.fatG * 9 + d.carbG * 4 - d.kcal)).toBeLessThanOrEqual(20);
+  });
+
+  it('dal dimagrimento alla ricomposizione si torna al dispendio; il deficit non supera il tetto dato', () => {
+    const cut = targetsForGoal(targets, 0, 'dimagrimento', { weightKg: 74 }).targets;
+    const back = targetsForGoal(cut, -350, 'ricomposizione', { weightKg: 74 });
+    expect(back.goalDeltaKcal).toBe(0);
+    expect(back.targets.palestra.kcal).toBe(targets.palestra.kcal);
+    expect(back.targets.palestra.proteinG).toBe(targets.palestra.proteinG);
+    const capped = targetsForGoal(targets, 0, 'dimagrimento', { maxDeficitKcal: 300 });
+    expect(capped).toMatchObject({ goalDeltaKcal: -300, capped: true });
+    expect(targetsForGoal(targets, 0, 'massa').goalDeltaKcal).toBe(250);
+  });
+
+  it('senza peso le proteine restano quelle di oggi', () => {
+    expect(targetsForGoal(targets, 0, 'dimagrimento').targets.calcio.proteinG).toBe(targets.calcio.proteinG);
   });
 });

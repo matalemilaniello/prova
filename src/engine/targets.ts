@@ -85,3 +85,56 @@ export function computeTargets(profile: Profile, weightKg?: number, now: Date = 
   };
   return { calcio: make('calcio'), palestra: make('palestra'), leggero: make('leggero'), riposo: make('riposo') };
 }
+
+// ───────────────────────── Obiettivi delle proposte (fase 2, § 2.1) ─────────────────────────
+
+/**
+ * Proteine per obiettivo del corpo (docs/FASE2.md § 2.1): 2,2 g/kg in dimagrimento, perché in deficit servono più
+ * proteine per tenere il muscolo (Helms 2014; ISSN, Jäger 2017); 1,9 g/kg negli altri. Le usa la proposta di obiettivi;
+ * `computeTargets` (benvenuto e ricalcolo dal profilo) resta a 1,9 come prima.
+ */
+export const PROTEIN_G_PER_KG_BY_GOAL: Record<Goal, number> = {
+  ricomposizione: PROTEIN_G_PER_KG,
+  mantenimento: PROTEIN_G_PER_KG,
+  massa: PROTEIN_G_PER_KG,
+  dimagrimento: 2.2,
+};
+
+export interface GoalTargets {
+  targets: Record<DayType, MacroTarget>;
+  /** Differenza dal dispendio in vigore con il nuovo obiettivo (negativa = deficit), dentro i limiti. */
+  goalDeltaKcal: number;
+  /** Il deficit dell'obiettivo è stato tagliato ai limiti di sicurezza. */
+  capped: boolean;
+}
+
+/**
+ * Obiettivi per tipo di giorno di una proposta di obiettivi (§ 2.1): dal dispendio che gli obiettivi di oggi
+ * sottintendono (kcal meno la differenza in vigore, così restano le modifiche fatte a mano), più la differenza del nuovo
+ * obiettivo (`GOAL_DELTA_KCAL`), mai oltre il deficit massimo dato (500 kcal e il 20% del dispendio, il più stretto tra i
+ * tipi di giorno: lo calcola engine/energy.ts). Kcal arrotondate a 50, proteine dal peso con i g/kg dell'obiettivo
+ * (senza peso restano quelle di oggi), grassi e fibre come oggi, carboidrati il resto.
+ */
+export function targetsForGoal(
+  targets: Record<DayType, MacroTarget>,
+  currentDeltaKcal: number,
+  goal: Goal,
+  opts: { weightKg?: number; maxDeficitKcal?: number } = {},
+): GoalTargets {
+  const want = GOAL_DELTA_KCAL[goal] ?? 0;
+  const cap = typeof opts.maxDeficitKcal === 'number' && Number.isFinite(opts.maxDeficitKcal) ? Math.max(0, opts.maxDeficitKcal) : Infinity;
+  const delta = want < 0 ? -Math.min(-want, cap) : want;
+  const w = opts.weightKg && opts.weightKg > 0 ? opts.weightKg : undefined;
+  const make = (t: DayType): MacroTarget => {
+    const cur = targets[t];
+    const kcal = round(cur.kcal - currentDeltaKcal + delta, 50);
+    const proteinG = w ? round(PROTEIN_G_PER_KG_BY_GOAL[goal] * w, 5) : cur.proteinG;
+    const carbG = Math.max(0, round((kcal - proteinG * 4 - cur.fatG * 9) / 4, 5));
+    return { kcal, proteinG, fatG: cur.fatG, carbG, fiberG: cur.fiberG };
+  };
+  return {
+    targets: { calcio: make('calcio'), palestra: make('palestra'), leggero: make('leggero'), riposo: make('riposo') },
+    goalDeltaKcal: delta,
+    capped: delta !== want,
+  };
+}

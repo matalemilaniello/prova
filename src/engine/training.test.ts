@@ -22,6 +22,9 @@ import {
   loadAlert,
   loadStatus,
   nextPlannedSession,
+  RESUME_LOAD_FACTOR,
+  exerciseIntro,
+  impactHoldOn,
   painFlagFor,
   painGate,
   painNoteForExercise,
@@ -906,5 +909,39 @@ describe('esercizi del fisioterapista e doppioni', () => {
     expect(d.total).toBe(d.own + d.physio);
     // Nella fase di ingresso una serie in meno accorcia la seduta.
     expect(sessionDuration(SESSIONS.A, undefined, { intro: true }).own).toBeLessThan(SESSIONS.A.estMin);
+  });
+});
+
+describe('fermo per i segnali d’allarme (fase 2, § 3.8)', () => {
+  it('dal giorno del fermo la regola dice «niente impatti» in ogni seduta, anche senza dolore', () => {
+    const plan = { ...defaultPlan('2026-11-02'), impactHold: { site: 'Tibia', since: '2026-11-13' } };
+    expect(impactHoldOn(plan, '2026-11-12')).toBeNull();
+    expect(impactHoldOn(plan, '2026-11-13')).toEqual({ site: 'Tibia', since: '2026-11-13' });
+    const gate = painGate({ plan, workoutLogs: [], footballLogs: [], checkIns: {} }, '2026-11-13', { sessionId: 'B' });
+    expect(gate.level).toBe('ok');
+    expect(gate.impact).toBe(true);
+    expect(gate.impactSite).toBe('Tibia');
+    expect(gate.title).toBe('Impatti fermi');
+    expect(painFlagFor(EXERCISES['balzi-del-pattinatore'], gate)?.kind).toBe('impatto');
+    // Una data non valida non toglie il fermo.
+    expect(impactHoldOn({ impactHold: { site: 'Tibia', since: 'x' } }, '2026-01-01')).not.toBeNull();
+    expect(painGate({ plan: defaultPlan('2026-11-02'), workoutLogs: [], footballLogs: [], checkIns: {} }, '2026-11-13').impact).toBe(false);
+  });
+});
+
+describe('fase di ingresso per esercizio e ripresa dopo una pausa (fase 2, § 3.3 e § 3.10)', () => {
+  const log = (date: string, ids: string[]): WorkoutLog => ({ id: date, date, sessionId: 'B', durationMin: 50, rpe: 6, pain: {}, exercises: ids.map((exerciseId) => ({ exerciseId, sets: [{ weightKg: 20, reps: 8, done: true }] })) });
+  it('un esercizio nuovo: le prime due esecuzioni in ingresso', () => {
+    expect(exerciseIntro('squat-macchina', [], '2026-11-13')).toEqual({ level: 1, loadFactor: 1, resume: false });
+    const logs = [log('2026-11-06', ['squat-macchina'])];
+    expect(exerciseIntro('squat-macchina', logs, '2026-11-13')?.level).toBe(2);
+    expect(exerciseIntro('squat-macchina', [...logs, log('2026-11-09', ['squat-macchina'])], '2026-11-13')).toBeNull();
+  });
+  it('14 giorni o più senza sedute: di nuovo in ingresso con il carico −20%', () => {
+    const logs = [log('2026-10-01', ['stacco-trap-bar']), log('2026-10-03', ['stacco-trap-bar']), log('2026-10-06', ['stacco-trap-bar'])];
+    expect(exerciseIntro('stacco-trap-bar', logs, '2026-10-24')).toEqual({ level: 1, loadFactor: RESUME_LOAD_FACTOR, resume: true });
+    const after = [...logs, log('2026-10-24', ['stacco-trap-bar'])];
+    expect(exerciseIntro('stacco-trap-bar', after, '2026-10-27')).toEqual({ level: 2, loadFactor: 1, resume: true });
+    expect(exerciseIntro('stacco-trap-bar', [...after, log('2026-10-27', ['stacco-trap-bar'])], '2026-10-30')).toBeNull();
   });
 });

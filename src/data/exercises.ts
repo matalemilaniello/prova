@@ -26,20 +26,73 @@
  *             presa e meno stabilizzazione al polso (la panca con i manubri passa alla macchina o ai cavi).
  *             `incrementKg` è il passo del carico sulla variante, se diverso da quello della seduta.
  */
-import type { Exercise } from '../domain/types';
+import type { Exercise, TrainingQuality } from '../domain/types';
+
+/**
+ * Schema di movimento (docs/FASE2.md § 3.7): la sostituzione cerca prima lo stesso schema e la stessa qualità. Ogni
+ * esercizio del catalogo ne ha uno (test). `laterale` vale sia per il core sul piano frontale sia per i balzi laterali.
+ */
+export type MovementPattern =
+  | 'squat'
+  | 'cerniera'
+  | 'affondo'
+  | 'ponte'
+  | 'spinta-orizzontale'
+  | 'spinta-verticale'
+  | 'tirata-orizzontale'
+  | 'tirata-verticale'
+  | 'flessori'
+  | 'adduttori'
+  | 'polpaccio'
+  | 'soleo'
+  | 'tibiale'
+  | 'polso'
+  | 'anti-estensione'
+  | 'anti-rotazione'
+  | 'laterale'
+  | 'salto-verticale'
+  | 'salto-orizzontale'
+  | 'reattivo'
+  | 'lancio'
+  | 'accelerazione'
+  | 'decelerazione'
+  | 'cambio-direzione'
+  | 'velocita-massima'
+  | 'intermittente'
+  | 'aerobico'
+  | 'mobilita'
+  | 'riscaldamento';
+
+/** Spazio che l'esercizio richiede: la palestra c'è sempre; corsia (15-20 m liberi) e campo li sceglie l'utente. */
+export type ExerciseSpace = 'palestra' | 'corsia' | 'campo' | 'casa';
+
+/** Livello d'impatto (§ 3.6): 0 senza volo, 1 atterraggio basso, 2 moderato, 3 reattivo. */
+export type ImpactLevel = 0 | 1 | 2 | 3;
 
 /** Esercizio del catalogo, con i campi facoltativi propri del catalogo. */
 export interface CatalogExercise extends Exercise {
-  /** Fase di volo e atterraggio: da evitare con la tibia oltre la soglia degli impatti. */
+  /** Fase di volo e atterraggio, corsa o sprint: da evitare con la tibia oltre la soglia degli impatti. */
   impact?: boolean;
   /** Carichi di partenza tipici in kg (tre valori crescenti) per la prima volta con l'esercizio. */
   startKg?: readonly number[];
   /** Variante che prende il posto dell'esercizio con il gomito sopra soglia (meno presa sui manubri). */
   elbowSwitch?: { to: string; incrementKg?: number };
+  /** Schema di movimento: obbligatorio per ogni esercizio del catalogo (test). */
+  pattern?: MovementPattern;
+  /** Qualità che l'esercizio allena (§ 2.2). */
+  qualities?: TrainingQuality[];
+  /** Livello d'impatto; assente = 0 senza `impact`, 3 (il più prudente) con `impact: true`. */
+  impactLevel?: ImpactLevel;
+  /** Salti e balzi: contatti con il suolo per ripetizione (per gamba negli esercizi su una gamba). */
+  contactsPerRep?: number;
+  /** Spazio richiesto; assente = palestra. */
+  space?: ExerciseSpace;
+  /** Fuori dal conteggio dei contatti (la prova del saltello del rientro, § 3.8). */
+  uncounted?: boolean;
 }
 
-/** Catalogo in ordine di categoria (riscaldamento, mobilità, spinte, tirate, gambe, core, prevenzione). */
-export const EXERCISE_LIST: readonly CatalogExercise[] = [
+/** Catalogo della fase 1, in ordine di categoria (riscaldamento, mobilità, spinte, tirate, gambe, core, prevenzione). */
+const BASE_LIST: readonly CatalogExercise[] = [
   // ───────────────────────── Riscaldamento (FIFA 11+ adattato) ─────────────────────────
   {
     id: 'cyclette-ritmo-crescente',
@@ -929,6 +982,782 @@ export const EXERCISE_LIST: readonly CatalogExercise[] = [
   },
 ];
 
+type Meta = Pick<CatalogExercise, 'pattern' | 'qualities' | 'impactLevel' | 'contactsPerRep' | 'space'>;
+
+/** Schema, qualità e livello d'impatto degli esercizi della fase 1 (§ 3.7: ricevono `pattern` e `qualities`). */
+const BASE_META: Record<string, Meta> = {
+  'cyclette-ritmo-crescente': { pattern: 'riscaldamento', qualities: [] },
+  'ellittica-ritmo-crescente': { pattern: 'riscaldamento', qualities: [] },
+  'apertura-chiusura-anca-in-marcia': { pattern: 'riscaldamento', qualities: ['prevenzione'] },
+  'affondi-in-camminata-con-rotazione': { pattern: 'riscaldamento', qualities: ['prevenzione'] },
+  'squat-con-sollevamento-punte': { pattern: 'riscaldamento', qualities: ['prevenzione'] },
+  'equilibrio-su-una-gamba-a-stella': { pattern: 'riscaldamento', qualities: ['prevenzione', 'rientro'] },
+  // Balzi laterali del riscaldamento della B: livello 2 e un contatto per gamba, come i balzi laterali con fermata.
+  'balzi-del-pattinatore': { pattern: 'laterale', qualities: ['potenza', 'prevenzione'], impactLevel: 2, contactsPerRep: 1 },
+  'passi-laterali-elastico': { pattern: 'riscaldamento', qualities: ['prevenzione', 'rientro'] },
+  'aperture-con-elastico': { pattern: 'riscaldamento', qualities: ['prevenzione'] },
+  'extrarotazioni-con-elastico': { pattern: 'riscaldamento', qualities: ['prevenzione'] },
+  'mobilita-caviglia-al-muro': { pattern: 'mobilita', qualities: ['prevenzione', 'rientro'] },
+  'rotazioni-anche-90-90': { pattern: 'mobilita', qualities: ['prevenzione'] },
+  'allungamento-corridore-con-rotazione': { pattern: 'mobilita', qualities: ['prevenzione'] },
+  'allungamento-flessori-anca': { pattern: 'mobilita', qualities: ['prevenzione'] },
+  'dondolo-adduttori-quadrupedia': { pattern: 'mobilita', qualities: ['prevenzione', 'rientro'] },
+  'panca-manubri-presa-neutra': { pattern: 'spinta-orizzontale', qualities: ['forza', 'ipertrofia'] },
+  'panca-inclinata-manubri-presa-neutra': { pattern: 'spinta-orizzontale', qualities: ['forza', 'ipertrofia'] },
+  'chest-press-presa-neutra': { pattern: 'spinta-orizzontale', qualities: ['forza', 'ipertrofia', 'rientro'] },
+  'distensioni-ai-cavi-presa-neutra': { pattern: 'spinta-orizzontale', qualities: ['ipertrofia', 'rientro'] },
+  'lento-manubri-presa-neutra': { pattern: 'spinta-verticale', qualities: ['forza', 'ipertrofia'] },
+  'piegamenti-su-impugnature': { pattern: 'spinta-orizzontale', qualities: ['forza', 'ipertrofia'], space: 'casa' },
+  'lat-machine-presa-neutra': { pattern: 'tirata-verticale', qualities: ['forza', 'ipertrofia'] },
+  'trazioni-presa-neutra': { pattern: 'tirata-verticale', qualities: ['forza', 'ipertrofia'] },
+  'rematore-manubrio-una-mano': { pattern: 'tirata-orizzontale', qualities: ['forza', 'ipertrofia'] },
+  'rematore-petto-appoggiato': { pattern: 'tirata-orizzontale', qualities: ['forza', 'ipertrofia'] },
+  'pulley-basso-presa-neutra': { pattern: 'tirata-orizzontale', qualities: ['forza', 'ipertrofia'] },
+  'face-pull-con-corda': { pattern: 'tirata-orizzontale', qualities: ['ipertrofia', 'prevenzione'] },
+  'stacco-trap-bar': { pattern: 'cerniera', qualities: ['forza', 'potenza'] },
+  'squat-goblet': { pattern: 'squat', qualities: ['forza', 'ipertrofia'] },
+  'affondo-bulgaro-manubri': { pattern: 'affondo', qualities: ['forza', 'ipertrofia'] },
+  'affondi-indietro-manubri': { pattern: 'affondo', qualities: ['forza', 'ipertrofia', 'rientro'] },
+  'step-up-manubri': { pattern: 'affondo', qualities: ['forza', 'ipertrofia'] },
+  'leg-press': { pattern: 'squat', qualities: ['forza', 'ipertrofia', 'rientro'] },
+  'hip-thrust-bilanciere': { pattern: 'ponte', qualities: ['forza', 'ipertrofia'] },
+  'ponte-glutei-una-gamba': { pattern: 'ponte', qualities: ['prevenzione', 'rientro'], space: 'casa' },
+  'stacco-rumeno-manubri': { pattern: 'cerniera', qualities: ['forza', 'ipertrofia'] },
+  'stacco-rumeno-una-gamba': { pattern: 'cerniera', qualities: ['prevenzione', 'forza'] },
+  'leg-curl-seduto': { pattern: 'flessori', qualities: ['ipertrofia', 'prevenzione', 'rientro'] },
+  'dead-bug': { pattern: 'anti-estensione', qualities: ['prevenzione'], space: 'casa' },
+  'plank-sugli-avambracci': { pattern: 'anti-estensione', qualities: ['prevenzione'], space: 'casa' },
+  'plank-laterale': { pattern: 'laterale', qualities: ['prevenzione'], space: 'casa' },
+  'pallof-press': { pattern: 'anti-rotazione', qualities: ['prevenzione'] },
+  'rollout-ruota': { pattern: 'anti-estensione', qualities: ['prevenzione'] },
+  'trasporto-manubrio-un-lato': { pattern: 'laterale', qualities: ['prevenzione'] },
+  'bird-dog': { pattern: 'anti-rotazione', qualities: ['prevenzione', 'rientro'], space: 'casa' },
+  'nordic-hamstring-curl': { pattern: 'flessori', qualities: ['prevenzione', 'forza'] },
+  'nordic-assistito-elastico': { pattern: 'flessori', qualities: ['prevenzione', 'rientro'] },
+  'copenhagen-leva-corta': { pattern: 'adduttori', qualities: ['prevenzione', 'rientro'] },
+  'copenhagen-leva-lunga': { pattern: 'adduttori', qualities: ['prevenzione'] },
+  'adduttori-alla-macchina': { pattern: 'adduttori', qualities: ['prevenzione', 'rientro'] },
+  'polpacci-in-piedi-macchina': { pattern: 'polpaccio', qualities: ['prevenzione', 'forza'] },
+  'polpacci-seduto': { pattern: 'soleo', qualities: ['prevenzione', 'forza'] },
+  'polpacci-una-gamba-manubrio': { pattern: 'polpaccio', qualities: ['prevenzione', 'rientro'] },
+  'soleo-una-gamba-ginocchio-piegato': { pattern: 'soleo', qualities: ['prevenzione', 'rientro'] },
+  'tibiale-anteriore-seduto': { pattern: 'tibiale', qualities: ['prevenzione', 'rientro'] },
+  'tibiale-al-muro': { pattern: 'tibiale', qualities: ['prevenzione', 'rientro'], space: 'casa' },
+  'sollevamenti-punte-pallina': { pattern: 'tibiale', qualities: ['prevenzione', 'rientro'], space: 'casa' },
+  'isometria-estensori-polso': { pattern: 'polso', qualities: ['prevenzione', 'rientro'] },
+  'tyler-twist': { pattern: 'polso', qualities: ['prevenzione', 'rientro'] },
+  'eccentrico-estensori-polso': { pattern: 'polso', qualities: ['prevenzione', 'rientro'] },
+};
+
+/**
+ * Esercitazioni della fase 2 (§ 3.7): pliometria contata in contatti, sprint e cambi di direzione contati in metri,
+ * condizionamento e qualche variante per la prevenzione e il rientro. Ogni esercizio di corsa, sprint o salto ha
+ * `impact: true` e un livello da 1 in su: allunghi e accelerazioni non si riconoscono dal nome, e senza il campo
+ * sfuggirebbero al freno della tibia. Le alternative, nell'ordine in cui la sostituzione le prova, finiscono sempre
+ * con una variante senza impatto (la prova del saltello no: se non si può fare, si rimanda).
+ */
+const PHASE2_LIST: readonly CatalogExercise[] = [
+  // ───────────────────────── Pliometria ─────────────────────────
+  {
+    id: 'salto-sul-box',
+    name: 'Salto sul box',
+    category: 'pliometria',
+    equipment: 'Box da 30-50 cm',
+    cues: [
+      'Carica le anche e salta sul box, atterrando morbido con tutti e due i piedi',
+      'Scendi a piedi, uno alla volta: mai saltando giù',
+      'Box basso: conta il gesto veloce, non l’altezza',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 1,
+    contactsPerRep: 1,
+    pattern: 'salto-verticale',
+    qualities: ['potenza'],
+    alternatives: ['salto-verticale-fermo', 'lancio-palla-medica-dal-basso'],
+    videoQuery: 'box jump tecnica atterraggio scendere a piedi',
+  },
+  {
+    id: 'salto-verticale-fermo',
+    name: 'Salto verticale con atterraggio fermo',
+    category: 'pliometria',
+    equipment: 'Corpo libero',
+    cues: [
+      'Salta in alto con le braccia, poi atterra e resta fermo due secondi',
+      'Ginocchia sopra i piedi all’atterraggio, mai verso l’interno',
+      'Riparti solo da fermo: ogni salto è a sé',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 1,
+    contactsPerRep: 1,
+    pattern: 'salto-verticale',
+    qualities: ['potenza'],
+    alternatives: ['salto-sul-box', 'sprint-cyclette'],
+    videoQuery: 'salto verticale atterraggio stabile tenuta',
+  },
+  {
+    id: 'salti-corda',
+    name: 'Salti con la corda',
+    category: 'pliometria',
+    equipment: 'Corda per saltare',
+    cues: [
+      'Salti bassi sull’avampiede, talloni che non toccano terra',
+      'Polsi che girano la corda, gomiti vicini al corpo',
+      'Ritmo regolare e silenzioso: se fai rumore, sei troppo alto',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 1,
+    contactsPerRep: 1,
+    pattern: 'reattivo',
+    qualities: ['potenza', 'rientro'],
+    space: 'casa',
+    alternatives: ['pogo-bilaterali', 'polpacci-esplosivi'],
+    videoQuery: 'salti con la corda tecnica base avampiede',
+  },
+  {
+    id: 'pogo-bilaterali',
+    name: 'Saltelli elastici a piedi pari',
+    category: 'pliometria',
+    equipment: 'Corpo libero',
+    cues: [
+      'Gambe quasi tese, rimbalza sull’avampiede come una molla',
+      'Contatto con il suolo il più breve possibile',
+      'Busto alto e braccia che accompagnano',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    contactsPerRep: 1,
+    pattern: 'reattivo',
+    qualities: ['potenza'],
+    alternatives: ['salti-corda', 'polpacci-esplosivi'],
+    videoQuery: 'pogo jumps saltelli caviglia rigida tecnica',
+  },
+  {
+    id: 'salto-in-lungo-fermo',
+    name: 'Salto in lungo da fermo con atterraggio stabile',
+    category: 'pliometria',
+    equipment: 'Corpo libero, 4-5 m liberi',
+    cues: [
+      'Carica le anche con le braccia indietro e salta in avanti',
+      'Atterra con le ginocchia morbide e resta fermo due secondi',
+      'Torna camminando: ogni salto è a sé',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    contactsPerRep: 1,
+    pattern: 'salto-orizzontale',
+    qualities: ['potenza'],
+    space: 'corsia',
+    alternatives: ['salto-verticale-fermo', 'lancio-palla-medica-dal-basso'],
+    videoQuery: 'salto in lungo da fermo atterraggio stabile',
+  },
+  {
+    id: 'balzi-laterali-fermata',
+    name: 'Balzi laterali con fermata',
+    category: 'pliometria',
+    equipment: 'Corpo libero',
+    cues: [
+      'Balza di lato su una gamba e resta fermo due secondi',
+      'Ginocchio sopra il piede, bacino orizzontale',
+      'Riparti dall’altro lato solo quando sei stabile',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    contactsPerRep: 1,
+    pattern: 'laterale',
+    qualities: ['potenza', 'prevenzione'],
+    alternatives: ['passi-laterali-elastico'],
+    videoQuery: 'balzi laterali una gamba atterraggio stabile',
+  },
+  {
+    id: 'salti-ostacolini',
+    name: 'Salti in serie sugli ostacolini',
+    category: 'pliometria',
+    equipment: 'Ostacolini da 15-30 cm',
+    cues: [
+      'Salta gli ostacolini uno dopo l’altro, senza pause in mezzo',
+      'Contatti brevi sull’avampiede, ginocchia che restano sopra i piedi',
+      'Ostacolini bassi: la qualità del rimbalzo conta più dell’altezza',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 3,
+    contactsPerRep: 1,
+    pattern: 'reattivo',
+    qualities: ['potenza'],
+    space: 'corsia',
+    alternatives: ['pogo-bilaterali', 'polpacci-esplosivi'],
+    videoQuery: 'hurdle hops ostacolini salti in serie tecnica',
+  },
+  {
+    id: 'saltelli-una-gamba',
+    name: 'Saltelli su una gamba sul posto',
+    category: 'pliometria',
+    equipment: 'Corpo libero',
+    cues: [
+      'Saltelli bassi e rapidi sull’avampiede di una gamba',
+      'Ginocchio appena piegato, bacino fermo',
+      'Fermati se il dolore sale: è un esercizio da tibia guarita',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 3,
+    contactsPerRep: 1,
+    pattern: 'reattivo',
+    qualities: ['potenza'],
+    alternatives: ['pogo-bilaterali', 'polpacci-esplosivi'],
+    videoQuery: 'saltelli su una gamba pogo monopodalici',
+  },
+  {
+    id: 'prova-saltello',
+    name: 'Prova del saltello: 10 saltelli su una gamba, poi sull’altra',
+    category: 'pliometria',
+    equipment: 'Corpo libero',
+    cues: [
+      'Dieci saltelli bassi su una gamba, poi dieci sull’altra',
+      'Fermati al primo dolore e segnalalo a fine seduta',
+      'Solo con il via libera del fisioterapista',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 3,
+    contactsPerRep: 1,
+    uncounted: true,
+    pattern: 'reattivo',
+    qualities: ['rientro'],
+    videoQuery: 'hop test saltelli su una gamba rientro corsa',
+  },
+  {
+    id: 'balzi-alternati',
+    name: 'Balzi alternati',
+    category: 'pliometria',
+    equipment: 'Corpo libero, 20-30 m liberi',
+    cues: [
+      'Spingi da una gamba all’altra cercando l’ampiezza, non la velocità',
+      'Ginocchio della gamba libera alto, braccia alternate',
+      'Atterra sotto il bacino, mai con il piede troppo avanti',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 3,
+    contactsPerRep: 1,
+    pattern: 'salto-orizzontale',
+    qualities: ['potenza'],
+    space: 'campo',
+    alternatives: ['salto-in-lungo-fermo', 'lancio-palla-medica-dal-basso'],
+    videoQuery: 'balzi alternati bounding tecnica',
+  },
+  {
+    id: 'drop-jump-basso',
+    name: 'Drop jump da 30 cm',
+    category: 'pliometria',
+    equipment: 'Box da 30 cm',
+    cues: [
+      'Scendi dal box con un passo, non saltando',
+      'Appena tocchi terra rimbalza in alto, contatto brevissimo',
+      'Se il rimbalzo diventa lento, la serie è finita',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 3,
+    contactsPerRep: 1,
+    pattern: 'reattivo',
+    qualities: ['potenza'],
+    alternatives: ['salti-ostacolini', 'polpacci-esplosivi'],
+    videoQuery: 'drop jump 30 cm tecnica contatto breve',
+  },
+  {
+    id: 'lancio-palla-medica-dal-basso',
+    name: 'Lancio della palla medica dal basso, avanti e indietro',
+    category: 'pliometria',
+    equipment: 'Palla medica da 3-5 kg',
+    cues: [
+      'Palla tra le gambe, carica le anche come in uno stacco',
+      'Lancia con un’esplosione di anche, braccia tese',
+      'Recupera la palla camminando: ogni lancio è al massimo',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'lancio',
+    qualities: ['potenza'],
+    alternatives: ['sprint-cyclette'],
+    videoQuery: 'lancio palla medica dal basso avanti e indietro',
+  },
+  {
+    id: 'lancio-palla-medica-rotazionale',
+    name: 'Lancio rotazionale della palla medica alla parete',
+    category: 'pliometria',
+    equipment: 'Palla medica da 3-4 kg e parete',
+    cues: [
+      'Di fianco alla parete, ruota anche e busto e lancia con forza',
+      'Spinta dalle gambe, braccia quasi tese',
+      'Riprendi la palla al rimbalzo e cambia lato a fine serie',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'lancio',
+    qualities: ['potenza'],
+    alternatives: ['pallof-press'],
+    videoQuery: 'lancio rotazionale palla medica parete',
+  },
+  {
+    id: 'sprint-cyclette',
+    name: 'Sprint in cyclette da 6-8 secondi',
+    category: 'condizionamento',
+    equipment: 'Cyclette',
+    cues: [
+      'Resistenza alta e pedalata al massimo per 6-8 secondi',
+      'Recupero completo pedalando piano: ogni sprint è al massimo',
+      'Busto fermo, la forza viene dalle gambe',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'intermittente',
+    qualities: ['potenza', 'resistenza'],
+    alternatives: ['cyclette-intervalli'],
+    videoQuery: 'sprint cyclette 6 secondi resistenza alta',
+  },
+  {
+    id: 'trap-bar-veloce',
+    name: 'Trap bar veloce al 50-60%',
+    category: 'gambe',
+    equipment: 'Trap bar',
+    cues: [
+      'Carico al 50-60% del solito: ogni ripetizione il più veloce possibile',
+      'Spingi il pavimento e arriva in punta di piedi senza staccarli',
+      'Fermati quando la velocità cala',
+    ],
+    elbowFriendly: false,
+    startKg: [30, 40, 50],
+    impactLevel: 0,
+    pattern: 'cerniera',
+    qualities: ['potenza'],
+    alternatives: ['hip-thrust-bilanciere'],
+    videoQuery: 'trap bar jump squat veloce potenza',
+  },
+  {
+    id: 'polpacci-esplosivi',
+    name: 'Salite sulle punte veloci alla macchina',
+    category: 'prevenzione',
+    equipment: 'Macchina polpacci in piedi',
+    cues: [
+      'Carico medio: sali sulle punte il più veloce possibile',
+      'Scendi controllato in 2 secondi, talloni sotto il gradino',
+      'Ginocchia quasi tese per tutta la serie',
+    ],
+    elbowFriendly: true,
+    startKg: [30, 50, 70],
+    impactLevel: 0,
+    pattern: 'polpaccio',
+    qualities: ['prevenzione', 'potenza'],
+    alternatives: ['polpacci-in-piedi-macchina'],
+    videoQuery: 'calf raise esplosivo macchina polpacci',
+  },
+
+  // ───────────────────────── Sprint, frenate e cambi di direzione ─────────────────────────
+  {
+    id: 'accelerazioni-10m',
+    name: 'Accelerazioni da 10 m da partenze diverse',
+    category: 'sprint',
+    equipment: 'Corsia di 15-20 m',
+    cues: [
+      'Parti da fermo, in piedi, a terra o di spalle, e spingi forte per 10 m',
+      'Busto inclinato in avanti nei primi passi, braccia ampie',
+      'Torna camminando: il recupero è completo',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'accelerazione',
+    qualities: ['rapidita'],
+    space: 'corsia',
+    alternatives: ['sprint-salita', 'sprint-cyclette'],
+    videoQuery: 'accelerazioni 10 metri partenze diverse calcio',
+  },
+  {
+    id: 'frenate-tre-passi',
+    name: 'Frenate in tre passi',
+    category: 'sprint',
+    equipment: 'Corsia di 15-20 m',
+    cues: [
+      'Corri a ritmo sostenuto per 10 m e fermati in tre passi',
+      'Abbassa il bacino e accorcia i passi, busto sopra i piedi',
+      'Ultimo appoggio stabile, ginocchio sopra il piede',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'decelerazione',
+    qualities: ['rapidita'],
+    space: 'corsia',
+    alternatives: ['affondi-indietro-manubri'],
+    videoQuery: 'frenata in tre passi deceleration drill calcio',
+  },
+  {
+    id: 'cambi-direzione-45-90',
+    name: 'Cambi di direzione a 45° e 90°',
+    category: 'sprint',
+    equipment: 'Corsia di 15-20 m e coni',
+    cues: [
+      'Corri al cono, abbassa il bacino e cambia direzione spingendo dal piede esterno',
+      'Prima a 45°, poi a 90°: una progressione alla volta',
+      'Esci dal cambio accelerando per 5 m',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'cambio-direzione',
+    qualities: ['rapidita'],
+    space: 'corsia',
+    alternatives: ['frenate-tre-passi', 'passi-laterali-elastico'],
+    videoQuery: 'cambi di direzione 45 90 gradi coni calcio',
+  },
+  {
+    id: 'navetta-5-0-5',
+    name: 'Navetta 5-0-5',
+    category: 'sprint',
+    equipment: 'Corsia di 15-20 m e coni',
+    cues: [
+      'Lancio di 10 m, poi 5 m forti fino alla linea',
+      'Giro di 180° con il bacino basso e riparti per 5 m',
+      'Alterna il piede del giro da una ripetizione all’altra',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'cambio-direzione',
+    qualities: ['rapidita'],
+    space: 'corsia',
+    alternatives: ['cambi-direzione-45-90', 'sprint-cyclette'],
+    videoQuery: 'test 505 navetta cambio di direzione 180 gradi',
+  },
+  {
+    id: 'skip-tecnica',
+    name: 'Skip A e B',
+    category: 'riscaldamento',
+    equipment: 'Corsia di 15-20 m',
+    cues: [
+      'Skip A: ginocchia alte, appoggio sotto il bacino sull’avampiede',
+      'Skip B: stessa base, poi la gamba si distende e graffia il terreno',
+      'Braccia alternate, busto alto',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 1,
+    pattern: 'riscaldamento',
+    qualities: ['rapidita'],
+    space: 'corsia',
+    alternatives: ['apertura-chiusura-anca-in-marcia'],
+    videoQuery: 'skip A skip B tecnica di corsa',
+  },
+  {
+    id: 'allunghi',
+    name: 'Allunghi progressivi da 60-80 m',
+    category: 'sprint',
+    equipment: 'Campo o parco',
+    cues: [
+      'Accelera piano piano e arriva in fondo all’intensità indicata',
+      'Corsa sciolta: spalle basse, mani rilassate',
+      'Torna camminando, il recupero è completo',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'velocita-massima',
+    qualities: ['velocita'],
+    space: 'campo',
+    alternatives: ['sprint-salita', 'sprint-cyclette'],
+    videoQuery: 'allunghi progressivi 80 metri tecnica',
+  },
+  {
+    id: 'sprint-lanciati-20m',
+    name: 'Sprint lanciati da 20 m',
+    category: 'sprint',
+    equipment: 'Campo o parco, 50 m liberi',
+    cues: [
+      'Lancio di 20-30 m in progressione, poi 20 m forte ma sciolto',
+      'Appoggi sotto il bacino, ginocchia alte',
+      'Recupero di 2-4 minuti camminando: ogni sprint è di qualità',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'velocita-massima',
+    qualities: ['velocita'],
+    space: 'campo',
+    alternatives: ['allunghi', 'sprint-cyclette'],
+    videoQuery: 'sprint lanciati 20 metri flying sprint',
+  },
+  {
+    id: 'sprint-salita',
+    name: 'Sprint in salita da 10-20 m',
+    category: 'sprint',
+    equipment: 'Salita leggera',
+    cues: [
+      'Salita leggera, spingi forte per 10-20 m',
+      'Busto inclinato con la salita, braccia ampie',
+      'Scendi camminando: la discesa è il recupero',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'accelerazione',
+    qualities: ['rapidita', 'rientro'],
+    space: 'campo',
+    alternatives: ['accelerazioni-10m', 'sprint-cyclette'],
+    videoQuery: 'sprint in salita 20 metri tecnica',
+  },
+
+  // ───────────────────────── Corsa e condizionamento ─────────────────────────
+  {
+    id: 'corsa-facile',
+    name: 'Corsa continua facile',
+    category: 'condizionamento',
+    equipment: 'Campo o parco',
+    cues: [
+      'Ritmo con cui riesci a parlare, RPE 4-5',
+      'Passi corti e leggeri, appoggio sotto il bacino',
+      'Su terreno morbido quando puoi',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'aerobico',
+    qualities: ['resistenza'],
+    space: 'campo',
+    alternatives: ['cyclette-facile', 'ellittica-intervalli'],
+    videoQuery: 'corsa lenta aerobica tecnica passi corti',
+  },
+  {
+    id: 'intermittente-15-15',
+    name: 'Corsa intermittente 15-15',
+    category: 'condizionamento',
+    equipment: 'Campo o parco',
+    cues: [
+      'Quindici secondi forti e quindici di recupero camminando o corricchiando',
+      'Ritmo che tieni uguale fino all’ultima ripetizione',
+      'Fra una serie e l’altra 3 minuti di recupero',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'intermittente',
+    qualities: ['resistenza'],
+    space: 'campo',
+    alternatives: ['cyclette-intervalli'],
+    videoQuery: 'corsa intermittente 15 15 calcio',
+  },
+  {
+    id: 'ripetute-sprint',
+    name: 'Ripetute di sprint 6 × 20-30 m',
+    category: 'sprint',
+    equipment: 'Campo o parco',
+    cues: [
+      'Sei sprint da 20-30 m con 20-25 secondi di recupero',
+      'Tra una serie e l’altra 3-4 minuti camminando',
+      'Se la velocità cala molto, la serie finisce lì',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'intermittente',
+    qualities: ['resistenza'],
+    space: 'campo',
+    alternatives: ['sprint-cyclette'],
+    videoQuery: 'repeated sprint ability 6 x 30 metri',
+  },
+  {
+    id: 'cammino-corsa',
+    name: 'Cammino e corsa alternati',
+    category: 'condizionamento',
+    equipment: 'Campo o parco',
+    cues: [
+      'Un minuto di corsa facile e un minuto di cammino, per dieci volte',
+      'Terreno piano e morbido, scarpe da corsa',
+      'Il giorno dopo il dolore non deve salire',
+    ],
+    elbowFriendly: true,
+    impact: true,
+    impactLevel: 2,
+    pattern: 'aerobico',
+    qualities: ['rientro'],
+    space: 'campo',
+    alternatives: ['cyclette-facile'],
+    videoQuery: 'programma cammino corsa ritorno alla corsa',
+  },
+  {
+    id: 'cyclette-facile',
+    name: 'Cyclette facile',
+    category: 'condizionamento',
+    equipment: 'Cyclette',
+    cues: [
+      'Resistenza bassa, pedalata agile: devi riuscire a parlare',
+      'Sella all’altezza dell’anca',
+      'Ritmo costante dall’inizio alla fine',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'aerobico',
+    qualities: ['resistenza', 'rientro'],
+    alternatives: ['ellittica-intervalli'],
+    videoQuery: 'cyclette facile recupero attivo',
+  },
+  {
+    id: 'cyclette-intervalli',
+    name: 'Intervalli in cyclette',
+    category: 'condizionamento',
+    equipment: 'Cyclette',
+    cues: [
+      'Tratti forti alla resistenza indicata, poi pedalata leggera',
+      'Ritmo che tieni uguale fino all’ultimo intervallo',
+      'Busto fermo, spalle rilassate',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'intermittente',
+    qualities: ['resistenza'],
+    alternatives: ['ellittica-intervalli'],
+    videoQuery: 'intervalli in cyclette 4 x 4 minuti',
+  },
+  {
+    id: 'ellittica-intervalli',
+    name: 'Intervalli in ellittica',
+    category: 'condizionamento',
+    equipment: 'Ellittica',
+    cues: [
+      'Tratti forti alla resistenza indicata, poi ritmo leggero',
+      'Spingi con le gambe, le braccia accompagnano',
+      'Ritmo che tieni uguale fino all’ultimo intervallo',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'intermittente',
+    qualities: ['resistenza'],
+    alternatives: ['cyclette-intervalli'],
+    videoQuery: 'intervalli ellittica allenamento',
+  },
+
+  // ───────────────────────── Prevenzione, rientro e gambe ─────────────────────────
+  {
+    id: 'copenhagen-isometrico',
+    name: 'Copenhagen in tenuta, leva corta',
+    category: 'prevenzione',
+    equipment: 'Panca',
+    cues: [
+      'Ginocchio della gamba sopra appoggiato sulla panca, l’altra gamba sotto',
+      'Solleva il bacino e tieni il corpo in linea',
+      'Tieni senza dolore all’inguine: la durata cresce di settimana in settimana',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'adduttori',
+    qualities: ['prevenzione', 'rientro'],
+    space: 'casa',
+    alternatives: ['adduttori-pallone'],
+    videoQuery: 'copenhagen plank isometrico leva corta ginocchio',
+  },
+  {
+    id: 'adduttori-pallone',
+    name: 'Pallone stretto tra le ginocchia',
+    category: 'prevenzione',
+    equipment: 'Pallone',
+    cues: [
+      'Supino con le ginocchia piegate, pallone tra le ginocchia',
+      'Stringi forte e tieni, respirando',
+      'Dolore all’inguine sotto 3 su 10',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'adduttori',
+    qualities: ['rientro'],
+    space: 'casa',
+    alternatives: ['copenhagen-isometrico'],
+    videoQuery: 'isometria adduttori pallone tra le ginocchia',
+  },
+  {
+    id: 'ponte-flessori-isometrico',
+    name: 'Ponte sui talloni in tenuta',
+    category: 'prevenzione',
+    equipment: 'Tappetino',
+    cues: [
+      'Supino con i talloni a terra, ginocchia appena piegate',
+      'Solleva il bacino spingendo con i talloni e tieni',
+      'Senti il lavoro dietro la coscia, senza crampi',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'flessori',
+    qualities: ['rientro'],
+    space: 'casa',
+    alternatives: ['ponte-glutei-una-gamba'],
+    videoQuery: 'ponte sui talloni isometria flessori coscia',
+  },
+  {
+    id: 'leg-curl-scivolando',
+    name: 'Leg curl scivolando a terra',
+    category: 'prevenzione',
+    equipment: 'Dischi scorrevoli o asciugamano',
+    cues: [
+      'Supino con i talloni sui dischi, bacino sollevato',
+      'Porta i talloni verso i glutei e allontanali lentamente',
+      'Bacino alto per tutta la serie',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'flessori',
+    qualities: ['prevenzione', 'rientro'],
+    space: 'casa',
+    alternatives: ['leg-curl-seduto'],
+    videoQuery: 'slider leg curl flessori a terra',
+  },
+  {
+    id: 'soleo-isometria',
+    name: 'Isometria del soleo a ginocchio piegato',
+    category: 'prevenzione',
+    equipment: 'Macchina polpacci da seduto o multipower',
+    cues: [
+      'Ginocchio piegato, sali a metà sulle punte e tieni',
+      'Carico pesante ma senza dolore oltre 3 su 10',
+      'Respira e tieni il tallone fermo',
+    ],
+    elbowFriendly: true,
+    impactLevel: 0,
+    pattern: 'soleo',
+    qualities: ['prevenzione', 'rientro'],
+    alternatives: ['polpacci-seduto'],
+    videoQuery: 'isometria soleo ginocchio piegato',
+  },
+  {
+    id: 'squat-macchina',
+    name: 'Squat alla macchina (hack o pendolo)',
+    category: 'gambe',
+    equipment: 'Macchina hack squat o pendolo',
+    cues: [
+      'Schiena appoggiata, piedi a metà pedana alla larghezza delle anche',
+      'Scendi controllato fino a cosce parallele, ginocchia verso le punte',
+      'Spingi con tutto il piede senza bloccare le ginocchia in alto',
+    ],
+    elbowFriendly: true,
+    startKg: [40, 60, 80],
+    impactLevel: 0,
+    pattern: 'squat',
+    qualities: ['forza', 'ipertrofia'],
+    alternatives: ['leg-press'],
+    videoQuery: 'hack squat pendulum squat tecnica',
+  },
+];
+
+/** Catalogo in ordine di categoria: gli esercizi della fase 1 (con schema e qualità), poi quelli della fase 2. */
+export const EXERCISE_LIST: readonly CatalogExercise[] = [
+  ...BASE_LIST.map((e): CatalogExercise => ({ ...e, ...BASE_META[e.id] })),
+  ...PHASE2_LIST,
+];
+
 /** Catalogo degli esercizi per id. */
 export const EXERCISES: Record<string, CatalogExercise> = Object.fromEntries(EXERCISE_LIST.map((e) => [e.id, e]));
 
@@ -940,4 +1769,22 @@ export function startLoads(exercise: Exercise | undefined): readonly number[] {
 /** Variante per il gomito sopra soglia (`elbowSwitch`), se l'esercizio del catalogo ne ha una. */
 export function elbowSwitchOf(exercise: Exercise | undefined): CatalogExercise['elbowSwitch'] {
   return (exercise as CatalogExercise | undefined)?.elbowSwitch;
+}
+
+/** Livello d'impatto di un esercizio del catalogo (§ 3.7): con `impact` e senza livello vale 3, il più prudente. */
+export function impactLevelOf(exercise: Exercise | undefined): ImpactLevel {
+  const ex = exercise as CatalogExercise | undefined;
+  if (!ex) return 0;
+  if (typeof ex.impactLevel === 'number') return ex.impactLevel;
+  return ex.impact ? 3 : 0;
+}
+
+/** Spazio richiesto da un esercizio (assente = palestra). */
+export function spaceOf(exercise: Exercise | undefined): ExerciseSpace {
+  return (exercise as CatalogExercise | undefined)?.space ?? 'palestra';
+}
+
+/** Schema di movimento di un esercizio del catalogo, se c'è. */
+export function patternOf(exercise: Exercise | undefined): MovementPattern | undefined {
+  return (exercise as CatalogExercise | undefined)?.pattern;
 }

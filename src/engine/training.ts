@@ -14,6 +14,8 @@
  *   catalogo (elbowSwitch) con un carico più basso. La zona del titolo è quella che la seduta carica di più.
  * - Esercizi del fisioterapista: la prevenzione della seduta che lavora lo stesso tessuto di un suo esercizio
  *   si salta (physioCoverage), e la durata della seduta lo dice (sessionDuration).
+ * - Fermo per i segnali d'allarme (`Plan.impactHold`, fase 2 § 3.8): la regola dice «niente impatti» in ogni seduta
+ *   finché un via libera esplicito non lo toglie (`impactHoldOn`).
  *
  * Tutte le date sono locali ('YYYY-MM-DD'). Nessuna funzione legge l'orologio: la data arriva dagli argomenti.
  */
@@ -33,7 +35,7 @@ import type {
 } from '../domain/types';
 import { EXERCISES, elbowSwitchOf, type CatalogExercise } from '../data/exercises';
 import { SESSIONS, estimateItemSec } from '../data/sessions';
-import { addDays, daysBetween, weekStart as weekStartOf, weekdayOf } from './dates';
+import { addDays, daysBetween, isISODate, weekStart as weekStartOf, weekdayOf } from './dates';
 import { droppedByOverride, sessionFor } from './plan/program';
 
 // ───────────────────────── Costanti ─────────────────────────
@@ -251,6 +253,45 @@ export function introLevel(sessionId: string, logs: readonly WorkoutLog[], opts:
     n++;
   }
   return n < INTRO_SESSIONS ? ((n + 1) as 1 | 2) : null;
+}
+
+/** Giorni senza sedute registrate dopo cui le sedute ripartono dalla fase di ingresso (fase 2, § 3.10). */
+export const RESUME_AFTER_DAYS = 14;
+/** Carico delle prime due esecuzioni dopo una pausa lunga: −20% (§ 3.10). */
+export const RESUME_LOAD_FACTOR = 0.8;
+
+export interface ExerciseIntro {
+  /** 1 o 2: prima o seconda esecuzione con una serie in meno e una ripetizione di riserva in più. */
+  level: 1 | 2;
+  /** Fattore del carico dell'ultima volta (0,8 dopo una pausa lunga, altrimenti 1). */
+  loadFactor: number;
+  /** Ripresa dopo 14 giorni o più senza sedute. */
+  resume: boolean;
+}
+
+/**
+ * Fase di ingresso per esercizio (fase 2, § 3.3 e § 3.10), che estende `introLevel` ai blocchi generati: le prime 2
+ * esecuzioni di un esercizio nuovo per l'utente hanno una serie in meno e una ripetizione di riserva in più; dopo 14
+ * giorni o più senza sedute registrate le prime 2 esecuzioni di ogni esercizio tornano alla fase di ingresso con il
+ * carico −20%. Null quando l'esercizio procede come sempre. `before`: la data della seduta (esclusa).
+ */
+export function exerciseIntro(exerciseId: string, logs: readonly WorkoutLog[], before: ISODate): ExerciseIntro | null {
+  const past = logs.filter((w) => w.date < before).sort(byDateDesc);
+  const last = past[0];
+  const gap = last ? daysBetween(last.date, before) : 0;
+  if (last && gap >= RESUME_AFTER_DAYS) return { level: 1, loadFactor: RESUME_LOAD_FACTOR, resume: true };
+  // Dopo una ripresa: le esecuzioni dall'ultima pausa lunga.
+  let since: ISODate | null = null;
+  for (let i = 0; i < past.length - 1; i++) {
+    if (daysBetween(past[i + 1].date, past[i].date) >= RESUME_AFTER_DAYS) {
+      since = past[i].date;
+      break;
+    }
+  }
+  const done = past.filter((w) => (!since || w.date >= since) && w.exercises.some((e) => e.exerciseId === exerciseId && doneSets(e).length)).length;
+  if (since && done < INTRO_SESSIONS) return { level: (done + 1) as 1 | 2, loadFactor: done === 0 ? RESUME_LOAD_FACTOR : 1, resume: true };
+  if (since) return null;
+  return done < INTRO_SESSIONS ? { level: (done + 1) as 1 | 2, loadFactor: 1, resume: false } : null;
 }
 
 /** Seduta già leggera (tutto il blocco principale con almeno 3 ripetizioni di riserva): non serve la fase di ingresso. */
@@ -996,7 +1037,10 @@ export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions =
   const elbowOver = flagged.some((s) => ELBOW_RE.test(s.site) && (s.over || (s.sessionValue ?? 0) > threshold || s.value > threshold));
   const lowerLeg = flagged.some((s) => s.lowerLeg);
   const impactBy = sites.find((s) => s.noImpact);
-  const impact = Boolean(impactBy);
+  // Fermo per i segnali d'allarme (§ 3.8): niente impatti in ogni seduta, quelle fisse comprese, da subito e finché un
+  // via libera esplicito non lo toglie. È un freno di sicurezza come questa regola, non una proposta.
+  const hold = impactHoldOn(state.plan, iso);
+  const impact = Boolean(impactBy) || Boolean(hold);
   // Con una seduta senza balzi né salti "niente balzi oggi" non serve (resta negli avvisi del calcio).
   const sessionImpact = session ? session.blocks.some((b) => b.items.some((it) => isImpactExercise(EXERCISES[it.exerciseId]))) : true;
   // Le spinte della seduta che lasciano il posto alla variante: "chest press e distensioni ai cavi".
@@ -1035,6 +1079,9 @@ export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions =
     if (level === 'riduci') parts.push('Scrivi al fisioterapista oggi.');
     else if (referral) parts.push(referralSentence(referral, referral === top, Math.max(referral.value, referral.sessionValue ?? 0)));
     message = parts.join(' ');
+  } else if (hold && !impactBy) {
+    title = 'Impatti fermi';
+    message = 'Niente balzi e salti oggi. Senti il fisioterapista o il medico prima di correre o saltare.';
   } else if (impactBy) {
     const mv = date ? morning[impactBy.site] : undefined;
     title =
@@ -1052,7 +1099,7 @@ export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions =
     elbow,
     lowerLeg,
     impact,
-    ...(impactBy ? { impactSite: impactBy.site } : {}),
+    ...(impactBy ? { impactSite: impactBy.site } : hold ? { impactSite: hold.site } : {}),
     elbowOver,
     threshold,
     impactThreshold,
@@ -1060,6 +1107,17 @@ export function painGate(state: PainState, iso: ISODate, opts: PainGateOptions =
     title,
     message,
   };
+}
+
+/**
+ * Fermo degli impatti in vigore nella data (`Plan.impactHold`, § 3.8): dal giorno in cui è stato messo; con una data non
+ * valida vale sempre (nel dubbio un fermo di sicurezza non si toglie).
+ */
+export function impactHoldOn(plan: Pick<Plan, 'impactHold'>, iso: ISODate): { site: string; since: ISODate } | null {
+  const hold = plan.impactHold;
+  if (!hold || typeof hold.site !== 'string' || !hold.site.trim()) return null;
+  if (isISODate(hold.since) && isISODate(iso) && iso < hold.since) return null;
+  return hold;
 }
 
 /** "a e b", "a, b e c". */
