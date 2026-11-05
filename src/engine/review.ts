@@ -1814,6 +1814,17 @@ export function measuresOutside(report: PreventionReport): PreventionMeasure[] {
   return report.measures.filter((m) => m.status === 'fuori');
 }
 
+/**
+ * Riga della prevenzione quando nessuna misura è fuori (§ 4.7): «tutto nei limiti» solo se sono tutte dentro; con
+ * qualche domanda saltata «niente fuori dai limiti» e quante non sono indicate. Null se qualcosa è fuori.
+ */
+export function preventionHeadline(report: PreventionReport): { title: string; summary?: string } | null {
+  if (measuresOutside(report).length) return null;
+  const unknown = report.measures.filter((m) => m.status === 'non-indicato').length;
+  if (!unknown) return { title: 'Prevenzione: tutto nei limiti' };
+  return { title: 'Prevenzione: niente fuori dai limiti', summary: unknown === 1 ? '1 non indicata' : `${unknown} non indicate` };
+}
+
 /** Lo scalino `alcol` da proporre quando nella settimana compare l'alcol (null altrimenti). */
 export function alcoholStepOption(outside: WeeklyReview['outside'] | undefined, state?: Pick<ReviewState, 'profile' | 'plan'>): StepOption | null {
   const units = outside?.alcoholUnits;

@@ -7,6 +7,8 @@ import {
   MEAL_LOG_TEXT,
   countsAsText,
   defaultGrams,
+  dishDetailAction,
+  dishEditAction,
   dishLine,
   failureView,
   kcalText,
@@ -45,6 +47,25 @@ describe('testi del foglio dei pasti (§ 11.6)', () => {
     expect(failureView({ ...base, kind: 'offline' }, false)).toEqual({ text: MEAL_LOG_TEXT.offline, retry: true, offline: true });
     expect(failureView({ ...base, kind: 'chiave', retryable: false }, false)).toEqual({ text: 'Messaggio dell’API.', retry: false, offline: false });
     expect(failureView({ ...base, kind: 'annullata' }, false)).toBeNull();
+  });
+});
+
+describe('piedi del foglio dei piatti (§ 8.2, § 8.3)', () => {
+  it('nel dettaglio oltre 3.000 kcal: la porzione normale se basta, altrimenti la modifica', () => {
+    expect(dishDetailAction(800, 800, 1)).toBe('segna');
+    expect(dishDetailAction(3000, 2000, 1.5)).toBe('segna');
+    expect(dishDetailAction(3300, 2200, 1.5)).toBe('normale');
+    // Già alla porzione normale: tornarci non cambierebbe niente.
+    expect(dishDetailAction(3200, 3200, 1)).toBe('modifica');
+    expect(dishDetailAction(4800, 3200, 1.5)).toBe('modifica');
+    expect(dishDetailAction(3100, 6200, 0.5)).toBe('modifica');
+  });
+
+  it('nella modifica: nome, poi un alimento, poi i grammi entro il tetto', () => {
+    expect(dishEditAction('  ', 2, 600)).toBe('nome');
+    expect(dishEditAction('Pasta al forno', 0, 0)).toBe('alimento');
+    expect(dishEditAction('Pasta al forno', 2, 3200)).toBe('grammi');
+    expect(dishEditAction('Pasta al forno', 2, 3000)).toBe('salva');
   });
 });
 

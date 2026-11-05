@@ -27,6 +27,7 @@ import {
 import { mealsForDate, plannedMealsForDate } from './menu';
 import { dayNutritionDetail } from './nutrition';
 import { shoppingList } from './shopping';
+import { exclusionImpact } from './similar';
 
 const MON = '2026-11-09';
 const plan = (extra: Partial<Plan> = {}): Plan => ({ ...defaultPlan(MON), ...extra });
@@ -87,6 +88,36 @@ describe('esclusioni dell’utente', () => {
     }
     const list = shoppingList('2026-11-16', { plan: p, dayLogs: {} });
     expect(list.items.some((it) => it.foodId === 'tonno')).toBe(false);
+  });
+
+  it('uno scambio già fatto per un giorno futuro non riporta l’alimento escluso (§ 13.11 D, test 13)', () => {
+    // Giovedì l'utente ha già cambiato la cena di venerdì con una ricetta che ha i cannellini, poi li toglie da domani.
+    const today = '2026-11-12';
+    const fri = addDays(today, 1);
+    const wed = addDays(today, -1);
+    const swap = 'fagioli-tonno-cipolla';
+    const has = (id: string | undefined, food: string) => Boolean(id && RECIPES[id]?.ingredients.some((l) => l.foodId === food));
+    expect(has(swap, 'cannellini')).toBe(true);
+    const base = plan();
+    const planned = mealsForDate(fri, { plan: base, dayLogs: {} }).bySlot.cena!;
+    expect(has(planned.recipeId, 'cannellini')).toBe(false);
+    const dayLogs = { [wed]: log(wed, { recipeSwaps: { cena: swap } }), [fri]: log(fri, { recipeSwaps: { cena: swap } }) };
+    expect(mealsForDate(fri, { plan: base, dayLogs }).bySlot.cena).toMatchObject({ recipeId: swap, swapped: true });
+
+    const p: Plan = { ...base, exclusions: [{ foodId: 'cannellini', since: fri, origin: 'non-mi-piace' }] };
+    // Il pasto torna allo strato 2: la cena prevista, senza l'alimento escluso.
+    const cena = mealsForDate(fri, { plan: p, dayLogs }).bySlot.cena!;
+    expect(cena).toMatchObject({ recipeId: planned.recipeId, plannedId: planned.plannedId, swapped: false });
+    // Prima di `since` lo scambio resta com'era.
+    expect(mealsForDate(wed, { plan: p, dayLogs }).bySlot.cena?.recipeId).toBe(swap);
+    // La spesa da domani non compra più l'alimento.
+    const list = shoppingList(MON, { plan: p, dayLogs }, { fromDate: fri });
+    expect(list.items.some((it) => it.foodId === 'cannellini')).toBe(false);
+    expect(shoppingList(MON, { plan: base, dayLogs }, { fromDate: fri }).items.some((it) => it.foodId === 'cannellini')).toBe(true);
+    // L'avviso conta anche il pasto scambiato che cambia.
+    expect(exclusionImpact(base, 'cannellini', fri, 7, dayLogs)).toBe(exclusionImpact(base, 'cannellini', fri, 7) + 1);
+    // Riattivato l'alimento, lo scambio torna.
+    expect(mealsForDate(fri, { plan: { ...p, exclusions: [] }, dayLogs }).bySlot.cena?.recipeId).toBe(swap);
   });
 
   it('una ricetta con un alimento escluso non è ammessa, la dispensa compresa', () => {

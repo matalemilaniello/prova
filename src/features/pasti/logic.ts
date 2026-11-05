@@ -4,7 +4,7 @@
 import type { DayLog, Food, HHMM, ISODate, MealSlot, MyDish, Plan } from '../../domain/types';
 import { ESTIMATE_FOODS } from '../../data/estimateFoods';
 import { FOODS } from '../../data/foods';
-import { roundKcal10, type DraftValues } from '../../engine/estimate';
+import { MEAL_KCAL_MAX, roundKcal10, type DraftValues } from '../../engine/estimate';
 import { mealTimesFor } from '../../engine/mealTimes';
 import { MEAL_SLOTS } from '../../engine/menu';
 import { dayMinutes } from '../../engine/sleep';
@@ -30,6 +30,23 @@ export function countsAsText(slot: MealSlot, asPlanned: boolean): string {
 /** «Segna il pranzo», «Segna la cena». */
 export function markLabel(slot: MealSlot): string {
   return `Segna ${SLOT_WORDS[slot].the}`;
+}
+
+/**
+ * Piede del dettaglio di un piatto (§ 8.2): «Segna», oppure oltre il tetto delle kcal (§ 7.3) la porzione normale se basta,
+ * altrimenti la modifica dei grammi. Mai un pulsante che non fa niente.
+ */
+export function dishDetailAction(kcal: number, normalKcal: number, portion: number): 'segna' | 'normale' | 'modifica' {
+  if (!(kcal > MEAL_KCAL_MAX)) return 'segna';
+  return portion !== 1 && normalKcal <= MEAL_KCAL_MAX ? 'normale' : 'modifica';
+}
+
+/** Piede della modifica di un piatto (§ 8.3): prima il nome, poi almeno un alimento, poi i grammi entro il tetto. */
+export function dishEditAction(name: string, resolvedItems: number, kcal: number): 'nome' | 'alimento' | 'grammi' | 'salva' {
+  if (!name.trim()) return 'nome';
+  if (resolvedItems <= 0) return 'alimento';
+  if (kcal > MEAL_KCAL_MAX) return 'grammi';
+  return 'salva';
 }
 
 /** Avviso dopo la conferma: «Pranzo segnato: 720 kcal». */

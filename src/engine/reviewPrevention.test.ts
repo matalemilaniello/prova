@@ -12,7 +12,7 @@ import { ESTIMATE_FOODS } from '../data/estimateFoods';
 import { mealPrevention } from './prevention';
 import { weekDates } from './dates';
 import { mealsForDate } from './menu';
-import { alcoholStepOption, measuresOutside, preventionMeasures, proposeWeeklyStep, reviewStep, weeklyStepDef } from './review';
+import { alcoholStepOption, measuresOutside, preventionHeadline, preventionMeasures, proposeWeeklyStep, reviewStep, weeklyStepDef } from './review';
 
 const WS = '2026-11-09';
 const TODAY = '2026-11-16';
@@ -95,6 +95,20 @@ describe('misure della prevenzione (test 19)', () => {
     for (const id of ['legumi', 'pesce', 'riso', 'integrali', 'vegetali', 'alcol', 'carne-lavorata', 'carne-rossa'] as const) {
       expect(byId(r, id)?.status, id).toBe('dentro');
     }
+  });
+
+  it('«tutto nei limiti» solo con tutte le misure dentro; con domande saltate lo dice (§ 4.7)', () => {
+    const d = base();
+    allDone(d);
+    const full = preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 0, processed: 0, alcoholUnits: '0' } });
+    expect(preventionHeadline(full)).toEqual({ title: 'Prevenzione: tutto nei limiti' });
+    // Senza le risposte alcol e salumi sono «non indicato»: niente è fuori, ma non si sa tutto.
+    const skipped = preventionMeasures(WS, d, { today: TODAY, outside: { redMeat: 0 } });
+    expect(measuresOutside(skipped)).toEqual([]);
+    const unknown = skipped.measures.filter((m) => m.status === 'non-indicato').length;
+    expect(unknown).toBeGreaterThanOrEqual(2);
+    expect(preventionHeadline(skipped)).toEqual({ title: 'Prevenzione: niente fuori dai limiti', summary: `${unknown} non indicate` });
+    expect(preventionHeadline(preventionMeasures(WS, d, { today: TODAY, outside: { alcoholUnits: '4-7' } }))).toBeNull();
   });
 
   it('senza risposte l’alcol è «non indicato»; con l’alcol si propone il suo scalino', () => {

@@ -69,7 +69,9 @@ mkdirSync(outDir, { recursive: true });
  * `fold` controlla che la card Adesso cominci entro i due terzi della schermata a 390×844 (sotto la piega sarebbe un
  * problema da segnalare).
  * `dishes` aggiunge tre piatti salvati inventati ai dati di esempio (pagina dei piatti).
- * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean }[]}
+ * `tap` tocca il primo pulsante con quel nome prima dello scatto (per esempio un piatto dell'elenco, per il dettaglio).
+ * In ogni vista le etichette dei controlli segmentati non devono essere tagliate dai puntini.
+ * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean, tap?: string }[]}
  */
 const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
@@ -115,6 +117,8 @@ const VIEWS = [
   // Foto del piatto con la lettura registrata (?coach=finto: niente rete né chiave) e i miei piatti con 3 piatti finti.
   { name: 'mealLog', hash: 'oggi', query: { overlay: 'mealLog', coach: 'finto' }, wait: 1300 },
   { name: 'mealLog-piatti', hash: 'oggi', query: { overlay: 'mealLog' }, dishes: true, wait: 900 },
+  // Il dettaglio di un piatto: Metà · Normale · Abbondante, valori e «Segna».
+  { name: 'mealLog-piatto', hash: 'oggi', query: { overlay: 'mealLog' }, dishes: true, wait: 900, tap: 'Pasta e ceci' },
 ];
 
 const selected = VIEWS.filter((v) => !only || only.some((o) => v.name === o || v.name.startsWith(`${o}-`)));
@@ -191,12 +195,19 @@ async function addFakeDishes(page) {
   });
 }
 
-/** Elementi che sporgono oltre il bordo destro (esclusi i contenitori scorrevoli in orizzontale e le schermate nascoste). */
+/**
+ * Elementi che sporgono oltre il bordo destro (esclusi i contenitori scorrevoli in orizzontale e le schermate nascoste),
+ * più le etichette dei controlli segmentati tagliate dai puntini.
+ */
 async function findOverflow(page) {
   return page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const issues = [];
     if (document.documentElement.scrollWidth > vw + 1) issues.push(`documento largo ${document.documentElement.scrollWidth}px`);
+    for (const el of document.body.querySelectorAll('[role="tab"] .truncate')) {
+      if (el.closest('[inert], [aria-hidden="true"]') || el.clientWidth === 0) continue;
+      if (el.scrollWidth > el.clientWidth + 1) issues.push(`etichetta tagliata "${(el.textContent || '').trim()}" (${el.scrollWidth}px su ${el.clientWidth}px)`);
+    }
     const all = document.body.querySelectorAll('*');
     for (const el of all) {
       if (issues.length >= 6) break;
@@ -270,6 +281,10 @@ try {
       }
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(view.wait ?? 650);
+      if (view.tap) {
+        await page.getByRole('button', { name: view.tap }).first().click();
+        await page.waitForTimeout(600);
+      }
 
       // Overflow a 360 px, poi di nuovo a 390.
       await page.setViewportSize({ width: 360, height: 780 });

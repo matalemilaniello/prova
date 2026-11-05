@@ -12,19 +12,27 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Search, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { ISODate, MealSlot, MyDish, Portion } from '../../domain/types';
 import { DISH_PRUNE_FROM, DISH_SEARCH_FROM, PORTION_LABEL, PORTIONS, dishMatchesPlanned, dishUsage, scaleDish, searchDishes, sortDishes, unusedDishes } from '../../engine/dishes';
-import { MAX_MEAL_ITEMS, MEAL_KCAL_MAX, itemResolved, roundKcal10 } from '../../engine/estimate';
+import { MAX_MEAL_ITEMS, estimatedItemsValues, itemResolved, roundKcal10 } from '../../engine/estimate';
 import { fmtKcal, fmtNumber, MEAL_SLOT_LABEL } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { Button, Card, EmptyState, Field, NumberTicker, Segmented, Sheet, TextInput, cn } from '../../ui';
 import { markDish } from './actions';
 import { ItemsEditor, newItemKey, type EditorItem } from './ItemsEditor';
-import { countsAsText, dishLine, markLabel } from './logic';
+import { countsAsText, dishDetailAction, dishEditAction, dishLine, markLabel } from './logic';
 import { KcalCheckLine, Macros, Photo, PlannedRow } from './parts';
 import { useMealContext } from './useMealContext';
 
 type View = 'list' | 'detail' | 'edit';
 type PortionKey = '0.5' | '1' | '1.5';
+
+/** Il piede della modifica dice cosa manca e ci porta (nessun pulsante che non fa niente). */
+const DISH_EDIT_LABEL: Record<ReturnType<typeof dishEditAction>, string> = {
+  nome: 'Scrivi il nome',
+  alimento: 'Aggiungi un alimento',
+  grammi: 'Controlla i grammi',
+  salva: 'Salva',
+};
 
 export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: MealSlot; onClose: () => void }) {
   const dishes = useApp((s) => s.dishes);
@@ -43,7 +51,9 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
   const [name, setName] = useState('');
   const [items, setItems] = useState<EditorItem[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const itemsRef = useRef<HTMLDivElement>(null);
 
   const usage = useMemo(() => dishUsage(dayLogs, dishes ?? []), [dayLogs, dishes]);
   const sorted = useMemo(() => sortDishes(dishes ?? [], usage, slot), [dishes, usage, slot]);
@@ -52,15 +62,19 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
   const scaled = useMemo(() => (dish ? scaleDish(dish, portion) : null), [dish, portion]);
   const current: View = view !== 'list' && !dish ? 'list' : view;
 
+  const startEdit = (d: MyDish) => {
+    setDishId(d.id);
+    setName(d.name);
+    setItems(d.items.map((i) => ({ ...i, key: newItemKey() })));
+    setConfirmDelete(false);
+    setSearchOpen(false);
+    setView('edit');
+  };
   const openDish = (d: MyDish) => {
     haptic('selection');
     setDishId(d.id);
-    if (editing) {
-      setName(d.name);
-      setItems(d.items.map((i) => ({ ...i, key: newItemKey() })));
-      setConfirmDelete(false);
-      setView('edit');
-    } else {
+    if (editing) startEdit(d);
+    else {
       setPortion(d.lastPortion ?? 1);
       setAsPlanned(dishMatchesPlanned(d, ctx.planned));
       setView('detail');
@@ -75,10 +89,20 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
   };
 
   const resolved = items.filter(itemResolved);
+  // Lo stesso tetto della scheda della foto: oltre 3.000 kcal alla porzione normale il piatto non si segnerebbe più.
+  const editKcal = estimatedItemsValues(resolved).nutrients.kcal;
+  const scrollToItems = () => {
+    const el = itemsRef.current;
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const focusable = el?.querySelector<HTMLElement>('button, input');
+    window.setTimeout(() => focusable?.focus({ preventScroll: true }), 300);
+  };
+  const editAction = dishEditAction(name, resolved.length, editKcal);
   const save = () => {
     if (!dish) return;
-    if (!name.trim()) return nameRef.current?.focus();
-    if (!resolved.length) return;
+    if (editAction === 'nome') return nameRef.current?.focus();
+    if (editAction === 'alimento') return setSearchOpen(true);
+    if (editAction === 'grammi') return scrollToItems();
     useApp.getState().updateDish(dish.id, { name: name.trim(), items: resolved.map(({ key: _k, confidence: _c, ...rest }) => rest) });
     haptic('success');
     useUi.getState().toast('Piatto aggiornato', 'good');
@@ -111,10 +135,16 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
   if (current === 'detail' && dish && scaled) {
     title = dish.name;
     headerAction = undefined;
+    // Oltre il tetto: si torna alla porzione normale se basta, altrimenti si correggono i grammi del piatto.
+    const action = dishDetailAction(scaled.nutrients.kcal, scaleDish(dish, 1).nutrients.kcal, portion);
     footer =
-      scaled.nutrients.kcal > MEAL_KCAL_MAX ? (
+      action === 'normale' ? (
         <Button variant="secondary" fullWidth size="lg" onClick={() => setPortion(1)}>
           Torna alla porzione normale
+        </Button>
+      ) : action === 'modifica' ? (
+        <Button variant="secondary" fullWidth size="lg" onClick={() => startEdit(dish)}>
+          Modifica il piatto
         </Button>
       ) : (
         <Button fullWidth size="lg" haptic={false} onClick={mark}>
@@ -136,7 +166,7 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
       </div>
     ) : (
       <Button fullWidth size="lg" haptic={false} onClick={save}>
-        {!name.trim() ? 'Scrivi il nome' : resolved.length ? 'Salva' : 'Aggiungi un alimento'}
+        {DISH_EDIT_LABEL[editAction]}
       </Button>
     );
   }
@@ -197,6 +227,7 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
             {ctx.previous && <p className="t-footnote px-1 text-ink-2">Sostituisce la stima di prima: {fmtKcal(roundKcal10(ctx.previous.nutrients.kcal))}</p>}
             <Segmented<PortionKey>
               aria-label="Porzione"
+              size="sm"
               value={String(portion) as PortionKey}
               onChange={(v) => setPortion(Number(v) as Portion)}
               options={PORTIONS.map((p) => ({ value: String(p) as PortionKey, label: PORTION_LABEL[p] }))}
@@ -226,7 +257,10 @@ export function DishesSheet({ date, slot, onClose }: { date: ISODate; slot: Meal
                 <Field label="Nome">
                   <TextInput ref={nameRef} value={name} onChange={(v) => setName(v.slice(0, 40))} maxLength={40} autoComplete="off" />
                 </Field>
-                <ItemsEditor items={items} onChange={setItems} max={MAX_MEAL_ITEMS} />
+                <div ref={itemsRef}>
+                  <ItemsEditor items={items} onChange={setItems} max={MAX_MEAL_ITEMS} searchOpen={searchOpen} onSearchOpenChange={setSearchOpen} />
+                </div>
+                {resolved.length > 0 && <KcalCheckLine kcal={editKcal} />}
                 <Button variant="ghost" size="sm" icon={Trash2} className="self-start" onClick={() => setConfirmDelete(true)}>
                   Elimina il piatto
                 </Button>

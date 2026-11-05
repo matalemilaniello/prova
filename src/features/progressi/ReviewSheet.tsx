@@ -24,6 +24,7 @@ import {
   isReviewableWeek,
   MIN_NUTRITION_DAYS,
   measuresOutside,
+  preventionHeadline,
   needsDecision,
   preventionMeasures,
   previousReview,
@@ -498,17 +499,19 @@ function MeasuresStep({
                         {site}
                         {prev?.skinfolds?.[site] !== undefined && <span className="t-caption block text-ink-3">la volta scorsa {fmtNumber(prev.skinfolds[site], 1, true)} mm</span>}
                       </label>
-                      <NumberInput
-                        id={`plica-${site}`}
-                        value={folds[site]}
-                        onChange={(v) => setFolds((f) => ({ ...f, [site]: v }))}
-                        decimals={1}
-                        min={2}
-                        max={80}
-                        unit="mm"
-                        className="w-[128px] shrink-0"
-                        aria-label={`Plica ${site.toLowerCase()} in millimetri`}
-                      />
+                      {/* La larghezza sta sul contenitore: il campo ha già `w-full` e `cn` non scioglie i conflitti. */}
+                      <div className="w-[128px] shrink-0">
+                        <NumberInput
+                          id={`plica-${site}`}
+                          value={folds[site]}
+                          onChange={(v) => setFolds((f) => ({ ...f, [site]: v }))}
+                          decimals={1}
+                          min={2}
+                          max={80}
+                          unit="mm"
+                          aria-label={`Plica ${site.toLowerCase()} in millimetri`}
+                        />
+                      </div>
                     </div>
                   ))}
                 {foldSum !== null && (
@@ -653,10 +656,11 @@ function PreventionCard({ report }: { report: PreventionReport }) {
       ))}
     </ul>
   );
-  if (!out.length) {
+  const headline = preventionHeadline(report);
+  if (headline) {
     return (
       <Card padding="none" variant="outline">
-        <Disclosure title="Prevenzione: tutto nei limiti" icon={ShieldCheck} className="px-4" contentClassName="pb-3">
+        <Disclosure title={headline.title} summary={headline.summary} icon={ShieldCheck} className="px-4" contentClassName="pb-3">
           {all}
         </Disclosure>
       </Card>

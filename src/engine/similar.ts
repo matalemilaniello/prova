@@ -370,10 +370,17 @@ export function doneRates(state: MenuState, today: ISODate, days = 28): Record<s
 }
 
 /**
- * Pasti del menù che cambiano nei `days` giorni da `since` se si escludono gli alimenti (per l'avviso «cambiano 2 pasti
- * da domani»): ricette sostituite o caselle lasciate vuote.
+ * Pasti che cambiano nei `days` giorni da `since` se si escludono gli alimenti (per l'avviso «cambiano 2 pasti da
+ * domani»): ricette sostituite, caselle lasciate vuote e scambi del diario che contengono l'alimento (tornano allo
+ * strato 2). Si confronta la ricetta che si mangia, scambi dell'utente compresi.
  */
-export function exclusionImpact(plan: Plan, foodIds: string | readonly string[], since: ISODate, days = 7): number {
+export function exclusionImpact(
+  plan: Plan,
+  foodIds: string | readonly string[],
+  since: ISODate,
+  days = 7,
+  dayLogs: MenuState['dayLogs'] = {},
+): number {
   if (!isISODate(since)) return 0;
   const ids = typeof foodIds === 'string' ? [foodIds] : [...foodIds];
   const after: Plan = {
@@ -383,9 +390,9 @@ export function exclusionImpact(plan: Plan, foodIds: string | readonly string[],
   let n = 0;
   for (let i = 0; i < days; i++) {
     const iso = addDays(since, i);
-    const a = mealsForDate(iso, { plan, dayLogs: {} });
-    const b = mealsForDate(iso, { plan: after, dayLogs: {} });
-    for (const slot of MEAL_SLOTS) if ((a.bySlot[slot]?.plannedId ?? '') !== (b.bySlot[slot]?.plannedId ?? '')) n++;
+    const a = mealsForDate(iso, { plan, dayLogs });
+    const b = mealsForDate(iso, { plan: after, dayLogs });
+    for (const slot of MEAL_SLOTS) if ((a.bySlot[slot]?.recipeId ?? '') !== (b.bySlot[slot]?.recipeId ?? '')) n++;
   }
   return n;
 }

@@ -10,6 +10,8 @@
  * - strato 2, `weekSubstitutions(monday, plan)`: le ricette che sostituiscono quelle con un alimento escluso o vietato
  *   (`substitutionsForWeek` in engine/similar.ts); una casella senza alternative valide resta vuota;
  * - `mealsForDate(iso, state)`: lo strato 2 con gli scambi dell'utente sopra, e `DayMeals.source` dice da dove viene.
+ *   Uno scambio con un alimento escluso in quella data non vale (§ 4.9: l'escluso non ricompare dal giorno dopo) e il
+ *   pasto torna allo strato 2; riattivato l'alimento, lo scambio torna.
  * `prepInForce(monday, plan)` dà i compiti della preparazione della domenica prima di quel lunedì.
  * Senza i campi nuovi (`Plan.menus`, esclusioni) tutto coincide con la rotazione di prima.
  */
@@ -17,6 +19,7 @@ import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Plan, Prep
 import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince, weekStart } from './dates';
+import { excludedFoods, recipeAllowed } from './exclusions';
 import { substitutionsForWeek } from './similar';
 
 /** Ordine dei pasti nella giornata. */
@@ -276,6 +279,14 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
   // Le sostituzioni si calcolano sul menù vero: una rotazione scritta a mano dai test non ne ha.
   const subs = rotation === MENU_ROTATION && isISODate(iso) ? weekSubstitutions(weekStart(iso), state.plan)[iso] : undefined;
   const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
+  // Esclusi della data, calcolati solo se c'è uno scambio da controllare (il diario può averlo salvato prima dell'esclusione).
+  let excluded: ReadonlySet<string> | undefined;
+  const swapAllowed = (id: string): boolean => {
+    const r = RECIPES[id];
+    if (!r || !isISODate(iso)) return true;
+    excluded ??= excludedFoods(state.plan, iso);
+    return recipeAllowed(r, excluded);
+  };
   const meals: MealEntry[] = [];
   const bySlot: Partial<Record<MealSlot, MealEntry>> = {};
   const cleared: Partial<Record<MealSlot, string>> = {};
@@ -287,7 +298,8 @@ export function mealsForDate(iso: ISODate, state: MenuState, rotation: MenuWeek[
     const substituted = Boolean(sub && RECIPES[sub] && base && sub !== base.plannedId);
     const plannedId = emptied ? '' : substituted ? (sub as string) : base?.plannedId ?? '';
     if (emptied && base) cleared[slot] = base.plannedId;
-    const swapId = swaps[slot];
+    const rawSwap = swaps[slot];
+    const swapId = rawSwap && swapAllowed(rawSwap) ? rawSwap : undefined;
     const recipeId = swapId || plannedId;
     if (!recipeId) continue;
     const entry: MealEntry = {

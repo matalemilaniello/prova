@@ -7,7 +7,7 @@
  * Esporta anche le azioni condivise con il foglio della ricetta: `applySwap` (il cambio salva la ricetta prevista, per
  * imparare i gusti), `excludeFromPlan` (esclusione da domani con «Annulla») e `TasteQuestion`.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { BookOpen, Check, Clock, Undo2 } from 'lucide-react';
 import type { DayType, FoodExclusion, ISODate, MealSlot, Recipe } from '../../domain/types';
 import { RECIPES } from '../../data/recipes';
@@ -81,7 +81,7 @@ export function excludeFromPlan(foodIds: readonly string[], origin: FoodExclusio
   const since = addDays(today, 1);
   const fresh = [...new Set(foodIds)].filter((id) => !st.plan.exclusions?.some((e) => e.foodId === id));
   if (!fresh.length) return;
-  const changed = exclusionImpact(st.plan, fresh, since, 7);
+  const changed = exclusionImpact(st.plan, fresh, since, 7, st.dayLogs);
   for (const id of fresh) st.addExclusion(id, origin, since);
   haptic('success');
   useUi.getState().toast(exclusionText(fresh, changed), 'good', {
@@ -168,15 +168,17 @@ export interface SwapSheetProps {
   starter?: boolean;
 }
 
-/** Alternative in vista prima di «Tutte». */
-const SHOWN = 6;
+/** Alternative in vista prima di «Tutte» (§ 6.1, come nel foglio della ricetta). */
+const SHOWN = 3;
 
 export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, title }: SwapSheetProps) {
   const today = usePlanDay();
   const alts = useAlternatives(date, entry, scale);
-  const options = alts.recipes.filter((r) => r.id !== entry.recipeId).slice(0, SHOWN);
+  const [all, setAll] = useState(false);
+  const options = alts.recipes.filter((r) => r.id !== entry.recipeId);
   const planned = entry.swapped && entry.plannedId ? RECIPES[entry.plannedId] : undefined;
-  const list = planned ? [planned, ...options.filter((r) => r.id !== planned.id)] : options;
+  const full = planned ? [planned, ...options.filter((r) => r.id !== planned.id)] : options;
+  const list = all ? full : full.slice(0, SHOWN);
   const cur = recipeNutrition(entry.recipe, dayType, FOODS, scale);
 
   const choose = (id: string) => {
@@ -246,6 +248,13 @@ export function SwapSheet({ open, onClose, date, slot, entry, dayType, scale, ti
           );
         })}
       </ul>
+      {full.length > SHOWN && (
+        <div className="mt-2">
+          <Button variant="ghost" size="sm" onClick={() => setAll((v) => !v)}>
+            {all ? 'Meno' : `Tutte (${full.length})`}
+          </Button>
+        </div>
+      )}
       {list.length === 0 && (
         <p className="t-callout flex items-center gap-2 py-6 text-ink-2">
           <Check aria-hidden size={18} /> Per questo pasto non ci sono alternative con valori simili.

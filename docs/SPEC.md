@@ -941,3 +941,18 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
     è illeggibile (`archiveInfo().status`, § 12.5).
   - Esclusioni, stime e piatti: un alimento escluso resta ammesso nelle stime da foto e nei piatti salvati (§ 10.2: è ciò
     che si è mangiato); le esclusioni valgono per il piano (menù, alternative, spesa, piano B, coach).
+- Fase 2, onda 1, correzioni:
+  - `mealsForDate`: uno scambio del diario (`DayLog.recipeSwaps`) la cui ricetta contiene un alimento escluso in quella
+    data non vale e il pasto torna allo strato 2 (§ 4.9: l'escluso non ricompare dal giorno dopo, nemmeno in un pasto già
+    cambiato per un giorno futuro). Lo scambio resta nel diario: riattivato l'alimento, torna. Prima di `since` niente
+    cambia. Senza esclusioni nessuna ricetta contiene alimenti vietati: l'istantanea di compatibilità resta uguale.
+  - `exclusionImpact(plan, ids, since, days?, dayLogs?)`: confronta la ricetta che si mangia, scambi del diario compresi
+    (l'avviso «cambia 1 pasto da domani» conta anche lo scambio che torna allo strato 2).
+  - `preventionHeadline(report)` in `engine/review.ts`: «Prevenzione: tutto nei limiti» solo con tutte le misure dentro;
+    con domande saltate «Prevenzione: niente fuori dai limiti» e quante non sono indicate (§ 4.7).
+  - `SwapSheet`: tre alternative in vista e «Tutte (n)» per le altre (§ 6.1, come il foglio della ricetta).
+  - I miei piatti: nella modifica la riga del tetto delle kcal e il piede «Controlla i grammi» oltre 3.000 kcal; senza
+    alimenti il piede apre la ricerca; nel dettaglio di un piatto oltre il tetto già alla porzione normale il piede porta
+    alla modifica (`dishDetailAction`, `dishEditAction` in `features/pasti/logic.ts`). Porzioni con `Segmented` piccolo.
+  - Screenshot: scenario `mealLog-piatto` (dettaglio di un piatto, con `tap`) e controllo delle etichette tagliate nei
+    controlli segmentati in ogni vista.
