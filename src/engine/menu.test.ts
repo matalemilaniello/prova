@@ -235,10 +235,14 @@ describe('menù in vigore e strati', () => {
     }
   });
 
-  it('il menù approvato del lunedì vince sulla rotazione solo in quella settimana', () => {
+  it('il menù approvato del lunedì vince sulla rotazione; senza approvazione si ripete per 4 settimane (§ 4.10)', () => {
     const withMenu = { ...p, menus: { '2026-11-16': approved } };
     expect(menuWeekInForce('2026-11-18', withMenu)).toBe(approved);
-    expect(menuWeekInForce('2026-11-23', withMenu)).toBe(menuWeekFor('2026-11-23', p.startDate));
+    expect(menuWeekInForce('2026-11-11', withMenu)).toBe(menuWeekFor('2026-11-11', p.startDate));
+    expect(menuWeekInForce('2026-11-23', withMenu)).toBe(approved);
+    expect(mealsForDate('2026-11-25', { plan: withMenu, dayLogs: {} }).source).toBe('ripetuto');
+    expect(menuWeekInForce('2026-12-14', withMenu)).toBe(approved);
+    expect(menuWeekInForce('2026-12-21', withMenu)).toBe(menuWeekFor('2026-12-21', p.startDate));
     const m = mealsForDate('2026-11-18', { plan: withMenu, dayLogs: {} });
     expect(m.source).toBe('approvato');
     expect(m.meals.map((e) => e.recipeId)).toEqual([approved.days[2].meals.colazione, approved.days[2].meals.pranzo]);

@@ -464,6 +464,33 @@ const FOOD_LIST: Food[] = [
     unitGrams: { pezzo: 75 },
     vegPortionG: 80,
   },
+  // Frutta di stagione per il menù generato (docs/FASE2.md § 4.10): valori della parte edibile, tabelle CREA.
+  {
+    id: 'fragole',
+    name: 'Fragole',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 33, proteinG: 0.7, carbG: 5.8, fatG: 0.4, fiberG: 2 },
+    /** 1 mano a coppa = una decina di fragole. */
+    unitGrams: { 'mano a coppa': 100 },
+    vegPortionG: 80,
+  },
+  {
+    id: 'pesche',
+    name: 'Pesche',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 40, proteinG: 0.9, carbG: 8, fatG: 0.2, fiberG: 1.6 },
+    unitGrams: { pezzo: 150 },
+    vegPortionG: 80,
+  },
+  {
+    id: 'cachi',
+    name: 'Cachi',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 70, proteinG: 0.6, carbG: 16, fatG: 0.2, fiberG: 2.5 },
+    /** Un cachi mela, quello sodo che si taglia a spicchi. */
+    unitGrams: { pezzo: 180 },
+    vegPortionG: 80,
+  },
   {
     id: 'frutti-bosco',
     name: 'Frutti di bosco surgelati',
@@ -616,6 +643,31 @@ const FOOD_LIST: Food[] = [
     category: 'Frutta e verdura',
     per100g: { kcal: 22, proteinG: 1.1, carbG: 3.5, fatG: 0.1, fiberG: 1.8 },
     unitGrams: { pugno: 100 },
+    vegPortionG: 80,
+  },
+  // Verdura d'inverno per il menù generato (docs/FASE2.md § 4.10): valori del crudo pulito, tabelle CREA.
+  {
+    id: 'finocchi',
+    name: 'Finocchi',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 18, proteinG: 1.2, carbG: 1.8, fatG: 0.2, fiberG: 2.2 },
+    unitGrams: { pezzo: 250 },
+    vegPortionG: 80,
+  },
+  {
+    id: 'cavolfiore',
+    name: 'Cavolfiore',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 25, proteinG: 1.9, carbG: 3, fatG: 0.3, fiberG: 2 },
+    unitGrams: { pugno: 100 },
+    vegPortionG: 80,
+  },
+  {
+    id: 'cavolo-nero',
+    name: 'Cavolo nero',
+    category: 'Frutta e verdura',
+    per100g: { kcal: 38, proteinG: 3, carbG: 3.5, fatG: 0.7, fiberG: 3.6 },
+    unitGrams: { manciata: 40 },
     vegPortionG: 80,
   },
   {

@@ -3,8 +3,8 @@
  * più le sostituzioni scelte dall'utente nel diario del giorno.
  *
  * Risolutori della fase 2 (docs/FASE2.md § 6.4, § 12.2), in due strati che si calcolano solo da quello sotto:
- * - `menuWeekInForce(iso, plan)`: la settimana in vigore, cioè il menù approvato di quel lunedì (`Plan.menus`) o la
- *   rotazione (dall'onda 2A anche l'ultima settimana approvata ripetuta);
+ * - `menuWeekInForce(iso, plan)`: la settimana in vigore, cioè il menù approvato di quel lunedì (`Plan.menus`), altrimenti
+ *   l'ultima settimana approvata delle 4 prima ripetuta, se è di stagione (§ 4.10), altrimenti la rotazione;
  * - strato 1, `plannedMealsForDate(iso, plan)`: le ricette previste nella data, senza sostituzioni né scambi (nei giorni
  *   di avvio il menù di avvio, che vince su tutto);
  * - strato 2, `weekSubstitutions(monday, plan)`: le ricette che sostituiscono quelle con un alimento escluso o vietato
@@ -16,6 +16,7 @@
  * Senza i campi nuovi (`Plan.menus`, esclusioni) tutto coincide con la rotazione di prima.
  */
 import type { AppData, DayType, ISODate, MealSlot, MenuDay, MenuWeek, Plan, PrepTask, Recipe } from '../domain/types';
+import { factsOf, seasonAllows } from '../data/foodFacts';
 import { MENU_ROTATION, STARTER_WEEK } from '../data/menu';
 import { RECIPES } from '../data/recipes';
 import { addDays, daysBetween, isISODate, weekdayOf, weekIndexSince, weekStart } from './dates';
@@ -195,17 +196,70 @@ export function starterRecipeFor(recipeId: string, slot: MealSlot): string {
 
 type MenuPlan = Pick<Plan, 'startDate' | 'menus'>;
 
-/** Settimana in vigore con la sua provenienza: il menù approvato del lunedì, altrimenti la rotazione. */
+/** Settimane prima in cui si cerca l'ultima approvata da ripetere (§ 4.10). */
+export const REPEAT_LOOKBACK_WEEKS = 4;
+
+/** Mese (1-12) del mercoledì della settimana che parte da `monday`: quello della stagionalità (§ 4.10). */
+export function menuMonthOf(monday: ISODate): number {
+  return Number(addDays(weekStart(monday), 2).slice(5, 7));
+}
+
+/** Tutti i freschi `strict` del menù sono di stagione nel mese (H5): solo così una settimana approvata si ripete. */
+export function menuWeekInSeason(week: MenuWeek, month: number): boolean {
+  for (const day of week.days ?? []) {
+    for (const id of Object.values(day?.meals ?? {})) {
+      const r = id ? RECIPES[id] : undefined;
+      if (r && !r.ingredients.every((l) => seasonAllows(factsOf(l.foodId), month))) return false;
+    }
+  }
+  return true;
+}
+
+const repeatCache = new WeakMap<object, Map<ISODate, MenuWeek | null>>();
+
+/**
+ * Settimana approvata da ripetere nel lunedì `monday` senza un menù approvato (§ 4.10): l'ultima approvata delle 4
+ * settimane prima, cercata solo tra i lunedì già iniziati (mai una con decorrenza futura), purché nessun suo fresco
+ * `strict` sia fuori stagione nel mese nuovo. Null altrimenti: vale la rotazione.
+ */
+export function repeatedMenuWeek(monday: ISODate, plan: Pick<Plan, 'menus'>): MenuWeek | null {
+  const menus = plan.menus;
+  if (!menus || !isISODate(monday)) return null;
+  const ws = weekStart(monday);
+  let byWeek = repeatCache.get(menus);
+  if (!byWeek) {
+    byWeek = new Map();
+    repeatCache.set(menus, byWeek);
+  }
+  const hit = byWeek.get(ws);
+  if (hit !== undefined) return hit;
+  let out: MenuWeek | null = null;
+  for (let k = 1; k <= REPEAT_LOOKBACK_WEEKS; k++) {
+    const week = menus[addDays(ws, -7 * k)];
+    if (!week || !Array.isArray(week.days)) continue;
+    out = menuWeekInSeason(week, menuMonthOf(ws)) ? week : null;
+    break;
+  }
+  byWeek.set(ws, out);
+  return out;
+}
+
+/** Settimana in vigore con la sua provenienza: il menù approvato del lunedì, l'ultima approvata ripetuta o la rotazione. */
 function weekInForce(iso: ISODate, plan: MenuPlan, rotation: MenuWeek[]): { week: MenuWeek | undefined; source: MenuSource } {
-  const approved = isISODate(iso) ? plan.menus?.[weekStart(iso)] : undefined;
-  if (approved && Array.isArray(approved.days)) return { week: approved, source: 'approvato' };
+  if (isISODate(iso)) {
+    const monday = weekStart(iso);
+    const approved = plan.menus?.[monday];
+    if (approved && Array.isArray(approved.days)) return { week: approved, source: 'approvato' };
+    const repeated = repeatedMenuWeek(monday, plan);
+    if (repeated) return { week: repeated, source: 'ripetuto' };
+  }
   return { week: menuWeekFor(iso, plan.startDate, rotation), source: 'rotazione' };
 }
 
 /**
  * Settimana di menù in vigore nella data: Plan.menus del suo lunedì; altrimenti l'ultima approvata delle 4 settimane prima,
- * se nessun fresco strict è fuori stagione nel mese (dall'onda 2A, § 4.10); altrimenti la rotazione. Nell'onda 0, quando
- * Plan.menus è sempre vuoto, è Plan.menus o la rotazione: la firma non cambia.
+ * se nessun fresco strict è fuori stagione nel mese (§ 4.10, `repeatedMenuWeek`); altrimenti la rotazione. Senza menù
+ * approvati è la rotazione, come prima.
  */
 export function menuWeekInForce(iso: ISODate, plan: Pick<Plan, 'startDate' | 'menus'>): MenuWeek | undefined {
   return weekInForce(iso, plan, MENU_ROTATION).week;

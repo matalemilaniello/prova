@@ -98,6 +98,10 @@ export const FOOD_FACTS: Record<string, FoodFacts> = {
   clementine: { group: 'frutta', season: { months: [1, 2, 3, 11, 12], strict: true } },
   kiwi: { group: 'frutta', season: { months: [1, 2, 3, 4, 11, 12], strict: false } },
   'frutti-bosco': { group: 'frutta' },
+  // Frutta nuova del menù generato (§ 4.10): tutta `strict`, fuori dai suoi mesi non entra.
+  fragole: { group: 'frutta', season: { months: [4, 5, 6], strict: true } },
+  pesche: { group: 'frutta', season: { months: [6, 7, 8, 9], strict: true } },
+  cachi: { group: 'frutta', season: { months: [10, 11, 12], strict: true } },
   datteri: { group: 'frutta-essiccata' },
 
   // ───────────────────────── Verdura ─────────────────────────
@@ -120,6 +124,10 @@ export const FOOD_FACTS: Record<string, FoodFacts> = {
   'cipolla-rossa': { group: 'verdura' },
   cetriolo: { group: 'verdura', season: { months: [5, 6, 7, 8, 9], strict: false } },
   peperoni: { group: 'verdura', season: { months: [6, 7, 8, 9], strict: false } },
+  // Verdura d'inverno nuova del menù generato (§ 4.10): `strict`.
+  finocchi: { group: 'verdura', season: { months: [1, 2, 3, 4, 10, 11, 12], strict: true } },
+  cavolfiore: { group: 'verdura', season: { months: [1, 2, 3, 10, 11, 12], strict: true } },
+  'cavolo-nero': { group: 'verdura', season: { months: [1, 2, 11, 12], strict: true } },
   patate: { group: 'patate' },
   limone: { group: 'condimento' },
 
@@ -151,6 +159,13 @@ export const FOOD_FACTS: Record<string, FoodFacts> = {
   paprika: { group: 'condimento' },
   aglio: { group: 'condimento' },
 };
+
+/**
+ * Freschi entrati con il menù generato (§ 4.10): ogni alimento nuovo è un prodotto in più nella spesa, quindi il generatore
+ * ne usa al massimo `NEW_FOODS_MAX_PER_WEEK` a settimana (H4, `prodotti-nuovi`). Le clementine valgono anche per i mandarini.
+ */
+export const NEW_SEASONAL_FOODS: ReadonlySet<string> = new Set(['fragole', 'pesche', 'cachi', 'finocchi', 'cavolfiore', 'cavolo-nero']);
+export const NEW_FOODS_MAX_PER_WEEK = 2;
 
 /** Fatti di un alimento di FOODS o di ESTIMATE_FOODS: l'unico accesso per motori e test. */
 export function factsOf(foodId: string): FoodFacts | undefined {

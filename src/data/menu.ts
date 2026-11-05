@@ -408,9 +408,16 @@ export const STARTER_PRODUCTS: readonly string[] = [
   'burro-arachidi',
 ];
 
+/** Regola di tutti i componenti cotti (docs/FASE2.md § 4.11). */
+const COOL_STEP = 'Raffredda in fretta e metti in frigo o in freezer entro un’ora.';
+/** Regola delle porzioni che vanno in freezer [fonte: FSA]. */
+const FREEZER_STEP = 'Dal freezer: la sera prima passa in frigo; riscalda una volta sola, fino a quando fuma.';
+
 /**
  * Guida delle attività della domenica, per id dell'attività: passaggi brevi e timer delle cotture.
  * Le cotture lunghe partono per prime; mentre vanno, il lettore propone l'attività successiva.
+ * Ci sono le attività scritte a mano della rotazione (`s1-…`, `s2-…`) e quelle dei componenti della preparazione
+ * (`PREP_COMPONENTS` in data/prepComponents.ts), che un menù generato usa come id dei suoi compiti (§ 4.11).
  */
 export const PREP_GUIDE: Record<string, PrepGuide> = {
   's1-riso': {
@@ -489,6 +496,113 @@ export const PREP_GUIDE: Record<string, PrepGuide> = {
     steps: [
       'Prepara un sacchetto per ogni yogurt da portare: mezza manciata di noci.',
       'Tienili in un contenitore vicino allo zaino.',
+    ],
+  },
+
+  // ───────────────────────── Componenti della preparazione (menù generato) ─────────────────────────
+  'riso-cotto': {
+    steps: [
+      'Metti sul fuoco una pentola con molta acqua salata, almeno sei volte il peso del riso, e cuoci il riso basmati.',
+      'Scola e allarga il riso su un vassoio: deve raffreddarsi in fretta.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Riso basmati', minutes: 11 }],
+  },
+  'pollo-cotto': {
+    steps: [
+      'Taglia il petto di pollo a bocconcini o a fettine.',
+      'Cuocilo in padella antiaderente con un filo d’olio, girandolo, finché dentro non è più rosa.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Pollo in padella', minutes: 8 }],
+  },
+  'ragu-lenticchie': {
+    steps: [
+      'Rosola la carota grattugiata con l’olio per 2 minuti.',
+      'Aggiungi le lenticchie rosse secche, la passata e due bicchieri d’acqua; cuoci finché le lenticchie si sfaldano.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Ragù di lenticchie', minutes: 15 }],
+  },
+  frittatine: {
+    steps: [
+      'Accendi il forno a 180 °C.',
+      'Sbatti uova e albumi con gli spinaci scongelati e strizzati, il formaggio grattugiato e un pizzico di sale.',
+      'Versa nei pirottini da muffin e inforna.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Frittatine in forno', minutes: 19 }],
+  },
+  barrette: {
+    steps: [
+      'Accendi il forno a 170 °C.',
+      'Trita datteri e mandorle, poi mescola con avena, crema di arachidi e albume.',
+      'Stendi in una teglia con carta forno, alta un dito, e inforna; taglia le barrette da tiepide.',
+      'In un contenitore chiuso durano una settimana; quelle in più vanno in freezer.',
+    ],
+    timers: [{ label: 'Barrette in forno', minutes: 20 }],
+  },
+  'farro-cotto': {
+    steps: ['Cuoci il farro in molta acqua salata, poi scolalo.', 'Allargalo su un vassoio: deve raffreddarsi in fretta.', COOL_STEP, FREEZER_STEP],
+    timers: [{ label: 'Farro', minutes: 20 }],
+  },
+  'orzo-cotto': {
+    steps: ['Cuoci l’orzo in molta acqua salata, poi scolalo.', 'Allargalo su un vassoio: deve raffreddarsi in fretta.', COOL_STEP, FREEZER_STEP],
+    timers: [{ label: 'Orzo', minutes: 20 }],
+  },
+  'vellutata-zucca': {
+    steps: [
+      'Rosola il soffritto con metà dell’olio, aggiungi zucca, lenticchie rosse secche, curcuma e acqua a coprire.',
+      'Cuoci finché la zucca è morbida e frulla.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Vellutata', minutes: 20 }],
+  },
+  'zuppa-cavolo-nero': {
+    steps: [
+      'Rosola il soffritto con metà dell’olio, unisci il cavolo nero a striscioline, i cannellini sciacquati, la passata e acqua a coprire.',
+      'Cuoci a fuoco basso finché il cavolo è tenero.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Zuppa', minutes: 25 }],
+  },
+  'patate-lesse': {
+    steps: [
+      'Metti le patate con la buccia in una pentola d’acqua fredda salata e porta a bollore.',
+      'Cuoci finché la forchetta entra senza sforzo, poi scolale e tagliale a pezzi.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Patate lesse', minutes: 20 }],
+  },
+  'salmone-forno': {
+    steps: [
+      'Accendi il forno a 200 °C.',
+      'Metti il salmone in una teglia con carta forno, un filo d’olio, sale e limone, e inforna: si cuoce senza annerire.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Salmone in forno', minutes: 15 }],
+  },
+  'vaschetta-recupero': {
+    steps: [
+      'Salta le zucchine a rondelle nella padella del pollo.',
+      'Componi la vaschetta da microonde con riso, pollo e zucchine e chiudila.',
+      COOL_STEP,
+      FREEZER_STEP,
+    ],
+    timers: [{ label: 'Zucchine', minutes: 4 }],
+  },
+  'sacchetti-frutta-secca': {
+    steps: [
+      'Prepara un sacchetto per ogni spuntino da portare con la frutta secca: mezza manciata di noci o di mandorle.',
+      'Butta quelle amare, rancide o ammuffite e tieni i sacchetti in un contenitore chiuso, al fresco e all’asciutto.',
     ],
   },
 };

@@ -12,6 +12,12 @@ import { FOODS } from './foods';
 import { RECIPES } from './recipes';
 import { MENU_ROTATION, PREP_GUIDE, STARTER_FIBER_SHARE, STARTER_PRODUCTS, STARTER_WEEK } from './menu';
 import { BAR_OPTIONS } from './barPlanB';
+import { factsOf } from './foodFacts';
+import { PREP_COMPONENTS } from './prepComponents';
+import { defaultAppData } from './defaults';
+import { excludedFoods } from '../engine/exclusions';
+import { menuDaysFor } from '../engine/menuGen/context';
+import { validateMenuWeek } from '../engine/menuGen/validate';
 
 // ───────────────────────── Riferimenti (settimana tipo e obiettivi predefiniti) ─────────────────────────
 
@@ -78,29 +84,33 @@ const MATCH_FLOOR_G = Math.round((MATCH_CARB_G_PER_KG * REF_WEIGHT_KG) / 5) * 5;
 const MATCH_DAYS = [0, 6];
 const MATCH_EVE = 6;
 
-const FISH = new Set(['salmone', 'salmone-affumicato', 'merluzzo', 'gamberi', 'tonno', 'sgombro']);
-const LEGUMES = new Set(['ceci', 'cannellini', 'borlotti', 'lenticchie', 'lenticchie-rosse', 'pasta-lenticchie']);
+/** Alimenti dell'archivio con una proprietà dei loro fatti (`factsOf`, data/foodFacts.ts): niente elenchi scritti a mano. */
+const foodsWhere = (pred: (id: string) => boolean) => new Set(Object.keys(FOODS).filter(pred));
+const groupOf = (id: string) => factsOf(id)?.group;
+const FISH = foodsWhere((id) => groupOf(id) === 'pesce' || groupOf(id) === 'pesce-grasso');
 /** Legumi secchi o tostati: per confrontarli con quelli cotti, × 2,4 (resa della cottura). */
 const DRY_LEGUMES = new Set(['ceci-tostati']);
 const DRY_LEGUME_YIELD = 2.4;
+const LEGUMES = foodsWhere((id) => groupOf(id) === 'legumi' && !DRY_LEGUMES.has(id));
 /** Carne rossa (WCRF e IARC): tutta la carne muscolare di mammifero, maiale compreso. */
-const RED_MEAT = new Set(['manzo', 'vitello', 'maiale', 'agnello', 'cavallo']);
+const RED_MEAT = foodsWhere((id) => groupOf(id) === 'carne-rossa');
 /**
  * Carne rossa nel menù: una porzione a settimana, al massimo 150 g cotti. Il tetto WCRF (350-500 g cotti a settimana)
  * vale per tutto quello che si mangia: il resto lo lascia ai pasti fuori dal menù.
  */
 const MAX_RED_MEAT_G_WEEK = 150;
 /** Riso: al massimo 3 pasti a settimana (arsenico inorganico, EFSA 2024; Livsmedelsverket: non tutti i giorni). */
-const RICE = new Set(['riso-basmati', 'riso-integrale']);
+const RICE = foodsWhere((id) => Boolean(factsOf(id)?.rice));
 const MAX_RICE_MEALS = 3;
 /**
  * Cereali integrali (WCRF, CUP colon-retto 2017: RR 0,83 per 90 g al giorno): grammi del prodotto, pane e fiocchi
  * come si comprano, pasta, riso e cous cous in equivalente secco. Farro e orzo perlati non sono integrali.
  */
-const WHOLE_GRAIN_DRY: Record<string, number> = {
-  'pane-integrale': 1, avena: 1, muesli: 1, 'fette-biscottate': 1, 'crackers-integrali': 1, 'piadina-integrale': 1,
-  'pasta-integrale': 0.45, 'riso-integrale': 0.4, 'couscous-integrale': 0.4,
-};
+const WHOLE_GRAIN_DRY: Record<string, number> = Object.fromEntries(
+  Object.keys(FOODS)
+    .filter((id) => factsOf(id)?.wholeGrainDry)
+    .map((id) => [id, factsOf(id)?.wholeGrainDry ?? 0]),
+);
 const MIN_WHOLE_GRAIN_G = 90;
 /** Carni lavorate (IARC gruppo 1) e prodotti di riso soffiato: mai nelle ricette. */
 const BANNED_FOOD = /prosciutt|salam|mortadell|speck|bresaol|pancett|w[uü]rstel|salsicc|cotechin|affettat|in scatola|gallett|soffiat/i;
@@ -500,9 +510,9 @@ describe('ricette', () => {
   const recipes = Object.values(RECIPES);
   const bySlot = (slot: MealSlot) => recipes.filter((r) => r.slots.includes(slot));
 
-  it('sono 45-60, divise per pasto come da specifica', () => {
+  it('sono 45-80, divise per pasto come da specifica (con le 16 di stagione del menù generato)', () => {
     expect(recipes.length).toBeGreaterThanOrEqual(45);
-    expect(recipes.length).toBeLessThanOrEqual(60);
+    expect(recipes.length).toBeLessThanOrEqual(80);
     for (const [key, r] of Object.entries(RECIPES)) expect(r.id).toBe(key);
     expect(bySlot('colazione').length).toBeGreaterThanOrEqual(7);
     expect(bySlot('spuntino').length).toBeGreaterThanOrEqual(7);
@@ -787,6 +797,31 @@ describe('menù a rotazione', () => {
   });
 });
 
+// ───────────────────────── Il validatore del menù generato sulla rotazione e sull'avvio (§ 13.4, 12) ─────────────────────────
+
+describe('validatore del menù', () => {
+  /** La settimana predefinita e gli obiettivi predefiniti: i giorni come li vede il generatore (`menuDaysFor`). */
+  const state = defaultAppData('2026-11-09');
+  const excluded = excludedFoods(state.plan);
+
+  it('la rotazione passa validateMenuWeek in ogni mese, con l’altra settimana come settimana prima', () => {
+    MENU_ROTATION.forEach((week, wi) => {
+      const days = menuDaysFor(wi === 0 ? '2026-11-09' : '2026-11-16', state);
+      for (let month = 1; month <= 12; month++) {
+        const v = validateMenuWeek(week, { days, month, excluded, previous: MENU_ROTATION[1 - wi] });
+        expect(v.map((x) => `${x.code}: ${x.message}`), `settimana ${wi + 1}, mese ${month}`).toEqual([]);
+      }
+    });
+  });
+
+  it('il menù di avvio passa validateMenuWeek con le regole dell’avvio (A11)', () => {
+    const days = menuDaysFor('2026-11-09', state);
+    for (const month of [1, 4, 7, 10]) {
+      expect(validateMenuWeek(STARTER_WEEK, { days, month, excluded, rules: 'avvio' }).map((x) => x.message), `mese ${month}`).toEqual([]);
+    }
+  });
+});
+
 describe('spesa della rotazione', () => {
   it(`chiede al massimo ${MAX_WEEK_PRODUCTS} prodotti a settimana`, () => {
     MENU_ROTATION.forEach((week, wi) => {
@@ -966,8 +1001,31 @@ describe('guida della preparazione', () => {
         expect(t.minutes, `${task.id}: ${t.label}`).toBeLessThanOrEqual(task.minutes);
       }
     }
-    // Nessuna guida per attività che non esistono.
-    for (const id of Object.keys(PREP_GUIDE)) expect(ids.some((t) => t.id === id), id).toBe(true);
+    // Nessuna guida per attività che non esistono: le attività della rotazione e i componenti della preparazione.
+    for (const id of Object.keys(PREP_GUIDE)) expect(ids.some((t) => t.id === id) || id in PREP_COMPONENTS, id).toBe(true);
+  });
+
+  it('ha una guida per ogni componente della preparazione, con la regola del freddo e del freezer (§ 4.11)', () => {
+    for (const c of Object.values(PREP_COMPONENTS)) {
+      const guide = PREP_GUIDE[c.id];
+      expect(guide, c.id).toBeDefined();
+      expect(guide.steps.length, c.id).toBeGreaterThanOrEqual(1);
+      expect(guide.steps.length, c.id).toBeLessThanOrEqual(5);
+      for (const step of guide.steps) {
+        expect(step.length, `${c.id}: ${step}`).toBeLessThanOrEqual(170);
+        expect(step.includes('—'), step).toBe(false);
+        expect(step[0], step).toBe(step[0].toLocaleUpperCase('it-IT'));
+      }
+      for (const t of guide.timers ?? []) expect(t.minutes, `${c.id}: ${t.label}`).toBeLessThanOrEqual(c.minutes);
+      const text = guide.steps.join(' ');
+      if (c.cooked) {
+        expect(text, c.id).toContain('Raffredda in fretta e metti in frigo o in freezer entro un’ora.');
+        expect(text, c.id).toContain('riscalda una volta sola, fino a quando fuma');
+      }
+      expect(c.title[0], c.id).toBe(c.title[0].toLocaleUpperCase('it-IT'));
+      expect(c.minutes, c.id).toBeGreaterThan(0);
+      expect([1, 2, 3, 7], c.id).toContain(c.fridgeDays);
+    }
   });
 });
 
@@ -1014,6 +1072,7 @@ describe('testi', () => {
       ...Object.values(RECIPES).map((r) => r.name),
       ...BAR_OPTIONS.map((o) => o.name),
       ...MENU_ROTATION.flatMap((w) => w.prep.map((t) => t.title)),
+      ...Object.values(PREP_COMPONENTS).map((c) => c.title),
     ];
     for (const t of titles) expect(t[0], t).toBe(t[0].toLocaleUpperCase('it-IT'));
   });

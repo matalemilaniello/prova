@@ -187,6 +187,9 @@ const COUNT_NOUNS: Record<string, [string, string]> = {
   limone: ['limone', 'limoni'],
   carote: ['carota', 'carote'],
   'cipolla-rossa': ['cipolla rossa', 'cipolle rosse'],
+  pesche: ['pesca', 'pesche'],
+  cachi: ['cachi', 'cachi'],
+  finocchi: ['finocchio', 'finocchi'],
 };
 
 const PACK_PLURAL: Record<string, string> = {
@@ -485,6 +488,53 @@ export function shoppingList(weekStartIso: ISODate, state: NutritionState, opts:
     starter,
     shopDate,
   };
+}
+
+// ───────────────────────── Da comprare in più (approvare dopo la spesa, docs/FASE2.md § 5.3) ─────────────────────────
+
+/** Grammi in più oltre i quali un prodotto a peso, senza confezione né pezzi, si compra di nuovo. */
+export const EXTRA_WEIGHT_G = 100;
+
+/** Unità d'acquisto di una voce: pezzi, confezioni o vasetti; null per i prodotti a peso. */
+function buyUnits(food: Food | undefined, buyG: number): number | null {
+  if (!food || !(buyG > 0)) return 0;
+  const pieceG = food.unitGrams.pezzo;
+  if (COUNT_NOUNS[food.id] && pieceG) return countUp(buyG / pieceG, 0.2);
+  const pack = parseBuyLabel(food.buyLabel, food);
+  if (pack?.pieces && pieceG) return countUp(buyG / pieceG / pack.pieces, 0.15);
+  if (pack?.grams) return countUp(buyG / pack.grams, 0.12);
+  const jarG = food.unitGrams.vasetto;
+  if (jarG) return countUp(buyG / jarG, 0.15);
+  return null;
+}
+
+/** Una voce da comprare in più: la voce della lista nuova e quella di prima, se c'era. */
+export interface ShoppingExtra {
+  item: ShoppingItem;
+  before?: ShoppingItem;
+}
+
+/**
+ * Prodotti da comprare in più quando il menù cambia dopo la spesa (§ 5.3): quelli che prima non c'erano e quelli che salgono
+ * di almeno una confezione (o un pezzo, o un vasetto); a peso, di almeno `EXTRA_WEIGHT_G`. Le chiavi sono gli id degli
+ * alimenti, come le spunte: chi chiama toglie quelli già spuntati dopo l'approvazione. Puro, nell'ordine della lista nuova.
+ */
+export function shoppingExtra(before: Pick<ShoppingList, 'items'>, after: Pick<ShoppingList, 'items'>, foods: Record<string, Food> = FOODS): ShoppingExtra[] {
+  const old = new Map(before.items.map((i) => [i.key, i]));
+  const out: ShoppingExtra[] = [];
+  for (const item of after.items) {
+    const prev = old.get(item.key);
+    if (!prev) {
+      out.push({ item });
+      continue;
+    }
+    const food = foods[item.foodId];
+    const a = buyUnits(food, item.buyG);
+    const b = buyUnits(food, prev.buyG);
+    const more = a === null || b === null ? item.buyG - prev.buyG >= EXTRA_WEIGHT_G : a > b;
+    if (more) out.push({ item, before: prev });
+  }
+  return out;
 }
 
 export interface ShoppingProgress {
