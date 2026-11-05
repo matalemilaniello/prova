@@ -19,7 +19,7 @@
 import type { AppData, DiffItem, ISODate, MenuWeek, PlanChangeKind, PlanProposal, PlanVersion } from '../../domain/types';
 import { addDays, daysBetween, formatMonth, formatWeekRange, fromISO, weekdayOf, weekStart } from '../../engine/dates';
 import { goalDeltaOf } from '../../engine/energy';
-import { menuWeekInForce } from '../../engine/menu';
+import { menuWeekInForce, repeatedMenuWeek } from '../../engine/menu';
 import { diffMenus, diffPatch, fromDayLabel, restoredPatch, restoreStart, restoreTo, sortDiff, type DiffOptions } from '../../engine/plan/diff';
 import {
   beforeOf,
@@ -139,7 +139,8 @@ export function openProposalSheet(id: string): void {
 
 /**
  * Salva una proposta nata da un motore (supera le aperte dello stesso tipo e inizio) e, con `open`, apre il foglio.
- * Una proposta già decisa con lo stesso id non si riapre (stessa base e stesso tentativo): resta com'era.
+ * Una proposta già decisa con lo stesso id (stessa base e stesso tentativo) non si riapre: resta com'era. Una superata
+ * con lo stesso id torna aperta: la base è tornata quella di prima.
  */
 export function submitProposal(p: PlanProposal, opts: { open?: boolean } = {}): string {
   useApp.getState().saveProposal(p.createdAt.includes('T') ? p : stamped(p));
@@ -164,6 +165,8 @@ function versionOfReturn(p: PlanProposal, versions: readonly PlanVersion[] | und
 }
 
 function rebuild(p: PlanProposal, today: ISODate, attempt: number): PlanProposal | null {
+  // Un menù dallo storico non ha un generatore: il motore darebbe un altro menù sotto il titolo «Come la settimana …».
+  if (isReuseProposal(p)) return null;
   const s = projectedAppData(useApp.getState());
   if (p.kind === 'ritorno') {
     const v = versionOfReturn(p, s.planVersions);
@@ -201,8 +204,9 @@ export function refreshProposal(id: string, today: ISODate): RefreshResult | nul
   if (newer && newer.id !== id && !isSuperseded(newer, proposalStateOf(useApp.getState()), today)) return { id: newer.id, refreshed: true };
   const next = rebuild(p, today, p.attempt ?? 0);
   if (!next || next.id === id || next.status !== 'aperta') return { id, refreshed: false };
+  // Una superata con lo stesso id torna aperta (base tornata quella di prima); una decisa dall'utente no.
   const known = findProposal(next.id);
-  if (known && known.status !== 'aperta') return { id, refreshed: false };
+  if (known && known.status !== 'aperta' && known.status !== 'superata') return { id, refreshed: false };
   submitProposal(next);
   return { id: next.id, refreshed: true };
 }
@@ -385,7 +389,7 @@ export function monthLabel(iso: ISODate): string {
  * Storico del piano (§ 5.5): versioni e menù approvati, dal più recente. Una versione è «in vigore» quando i campi che
  * aveva toccato valgono come li aveva messi (`after`) nel piano proiettato e la sua toppa è già entrata; «in arrivo»
  * quando è approvata in attesa (o vale da un giorno dopo oggi); «passata» quando una versione dopo l'ha cambiata. Un menù
- * è in vigore quando è quello della settimana di oggi.
+ * è in vigore quando è quello della settimana di oggi, approvato per quel lunedì o ripetuto (`repeatedMenuWeek`).
  */
 export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'> & Partial<Pick<AppData, 'planner'>>, today: ISODate): HistoryEntry[] {
   const out: HistoryEntry[] = [];
@@ -406,15 +410,18 @@ export function planHistory(s: Pick<AppData, 'plan' | 'profile' | 'planVersions'
     });
   }
   const thisMonday = weekStart(today);
+  // Senza un menù approvato per questa settimana vale l'ultimo approvato delle 4 prima, se è di stagione (§ 4.10).
+  const repeated = s.plan.menus?.[thisMonday] ? null : repeatedMenuWeek(thisMonday, s.plan);
   for (const monday of Object.keys(s.plan.menus ?? {})) {
+    const again = repeated !== null && s.plan.menus?.[monday] === repeated && monday < thisMonday;
     out.push({
       key: `m:${monday}`,
       kind: 'menu',
       effectiveFrom: monday,
       month: monthLabel(monday),
       title: `Menù ${formatWeekRange(monday)}`,
-      subtitle: 'Menù approvato',
-      status: monday === thisMonday ? 'in-vigore' : monday > thisMonday ? 'in-arrivo' : 'passata',
+      subtitle: again ? 'Menù approvato · si ripete questa settimana' : 'Menù approvato',
+      status: monday === thisMonday || again ? 'in-vigore' : monday > thisMonday ? 'in-arrivo' : 'passata',
       monday,
     });
   }

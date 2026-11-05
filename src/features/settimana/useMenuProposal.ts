@@ -33,7 +33,6 @@ import {
   proposalStateOf,
   refreshProposal,
   registerProposalBuilder,
-  stamped,
   submitProposal,
   type ProposalBuilder,
 } from '../piano/actions';
@@ -87,19 +86,6 @@ export function menuProposalStep(s: MenuProposalAppState, today: ISODate, time: 
 const emptyBuilds = new Set<string>();
 
 /**
- * Una proposta superata con lo stesso id torna aperta: la base è tornata quella di prima (un'esclusione tolta con
- * «Annulla»). `saveProposal` non riapre una proposta con un id già deciso, e «superata» non è una decisione dell'utente.
- */
-function reopenSuperseded(p: PlanProposal): string {
-  const fresh = stamped(p);
-  useApp.setState((s) => {
-    const list = s.planner?.proposals ?? [];
-    return { planner: { ...(s.planner ?? { proposals: [] }), proposals: list.map((x) => (x.id === p.id && x.status === 'superata' ? fresh : x)) } };
-  });
-  return p.id;
-}
-
-/**
  * Fa nascere la proposta del menù del lunedì dopo, se è il momento (dal venerdì alle 12:00) e se serve; con una proposta
  * aperta controlla solo la base. Restituisce l'id della proposta aperta, oppure null. Sincrona: chi la chiama la lancia
  * dopo il disegno (`scheduleMenuProposal`).
@@ -131,9 +117,10 @@ export function proposeMenuIfDue(now: Date = currentDate()): string | null {
       emptyBuilds.add(key);
       return null;
     }
+    // Una superata con lo stesso id torna aperta (la base è tornata quella di prima: `saveProposal` la riapre); una
+    // approvata o scartata resta com'è.
     const known = s.planner?.proposals.find((x) => x.id === p.id);
-    if (known?.status === 'superata') return reopenSuperseded(p);
-    if (known && known.status !== 'aperta') return null;
+    if (known && known.status !== 'aperta' && known.status !== 'superata') return null;
     return submitProposal(p);
   }
   return null;

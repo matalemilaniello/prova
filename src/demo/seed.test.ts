@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, daysBetween, weekdayOf } from '../engine/dates';
+import { addDays, daysBetween, weekStart, weekdayOf } from '../engine/dates';
+import { blockTrigger, blockWeekInfo } from '../engine/plan/build';
 import { isOnTargetFor, sleepHours } from '../engine/sleep';
 import { adherenceSummary, isSuccessful } from '../engine/timeline';
-import { buildDemo } from './seed';
+import { normalizeData, pickData } from '../state/store';
+import { buildDemo, DEMO_TRAINING } from './seed';
 
 describe('dati di esempio', () => {
   const today = '2026-11-12';
@@ -90,5 +92,52 @@ describe('dati di esempio', () => {
   it('nessun dato personale: profilo generico', () => {
     expect(demo.profile.name).toBeUndefined();
     expect(demo.profile.expertise).toBeUndefined();
+  });
+});
+
+describe('dati di esempio con il blocco (fase 2, § 11.7)', () => {
+  const today = '2026-11-12';
+  const demo = buildDemo(today, { nowMin: 13 * 60, block: true });
+  const monday = addDays(weekStart(today), -7);
+
+  it('senza `block` niente campi della fase 2: sono i dati dell’istantanea di compatibilità', () => {
+    const legacy = buildDemo(today, { nowMin: 13 * 60 });
+    expect(legacy.plan.program).toBeUndefined();
+    expect(legacy.plan.training).toBeUndefined();
+    expect(legacy.planner).toBeUndefined();
+    expect(legacy.planVersions).toBeUndefined();
+  });
+
+  it('un blocco del motore in vigore alla settimana 2, approvato la domenica prima, con la versione nello storico', () => {
+    const program = demo.plan.program!;
+    expect(program.start).toBe(monday);
+    expect(blockWeekInfo(demo.plan, today)).toMatchObject({ week: 2, of: program.weeks.length, kind: 'carico' });
+    expect(demo.plan.training).toMatchObject({ primary: DEMO_TRAINING.primary, secondary: DEMO_TRAINING.secondary });
+    const p = demo.planner!.proposals[0];
+    expect(p).toMatchObject({ kind: 'blocco', status: 'approvata', effectiveFrom: monday });
+    expect(p.before).toBeDefined();
+    expect(demo.planVersions).toHaveLength(1);
+    expect(demo.planVersions![0]).toMatchObject({ kind: 'blocco', effectiveFrom: monday, proposalId: p.id });
+    // Nessun blocco da proporre a metà blocco: la proposta arriva la domenica dell'ultima settimana.
+    expect(blockTrigger(demo.plan, today)).toBeNull();
+  });
+
+  it('le sedute registrate del blocco dicono blocco e settimana; prima del blocco sono quelle fisse', () => {
+    const inBlock = demo.workoutLogs.filter((w) => w.date >= monday);
+    expect(inBlock.length).toBeGreaterThan(0);
+    for (const w of inBlock) {
+      expect(w).toMatchObject({ blockId: demo.plan.program!.blockId, weekIndex: Math.floor(daysBetween(monday, w.date) / 7) + 1, variant: 'piena' });
+    }
+    expect(new Set(inBlock.map((w) => w.weekIndex))).toEqual(new Set([1, 2]));
+    for (const w of demo.workoutLogs.filter((x) => x.date < monday)) expect(w.blockId).toBeUndefined();
+  });
+
+  it('è deterministico e passa dalla normalizzazione senza perdere niente', () => {
+    expect(JSON.stringify(buildDemo(today, { nowMin: 13 * 60, block: true }))).toBe(JSON.stringify(demo));
+    const back = normalizeData(JSON.parse(JSON.stringify(pickData(demo))));
+    expect(back.plan.program).toEqual(demo.plan.program);
+    expect(back.plan.training).toEqual(demo.plan.training);
+    expect(back.planner).toEqual(demo.planner);
+    expect(back.planVersions).toEqual(demo.planVersions);
   });
 });

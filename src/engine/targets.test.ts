@@ -51,11 +51,16 @@ describe('obiettivi', () => {
     expect(ageFrom(0, NOW)).toBe(32);
   });
 
-  it('obiettivo dimagrimento riduce le calorie', () => {
+  it('obiettivo dimagrimento riduce le calorie e porta le proteine a 2,2 g/kg (§ 2.1), come la proposta di obiettivi', () => {
     const base = computeTargets(profile, 74, NOW);
     const cut = computeTargets({ ...profile, goal: 'dimagrimento' }, 74, NOW);
     expect(cut.palestra.kcal).toBeLessThan(base.palestra.kcal);
-    expect(cut.palestra.proteinG).toBe(base.palestra.proteinG);
+    expect(base.palestra.proteinG).toBe(Math.round((1.9 * 74) / 5) * 5);
+    expect(cut.palestra.proteinG).toBe(Math.round((2.2 * 74) / 5) * 5);
+    expect(cut.palestra.proteinG).toBe(targetsForGoal(base, 0, 'dimagrimento', { weightKg: 74 }).targets.palestra.proteinG);
+    for (const goal of ['ricomposizione', 'mantenimento', 'massa'] as const) {
+      expect(computeTargets({ ...profile, goal }, 74, NOW).palestra.proteinG).toBe(base.palestra.proteinG);
+    }
   });
 });
 

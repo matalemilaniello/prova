@@ -1528,12 +1528,17 @@ export const SESSION_DRAFT_KEY = 'ritmo:seduta-in-corso';
 /** Evento emesso quando i dati vengono sostituiti (dati di esempio, importazione, azzeramento). */
 export const DATA_REPLACED_EVENT = 'ritmo:dati-sostituiti';
 
+/** Chiave della nota di «Da comprare in più» (`features/settimana/extraShopping.ts`, fuori dal backup). */
+export const EXTRA_SHOPPING_KEY = 'ritmo:spesa-in-piu';
+
 /**
- * I dati sono stati sostituiti: una seduta in corso appartiene ai dati di prima e non va ripresa.
- * Toglie la bozza salvata (anche se il lettore non è ancora caricato) e avvisa chi la tiene in memoria.
+ * I dati sono stati sostituiti: una seduta in corso appartiene ai dati di prima e non va ripresa, e la nota di «Da
+ * comprare in più» parla di una spesa che non c'è più. Toglie le due chiavi salvate (anche se il lettore e Settimana non
+ * sono ancora caricati) e avvisa chi le tiene in memoria.
  */
 export function announceDataReplaced(): void {
   safeStorage.removeItem(SESSION_DRAFT_KEY);
+  safeStorage.removeItem(EXTRA_SHOPPING_KEY);
   try {
     window.dispatchEvent(new Event(DATA_REPLACED_EVENT));
   } catch {
@@ -2136,8 +2141,10 @@ export const useApp = create<AppState>()(
           set((s) => {
             const list = s.planner?.proposals ?? [];
             const existing = list.find((x) => x.id === p.id);
-            // Rigenerare con la stessa base e lo stesso tentativo dà lo stesso id: una proposta decisa non si riapre.
-            if (existing && existing.status !== 'aperta') return {};
+            // Rigenerare con la stessa base e lo stesso tentativo dà lo stesso id: una proposta decisa dall'utente (approvata,
+            // scartata) non si riapre. «Superata» non è una decisione: con la base tornata quella di prima (un'esclusione
+            // tolta con «Annulla») la stessa proposta torna aperta.
+            if (existing && existing.status !== 'aperta' && existing.status !== 'superata') return {};
             const copy = JSON.parse(JSON.stringify(p)) as PlanProposal;
             const at = nowIso();
             const next = list
@@ -2295,7 +2302,8 @@ export const useApp = create<AppState>()(
           if (s.onboarded && !s.settings.demoData) {
             safeStorage.setItem(PRE_DEMO_KEY, JSON.stringify(pickData(s)));
           }
-          const demo = buildDemo(today ?? todayISO(), { nowMin: nowMinutes() });
+          // Con il blocco di allenamento alla settimana 2 (docs/FASE2.md § 11.7).
+          const demo = buildDemo(today ?? todayISO(), { nowMin: nowMinutes(), block: true });
           set({
             ...NO_SECTIONS,
             ...demo,

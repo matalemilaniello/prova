@@ -253,6 +253,19 @@ describe('proposte del piano', () => {
     expect(again?.title).toBe('Proposta');
   });
 
+  it('una superata con lo stesso id torna aperta (la base è tornata quella di prima) e supera l’aperta di allora', () => {
+    const a = useApp.getState();
+    const p1 = proposalFor('blocco', { program });
+    a.saveProposal(p1);
+    const p2 = proposalFor('blocco', { program: { ...program, blockId: 'b2' } }, { attempt: 1, createdAt: '2026-11-13T13:00:00.000Z' });
+    a.saveProposal(p2);
+    a.saveProposal({ ...p1, createdAt: '2026-11-13T14:00:00.000Z' });
+    const list = useApp.getState().planner?.proposals ?? [];
+    expect(list.find((p) => p.id === p1.id)?.status).toBe('aperta');
+    expect(list.find((p) => p.id === p2.id)?.status).toBe('superata');
+    expect(list.filter((p) => p.id === p1.id)).toHaveLength(1);
+  });
+
   it('approvare un blocco da lunedì: la toppa entra il suo primo giorno con before; versione con before e after; «Annulla» rimette tutto', () => {
     const a = useApp.getState();
     const planBefore = useApp.getState().plan;

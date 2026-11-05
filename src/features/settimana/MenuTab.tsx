@@ -23,7 +23,7 @@ import { workBlocksFor } from '../../engine/mealTimes';
 import { MEAL_SLOTS, mealsForDate, type MealEntry, type MenuSource } from '../../engine/menu';
 import { dayNutritionDetail, nutritionStateOf, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { foodState, shopName } from '../../engine/shopping';
-import { CLEARED_MEAL_DETAIL } from '../../engine/timeline';
+import { clearedMealDetail } from '../../engine/timeline';
 import { formatWork } from '../../engine/work';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
@@ -192,6 +192,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping, proposal }: MenuT
                     ) : (
                       <ClearedMealCard
                         slot={slot}
+                        scheme={clearedMealDetail(slot, day)}
                         title={title}
                         time={schedule[slot]?.time}
                         reason={clearedReason(cleared[slot], plan, date)}
@@ -401,6 +402,7 @@ function ProposedLine({ recipeId }: { recipeId: string }) {
  */
 function ClearedMealCard({
   slot,
+  scheme: detail,
   title,
   time,
   reason,
@@ -408,13 +410,15 @@ function ClearedMealCard({
   onSwap,
 }: {
   slot: MealSlot;
+  /** Lo schema del pasto, lo stesso del dettaglio di Oggi (`clearedMealDetail`). */
+  scheme: string;
   title: string;
   time?: string;
   reason: string;
   proposed?: string;
   onSwap: () => void;
 }) {
-  const scheme = CLEARED_MEAL_DETAIL.replace(/^Scegli tu: /, '');
+  const scheme = detail.replace(/^Scegli tu: /, '');
   return (
     <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: scegli tu`}>
       <div className="flex items-start gap-3.5 p-4 pb-3">

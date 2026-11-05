@@ -87,12 +87,16 @@ export function blockProposalDue(s: Pick<AppData, 'plan'> & Partial<Pick<AppData
 
 /**
  * Riepilogo del blocco in vigore che finisce prima di `monday` (§ 3.11), con il carico previsto più alto delle sue
- * settimane (R10, `peakLoad`), o null senza blocco iniziato. Si salva con `recordBlockSummary` (uno per blocco: un
- * blocco ripetuto senza approvazione aggiorna lo stesso riepilogo).
+ * settimane (R10, `peakLoad`), o null senza blocco iniziato. Con `today` prima della fine, la costanza conta fino a
+ * ieri. Si salva con `recordBlockSummary` (uno per blocco: un blocco ripetuto senza approvazione aggiorna lo stesso
+ * riepilogo).
  */
-export function endingBlockSummary(s: AppData, monday: ISODate): BlockSummary | null {
+export function endingBlockSummary(s: AppData, monday: ISODate, today?: ISODate): BlockSummary | null {
   const program = s.plan.program;
   if (!program || !(program.start < monday)) return null;
+  // Un blocco interrotto a metà (fase, obiettivo) conta le sedute fino a ieri: le altre non sono ancora mancate.
+  const end = today && today < addDays(monday, -1) ? addDays(today, -1) : addDays(monday, -1);
+  if (end < program.start) return null;
   const review = blockReview(
     program,
     {
@@ -104,7 +108,7 @@ export function endingBlockSummary(s: AppData, monday: ISODate): BlockSummary | 
       reviews: s.reviews ?? [],
       physio: s.physio,
     },
-    addDays(monday, -1),
+    end,
   );
   let peak = 0;
   for (let w = program.start; w < monday; w = addDays(w, 7)) {
@@ -123,7 +127,7 @@ export type EnsureResult =
 /**
  * La proposta di blocco della giornata, se serve (`blockProposalDue`): la costruisce sul piano proiettato, salva il
  * riepilogo del blocco che finisce e la mette tra le proposte aperte. Una proposta già decisa con lo stesso id non si
- * riapre. Sicura da chiamare a ogni apertura: senza obiettivo di allenamento, date della stagione o blocco non fa niente
+ * riapre; una superata sì. Sicura da chiamare a ogni apertura: senza obiettivo di allenamento, date della stagione o blocco non fa niente
  * (l'app di prima) e restituisce null.
  */
 export function ensureBlockProposal(today: ISODate): EnsureResult | null {
@@ -137,9 +141,11 @@ export function ensureBlockProposal(today: ISODate): EnsureResult | null {
     return null;
   }
   if (!p) return { status: 'nessun-giorno' };
+  // Aperta: c'è già. Approvata o scartata: decisa dall'utente, non si riapre. Superata: la base è tornata quella di prima
+  // (un obiettivo cambiato e poi annullato) e la stessa proposta torna aperta.
   const known = findProposal(p.id);
-  if (known) return known.status === 'aperta' ? { status: 'nata', id: known.id } : null;
-  const summary = endingBlockSummary(s, p.effectiveFrom);
+  if (known && known.status !== 'superata') return known.status === 'aperta' ? { status: 'nata', id: known.id } : null;
+  const summary = endingBlockSummary(s, p.effectiveFrom, today);
   if (summary) useApp.getState().recordBlockSummary(summary);
   return { status: 'nata', id: submitProposal(p) };
 }

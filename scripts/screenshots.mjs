@@ -63,17 +63,25 @@ mkdirSync(outDir, { recursive: true });
  * `now` cambia l'orologio della vista; `weekday` (0 = lunedì) porta la data al prossimo giorno della settimana
  * indicato (a partire da --today o da oggi), per avere sempre una giornata di partita o di palestra.
  * `firstDay` simula il primo giorno di un utente nuovo: carica i dati di esempio, li svuota (diario, controlli,
- * sedute, revisioni, spesa, preparazione, esercizi del fisioterapista), mette il primo avvio a quell'ora del giorno
- * della vista e l'inizio del piano al suo lunedì, poi ricarica senza dati di esempio. Con `firstDayAgo` il primo
- * avvio è quel numero di giorni prima (il secondo mattino di un utente nuovo).
+ * sedute, revisioni, spesa, preparazione, esercizi del fisioterapista, blocco, proposte e storico del piano), mette il
+ * primo avvio a quell'ora del giorno della vista e l'inizio del piano al suo lunedì, poi ricarica senza dati di esempio.
+ * Con `firstDayAgo` il primo avvio è quel numero di giorni prima (il secondo mattino di un utente nuovo).
  * `fold` controlla che la card Adesso cominci entro i due terzi della schermata a 390×844 (sotto la piega sarebbe un
  * problema da segnalare).
  * `dishes` aggiunge tre piatti salvati inventati ai dati di esempio (pagina dei piatti).
+ * `planPatch` fonde quei campi nel piano dei dati di esempio salvati e riapre senza ricaricarli (per esempio un obiettivo
+ * di allenamento diverso da quello del blocco, perché nasca la proposta di blocco).
  * `tap` tocca il primo pulsante con quel nome prima dello scatto (per esempio un piatto dell'elenco, per il dettaglio).
+ * `steps` sono passi in fila prima dello scatto: `tap:<nome>` tocca il primo pulsante con quel nome, `tab:<nome>` la
+ * scheda, `check:<n>` spunta le prime n caselle della lista. Con un passo che non riesce la vista finisce tra i problemi.
+ * Le viste del menù nuovo usano il sabato (`weekday: 5`): la proposta nasce dal venerdì alle 12:00 (docs/FASE2.md § 4.10).
  * In ogni vista le etichette dei controlli segmentati non devono essere tagliate dai puntini.
- * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean, tap?: string }[]}
+ * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean, planPatch?: Record<string, unknown>, tap?: string, steps?: string[] }[]}
  */
-const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+const SETTINGS_PAGES = ['profilo', 'obiettivi', 'macro', 'storico', 'settimana', 'pasti', 'gusti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
+
+/** Obiettivo di allenamento diverso da quello del blocco dei dati di esempio: nasce la proposta di blocco. */
+const OTHER_TRAINING = { training: { presetId: 'forte', primary: 'forza', secondary: 'prevenzione' } };
 
 const VIEWS = [
   { name: 'benvenuto', query: { onboarding: '1' }, fresh: true },
@@ -119,6 +127,22 @@ const VIEWS = [
   { name: 'mealLog-piatti', hash: 'oggi', query: { overlay: 'mealLog' }, dishes: true, wait: 900 },
   // Il dettaglio di un piatto: Metà · Normale · Abbondante, valori e «Segna».
   { name: 'mealLog-piatto', hash: 'oggi', query: { overlay: 'mealLog' }, dishes: true, wait: 900, tap: 'Pasta e ceci' },
+  // Onda 2 · menù della settimana dopo (sabato mattina): la card nella Spesa, il menù della settimana dopo con i punti
+  // ambra, il foglio della proposta, «Dopo la spesa», «Da comprare in più», la preparazione generata e il suo lettore.
+  { name: 'settimana-spesa-proposta', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800 },
+  // In Oggi la spesa del sabato dice di guardare prima il menù nuovo (solo il dettaglio, § 11.2).
+  { name: 'oggi-spesa-menu-nuovo', hash: 'oggi', weekday: 5, now: '10:30', wait: 1800 },
+  { name: 'settimana-menu-prossima', hash: 'settimana', query: { tab: 'menu' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Settimana successiva'] },
+  { name: 'planProposal', hash: 'settimana', query: { tab: 'spesa', overlay: 'planProposal' }, weekday: 5, now: '10:30', wait: 2200 },
+  { name: 'planProposal-dopo-spesa', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:3', 'tap:Vedi la proposta'] },
+  { name: 'settimana-spesa-in-piu', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:8', 'tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva'] },
+  // «Un’altra proposta» sul sabato di --today 2026-11-05 cambia le ricette da preparazione: i compiti nascono dai componenti.
+  { name: 'settimana-preparazione-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva', 'tab:Preparazione'] },
+  { name: 'settimana-guida-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva', 'tab:Preparazione', 'tap:Inizia la preparazione'] },
+  // Onda 2 · allenamento: il blocco dei dati di esempio è alla settimana 2 (vista `allenamento`); con un obiettivo diverso
+  // nasce la proposta del blocco dopo (card in Allenamento e foglio).
+  { name: 'allenamento-proposta', hash: 'allenamento', weekday: 1, now: '18:10', planPatch: OTHER_TRAINING, wait: 1600 },
+  { name: 'planProposal-blocco', hash: 'allenamento', query: { overlay: 'planProposal' }, weekday: 1, now: '18:10', planPatch: OTHER_TRAINING, wait: 2200 },
 ];
 
 const selected = VIEWS.filter((v) => !only || only.some((o) => v.name === o || v.name.startsWith(`${o}-`)));
@@ -170,6 +194,12 @@ async function makeFirstDay(page, today, time, ago = 0) {
       const monday = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       Object.assign(s, { dayLogs: {}, checkIns: {}, workoutLogs: [], footballLogs: [], reviews: {}, chat: [], shoppingChecked: {}, prepDone: {} });
       s.physio = { exercises: [], prescriptions: [] };
+      // Un utente nuovo non ha blocchi, proposte né storico del piano (i dati di esempio sì, § 11.7).
+      delete s.plan.program;
+      delete s.plan.training;
+      delete s.planner;
+      delete s.planVersions;
+      localStorage.removeItem('ritmo:v1:archivio');
       s.plan.startDate = monday;
       s.plan.firstUse = { date: firstDate, time };
       s.plan.supplements = s.plan.supplements.map((x) => (/vitamina d/i.test(x.name) ? { ...x, dose: 'Dose da definire con l\u2019esame', active: true } : x));
@@ -193,6 +223,39 @@ async function addFakeDishes(page) {
     ];
     localStorage.setItem('ritmo:v1', JSON.stringify(raw));
   });
+}
+
+/** Fonde `patch` nel piano dei dati salvati (vedi `planPatch`). */
+async function patchPlan(page, patch) {
+  await page.evaluate((patch) => {
+    const raw = JSON.parse(localStorage.getItem('ritmo:v1') ?? 'null');
+    if (!raw?.state) throw new Error('stato salvato assente');
+    Object.assign(raw.state.plan, patch);
+    localStorage.setItem('ritmo:v1', JSON.stringify(raw));
+  }, patch);
+}
+
+/** Un passo di `steps`: tocco su un pulsante o su una scheda, oppure le prime n caselle della lista. */
+async function runStep(page, step) {
+  const [kind, ...rest] = step.split(':');
+  const arg = rest.join(':');
+  if (kind === 'tap') {
+    const loc = page.getByRole('button', { name: arg }).first();
+    await loc.waitFor({ state: 'visible', timeout: 6000 });
+    await loc.click();
+  } else if (kind === 'tab') {
+    await page.getByRole('tab', { name: arg }).first().click();
+  } else if (kind === 'check') {
+    for (let i = 0; i < Number(arg); i++) {
+      const box = page.locator('[data-screen-active="true"] [role="checkbox"][aria-checked="false"]').first();
+      await box.waitFor({ state: 'visible', timeout: 6000 });
+      await box.click();
+      await page.waitForTimeout(250);
+    }
+  } else {
+    throw new Error(`passo sconosciuto: ${step}`);
+  }
+  await page.waitForTimeout(700);
 }
 
 /**
@@ -265,11 +328,12 @@ try {
         logs.push(`eccezione: ${e.message}`);
       });
 
-      if (view.dishes) {
-        // I dati di esempio non hanno piatti: si caricano, si aggiungono i piatti finti e si riapre senza ricaricarli.
+      if (view.dishes || view.planPatch) {
+        // I dati di esempio si caricano, si cambiano (piatti finti, campi del piano) e si riapre senza ricaricarli.
         await page.goto(urlFor({ ...view, query: {} }, theme, { demo: true }), { waitUntil: 'load' });
         await page.waitForTimeout(500);
-        await addFakeDishes(page);
+        if (view.dishes) await addFakeDishes(page);
+        if (view.planPatch) await patchPlan(page, view.planPatch);
         await page.goto(urlFor(view, theme, { demo: false }), { waitUntil: 'load' });
       } else if (view.firstDay) {
         await page.goto(urlFor(view, theme, { demo: true }), { waitUntil: 'load' });
@@ -284,6 +348,15 @@ try {
       if (view.tap) {
         await page.getByRole('button', { name: view.tap }).first().click();
         await page.waitForTimeout(600);
+      }
+      const failed = [];
+      for (const step of view.steps ?? []) {
+        try {
+          await runStep(page, step);
+        } catch (e) {
+          failed.push(`${step}: ${String(e?.message ?? e).split('\n')[0]}`);
+          break;
+        }
       }
 
       // Overflow a 360 px, poi di nuovo a 390.
@@ -334,8 +407,8 @@ try {
         }
       }
 
-      if (logs.length || of360.length || of390.length || fold.length) {
-        problems.push({ view: `${view.name} (${theme})`, logs, of360, of390, fold });
+      if (logs.length || of360.length || of390.length || fold.length || failed.length) {
+        problems.push({ view: `${view.name} (${theme})`, logs, of360, of390, fold, failed });
       }
       await context.close();
     }
@@ -355,9 +428,10 @@ if (problems.length) {
     for (const o of p.of390) console.log(`  overflow a 390 px  ${o}`);
     for (const o of p.of360) console.log(`  overflow a 360 px  ${o}`);
     for (const f of p.fold ?? []) console.log(`  piega  ${f}`);
+    for (const f of p.failed ?? []) console.log(`  passo non riuscito  ${f}`);
   }
 } else {
   console.log('\nNessun errore in console, nessun overflow orizzontale (390 e 360 px).');
 }
 
-if (strict && (pageErrors > 0 || problems.some((p) => p.of360.length || p.of390.length))) process.exitCode = 1;
+if (strict && (pageErrors > 0 || problems.some((p) => p.of360.length || p.of390.length || p.failed?.length))) process.exitCode = 1;

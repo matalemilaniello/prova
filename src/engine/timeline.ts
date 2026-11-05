@@ -55,10 +55,30 @@ import { introLevel, sessionDuration, type SessionDuration } from './training';
 import { afterWork, normalizeWork, spanAt, workSpans } from './work';
 
 /**
- * Dettaglio di un pasto rimasto senza ricetta perché un'esclusione non ha lasciato alternative valide (`DayMeals.cleared`,
- * docs/FASE2.md § 6.4): lo schema di `PRE_SHOPPING_DETAIL`. Il piano B resta nel foglio della voce.
+ * Dettaglio di un pasto principale rimasto senza ricetta perché un'esclusione non ha lasciato alternative valide
+ * (`DayMeals.cleared`, docs/FASE2.md § 6.4): lo schema di `PRE_SHOPPING_DETAIL`. Il piano B resta nel foglio della voce.
+ * Per gli altri pasti lo schema cambia con il pasto (`clearedMealDetail`).
  */
 export const CLEARED_MEAL_DETAIL = 'Scegli tu: proteine, un carboidrato, verdura';
+
+/**
+ * Schema di un pasto vuoto per pasto (§ 4.4 e § 4.6): colazione con un cereale e un frutto, spuntino e merenda con un
+ * frutto e un po' di proteine, la merenda prima del calcio della sera digeribile (carboidrati semplici, poche proteine, poca
+ * fibra e pochi grassi, come i pre-calcio del menù e il piano B), pranzo e cena come `CLEARED_MEAL_DETAIL`.
+ */
+export const CLEARED_MEAL_DETAILS: Record<MealSlot | 'pre-calcio', string> = {
+  colazione: 'Scegli tu: proteine, un cereale e un frutto',
+  spuntino: 'Scegli tu: un frutto e un po’ di proteine',
+  pranzo: CLEARED_MEAL_DETAIL,
+  merenda: 'Scegli tu: un frutto e un po’ di proteine',
+  'pre-calcio': 'Scegli tu: un carboidrato semplice e poca proteina',
+  cena: CLEARED_MEAL_DETAIL,
+};
+
+/** Schema del pasto vuoto `slot` nel giorno: la merenda di un giorno con il calcio la sera è un pre-calcio. */
+export function clearedMealDetail(slot: MealSlot, day?: Pick<ScheduleDay, 'football'>): string {
+  return slot === 'merenda' && isEveningFootball(day) ? CLEARED_MEAL_DETAILS['pre-calcio'] : CLEARED_MEAL_DETAILS[slot];
+}
 
 /** Dettaglio di un pasto con una stima da foto o da un piatto salvato che vale per la voce (`eatenMeal`); null altrimenti. */
 function mealEstimateDetail(log: DayLog | undefined, slot: MealSlot): string | null {
@@ -68,7 +88,7 @@ function mealEstimateDetail(log: DayLog | undefined, slot: MealSlot): string | n
 
 /** Lo stato che serve alla timeline. I registri (controlli, sedute, calcio, spesa…) sono facoltativi. */
 export type TimelineState = Pick<AppData, 'plan' | 'dayLogs'> &
-  Partial<Pick<AppData, 'physio' | 'checkIns' | 'workoutLogs' | 'footballLogs' | 'reviews' | 'shoppingChecked' | 'prepDone'>>;
+  Partial<Pick<AppData, 'physio' | 'checkIns' | 'workoutLogs' | 'footballLogs' | 'reviews' | 'shoppingChecked' | 'prepDone' | 'profile' | 'planner'>>;
 
 /** Riti del fine settimana: voci derivate dal piano, non salvate nel contratto dei dati. */
 export type RitualKind = 'spesa' | 'preparazione' | 'revisione';
@@ -406,7 +426,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
       time: schedule[slot].time,
       kind: 'pasto',
       title: schedule[slot].title,
-      detail: mealEstimateDetail(log, slot) ?? entry?.recipe?.name ?? (meals.cleared?.[slot] ? CLEARED_MEAL_DETAIL : undefined),
+      detail: mealEstimateDetail(log, slot) ?? entry?.recipe?.name ?? (meals.cleared?.[slot] ? clearedMealDetail(slot, day) : undefined),
       ref: entry?.recipeId || undefined,
       slot,
       // Cade durante il lavoro: da portare.
@@ -662,7 +682,8 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
       time: minToHHMM(at),
       kind: 'spesa',
       title: 'Spesa per la settimana',
-      detail: 'La lista è già pronta in Settimana',
+      // Con la proposta del menù del lunedì dopo ancora aperta, prima si guarda quella (§ 5.3, solo testo).
+      detail: menuProposalOpen(addDays(weekStart(iso), 7), state) ? SHOPPING_NEW_MENU_DETAIL : 'La lista è già pronta in Settimana',
     });
   }
 
@@ -693,6 +714,14 @@ export function ritualItems(iso: ISODate, state: TimelineState): DayItem[] {
     }
   }
   return out;
+}
+
+/** Dettaglio della spesa del sabato con una proposta di menù aperta per il lunedì dopo (§ 5.3, § 11.2). */
+export const SHOPPING_NEW_MENU_DETAIL = 'Prima guarda il menù nuovo';
+
+/** C'è una proposta di menù aperta per quel lunedì (`Planner`, docs/FASE2.md § 5)? */
+export function menuProposalOpen(monday: ISODate, state: Pick<TimelineState, 'planner'>): boolean {
+  return (state.planner?.proposals ?? []).some((p) => p.kind === 'menu' && p.status === 'aperta' && p.effectiveFrom === monday);
 }
 
 /**
@@ -781,10 +810,11 @@ function markPreShopping(iso: ISODate, items: DayItem[], state: TimelineState): 
   if (!shop || iso > shop.date) return items;
   if (shoppingDone(shop, state)) return items;
   const limit = iso === shop.date ? dayMinutes(shop.time, plan) : Number.POSITIVE_INFINITY;
-  const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
+  // Lo scambio che vale dopo le esclusioni (`mealsForDate`): uno scambio con un alimento escluso non è una ricetta scelta.
+  const meals = mealsForDate(iso, state);
   let changed = false;
   const out = items.map((it) => {
-    if (it.kind !== 'pasto' || dayMinutes(it.time, plan) >= limit || (it.slot && (swaps[it.slot] || mealEstimateDetail(state.dayLogs[iso], it.slot)))) return it;
+    if (it.kind !== 'pasto' || dayMinutes(it.time, plan) >= limit || (it.slot && (meals.bySlot[it.slot]?.swapped || mealEstimateDetail(state.dayLogs[iso], it.slot)))) return it;
     changed = true;
     return { ...it, detail: PRE_SHOPPING_DETAIL, preShopping: true };
   });

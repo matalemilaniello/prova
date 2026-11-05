@@ -42,6 +42,7 @@ import { SESSIONS } from '../../data/sessions';
 import { DAY_TYPES, FOOTBALL_LABEL, MEAL_SLOT_LABEL, WEEKDAY_LONG, capitalize, fmtNumber, listIt, plural } from '../../lib/format';
 import { addDays, dayOfMonthLabel, daysBetween, formatMonth, formatWeekRange, fromISO, weekStart, weekdayOf } from '../dates';
 import { MEAL_SLOTS, menuWeekInForce } from '../menu';
+import { slotLabel } from './program';
 import { planBasis, proposalId, stableStringify, type ProposalState } from './proposals';
 
 // ───────────────────────── Etichette ─────────────────────────
@@ -119,7 +120,7 @@ export function describeDay(d: ScheduleDay | undefined): string {
   if (!d) return 'nessun dato';
   const parts = [capitalize(dayTypeName(d.dayType))];
   if (d.football) parts.push(`${FOOTBALL_LABEL[d.football.kind]} alle ${d.football.time}`);
-  if (d.gymSessionId) parts.push(`Seduta ${d.gymSessionId}${d.gymOptional ? ' facoltativa' : ''}${d.gymTime ? ` alle ${d.gymTime}` : ''}`);
+  if (d.gymSessionId) parts.push(`${slotLabel(d.gymSessionId)}${d.gymOptional ? ' facoltativa' : ''}${d.gymTime ? ` alle ${d.gymTime}` : ''}`);
   if (d.physio) parts.push('fisioterapista');
   return parts.join(' · ');
 }
@@ -263,7 +264,7 @@ export function diffPrograms(before: Program | undefined | null, after: Program 
   for (const slot of slots) {
     const s1 = sb[slot];
     const s2 = sa[slot];
-    const label = `Seduta ${slot}`;
+    const label = (s2 ?? s1)?.name ?? slotLabel(slot);
     if (!s1 && !s2) continue;
     if (!s1 || !s2) {
       out.push({ area: 'seduta', weight: 4, label, before: s1 ? s1.subtitle || s1.name : 'nessuna', after: s2 ? s2.subtitle || s2.name : 'tolta' });
@@ -449,13 +450,13 @@ export function editLabel(edit: PlanEdit | MenuEdit, opts: ProgramDiffOptions = 
   if ('op' in edit) {
     switch (edit.op) {
       case 'sostituisci':
-        return `Seduta ${edit.slot}: ${name(edit.exerciseId)} → ${name(edit.with)}${edit.week ? `, settimana ${edit.week}` : ''}`;
+        return `${slotLabel(edit.slot)}: ${name(edit.exerciseId)} → ${name(edit.with)}${edit.week ? `, settimana ${edit.week}` : ''}`;
       case 'serie':
-        return `Seduta ${edit.slot}: ${name(edit.exerciseId)}, ${plural(edit.sets, 'serie', 'serie')}${edit.week ? ` nella settimana ${edit.week}` : ''}`;
+        return `${slotLabel(edit.slot)}: ${name(edit.exerciseId)}, ${plural(edit.sets, 'serie', 'serie')}${edit.week ? ` nella settimana ${edit.week}` : ''}`;
       case 'ordine':
-        return `Seduta ${edit.slot}: ordine degli esercizi`;
+        return `${slotLabel(edit.slot)}: ordine degli esercizi`;
       case 'nota':
-        return `Seduta ${edit.slot}, ${name(edit.exerciseId)}: ${edit.note}`;
+        return `${slotLabel(edit.slot)}, ${name(edit.exerciseId)}: ${edit.note}`;
     }
   }
   return `${capitalize(WEEKDAY_LONG[edit.day])}, ${MEAL_SLOT_LABEL[edit.slot].toLowerCase()}: ${recipeName(edit.recipeId)}`;

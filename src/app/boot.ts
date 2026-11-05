@@ -5,6 +5,10 @@
  * (anche quelli della fase 2: mealLog, planProposal, supplement).
  * Le proposte del piano approvate in attesa entrano nel piano il loro primo giorno (docs/FASE2.md § 5.4): all'avvio,
  * al ritorno in primo piano, ogni minuto (cambio di giornata) e quando cambiano le proposte.
+ * Dopo il primo disegno si caricano le regie delle proposte (`setupPlanProposals`): i generatori registrati, il ritorno
+ * in primo piano del menù della settimana dopo (§ 4.10) e la proposta di blocco della giornata (§ 5.3); la nota di «Da
+ * comprare in più» ascolta le approvazioni da subito (§ 5.3). Con `?overlay=planProposal` il foglio si apre dopo, sulla
+ * proposta aperta più recente (anche il menù della settimana dopo, se è il momento).
  */
 import type { AppData, FootballKind, ISODate, Overlay, TimelineItem } from '../domain/types';
 import { RECIPES } from '../data/recipes';
@@ -13,7 +17,7 @@ import { addDays, isHHMM, isISODate, setNowProvider, todayISO, weekdayOf } from 
 import { mealsForDate } from '../engine/menu';
 import { isPendingApproval } from '../engine/plan/proposals';
 import { planTodayISO } from '../engine/sleep';
-import { useApp, useUi } from '../state/store';
+import { DATA_REPLACED_EVENT, useApp, useUi } from '../state/store';
 import { isStandalone, requestPersistentStorage } from './env';
 import { applyTheme, resolveTheme, setThemeOverride } from './theme';
 import { getUrlParam } from './urlParams';
@@ -96,7 +100,7 @@ export function sampleOverlay(type: string, state: AppData = useApp.getState()):
     }
     case 'barPlanB':
       return { type: 'barPlanB' };
-    // Pannelli della fase 2 (docs/FASE2.md § 11.7): per ora mostrano un segnaposto.
+    // Pannelli della fase 2 (docs/FASE2.md § 11.7).
     case 'mealLog':
       return { type: 'mealLog', date: today, slot: 'pranzo', mode: state.dishes?.length ? 'piatti' : 'foto' };
     case 'planProposal': {
@@ -131,6 +135,52 @@ function setupPendingApprovals() {
   });
 }
 
+/** Dopo il primo disegno: un fotogramma, poi un giro del ciclo degli eventi (§ 4.10: mai durante il primo disegno). */
+function afterFirstPaint(fn: () => void): void {
+  const later = () => window.setTimeout(fn, 0);
+  if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(later);
+  else later();
+}
+
+/**
+ * Regie delle proposte del piano, caricate a richiesta dopo il primo disegno (il motore del menù e quello dei blocchi sono
+ * pesanti): registrano i generatori per il foglio della proposta, il menù ascolta il ritorno in primo piano, il blocco
+ * nasce quando serve (fine blocco la domenica, fase, obiettivo, primo blocco) all'avvio, al ritorno in primo piano e dopo
+ * dati sostituiti. Niente si applica da solo: nascono proposte da approvare. Si risolve quando le regie sono pronte.
+ */
+function setupPlanProposals(): Promise<{ proposeMenu: () => void }> {
+  return new Promise((resolve) => {
+    afterFirstPaint(() => {
+      Promise.all([import('../features/settimana/useMenuProposal'), import('../features/allenamento/blocks')])
+        .then(([menu, blocks]) => {
+          menu.setupMenuProposals();
+          const ensureBlock = () => {
+            const s = useApp.getState();
+            if (s.onboarded) blocks.ensureBlockProposal(planTodayISO(s.plan));
+          };
+          // Dati di esempio: la proposta del menù della settimana dopo c'è già il venerdì e il sabato (§ 11.7), anche
+          // prima di aprire Settimana (la spesa del sabato in Oggi dice di guardarla).
+          const demoMenu = () => {
+            if (useApp.getState().settings.demoData) menu.proposeMenuIfDue();
+          };
+          ensureBlock();
+          demoMenu();
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') ensureBlock();
+          });
+          window.addEventListener(DATA_REPLACED_EVENT, () =>
+            window.setTimeout(() => {
+              ensureBlock();
+              demoMenu();
+            }, 0),
+          );
+          resolve({ proposeMenu: () => void menu.proposeMenuIfDue() });
+        })
+        .catch(() => resolve({ proposeMenu: () => undefined }));
+    });
+  });
+}
+
 let booted = false;
 
 /** Da chiamare una volta prima di render. */
@@ -149,6 +199,9 @@ export function boot() {
   if (getUrlParam('demo') === '1') useApp.getState().loadDemo(todayISO());
   if (getUrlParam('onboarding') === '1') useApp.setState({ onboarded: false });
   setupPendingApprovals();
+  // «Da comprare in più»: la nota si scrive quando si approva un menù con la spesa già cominciata, da qualunque schermata.
+  void import('../features/settimana/extraShopping').then((m) => m.setupExtraShopping()).catch(() => undefined);
+  const proposals = setupPlanProposals();
 
   // Dati protetti dal browser (non si cancellano da soli quando serve spazio), dopo il benvenuto.
   if (useApp.getState().onboarded) void requestPersistentStorage();
@@ -161,7 +214,14 @@ export function boot() {
   }
 
   const overlay = getUrlParam('overlay');
-  if (overlay) {
+  if (overlay === 'planProposal') {
+    // Il foglio della proposta aspetta le regie: la proposta di blocco e quella del menù nascono dopo il primo disegno.
+    void proposals.then(({ proposeMenu }) => {
+      proposeMenu();
+      const o = sampleOverlay(overlay);
+      if (o) useUi.getState().open(o);
+    });
+  } else if (overlay) {
     const o = sampleOverlay(overlay);
     if (o) useUi.getState().open(o);
   }

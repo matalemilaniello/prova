@@ -76,7 +76,8 @@ export function computeTargets(profile: Profile, weightKg?: number, now: Date = 
   const bmr = bmrMifflin(body);
   const delta = GOAL_DELTA_KCAL[profile.goal] ?? 0;
   const kcalOf = (t: DayType) => round(tdee(bmr, t) + delta, 50);
-  const proteinG = round(PROTEIN_G_PER_KG * w, 5);
+  // Proteine per obiettivo (§ 2.1): 2,2 g/kg in dimagrimento, 1,9 negli altri, come le proposte di obiettivi.
+  const proteinG = round((PROTEIN_G_PER_KG_BY_GOAL[profile.goal] ?? PROTEIN_G_PER_KG) * w, 5);
   const fatG = round((kcalOf('palestra') * FAT_SHARE) / 9, 5);
   const make = (t: DayType): MacroTarget => {
     const kcal = kcalOf(t);
@@ -90,8 +91,8 @@ export function computeTargets(profile: Profile, weightKg?: number, now: Date = 
 
 /**
  * Proteine per obiettivo del corpo (docs/FASE2.md § 2.1): 2,2 g/kg in dimagrimento, perché in deficit servono più
- * proteine per tenere il muscolo (Helms 2014; ISSN, Jäger 2017); 1,9 g/kg negli altri. Le usa la proposta di obiettivi;
- * `computeTargets` (benvenuto e ricalcolo dal profilo) resta a 1,9 come prima.
+ * proteine per tenere il muscolo (Helms 2014; ISSN, Jäger 2017); 1,9 g/kg negli altri. Le usano la proposta di obiettivi
+ * e `computeTargets` (benvenuto e ricalcolo dal profilo): chi sceglie il dimagrimento nel benvenuto parte già da 2,2.
  */
 export const PROTEIN_G_PER_KG_BY_GOAL: Record<Goal, number> = {
   ricomposizione: PROTEIN_G_PER_KG,

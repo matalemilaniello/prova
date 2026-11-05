@@ -135,10 +135,13 @@ export function useOggi(today: ISODate, nowHHMM: HHMM): OggiData {
   const shoppingChecked = useApp((s) => s.shoppingChecked);
   const prepDone = useApp((s) => s.prepDone);
   const profile = useApp((s) => s.profile);
+  const planner = useApp((s) => s.planner);
 
+  // Con il profilo il dettaglio della palestra conta la regola del dolore; con le proposte la spesa del sabato dice
+  // «Prima guarda il menù nuovo» (docs/FASE2.md § 11.2).
   const state = useMemo<TimelineState>(
-    () => ({ plan, dayLogs, physio, checkIns, workoutLogs, footballLogs, reviews, shoppingChecked, prepDone }),
-    [plan, dayLogs, physio, checkIns, workoutLogs, footballLogs, reviews, shoppingChecked, prepDone],
+    () => ({ plan, dayLogs, physio, checkIns, workoutLogs, footballLogs, reviews, shoppingChecked, prepDone, profile, planner }),
+    [plan, dayLogs, physio, checkIns, workoutLogs, footballLogs, reviews, shoppingChecked, prepDone, profile, planner],
   );
 
   const items = useMemo(() => buildDay(today, state), [today, state]);

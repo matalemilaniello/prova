@@ -19,10 +19,11 @@ import { addDays, isISODate } from '../../engine/dates';
 import { shoppingExtra, shoppingList, type ShoppingItem, type ShoppingList, type ShoppingOptions } from '../../engine/shopping';
 import type { NutritionState } from '../../engine/nutrition';
 import { planTodayISO } from '../../engine/sleep';
-import { DATA_REPLACED_EVENT, safeStorage, useApp } from '../../state/store';
+import { DATA_REPLACED_EVENT, EXTRA_SHOPPING_KEY, safeStorage, useApp } from '../../state/store';
 
-/** Chiave dell'archivio delle note (fuori dallo stato e dal backup, come la seduta in corso). */
-export const EXTRA_SHOPPING_KEY = 'ritmo:spesa-in-piu';
+/** Chiave dell'archivio delle note (fuori dallo stato e dal backup, come la seduta in corso): sta nello store, che la
+ * toglie quando i dati vengono sostituiti (`announceDataReplaced`). */
+export { EXTRA_SHOPPING_KEY };
 /** Prefisso della spunta di un prodotto che sale di quantità. */
 export const EXTRA_CHECK_PREFIX = 'in-piu:';
 /** Settimane tenute: la nota serve solo alla spesa di quel lunedì. */

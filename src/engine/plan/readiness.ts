@@ -16,7 +16,7 @@
  */
 import type { CheckIn, ISODate, SessionExercise, WorkoutBlock, WorkoutSession } from '../../domain/types';
 import { EXERCISES } from '../../data/exercises';
-import { estimateItemSec } from '../../data/sessions';
+import { DOSE_PRESETS, estimateItemSec } from '../../data/sessions';
 import { fmtHours, listIt } from '../../lib/format';
 import { addDays, weekStart, weekdayOf } from '../dates';
 import { checkInSleepHours } from '../sleep';
@@ -65,6 +65,10 @@ export const FOOTBALL_HEAVY_UA = 600;
 export const REDUCED_SETS_FACTOR = 0.67;
 export const REDUCED_IMPACT_FACTOR = 0.5;
 export const MINIMAL_MAX_MIN = 20;
+/** La minima dura almeno 15 minuti (§ 3.9): con i pavimenti già fatti si completa con la mobilità. */
+export const MINIMAL_MIN_MIN = 15;
+/** Mobilità del catalogo per completare la minima, in quest'ordine (anche, flessori dell'anca, caviglia, adduttori). */
+export const MINIMAL_MOBILITY = ['rotazioni-anche-90-90', 'allungamento-flessori-anca', 'mobilita-caviglia-al-muro', 'allungamento-corridore-con-rotazione', 'dondolo-adduttori-quadrupedia'];
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -229,7 +233,7 @@ export function floorsDoneThisWeek(iso: ISODate, state: Pick<TrainingState, 'wor
 
 /**
  * Variante minima (§ 3.9): niente blocco principale, niente pliometria né sprint; i pavimenti della settimana non ancora
- * fatti (la forza di gambe no), la mobilità e, se servono, due minuti di cyclette per scaldarsi. 15-20 minuti; con
+ * fatti (la forza di gambe no), la mobilità e, se servono, minuti di cyclette facile per scaldarsi. 15-20 minuti; con
  * `noImpact` nessun esercizio d'impatto. Gli esercizi del fisioterapista restano nel loro blocco, come sempre.
  */
 export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>, opts: { noImpact?: boolean } = {}): WorkoutSession {
@@ -258,6 +262,26 @@ export function minimalSession(base: WorkoutSession, done: ReadonlySet<FloorId>,
   // Al massimo 20 minuti: si tolgono prima la mobilità in più, poi i pavimenti in fondo.
   while (total([...keep, ...mobility]) > MINIMAL_MAX_MIN && mobility.length) mobility.pop();
   while (total(keep) > MINIMAL_MAX_MIN && keep.length > 1) keep.pop();
+  // Almeno 15 minuti: con i pavimenti della settimana già fatti resterebbero pochi minuti di mobilità. Si aggiungono, in
+  // ordine, gli esercizi di mobilità e di riscaldamento senza impatto della seduta, poi quelli di mobilità del catalogo
+  // con la loro dose di riferimento, senza superare i 20 minuti; poi, se manca ancora qualcosa, la cyclette facile.
+  const have = new Set([...keep, ...mobility].map((it) => it.exerciseId));
+  const extra = MINIMAL_MOBILITY.map((id) => DOSE_PRESETS[id]).filter((it): it is SessionExercise => Boolean(it));
+  for (const it of [...base.blocks.flatMap((b) => b.items), ...extra]) {
+    if (total([...keep, ...mobility]) >= MINIMAL_MIN_MIN) break;
+    const cat = EXERCISES[it.exerciseId]?.category;
+    if (have.has(it.exerciseId) || isImpactItem(it.exerciseId) || (cat !== 'mobilita' && cat !== 'riscaldamento')) continue;
+    if (total([...keep, ...mobility, it]) > MINIMAL_MAX_MIN) continue;
+    have.add(it.exerciseId);
+    mobility.push(it);
+  }
+  // Se non basta ancora, cyclette facile in testa per scaldarsi (livello 0), per i minuti che mancano (al massimo 10).
+  const missing = MINIMAL_MIN_MIN - total([...keep, ...mobility]);
+  const bike = DOSE_PRESETS['cyclette-facile'];
+  if (missing > 0 && bike && !have.has(bike.exerciseId)) {
+    const sec = Math.min(600, Math.ceil(missing) * 60);
+    mobility.unshift({ ...bike, repMin: sec, repMax: sec });
+  }
   if (keep.length) blocks.push({ title: 'Prevenzione', items: keep });
   if (mobility.length) blocks.push({ title: 'Mobilità', items: mobility });
   if (!blocks.length) {

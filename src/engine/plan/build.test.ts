@@ -472,6 +472,28 @@ describe('proposta del blocco (§ 5, § 13.3)', () => {
     expect(buildBlockProposal({ state: weighed, today: '2026-11-08', attempt: 0 })!.id).toBe(a.id);
   });
 
+  it('obiettivo cambiato a metà blocco: la costanza conta le sedute fino a ieri, non quelle ancora da fare', () => {
+    const program = buildBlock(input(basePlan({ training: { presetId: 'calcio', primary: 'potenza', secondary: 'forza' } }))).program!;
+    expect(program.start).toBe(MONDAY);
+    // Seduta A di martedì fatta; mercoledì l'obiettivo cambia: la B di venerdì non è ancora mancata.
+    const a = sessionFor('A', '2026-11-10', { program })!;
+    const log: WorkoutLog = {
+      id: 'w-prova',
+      date: '2026-11-10',
+      sessionId: 'A',
+      durationMin: 50,
+      rpe: 7,
+      pain: {},
+      exercises: items(a).map((it) => ({ exerciseId: it.exerciseId, sets: [{ weightKg: 10, reps: it.repMin, done: true }] })),
+    };
+    const plan = basePlan({ program, training: { presetId: 'forte', primary: 'forza', secondary: 'prevenzione' } });
+    const midWeek = buildBlock(input(plan, { monday: '2026-11-16', workoutLogs: [log], today: '2026-11-11' }));
+    expect(midWeek.review?.adherence).toBe(1);
+    // Senza la giornata vale la fine del blocco prima del lunedì nuovo: la B di venerdì conta come mancata.
+    const atEnd = buildBlock(input(plan, { monday: '2026-11-16', workoutLogs: [log] }));
+    expect(atEnd.review?.adherence).toBeLessThan(1);
+  });
+
   it('quando serve: fine del blocco, cambio di fase, obiettivo cambiato', () => {
     const p = buildBlock(input(basePlan())).program!;
     expect(blockTrigger({ program: p }, '2026-11-20')).toBeNull();

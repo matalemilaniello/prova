@@ -5,6 +5,7 @@
 import type { AppData, DayType, HHMM, ISODate, MealSlot, Plan, ScheduleDay } from '../../domain/types';
 import { addDays, isISODate, weekStart, weekdayOf } from '../../engine/dates';
 import { mealTimesFor, type MealSchedule } from '../../engine/mealTimes';
+import { slotLabel } from '../../engine/plan/program';
 import type { ShoppingLead } from '../../engine/shopping';
 import { STARTER_FIBER_SHARE } from '../../data/menu';
 import { FOOTBALL_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, fmtNumber, listIt } from '../../lib/format';
@@ -79,8 +80,8 @@ export function dayActivities(day: ScheduleDay | undefined, hasPhysio = true): D
   if (day.gymSessionId) {
     out.push({
       kind: 'palestra',
-      label: `Seduta ${day.gymSessionId}${day.gymTime ? ` ${day.gymTime}` : ''}${day.gymOptional ? ', facoltativa' : ''}`,
-      short: `Seduta ${day.gymSessionId}`,
+      label: `${slotLabel(day.gymSessionId)}${day.gymTime ? ` ${day.gymTime}` : ''}${day.gymOptional ? ', facoltativa' : ''}`,
+      short: slotLabel(day.gymSessionId),
       optional: day.gymOptional,
     });
   }

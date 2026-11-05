@@ -6,11 +6,11 @@ import { describe, expect, it } from 'vitest';
 import type { CheckIn, Plan, WorkoutLog } from '../../domain/types';
 import { defaultPlan } from '../../data/defaults';
 import { EXERCISES, impactLevelOf } from '../../data/exercises';
-import { SESSIONS } from '../../data/sessions';
+import { estimateItemSec, SESSIONS } from '../../data/sessions';
 import { addDays } from '../dates';
 import { painGate, sessionDuration, type TrainingState } from '../training';
 import { buildBlock } from './build';
-import { floorOf } from './limits';
+import { floorOf, isImpactItem, type FloorId } from './limits';
 import { daySession, RECALL_ITEM, sessionFor } from './program';
 import { dayReadiness, minimalSession, readinessText, reducedSession } from './readiness';
 
@@ -112,6 +112,19 @@ describe('varianti della seduta', () => {
     expect(ids).toContain('tibiale-anteriore-seduto');
     for (const it of m.blocks.flatMap((b) => b.items)) expect(floorOf(it) !== 'forza-gambe').toBe(true);
     expect(sessionDuration(m).total).toBeLessThanOrEqual(20);
+  });
+
+  it('minima con i pavimenti già fatti: si completa con mobilità, riscaldamento e cyclette facile senza impatto, 15-20 minuti', () => {
+    const all = new Set<FloorId>(['nordic', 'copenhagen', 'polpacci', 'tibiale', 'polso', 'forza-gambe']);
+    for (const slot of ['A', 'B', 'C'] as const) {
+      const m = minimalSession(SESSIONS[slot], all);
+      const items = m.blocks.flatMap((b) => b.items);
+      for (const it of items) expect(isImpactItem(it.exerciseId)).toBe(false);
+      const own = items.reduce((t, it) => t + estimateItemSec(it), 0) / 60;
+      expect(own).toBeLessThanOrEqual(20);
+      // Con mobilità e cyclette facile si arriva ai 15 minuti anche senza pavimenti da fare.
+      expect(own).toBeGreaterThanOrEqual(15);
+    }
   });
 });
 

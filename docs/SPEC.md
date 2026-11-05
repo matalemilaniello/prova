@@ -956,3 +956,128 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
     alla modifica (`dishDetailAction`, `dishEditAction` in `features/pasti/logic.ts`). Porzioni con `Segmented` piccolo.
   - Screenshot: scenario `mealLog-piatto` (dettaglio di un piatto, con `tap`) e controllo delle etichette tagliate nei
     controlli segmentati in ogni vista.
+- Fase 2, onda 2, menù generato (2A1; docs/FASE2.md § 4.10-4.11; nessun campo nuovo in `types.ts`):
+  - `engine/menuGen/` (accesso unico da `index.ts`): `validateMenuWeek(week, ctx)` (firma del § 14.3, mai eccezioni; vincoli
+    H0-H6 con i codici del § 4.10, A1-A10, pasti da portare, preparazione della domenica; con `rules: 'avvio'` vale A11),
+    `isMenuWeekValid`, `menuWeekSummary`; `generateMenuWeek(input)` (sincrona, seme da `engine/rng.ts`, ripiego
+    `generato` → `seme-adattato` → `seme` → `fuori-limiti`; in più del § 4.10 una mossa «stessa ricetta in tutti i giorni»
+    e la ripartenza dal migliore con due mosse a caso del generatore se restano violazioni), `menuCellPool`,
+    `menuWeekCost`; `menuGenInput(monday, state, opts?)` (l'unico che legge lo stato: piano proiettato, tipi di giorno,
+    obiettivo della data, minimo di partita, rampa delle fibre, pasti da portare da `mealTimesFor`, seme, settimana prima,
+    gusti dal diario, esclusioni), `menuDaysFor`, `validationCtxOf`, `MAX_EVALUATIONS` (3.000), `FIBER_STEP`;
+    `prepTasksFor(week)` (firma del § 14.3), `prepPlan`, `prepYield`, `sameBatchLayout`; per la proposta
+    `buildMenuProposal(ctx)` (un `ProposalBuilder`), `isMenuProposalTime` (dal venerdì alle 12:00, `MENU_PROPOSAL_FROM`),
+    `menuProposalMonday`, `menuProposalShopping` (spesa prima e dopo, `extra`), `proposalMeals`. Pesi delle classi nel
+    punteggio (× 10.000): H0 × 100, H1 × 10, H6 × 0,5, crescenti con la distanza dal limite fino al quadruplo; il tetto
+    dei 40 prodotti pesa come H1; al massimo `NEW_FOODS_MAX_PER_WEEK` (2) freschi nuovi a settimana; la rampa delle fibre è
+    solo la soglia del punteggio, mai sotto i 30 g di A7; «5 su 14» vale per lo spuntino, non per la merenda pre-calcio.
+  - `engine/menu.ts`: la ripetizione dell'ultima settimana approvata (§ 4.10, test 57): `repeatedMenuWeek(monday, plan)`
+    (solo tra i lunedì prima, `REPEAT_LOOKBACK_WEEKS` = 4, e solo se `menuWeekInSeason(week, menuMonthOf(monday))`),
+    `DayMeals.source` `'ripetuto'`. Senza menù approvati niente cambia: l'istantanea di compatibilità è la stessa.
+  - `engine/shopping.ts`: `shoppingExtra(before, after)` e `EXTRA_WEIGHT_G` («Da comprare in più»: prodotti nuovi e quelli
+    che salgono di almeno una confezione).
+  - Dati: `RecipeFacts.carry` (`ambiente` o `borsa-termica`, per i pasti da portare), i `PrepComponentId` nuovi
+    (`zuppa-cavolo-nero`, `salmone-forno`, `sacchetti-frutta-secca`) e `PREP_GUIDE` per componente in `data/menu.ts`,
+    `data/prepComponents.ts` (titolo, minuti, timer, guida, resa e `fridgeDays` del § 4.11; «freezer», non
+    «congelatore», come nel resto dell'app); `NEW_SEASONAL_FOODS` in `data/foodFacts.ts` (fragole, pesche, cachi, finocchi,
+    cavolfiore, cavolo nero, con la stagione obbligatoria) e 16 ricette nuove in `data/recipes.ts`; in
+    `fiocchi-latte-pomodorini` il pane integrale al posto dei crackers, nella vellutata «3 giorni». I test di `menu.test.ts`
+    leggono i gruppi da `factsOf` e passano dal validatore (rotazione in tutti i mesi, menù di avvio).
+- Fase 2, onda 2, menù nell'interfaccia (2A2; § 5.3, § 11.5):
+  - `features/settimana/useMenuProposal.ts`: `menuProposalBuilder` (registrato per il tipo `menu`; una proposta nata dallo
+    storico non si ricalcola), `menuProposalStep`, `proposeMenuIfDue`, `scheduleMenuProposal`, `setupMenuProposals`,
+    `useMenuProposalTrigger`, `proposalClock` (dopo mezzanotte l'orario conta come fine giornata), `menuProposalView`,
+    `useMenuProposalView`, `proposalChanges`, `proposalSummary`, `afterShoppingText`, `proposalMondayFor`. La proposta nasce
+    una volta per lunedì, dal venerdì alle 12:00, quando si apre Settimana o l'app torna in primo piano, sempre dopo il
+    disegno; senza differenze dal menù che varrebbe comunque la base si annota e non si ricalcola.
+  - `features/settimana/extraShopping.ts`: la nota di «Da comprare in più» (chiave `ritmo:spesa-in-piu`, fuori dallo stato e
+    dal backup, come la seduta in corso: le spunte non hanno orario, il momento dell'approvazione non si ricava dallo
+    stato), spunta `in-piu:<id>` dentro `shoppingChecked` per un prodotto che sale; `nextMarks`, `recordMenuApprovals`,
+    `setupExtraShopping`, `extraShoppingRows`, `useExtraShopping`, `approvedMenuOf`. Conteggio di «Dopo la spesa»: i
+    prodotti nuovi più quelli che salgono, questi solo se già spuntati.
+  - `features/settimana/menuInfo.ts`: `menuSourceInfo` (pillola «Menù di avvio | di base | approvato | ripetuto»: «Menù di
+    base» è il nome in interfaccia della rotazione), `repeatedFromMonday`, `clearedReason`, `prepStorage`, `freezerNote`.
+    Proprietà nuove: `MenuTab.proposal`, `ShoppingTab.proposal`, `WeekStrip.marked`, `PrepPlayer.storage`.
+- Fase 2, onda 2, allenamento generato (2B1; § 3; nessun campo nuovo in `types.ts`):
+  - `data/exercises.ts`: campi locali di `CatalogExercise` (`pattern`, `qualities`, `impactLevel`, `contactsPerRep`,
+    `space`, `uncounted`), tipi `MovementPattern`, `ExerciseSpace`, `ImpactLevel`, le 37 esercitazioni del § 3.7 (catalogo a
+    97 esercizi; `prova-saltello` senza alternative), `impactLevelOf`, `spaceOf`, `patternOf`. `data/sessions.ts`:
+    `estimateItemSec` stima metri (`distanceM`) e intervalli (`workSec`); negli esercizi a ripetute `restSec` vale dopo ogni
+    ripetuta; `DOSE_PRESETS` (dose di riferimento per esercizio). Le sedute fisse non cambiano.
+  - `engine/plan/season.ts` (fasi e stadi, `seasonOn`, `isPreseason`, `nextPhaseChange`, `dayTypeForLoad`, compatibilità
+    delle qualità, `TRAINING_PRESETS`, `presetsFor`, `lockedPresets`, coppie vietate, `trainingForPhase`); `limits.ts`
+    (contatti e metri con i tetti per fase, gambe pesanti, pavimenti `FloorId` meno il fisioterapista, spazi,
+    `substituteFor`, `substituteItem`, `candidatesFor` per il coach); `returnStages.ts` (stadi del rientro per zona con
+    `maxImpactLevel` e `allowed`, `returnAdvice`, `impactHoldActive`); `week.ts` (distanza dalla partita, posizione delle
+    sedute con R1-R7 fuori dal lavoro, `plannedLoad` e `validateWeek` con le firme del § 14.3, la settimana conta da 1; R10
+    è un avviso, non una violazione); `readiness.ts` (`dayReadiness`, varianti ridotta e minima, `readinessText`);
+    `blockReview.ts` (`blockReview`, `nextBlockPlan`, `sequenceSuggestion`, `blockSummaryOf` con `peakLoad`); `build.ts`
+    (`buildBlock` nell'ordine del § 3.12, `blockShape`, `r10Reference`, `r8Active`, `R8_TEXT`, `blockTrigger`,
+    `blockWeekInfo`, `buildInputOf`, `buildBlockProposal`, `goalsProposal`, `buildGoalsProposal`, `blockSessionsText`).
+    `TrainingBuildInput.blocks?` e i campi in più di `TrainingBuildResult` (`training`, `seasonWeek`, `review`, `peakLoad`,
+    `weekLoads`, `season`). Nella proposta di blocco `effectiveFrom` = `program.start` e `approvableUntil` il giorno prima
+    del primo giorno che cambia.
+  - `engine/plan/program.ts`: `programInForce` (a un cambio di fase senza approvazione tornano le sedute fisse), `sessionFor`
+    con `season` facoltativa (firma compatibile) e i ritocchi `Program.edits` (`applyEdits`), `deriveItem` (negli sprint
+    cresce la distanza, nei salti le ripetizioni, mai insieme), `daySession` con il fermo degli impatti anche sulle sedute
+    fisse e, con un blocco, la variante del giorno, il richiamo dopo una partita sotto i 45 minuti (`RECALL_ITEM`,
+    `SHORT_MATCH_MIN`) e la prova del saltello una volta sola; `withoutImpacts`, `programWeekOf`. Lo slot `R` è l'uscita
+    facile della pausa; nelle sedute di corsa il blocco si chiama «Corsa» o «Intervalli» e non riceve le serie in più.
+  - `engine/training.ts`: il fermo degli impatti dentro `painGate` («Impatti fermi»), `exerciseIntro` con
+    `RESUME_LOAD_FACTOR` 0,8 dopo 14 giorni o più senza sedute (solo con un blocco in vigore: senza i campi nuovi l'app
+    resta quella di prima). `engine/energy.ts`: `isPreseason` da `season.ts`, stesso risultato. `engine/targets.ts`:
+    `targetsForGoal`, `PROTEIN_G_PER_KG_BY_GOAL` (2,2 g/kg in dimagrimento).
+- Fase 2, onda 2, allenamento e obiettivi nell'interfaccia (2B2; § 11.4-11.5):
+  - `PageId` con `macro` («Calorie e macro», la pagina di prima) e `storico`; `ObiettiviPage` nuova (corpo, allenamento,
+    rientro, tempo e spazi, stagione; «Vedi la proposta» solo con qualcosa di cambiato; con il rientro senza zona il pulsante
+    dice «Scegli la zona del rientro» e porta alla pagina Dolore); segnali d'allarme nella pagina Dolore; obiettivo tolto
+    dal Profilo. Il via libera del fisioterapista per un rientro già in vigore vale da subito, senza proposta.
+  - `features/allenamento/blocks.ts` (registrazione dei generatori `blocco` e `obiettivi`, `blockProposalDue`,
+    `ensureBlockProposal`, `endingBlockSummary` salvato con `recordBlockSummary`, `BLOCK_REJECT_PAUSE_DAYS` = 28 dopo «Tieni
+    il piano attuale» tranne quando cambia l'obiettivo, `openBlockProposal`, `pendingBlock`, `blockWeekLabel`,
+    `blockSessions`, `fullDaySession` per «Fai la piena», `dayVariantSession`, `blockStamp`), `goals.ts`,
+    `sessionNames.ts` (`sessionName`, `sessionWithArticle`: mai «Seduta K»).
+  - Lettore: `SessionDraft.variant?` e `hopTest?`, `PlayerItem.exIntro?` e `hop?`, `PlayerPlan.exIntro` e `hopTest`,
+    `buildPlayerPlan` con `introFor` e `hopTest`, `suggestionForItem` con `variant`; il registro scrive `variant`, `blockId`
+    e `weekIndex`. Oggi: `NowCardProps.date`, `NowContentContext.variant`, `GYM_VARIANT_LABEL`, `GYM_NO_IMPACT_DETAIL`; il
+    dettaglio della palestra dice «Ridotta · 40 min» (non «Seduta B ridotta» del § 11.2, per non ripetere il titolo).
+- Fase 2, onda 2, integrazione:
+  - `saveProposal`: una proposta «superata» con lo stesso id torna aperta (la base è tornata quella di prima, per esempio
+    un'esclusione tolta con «Annulla»); approvate e scartate restano decise. Lo stesso in `refreshProposal` e in
+    `ensureBlockProposal`; tolto il ripiego `reopenSuperseded` di Settimana. `rebuild` non chiama mai il generatore per una
+    proposta nata dallo storico (`isReuseProposal`).
+  - `announceDataReplaced` toglie anche `EXTRA_SHOPPING_KEY` (`ritmo:spesa-in-piu`, ora esportata dallo store).
+  - `app/boot.ts`: «Da comprare in più» ascolta le approvazioni da subito; dopo il primo disegno (`afterFirstPaint`) si
+    caricano a richiesta le regie delle proposte (`setupPlanProposals`): generatori registrati, ritorno in primo piano del
+    menù, proposta di blocco della giornata all'avvio, al ritorno in primo piano e dopo dati sostituiti; con i dati di
+    esempio anche la proposta del menù della settimana dopo (dal venerdì alle 12:00). `?overlay=planProposal` aspetta le
+    regie e apre la proposta aperta più recente. Il foglio della proposta importa da sé le due regie (generatori
+    registrati anche quando lo apre la revisione o lo storico).
+  - Foglio della proposta: per un menù aperto con la spesa di quel lunedì già cominciata il sottotitolo aggiunge «Dopo la
+    spesa: …», calcolato con le spunte di adesso (§ 5.3).
+  - `engine/timeline.ts`: `TimelineState` comprende `profile` e `planner` (Oggi li passa: il dettaglio della palestra conta
+    la regola del dolore); la spesa del sabato dice `SHOPPING_NEW_MENU_DETAIL` («Prima guarda il menù nuovo») con una
+    proposta di menù aperta per il lunedì dopo (`menuProposalOpen`); lo schema di un pasto vuoto segue il pasto
+    (`clearedMealDetail(slot, day)`, `CLEARED_MEAL_DETAILS`: colazione «proteine, un cereale e un frutto», spuntino e merenda
+    «un frutto e un po’ di proteine», merenda prima del calcio della sera «un carboidrato semplice e poca proteina», pranzo e
+    cena `CLEARED_MEAL_DETAIL`), lo stesso nella card «Scegli tu» di Menù; prima della spesa di avvio conta lo scambio che
+    vale dopo le esclusioni (`mealsForDate`), non quello grezzo del diario.
+  - `slotLabel(slot)` in `engine/plan/program.ts` («Seduta B», «Corsa», «Uscita facile»): differenze, ritocchi del coach,
+    settimana tipo in Settimana e la card del primo giorno non scrivono più «Seduta K».
+  - `TrainingBuildInput.today?` (facoltativo; `buildInputOf` lo passa) ed `endingBlockSummary(s, monday, today?)`: con un
+    blocco cambiato a metà la costanza del riepilogo conta le sedute fino a ieri, non quelle ancora da fare.
+  - Variante minima: almeno `MINIMAL_MIN_MIN` (15) minuti; con i pavimenti già fatti si completa con la mobilità del
+    riscaldamento, poi con quella del catalogo (`MINIMAL_MOBILITY`) e la cyclette facile, sempre entro i 20 minuti.
+  - `computeTargets` usa `PROTEIN_G_PER_KG_BY_GOAL`: chi sceglie il dimagrimento nel benvenuto parte da 2,2 g/kg, come la
+    proposta di obiettivi (§ 2.1). Ricomposizione, mantenimento e massa non cambiano.
+  - Storico: un menù approvato che si ripete questa settimana è «in vigore» («Menù approvato · si ripete questa
+    settimana»).
+  - `ui/Screen.tsx`: il titolo piccolo della barra sta sopra, al centro, e non toglie spazio all'etichetta di ritorno, che
+    sfuma quando il titolo compare (a 360 px «Indietro» non si taglia più).
+  - Dati di esempio: `buildDemo(today, { block: true })` (lo usa `loadDemo`; senza l'opzione i dati della fase 1, per
+    l'istantanea): obiettivo pronto «Prestazione nel calcio» (`DEMO_TRAINING`) e il blocco che il motore propone la domenica
+    prima del lunedì della settimana scorsa, approvato (proposta approvata con `before`, versione nello storico); le sedute
+    registrate del blocco hanno `blockId`, `weekIndex` e `variant`.
+  - Valutato e lasciato: `planBasis('menu')` non legge `Plan.menus`. I menù approvati cambiano solo approvando una
+    proposta di menù per quel lunedì, che al salvataggio supera già le aperte dello stesso lunedì; la ripetizione guarda
+    solo i lunedì passati, che non si approvano più.

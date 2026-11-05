@@ -66,6 +66,8 @@ export function Screen({
   const barOpacity = useTransform(scrollY, [8, 44], [0, 1]);
   const titleOpacity = useTransform(scrollY, [40, 68], [0, 1]);
   const titleY = useTransform(scrollY, [40, 68], [6, 0]);
+  // L'etichetta di ritorno lascia il posto al titolo piccolo: resta la freccia.
+  const backOpacity = useTransform(titleOpacity, (v) => 1 - v);
   const largeOpacity = useTransform(scrollY, [0, 48], [1, 0]);
 
   useEffect(() => {
@@ -88,27 +90,33 @@ export function Screen({
           style={{ opacity: onBack ? 1 : barOpacity }}
         />
         <div className="relative flex h-[calc(var(--safe-top)+44px)] items-end" style={sidePad}>
-          {/* Colonne laterali uguali e flessibili: il titolo resta al centro e un'etichetta lunga si accorcia invece di finirci sotto. */}
-          <div className="flex h-11 w-full items-center gap-2">
-            <div className="flex min-w-0 flex-1 basis-0 items-center">
-              {onBack && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    haptic('selection');
-                    onBack();
-                  }}
-                  className="pointer-events-auto -ml-2 flex h-11 min-w-0 max-w-full items-center gap-0.5 pr-2 text-[1.0625rem] font-medium text-accent-ink"
-                >
-                  <ChevronLeft size={26} strokeWidth={2.4} aria-hidden className="shrink-0" />
-                  <span className="min-w-0 truncate">{backLabel}</span>
-                </button>
-              )}
-            </div>
-            <motion.div className="t-headline min-w-0 max-w-[50%] truncate text-center" style={{ opacity: titleOpacity, y: titleY }} aria-hidden>
-              {title}
+          {/*
+            Il titolo piccolo sta sopra, al centro, e non toglie spazio all'etichetta di ritorno quando non si vede: con un
+            titolo lungo a 360 px «Indietro» restava tagliato. Quando il titolo compare l'etichetta sfuma e resta la freccia.
+          */}
+          <div className="relative flex h-11 w-full items-center">
+            {onBack && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('selection');
+                  onBack();
+                }}
+                className="pointer-events-auto -ml-2 flex h-11 min-w-0 max-w-[45%] items-center gap-0.5 pr-2 text-[1.0625rem] font-medium text-accent-ink"
+              >
+                <ChevronLeft size={26} strokeWidth={2.4} aria-hidden className="shrink-0" />
+                <motion.span className="min-w-0 truncate" style={{ opacity: backOpacity }}>
+                  {backLabel}
+                </motion.span>
+              </button>
+            )}
+            <motion.div
+              className="t-headline pointer-events-none absolute inset-0 mx-auto flex w-fit max-w-[60%] items-center"
+              style={{ opacity: titleOpacity, y: titleY }}
+              aria-hidden
+            >
+              <span className="min-w-0 truncate">{title}</span>
             </motion.div>
-            <div className="min-w-0 flex-1 basis-0" />
           </div>
         </div>
       </div>

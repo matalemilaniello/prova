@@ -109,7 +109,7 @@ stima del menù). Una card ha al massimo tre livelli di testo: occhiello, titolo
 | `eyebrow?` | `ReactNode` | riga in maiuscoletto sopra il titolo (data) |
 | `subtitle?` | `ReactNode` | sotto il titolo |
 | `actions?` | `ReactNode` | a destra del titolo |
-| `onBack?`, `backLabel?` | | pulsante "Indietro" nella barra (es. Impostazioni); un'etichetta lunga si accorcia con i puntini e non finisce sotto il titolo |
+| `onBack?`, `backLabel?` | | pulsante "Indietro" nella barra (es. Impostazioni); un'etichetta lunga si accorcia con i puntini. Il titolo piccolo sta sopra, al centro, e non le toglie spazio: quando compare scorrendo l'etichetta sfuma e resta la freccia |
 | `toolbar?` | `ReactNode` | fascia che resta attaccata in alto (es. `Segmented`) |
 | `bottom?` | `'tabbar' \| 'safe'` | spazio in fondo, default `'tabbar'` |
 | `light?` | `{ intensity?, tone?, flare?, curfew?, pitch? } \| false` | riflettori dietro l'intestazione (default intensità 0,5); `false` li spegne |
@@ -406,6 +406,40 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
 - `useResolvedTheme()` da `src/app/theme.ts`: `'scuro' | 'chiaro'` effettivo (per grafici o immagini).
 - Pannelli: `useUi.getState().open({ type: 'recipe', recipeId, date, slot })` e simili. L'host monta i componenti
   di SPEC §6 con `onClose`.
+- Avvio (`app/boot.ts`): le approvate in attesa entrano nel piano il loro primo giorno (`applyDueApprovals`); dopo il
+  primo disegno si caricano a richiesta le regie delle proposte (`setupPlanProposals`: generatori del menù, del blocco e
+  degli obiettivi, ritorno in primo piano, proposta di blocco della giornata); la nota di «Da comprare in più» ascolta le
+  approvazioni da subito.
+
+## Proposte del piano e compiti del coach (fase 2)
+
+- `features/piano/` (docs/FASE2.md § 5): un solo foglio, `planProposal` (`PlanProposalSheet`: titolo e sottotitolo,
+  «Cosa cambia» con 5 differenze e «Tutte le differenze», «Perché», avvisi, ritocchi del coach; piede «Approva», «Tieni
+  il piano attuale», «Un’altra proposta» per blocchi e menù). La regia sta in `actions.ts`: chi costruisce un tipo di
+  proposta lo registra con `registerProposalBuilder(kind, builder)` (`ProposalBuilder`, `BuildContext` con lo stato già
+  proiettato: le approvate in attesa dentro); poi `submitProposal`, `refreshProposal` (all'apertura una superata si
+  ricalcola: «Aggiornata con le ultime modifiche»), `approveProposal` con «Annulla» per 5 secondi, `keepCurrentPlan`,
+  `anotherProposal`, `restoreVersion` e `reuseMenu` dallo storico, `planHistory`. Hook di sola lettura in
+  `useProposals.ts` (`useProposal`, `useOpenProposal`, `useProposalState`). `StoricoPage` è la pagina Impostazioni ›
+  Storico del piano (`#impostazioni?sezione=storico`), aperta anche da Allenamento › «Blocchi precedenti».
+- Nessun piano si applica da solo: i motori costruiscono la proposta, l'utente approva. Chi mostra una data usa il
+  piano in vigore; basi, superamento, differenze e generatori usano il piano proiettato (`proposalStateOf`,
+  `projectedAppData`).
+- Menù della settimana dopo (`features/settimana/useMenuProposal.ts`): nasce dal venerdì alle 12:00 quando si apre
+  Settimana o l'app torna in primo piano, dopo il disegno; card «Menù nuovo» nella Spesa e nel Menù della settimana dopo
+  (`MenuProposalCard`), punto ambra sui pasti e sui giorni che cambiano, «Da comprare in più» (`extraShopping.ts`) dopo
+  un'approvazione a spesa cominciata. Motore in `engine/menuGen` (accesso da `index.ts`).
+- Blocchi di allenamento (`features/allenamento/blocks.ts`): card «Nuovo blocco pronto», blocco approvato in attesa,
+  pillola «Settimana 2 di 4 · carico» (`blockWeekLabel`), sedute del blocco, variante del giorno nel lettore («Oggi
+  ridotta: …» con «Fai la piena»). Nomi delle sedute con `sessionName(slot, data, piano)`; senza la data
+  `slotLabel(slot)` di `engine/plan/program.ts` («Seduta B», «Corsa», «Uscita facile»): mai «Seduta K». Motore in
+  `engine/plan/` (`build.ts`, `season.ts`, `week.ts`, `limits.ts`, `readiness.ts`, `blockReview.ts`, `returnStages.ts`).
+- Impostazioni › Obiettivi (`ObiettiviPage`: corpo, allenamento, rientro, tempo e spazi, stagione, «Vedi la proposta»),
+  Impostazioni › Calorie e macro (`MacroPage`, la pagina di prima), Storico del piano.
+- Compiti strutturati del coach: `lib/claudeTasks.ts`, unico punto di rete per l'uscita strutturata
+  (`runStructuredTask(task, opts)` con `StructuredTask`, `TaskOptions`, client finto nei test); i compiti stanno in
+  `engine/coachTasks/` (la foto del piatto in `photo.ts`; blocco e menù arrivano con la rifinitura del coach). Mai una
+  chiamata di rete nei test.
 
 ## Motori e formattatori (fondamenta)
 
@@ -503,6 +537,10 @@ indivisibili, così non vanno a capo a metà. Usalo nei dettagli brevi che posso
   `shoppingTarget(iso, state, item)` → `{ weekStart, keys } | null`: la lista che sta dietro una voce della spesa (la
   stessa di `derivedStatus` e di Settimana). In Oggi `setItemStatusSynced` (`features/oggi/shoppingSync.ts`) la usa:
   la spesa segnata fatta spunta tutta la lista, Annulla, Saltato e Sostituito la rimettono com'era.
+- Pasti vuoti e spesa del sabato (fase 2): lo schema di un pasto rimasto senza ricetta segue il pasto
+  (`clearedMealDetail(slot, giorno)`: la merenda prima del calcio della sera ha il suo); la spesa del sabato dice «Prima
+  guarda il menù nuovo» con una proposta di menù aperta per il lunedì dopo (`menuProposalOpen`). `TimelineState` accetta
+  anche `profile` e `planner`: passali, come Oggi.
 - Pasti stimati, piatti, gusti e prevenzione (fase 2, onda 1; dettagli in SPEC «Modifiche al contratto»):
   `engine/estimate.ts` (la scheda della foto: `resolveEstimate`, `draftValues`, `draftMeal`, `estimateDetail` per il
   dettaglio dei pasti), `engine/dishes.ts` (i miei piatti: `scaleDish`, `dishMeal`, `sortDishes`, `searchDishes`),
@@ -527,8 +565,18 @@ solo quali voci di oggi risultano già segnate.
 
 `?demo=1` dati di esempio senza onboarding · `?theme=scuro|chiaro` (anche `dark|light`) · `?overlay=recipe|checkin|session|football|barPlanB`
 (con `?recipe=<id>` il pannello della ricetta apre quella ricetta, nel pasto di oggi che la prevede se c'è)
-e, dalla fase 2, `mealLog` (il pranzo di oggi, nel modo piatti se ce n'è almeno uno), `planProposal`, `supplement`
+e, dalla fase 2, `mealLog` (il pranzo di oggi, nel modo piatti se ce n'è almeno uno), `planProposal` (dopo il primo
+disegno, la proposta aperta più recente: con i dati di esempio dal venerdì alle 12:00 il menù della settimana dopo, oppure
+il blocco quando serve), `supplement`
 · `?coach=finto` (il pannello `mealLog` usa una lettura registrata e inventata al posto della rete: anteprime e flussi
 automatici) · `?onboarding=1` · `?tab=…` (scheda iniziale di una schermata) · `#impostazioni?sezione=…` (una
-sotto-pagina, `gusti` compresa) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).
+sotto-pagina, `gusti`, `obiettivi`, `macro` e `storico` comprese) · `?today=YYYY-MM-DD` e `?now=HH:MM` (orologio fisso).
+
+I dati di esempio dell'app (`?demo=1`, Impostazioni) hanno un blocco di allenamento alla settimana 2, approvato e nello
+storico (`buildDemo(today, { block: true })`); dal venerdì alle 12:00 nasce la proposta del menù della settimana dopo.
+`scripts/screenshots.mjs` ha le viste dell'onda 2 (`settimana-spesa-proposta`, `settimana-menu-prossima`, `planProposal`,
+`planProposal-dopo-spesa`, `settimana-spesa-in-piu`, `settimana-preparazione-generata`, `settimana-guida-generata`,
+`oggi-spesa-menu-nuovo`, `allenamento-proposta`, `planProposal-blocco`, `impostazioni-macro`, `impostazioni-storico`):
+lanciale con `--today 2026-11-05`, perché la preparazione generata dipende dal sabato. Ogni vista accetta `steps`
+(`tap:<nome>`, `tab:<nome>`, `check:<n>`) e `planPatch` (campi del piano cambiati prima di riaprire).
 Esempio: `index.html?demo=1&theme=chiaro&now=18:30#oggi`.

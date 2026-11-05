@@ -129,6 +129,12 @@ export interface TrainingBuildInput {
   attempt: number;
   /** Riepiloghi dei blocchi conclusi (R10 e sequenza delle qualità); senza, vale `previous`. */
   blocks?: readonly BlockSummary[];
+  /**
+   * Giornata in cui nasce la proposta. Con un blocco cambiato a metà (fase, obiettivo) il riepilogo del blocco in vigore
+   * conta le sedute fino a ieri: quelle tra oggi e il lunedì del blocco nuovo non sono ancora mancate. Senza, fino alla
+   * domenica prima di `monday` (la fine del blocco).
+   */
+  today?: ISODate;
 }
 
 export interface TrainingBuildResult {
@@ -1101,7 +1107,11 @@ export function buildBlock(input: TrainingBuildInput): TrainingBuildResult {
   const phaseCtx = { phase, ...(info.lateBreak ? { lateBreak: true } : {}), ...(noFootballWeek ? { noFootballWeek: true } : {}) };
   let training: TrainingGoal = plan.training ?? DEFAULT_TRAINING;
   let trainingChanged = false;
-  const review = plan.program && plan.program.start < monday ? blockReview(plan.program, { ...state, painSites: input.painSites, physio: input.physio }, addDays(monday, -1)) : undefined;
+  const reviewEnd = input.today && input.today < addDays(monday, -1) ? addDays(input.today, -1) : addDays(monday, -1);
+  const review =
+    plan.program && plan.program.start < monday && plan.program.start <= reviewEnd
+      ? blockReview(plan.program, { ...state, painSites: input.painSites, physio: input.physio }, reviewEnd)
+      : undefined;
   // Dopo la transizione (recupero attivo, senza progressione) il riepilogo non toglie sedute né volume: conta solo il dolore.
   const fromRecovery = plan.program?.stage === 'transizione';
   const nextPlan = review && (!fromRecovery || review.verdict === 'rientro') ? nextBlockPlan(review, { phase, training, blocks }) : undefined;
@@ -1505,6 +1515,7 @@ export function buildInputOf(state: AppData, today: ISODate, attempt: number): T
     painSites: state.profile?.painSites ?? [],
     ...(blocks.length ? { previous: blocks[blocks.length - 1], blocks } : {}),
     attempt,
+    today,
   };
 }
 

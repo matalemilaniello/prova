@@ -178,6 +178,17 @@ function withOverride(session: WorkoutSession, kind: WeekOverrideKind | undefine
   return session;
 }
 
+/** Nomi degli slot del blocco che non sono una seduta di palestra (§ 3.1): «K» corsa o condizionamento, «R» richiamo. */
+const SLOT_NAMES: Record<string, string> = { K: 'Corsa', R: 'Uscita facile' };
+
+/**
+ * Nome di uno slot quando la seduta non c'è (settimana tipo, differenze, ritocchi): «Seduta B», mai «Seduta K». Chi ha la
+ * data usa il nome della seduta di quel giorno (`sessionFor(…)?.name`).
+ */
+export function slotLabel(slot: string): string {
+  return SLOT_NAMES[slot] ?? `Seduta ${slot}`;
+}
+
 /**
  * Seduta di uno slot nella data: senza Plan.program SESSIONS[slot] (con weekOverrides), altrimenti la settimana
  * derivata. Prima dell'inizio del blocco, o per uno slot che il blocco non ha, vale la seduta fissa. Una settimana

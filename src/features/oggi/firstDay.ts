@@ -5,6 +5,7 @@
 import type { HHMM, ItemStatus } from '../../domain/types';
 import { STARTER_SHOPPING_ID, type DayItem, type DayItemKind } from '../../engine/timeline';
 import { hhmmToMin } from '../../engine/dates';
+import { slotLabel } from '../../engine/plan/program';
 
 /** Un orario del tabellone del primo giorno. */
 export interface WelcomeSpot {
@@ -47,7 +48,7 @@ function spotName(item: DayItem): string {
     case 'spesa':
       return item.id === STARTER_SHOPPING_ID ? 'Spesa di avvio' : 'Spesa';
     case 'palestra':
-      return item.ref ? `Seduta ${item.ref}` : item.title;
+      return item.ref ? slotLabel(item.ref) : item.title;
     case 'calcio':
       return item.title.split(',')[0];
     case 'coprifuoco':

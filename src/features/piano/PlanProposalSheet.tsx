@@ -2,7 +2,8 @@
  * Foglio della proposta del piano (`planProposal`, docs/FASE2.md § 11.3): un solo foglio per blocchi, menù, obiettivi
  * e ritorni a una versione.
  *
- * In alto titolo e sottotitolo della proposta; «Cosa cambia» con le prime 5 differenze (icona dell'area, etichetta,
+ * In alto titolo e sottotitolo della proposta (per un menù con la spesa già cominciata, anche «Dopo la spesa: servono 3
+ * prodotti in più», calcolato con le spunte di adesso); «Cosa cambia» con le prime 5 differenze (icona dell'area, etichetta,
  * «prima → dopo») e le altre dietro «Tutte le differenze (12)»; «Perché» con i motivi del motore; gli avvisi in un
  * `Callout`; il passaggio del coach (in corso, ritocchi accettati e non accettati, errore). Piede: «Approva», «Tieni il
  * piano attuale» e, per blocchi e menù con un generatore, «Un’altra proposta».
@@ -17,6 +18,10 @@ import { editLabel, topDiff, sortDiff } from '../../engine/plan/diff';
 import { usePlanDay } from '../../state/hooks';
 import { COACH_INTERRUPTED, useApp } from '../../state/store';
 import { Button, Callout, Card, Disclosure, EmptyState, keepHyphens, ListGroup, ListRow, Sheet, Spinner, type AnyTone } from '../../ui';
+// I due moduli registrano da sé i generatori (menù; blocco e obiettivi): il foglio ricalcola una proposta superata e dà
+// «Un’altra proposta» anche quando lo si apre dalla revisione o dallo storico, prima di Settimana e Allenamento.
+import '../allenamento/blocks';
+import { afterShoppingText, menuProposalView } from '../settimana/useMenuProposal';
 import { anotherProposal, approveProposal, canAskAnother, diffOptionsOf, keepCurrentPlan, refreshProposal, startLabel } from './actions';
 import { useProposal } from './useProposals';
 
@@ -158,11 +163,35 @@ function DecidedNote({ p, today }: { p: PlanProposal; today: string }) {
   return null;
 }
 
+/**
+ * Sottotitolo di una proposta di menù aperta con la spesa di quel lunedì già cominciata (§ 5.3): «Dopo la spesa: servono 3
+ * prodotti in più». Si calcola a ogni spunta: le spunte arrivano dopo la nascita della proposta, il sottotitolo salvato non
+ * le conosce. Null per gli altri tipi, per le proposte decise e senza spunte.
+ */
+function useAfterShopping(p: PlanProposal | undefined): string | null {
+  const open = p?.kind === 'menu' && p.status === 'aperta';
+  const monday = p?.effectiveFrom ?? '';
+  const plan = useApp((s) => s.plan);
+  const profile = useApp((s) => s.profile);
+  const physio = useApp((s) => s.physio);
+  const planner = useApp((s) => s.planner);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const checkIns = useApp((s) => s.checkIns);
+  const reviews = useApp((s) => s.reviews);
+  const checked = useApp((s) => s.shoppingChecked[monday]);
+  return useMemo(() => {
+    if (!p || !open || !checked?.length) return null;
+    const v = menuProposalView({ plan, profile, physio, planner, dayLogs, checkIns, reviews, shoppingChecked: { [monday]: checked } }, p);
+    return v.shopped ? afterShoppingText(v.extra) : null;
+  }, [p, open, monday, plan, profile, physio, planner, dayLogs, checkIns, reviews, checked]);
+}
+
 export default function PlanProposalSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const today = usePlanDay();
   const [currentId, setCurrentId] = useState(id);
   const [refreshed, setRefreshed] = useState(false);
   const p = useProposal(currentId);
+  const afterShopping = useAfterShopping(p);
 
   // All'apertura (e se cambia la giornata) una proposta superata si ricalcola.
   useEffect(() => {
@@ -210,7 +239,7 @@ export default function PlanProposalSheet({ id, onClose }: { id: string; onClose
       onClose={onClose}
       size="large"
       title={p.title}
-      subtitle={p.subtitle}
+      subtitle={afterShopping ? `${p.subtitle ? `${p.subtitle} · ` : ''}${afterShopping}` : p.subtitle}
       footer={
         open ? (
           <div className="flex flex-col gap-2">

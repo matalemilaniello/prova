@@ -6,6 +6,11 @@
  * giorni passati (diario, controlli, sedute, calcio) è lo stesso a qualunque ora.
  * Legge a runtime RECIPES, le sedute del giorno (`sessionFor`), EXERCISES e il menù in vigore: funziona anche se sono vuoti
  * e produce dati più ricchi quando i contenuti ci sono. Nessun dato reale dell'utente.
+ *
+ * Con `block` (i dati di esempio dell'app, docs/FASE2.md § 11.7) c'è anche un blocco di allenamento in vigore alla
+ * settimana 2: un obiettivo pronto inventato e la proposta del blocco costruita dal motore vero la domenica prima
+ * dell'inizio, approvata come farebbe l'utente (proposta approvata, versione nello storico). Le sedute della settimana
+ * passata seguono il blocco. Senza `block` i dati sono quelli della fase 1: li usa l'istantanea di compatibilità.
  */
 import type {
   AppData,
@@ -18,8 +23,10 @@ import type {
   ISODate,
   ItemStatus,
   MealSlot,
+  PlanVersion,
   SessionExercise,
   TimelineItem,
+  TrainingGoal,
   WeeklyReview,
   WorkoutLog,
 } from '../domain/types';
@@ -38,7 +45,9 @@ import {
 } from '../engine/dates';
 import { mealTimesFor } from '../engine/mealTimes';
 import { MEAL_SLOTS, mealsForDate, prepInForce } from '../engine/menu';
-import { sessionFor } from '../engine/plan/program';
+import { buildBlockProposal } from '../engine/plan/build';
+import { programInForce, sessionFor } from '../engine/plan/program';
+import { applyPatch, beforeOf } from '../engine/plan/proposals';
 import { shoppingList } from '../engine/shopping';
 import { isOnTargetFor, sleepHours } from '../engine/sleep';
 import { hashString } from '../lib/id';
@@ -209,6 +218,42 @@ function iso2Date(iso: ISODate, hh: number, mm: number): string {
 export interface DemoOptions {
   /** Minuti dalla mezzanotte "adesso": le voci di oggi già passate risultano segnate. Default 13:00. */
   nowMin?: number;
+  /** Blocco di allenamento in vigore alla settimana 2 (fase 2, § 11.7). Default no: i dati della fase 1. */
+  block?: boolean;
+}
+
+/** Obiettivo pronto dei dati di esempio: «Prestazione nel calcio», potenza e forza (§ 2.3). */
+export const DEMO_TRAINING: TrainingGoal = { presetId: 'calcio', primary: 'potenza', secondary: 'forza' };
+
+/**
+ * Blocco dei dati di esempio: la proposta che il motore fa la domenica prima di `monday`, sullo stato di quel momento
+ * (controlli del mattino già scritti, nessuna seduta: è il primo blocco), approvata quella sera. Scrive nel piano
+ * l'obiettivo e la toppa del blocco, tra le proposte quella approvata con `before`, nello storico la sua versione.
+ * Niente se il motore non dà un blocco (settimana senza giorni per la palestra).
+ */
+function addDemoBlock(data: AppData, monday: ISODate): void {
+  const sunday = addDays(monday, -1);
+  const state: AppData = { ...data, plan: { ...data.plan, training: { ...DEMO_TRAINING } }, workoutLogs: [], footballLogs: [] };
+  const p = buildBlockProposal({ state, today: sunday, attempt: 0 });
+  if (!p || p.effectiveFrom !== monday) return;
+  const patch = { ...p.patch, training: p.patch.training ?? { ...DEMO_TRAINING } };
+  const before = beforeOf(data.plan, data.profile, patch);
+  const applied = applyPatch(data.plan, data.profile, patch);
+  data.plan = applied.plan;
+  data.profile = applied.profile;
+  const at = iso2Date(sunday, 18, 40);
+  data.planner = { proposals: [{ ...p, patch, status: 'approvata', createdAt: iso2Date(sunday, 18, 5), decidedAt: at, before }] };
+  const version: PlanVersion = {
+    id: `v-${p.id}`,
+    at,
+    effectiveFrom: p.effectiveFrom,
+    kind: 'blocco',
+    title: p.title,
+    before,
+    after: JSON.parse(JSON.stringify(patch)) as PlanVersion['after'],
+    proposalId: p.id,
+  };
+  data.planVersions = [version];
 }
 
 /** Costruisce i dati di esempio per la data di oggi. */
@@ -279,6 +324,22 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
     };
     if (withWeight) c.weightKg = round1(lerp(70.6, 69.8, p) + (r() - 0.5) * 0.5 + (wd === 0 ? 0.2 : 0));
     data.checkIns[iso] = c;
+  }
+
+  // ── Blocco di allenamento (fase 2): approvato la domenica, in vigore dal lunedì della settimana scorsa ──
+  // Il motore lo costruisce con i controlli fino a quella domenica, come avrebbe fatto quel giorno.
+  if (opts.block) {
+    const monday = addDays(weekStart(todayIso), -7);
+    if (monday > start) {
+      const until = addDays(monday, -1);
+      const checkIns = Object.fromEntries(Object.entries(data.checkIns).filter(([d]) => d <= until));
+      const built: AppData = { ...data, checkIns };
+      addDemoBlock(built, monday);
+      data.plan = built.plan;
+      data.profile = built.profile;
+      if (built.planner) data.planner = built.planner;
+      if (built.planVersions) data.planVersions = built.planVersions;
+    }
   }
 
   // ── Diario di ogni giornata ──
@@ -374,10 +435,14 @@ export function buildDemo(todayIso: ISODate, opts: DemoOptions = {}): AppData {
       ? session.blocks.flatMap((b) => b.items).map((it) => exerciseLogFor(it, weekNo, r))
       : [];
     const pain = data.checkIns[iso]?.pain ?? { Tibia: 1, Gomito: 2 };
+    // Con un blocco in vigore la seduta registrata dice blocco e settimana, come la scrive il lettore.
+    const program = programInForce(iso, data.plan);
+    const stamp = program?.sessions[sid] ? { blockId: program.blockId, weekIndex: Math.floor(daysBetween(program.start, iso) / 7) + 1, variant: 'piena' as const } : {};
     workouts.push({
       id: `demo-w-${iso}`,
       date: iso,
       sessionId: sid,
+      ...stamp,
       durationMin: Math.round((session?.estMin ?? (sid === 'C' ? 38 : 55)) + (r() - 0.5) * 8),
       rpe: clampInt(lerp(7, 7.5, r()) + (r() - 0.5), 6, 9),
       pain: { ...pain },

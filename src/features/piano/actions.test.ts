@@ -377,13 +377,16 @@ describe('storico e ritorno (§ 5.5, test 9)', () => {
   });
 
   it('«Usalo la prossima settimana»: un menù approvato torna come proposta per il lunedì dopo, senza versioni', () => {
-    const past = '2026-11-02';
+    // Cinque settimane prima del lunedì dopo: fuori dalle 4 in cui l'ultima approvata si ripete da sola (§ 4.10).
+    const past = '2026-10-12';
     const week: MenuWeek = JSON.parse(JSON.stringify(MENU_ROTATION[0]));
     week.days[0].meals.cena = MENU_ROTATION[1].days[3].meals.cena;
     useApp.setState((s) => ({ plan: { ...s.plan, menus: { [past]: week } } }));
     const hist = planHistory(useApp.getState(), SUN);
     expect(hist).toHaveLength(1);
-    expect(hist[0]).toMatchObject({ kind: 'menu', status: 'passata', title: 'Menù 2-8 novembre', month: 'Novembre 2026' });
+    // Nella settimana di oggi (9-15 novembre) si ripete da solo: è in vigore.
+    expect(hist[0]).toMatchObject({ kind: 'menu', status: 'in-vigore', title: 'Menù 12-18 ottobre', month: 'Ottobre 2026' });
+    expect(hist[0].subtitle).toBe('Menù approvato · si ripete questa settimana');
 
     const res = reuseMenu(past, SUN);
     if (!res || res === 'uguale') throw new Error('proposta attesa');
@@ -391,7 +394,7 @@ describe('storico e ritorno (§ 5.5, test 9)', () => {
     expect(p).toMatchObject({ kind: 'menu', effectiveFrom: MON, title: 'Menù 16-22 novembre' });
     expect(isReuseProposal(p)).toBe(true);
     expect(canAskAnother(p)).toBe(false);
-    expect(p.subtitle).toMatch(/^Come la settimana 2-8 novembre · /);
+    expect(p.subtitle).toMatch(/^Come la settimana 12-18 ottobre · /);
     // Si approva fino alla domenica prima del lunedì.
     expect(approveProposal(p.id, SUN).status).toBe('approvata');
     const s = useApp.getState();
@@ -404,6 +407,18 @@ describe('storico e ritorno (§ 5.5, test 9)', () => {
     // Lo stesso menù una seconda volta: la settimana dopo ce l'ha già.
     expect(reuseMenu(MON, '2026-11-09')).toBe('uguale');
     expect(reuseMenu('2026-10-05', SUN)).toBeNull();
+  });
+
+  it('«Usalo la prossima settimana» con un menù che si ripete già da solo: niente proposta', () => {
+    // Approvato due settimane prima: senza approvazione il lunedì dopo lo ripete (`source: 'ripetuto'`, § 4.10).
+    const past = '2026-11-02';
+    const week: MenuWeek = JSON.parse(JSON.stringify(MENU_ROTATION[0]));
+    week.days[0].meals.cena = MENU_ROTATION[1].days[3].meals.cena;
+    useApp.setState((s) => ({ plan: { ...s.plan, menus: { [past]: week } } }));
+    const n = useApp.getState().planner?.proposals.length ?? 0;
+    expect(reuseMenu(past, SUN)).toBe('uguale');
+    expect(useApp.getState().planner?.proposals.length ?? 0).toBe(n);
+    expect(lastToast()?.message).toBe('La prossima settimana ha già questo menù');
   });
 
   it('senza versioni né menù lo storico è vuoto', () => {
