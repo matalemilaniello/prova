@@ -28,10 +28,12 @@
 import type {
   AppData,
   CheckIn,
+  DayLog,
   FootballKind,
   HHMM,
   ISODate,
   ItemStatus,
+  MealSlot,
   Plan,
   ScheduleDay,
   Supplement,
@@ -42,13 +44,21 @@ import type {
 import { estimateItemSec, SESSIONS } from '../data/sessions';
 import { fmtMinutes, listIt, plural } from '../lib/format';
 import { addDays, daysBetween, hhmmToMin, isHHMM, isISODate, minToHHMM, weekdayOf, weekStart } from './dates';
+import { estimateDetail } from './estimate';
 import { isEveningFootball, mealSchedule, mealTimesFor, PRE_FOOTBALL_MIN_GAP_MIN } from './mealTimes';
 import { MEAL_SLOTS, isStarterDay, mealsForDate, prepInForce } from './menu';
+import { eatenMeal } from './nutrition';
 import { daySession, droppedByOverride, sessionFor } from './plan/program';
 import { shoppingList, type ShoppingLead, type ShoppingOptions } from './shopping';
 import { bedtimeFor, curfewFor, dayMinutes, isOnTargetFor, timeInBedLabel } from './sleep';
 import { introLevel, sessionDuration, type SessionDuration } from './training';
 import { afterWork, normalizeWork, spanAt, workSpans } from './work';
+
+/** Dettaglio di un pasto con una stima da foto o da un piatto salvato che vale per la voce (`eatenMeal`); null altrimenti. */
+function mealEstimateDetail(log: DayLog | undefined, slot: MealSlot): string | null {
+  const meal = eatenMeal(log, slot);
+  return meal ? estimateDetail(meal) : null;
+}
 
 /** Lo stato che serve alla timeline. I registri (controlli, sedute, calcio, spesa…) sono facoltativi. */
 export type TimelineState = Pick<AppData, 'plan' | 'dayLogs'> &
@@ -357,9 +367,11 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
     detail: 'Peso, sonno, dolori ed energia',
   });
 
-  // Pasti, con i loro orari del giorno.
+  // Pasti, con i loro orari del giorno. Un pasto segnato con una foto o con un piatto salvato dice la provenienza
+  // («Dalla foto · 720 kcal», § 11.2); il bar resta com'è.
   const meals = mealsForDate(iso, state);
   const schedule = mealSchedule(day, plan);
+  const log = state.dayLogs[iso];
   for (const slot of MEAL_SLOTS) {
     const entry = meals.bySlot[slot];
     items.push({
@@ -367,7 +379,7 @@ export function buildTimeline(iso: ISODate, state: TimelineState): TimelineItem[
       time: schedule[slot].time,
       kind: 'pasto',
       title: schedule[slot].title,
-      detail: entry?.recipe?.name,
+      detail: mealEstimateDetail(log, slot) ?? entry?.recipe?.name,
       ref: entry?.recipeId || undefined,
       slot,
       // Cade durante il lavoro: da portare.
@@ -745,7 +757,7 @@ function markPreShopping(iso: ISODate, items: DayItem[], state: TimelineState): 
   const swaps = state.dayLogs[iso]?.recipeSwaps ?? {};
   let changed = false;
   const out = items.map((it) => {
-    if (it.kind !== 'pasto' || dayMinutes(it.time, plan) >= limit || (it.slot && swaps[it.slot])) return it;
+    if (it.kind !== 'pasto' || dayMinutes(it.time, plan) >= limit || (it.slot && (swaps[it.slot] || mealEstimateDetail(state.dayLogs[iso], it.slot)))) return it;
     changed = true;
     return { ...it, detail: PRE_SHOPPING_DETAIL, preShopping: true };
   });

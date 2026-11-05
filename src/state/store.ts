@@ -86,7 +86,7 @@ import { isCatalogId } from '../data/supplementCatalogIds';
 import { buildDemo } from '../demo/seed';
 import { isHHMM, isISODate, nowMinutes, todayISO, weekdayOf } from '../engine/dates';
 import { MAX_SURPLUS_KCAL, MAX_DEFICIT_KCAL, clampKcalCorrection, goalDeltaOf } from '../engine/energy';
-import { roundNutrients } from '../engine/nutrition';
+import { ITEM_GRAMS_MAX, ITEM_GRAMS_MIN, ITEM_LABEL_MAX, MAX_MEAL_ITEMS, estimatedItemsValues, normalizeEstimatedItem, validPer100g } from '../engine/estimate';
 import { planTodayISO } from '../engine/sleep';
 import { applyPatch, beforeOf, dueApprovals, entersPlanAtApproval, isPendingApproval, isSuperseded, pendingApprovals, projectedState } from '../engine/plan/proposals';
 import { IMPACT_PAIN_THRESHOLD, isLowerLegSite } from '../engine/training';
@@ -800,53 +800,8 @@ function normalizePainTests(raw: unknown): Profile['painTests'] {
 /** Tetti dei valori di un ordine al bar: oltre, il dato è rovinato (un pasto, non una giornata). */
 const BAR_MEAL_MAX = { kcal: 3000, grams: 300, veg: 10, label: 120 };
 
-/** Alimenti di un pasto stimato: al massimo 12, da 1 a 1.500 g l'uno (§ 7.3); etichetta fuori archivio di 40 caratteri. */
-export const MAX_MEAL_ITEMS = 12;
-export const ITEM_GRAMS_MIN = 1;
-export const ITEM_GRAMS_MAX = 1500;
-export const ITEM_LABEL_MAX = 40;
-
-/**
- * Valori per 100 g di un alimento fuori archivio, con i controlli del § 7.3: kcal tra 0 e 900; proteine, carboidrati,
- * grassi e fibre ≥ 0 e insieme ≤ 100 g; coerenza di Atwater |4P + 4C + 9G + 2F − kcal| ≤ 15% delle kcal + 10.
- * Null fuori dai limiti.
- */
-export function validPer100g(raw: unknown): Nutrients | null {
-  if (!isObj(raw)) return null;
-  const kcal = finiteNum(raw.kcal);
-  const proteinG = finiteNum(raw.proteinG);
-  const carbG = finiteNum(raw.carbG);
-  const fatG = finiteNum(raw.fatG);
-  const fiberG = finiteNum(raw.fiberG);
-  if (kcal === undefined || proteinG === undefined || carbG === undefined || fatG === undefined || fiberG === undefined) return null;
-  if (kcal < 0 || kcal > 900 || proteinG < 0 || carbG < 0 || fatG < 0 || fiberG < 0) return null;
-  if (proteinG + carbG + fatG + fiberG > 100) return null;
-  const atwater = 4 * proteinG + 4 * carbG + 9 * fatG + 2 * fiberG;
-  if (Math.abs(atwater - kcal) > 0.15 * kcal + 10) return null;
-  return { kcal, proteinG, carbG, fatG, fiberG };
-}
-
-/**
- * Un alimento di un pasto stimato, in forma compatta: grammi tra 1 e 1.500; con `foodId` niente etichetta né valori;
- * fuori archivio l'etichetta su una riga e i valori per 100 g solo se passano i controlli. La confidenza della scheda
- * non si salva. Null senza grammi o senza nulla che lo descriva.
- */
-export function normalizeEstimatedItem(raw: unknown): EstimatedItem | null {
-  if (!isObj(raw)) return null;
-  const g = finiteNum(raw.grams);
-  if (g === undefined || !(g > 0)) return null;
-  const { confidence: _c, label: _l, per100g: _p, ...rest } = raw as Record<string, unknown>;
-  void _c;
-  void _l;
-  void _p;
-  const base = { ...(rest as Partial<EstimatedItem>), grams: clampN(g, ITEM_GRAMS_MIN, ITEM_GRAMS_MAX), role: raw.role === 'condimento' ? ('condimento' as const) : undefined };
-  const foodId = nonEmpty(raw.foodId);
-  if (foodId) return compact({ ...base, foodId });
-  const label = oneLine(raw.label, ITEM_LABEL_MAX) || undefined;
-  const per100g = validPer100g(raw.per100g) ?? undefined;
-  if (!label && !per100g) return null;
-  return compact({ ...base, foodId: undefined, label, per100g });
-}
+/** Limiti e forma compatta degli alimenti dei pasti stimati (§ 7.3): stanno in engine/estimate.ts. */
+export { ITEM_GRAMS_MAX, ITEM_GRAMS_MIN, ITEM_LABEL_MAX, MAX_MEAL_ITEMS, estimatedItemsValues, normalizeEstimatedItem, validPer100g };
 
 /**
  * Un pasto mangiato con valori stimati (bar, foto, piatto salvato): etichetta non vuota su una riga e valori numerici
@@ -1173,29 +1128,6 @@ function foodById(id: string) {
 /** True se il motore sa calcolare i valori dell'alimento: dell'archivio, di sola stima o con i valori per 100 g. */
 function itemResolvable(item: EstimatedItem): boolean {
   return item.foodId ? foodById(item.foodId) !== undefined : item.per100g !== undefined;
-}
-
-/**
- * Valori di un elenco di alimenti stimati, calcolati dal motore: per gli alimenti dell'archivio e di sola stima dai
- * valori per 100 g di quegli elenchi, fuori archivio da quelli controllati. Porzioni di vegetali dai grammi degli
- * alimenti con `vegPortionG`. Arrotondati come gli altri valori (kcal all'unità, grammi a un decimale).
- */
-export function estimatedItemsValues(items: readonly EstimatedItem[]): { nutrients: Nutrients; vegPortions: number } {
-  const n: Nutrients = { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 };
-  let veg = 0;
-  for (const item of items) {
-    const food = item.foodId ? foodById(item.foodId) : undefined;
-    const per = food ? food.per100g : item.per100g;
-    if (!per) continue;
-    const k = item.grams / 100;
-    n.kcal += per.kcal * k;
-    n.proteinG += per.proteinG * k;
-    n.carbG += per.carbG * k;
-    n.fatG += per.fatG * k;
-    n.fiberG += per.fiberG * k;
-    if (food?.vegPortionG && food.vegPortionG > 0) veg += item.grams / food.vegPortionG;
-  }
-  return { nutrients: roundNutrients(n), vegPortions: Math.round(veg * 10) / 10 };
 }
 
 /** Nome di un piatto: una riga, al massimo 40 caratteri. */

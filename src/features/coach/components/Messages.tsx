@@ -4,9 +4,14 @@
  */
 import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { CircleAlert, Coffee, KeyRound, RotateCw, ShieldQuestion, StepForward } from 'lucide-react';
+import { CircleAlert, Coffee, KeyRound, NotebookPen, RotateCw, ShieldQuestion, StepForward } from 'lucide-react';
 import type { ChatMessage } from '../../../domain/types';
+import { photoReadable } from '../../../engine/coachTasks/photo';
+import { planDayISO } from '../../../engine/sleep';
 import type { CoachPhase } from '../../../lib/claude';
+import { usePlanDay } from '../../../state/hooks';
+import { useApp, useUi } from '../../../state/store';
+import { nearestOpenSlot } from '../../pasti/logic';
 import { cn, spring } from '../../../ui';
 import type { SeparatorLabel } from '../chat';
 import { RichText } from './RichText';
@@ -94,6 +99,7 @@ export const MessageRow = memo(function MessageRow({
             {m.text}
           </div>
         )}
+        {m.image && <PutInDiary message={m} />}
       </motion.div>
     );
   }
@@ -183,6 +189,32 @@ export const MessageRow = memo(function MessageRow({
     </motion.div>
   );
 });
+
+/**
+ * «Metti nel diario» sotto una foto di oggi (docs/FASE2.md § 7.1): apre il foglio dei pasti dalla lettura, con il pasto
+ * più vicino all'ora del messaggio non ancora segnato (si cambia nella scheda). Solo con la chiave e un modello che legge
+ * le risposte strutturate; le foto dei giorni passati non lo mostrano.
+ */
+function PutInDiary({ message }: { message: ChatMessage }) {
+  const today = usePlanDay();
+  const plan = useApp((s) => s.plan);
+  const readable = useApp((s) => photoReadable(s.settings));
+  const at = new Date(message.createdAt);
+  if (!readable || Number.isNaN(at.getTime()) || planDayISO(at, plan) !== today) return null;
+  const open = () => {
+    const log = useApp.getState().dayLogs[today];
+    const hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const slot = nearestOpenSlot(today, hhmm, plan, log);
+    useUi.getState().open({ type: 'mealLog', date: today, slot, mode: 'foto', chatMessageId: message.id });
+  };
+  return (
+    <div className="mt-1">
+      <BubbleAction icon={<NotebookPen size={15} strokeWidth={2.4} aria-hidden />} onClick={open}>
+        Metti nel diario
+      </BubbleAction>
+    </div>
+  );
+}
 
 function BubbleAction({ icon, onClick, children }: { icon: ReactNode; onClick: () => void; children: ReactNode }) {
   return (

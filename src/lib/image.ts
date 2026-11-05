@@ -1,5 +1,6 @@
 /**
  * Immagini per il coach: riduzione nel browser prima dell'invio.
+ * Dalla fase 2 anche le miniature dei piatti salvati (`thumbnail`, 96 px).
  *
  * Una foto dell'iPhone pesa diversi MB: la riduciamo a JPEG con il lato lungo di 1024 px per l'invio
  * (abbastanza per riconoscere piatto e porzioni, circa 1.000 token) e a una copia più leggera da
@@ -113,5 +114,55 @@ export async function downscaleDataUrl(dataUrl: string, max = STORE_MAX_PX, qual
     return render(d, max, quality);
   } finally {
     d.close?.();
+  }
+}
+
+// ───────────────────────── Miniature dei piatti (fase 2, § 8.1) ─────────────────────────
+
+/** Lato della miniatura di un piatto salvato: ritaglio quadrato al centro. */
+export const THUMB_PX = 96;
+/** Qualità JPEG della miniatura; se il risultato è troppo pesante si prova più bassa. */
+export const THUMB_QUALITIES = [0.6, 0.45, 0.3] as const;
+/** Tetto della miniatura in caratteri del data URL: lo stesso di `isValidThumb` in state/store.ts (12 KB). */
+export const THUMB_MAX_CHARS = 12 * 1024;
+
+/** Ritaglio quadrato al centro di un'immagine: lato e angolo in alto a sinistra, in pixel della sorgente. */
+export function centerSquare(width: number, height: number): { sx: number; sy: number; side: number } {
+  if (!(width > 0) || !(height > 0)) return { sx: 0, sy: 0, side: 0 };
+  const side = Math.min(width, height);
+  return { sx: Math.floor((width - side) / 2), sy: Math.floor((height - side) / 2), side };
+}
+
+/**
+ * Miniatura di un piatto (§ 8.1): ritaglio quadrato al centro, `size` × `size` px, JPEG qualità 0,6 (più bassa se
+ * serve per stare sotto i 12 KB). Null se la foto non si legge o se nemmeno alla qualità più bassa sta nel tetto.
+ */
+export async function thumbnail(dataUrl: string, size = THUMB_PX): Promise<string | null> {
+  try {
+    const res = await fetch(dataUrl);
+    const d = await decode(await res.blob());
+    try {
+      const { sx, sy, side } = centerSquare(d.width, d.height);
+      if (!side) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(d.source, sx, sy, side, side, 0, 0, size, size);
+      for (const q of THUMB_QUALITIES) {
+        const out = canvas.toDataURL('image/jpeg', q);
+        if (out.startsWith('data:image/jpeg;base64,') && out.length <= THUMB_MAX_CHARS) return out;
+      }
+      return null;
+    } finally {
+      d.close?.();
+    }
+  } catch {
+    return null;
   }
 }

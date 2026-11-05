@@ -68,7 +68,8 @@ mkdirSync(outDir, { recursive: true });
  * avvio è quel numero di giorni prima (il secondo mattino di un utente nuovo).
  * `fold` controlla che la card Adesso cominci entro i due terzi della schermata a 390×844 (sotto la piega sarebbe un
  * problema da segnalare).
- * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean }[]}
+ * `dishes` aggiunge tre piatti salvati inventati ai dati di esempio (pagina dei piatti).
+ * @type {{ name: string, hash?: string, query?: Record<string,string>, fresh?: boolean, tall?: boolean, wait?: number, now?: string, weekday?: number, firstDay?: string, firstDayAgo?: number, fold?: boolean, dishes?: boolean }[]}
  */
 const SETTINGS_PAGES = ['profilo', 'obiettivi', 'settimana', 'pasti', 'sonno', 'integratori', 'dolore', 'fisio', 'promemoria', 'coach', 'backup', 'info'];
 
@@ -111,6 +112,9 @@ const VIEWS = [
   { name: 'session', hash: 'allenamento', query: { overlay: 'session' }, wait: 900 },
   { name: 'football', hash: 'oggi', query: { overlay: 'football' }, wait: 900 },
   { name: 'barPlanB', hash: 'coach', query: { overlay: 'barPlanB' }, wait: 900 },
+  // Foto del piatto con la lettura registrata (?coach=finto: niente rete né chiave) e i miei piatti con 3 piatti finti.
+  { name: 'mealLog', hash: 'oggi', query: { overlay: 'mealLog', coach: 'finto' }, wait: 1300 },
+  { name: 'mealLog-piatti', hash: 'oggi', query: { overlay: 'mealLog' }, dishes: true, wait: 900 },
 ];
 
 const selected = VIEWS.filter((v) => !only || only.some((o) => v.name === o || v.name.startsWith(`${o}-`)));
@@ -170,6 +174,21 @@ async function makeFirstDay(page, today, time, ago = 0) {
     },
     { today, time, ago },
   );
+}
+
+/** Tre piatti salvati inventati (§ 11.7: senza miniatura), per la pagina dei piatti. */
+async function addFakeDishes(page) {
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('ritmo:v1') ?? 'null');
+    if (!raw?.state) throw new Error('stato salvato assente');
+    const at = '2026-01-10T12:00:00.000Z';
+    raw.state.dishes = [
+      { id: 'piatto-esempio-1', name: 'Pasta e ceci', slots: ['pranzo'], items: [{ foodId: 'pasta', grams: 220 }, { foodId: 'ceci', grams: 80 }, { foodId: 'passata', grams: 90 }, { foodId: 'olio-evo', grams: 10, role: 'condimento' }], nutrients: { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 }, vegPortions: 0, createdAt: at, source: 'foto' },
+      { id: 'piatto-esempio-2', name: 'Pollo e patate al forno', slots: ['cena'], items: [{ foodId: 'pollo', grams: 140 }, { foodId: 'patate', grams: 200 }, { foodId: 'olio-evo', grams: 10, role: 'condimento' }], nutrients: { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 }, vegPortions: 0, createdAt: at, source: 'foto' },
+      { id: 'piatto-esempio-3', name: 'Pizza margherita', slots: ['cena'], items: [{ foodId: 'pizza-margherita', grams: 320 }], nutrients: { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, fiberG: 0 }, vegPortions: 0, createdAt: at, source: 'foto' },
+    ];
+    localStorage.setItem('ritmo:v1', JSON.stringify(raw));
+  });
 }
 
 /** Elementi che sporgono oltre il bordo destro (esclusi i contenitori scorrevoli in orizzontale e le schermate nascoste). */
@@ -235,7 +254,13 @@ try {
         logs.push(`eccezione: ${e.message}`);
       });
 
-      if (view.firstDay) {
+      if (view.dishes) {
+        // I dati di esempio non hanno piatti: si caricano, si aggiungono i piatti finti e si riapre senza ricaricarli.
+        await page.goto(urlFor({ ...view, query: {} }, theme, { demo: true }), { waitUntil: 'load' });
+        await page.waitForTimeout(500);
+        await addFakeDishes(page);
+        await page.goto(urlFor(view, theme, { demo: false }), { waitUntil: 'load' });
+      } else if (view.firstDay) {
         await page.goto(urlFor(view, theme, { demo: true }), { waitUntil: 'load' });
         await page.waitForTimeout(500);
         await makeFirstDay(page, viewToday(view) ?? localToday(), view.firstDay, view.firstDayAgo ?? 0);

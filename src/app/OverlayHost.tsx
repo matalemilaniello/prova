@@ -2,9 +2,9 @@
  * Host dei pannelli: legge ui.overlay e monta il componente di contratto (SPEC §6).
  * I componenti sono caricati a richiesta e pre-caricati quando l'app è inattiva.
  *
- * Pannelli della fase 2 (docs/FASE2.md § 11.3): `planProposal` è il foglio vero (`features/piano/PlanProposalSheet`);
- * `mealLog` e `supplement` per ora mostrano un segnaposto, che le onde che li costruiscono sostituiscono con il
- * caricamento del loro file.
+ * Pannelli della fase 2 (docs/FASE2.md § 11.3): `planProposal` e `mealLog` sono i fogli veri
+ * (`features/piano/PlanProposalSheet`, `features/pasti/MealLogSheet`); `supplement` per ora mostra un segnaposto, che
+ * l'onda che lo costruisce sostituisce con il caricamento del suo file.
  */
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
@@ -21,6 +21,7 @@ const loaders = {
   football: () => import('../features/oggi/FootballSheet'),
   barPlanB: () => import('../features/coach/BarPlanBSheet'),
   planProposal: () => import('../features/piano/PlanProposalSheet'),
+  mealLog: () => import('../features/pasti/MealLogSheet'),
 };
 
 const RecipeSheet = lazy(loaders.recipe);
@@ -29,6 +30,7 @@ const SessionPlayer = lazy(loaders.session);
 const FootballSheet = lazy(loaders.football);
 const BarPlanBSheet = lazy(loaders.barPlanB);
 const PlanProposalSheet = lazy(loaders.planProposal);
+const MealLogSheet = lazy(loaders.mealLog);
 
 /** Scarica in anticipo i pannelli, così si aprono subito. */
 export function preloadOverlays() {
@@ -58,7 +60,6 @@ function keyOf(o: NonNullable<Overlay>): string {
 
 /** Titoli dei pannelli della fase 2 non ancora costruiti. */
 const PLACEHOLDER_TITLE = {
-  mealLog: 'Pasto',
   supplement: 'Integratore',
 } as const;
 
@@ -86,6 +87,7 @@ function render(o: NonNullable<Overlay>, onClose: () => void) {
     case 'planProposal':
       return <PlanProposalSheet id={o.id} onClose={onClose} />;
     case 'mealLog':
+      return <MealLogSheet date={o.date} slot={o.slot} mode={o.mode} chatMessageId={o.chatMessageId} onClose={onClose} />;
     case 'supplement':
       return <PlaceholderSheet type={o.type} onClose={onClose} />;
   }

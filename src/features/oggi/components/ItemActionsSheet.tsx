@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeftRight, Check, ChefHat, ClipboardList, Flag, HeartPulse, ListChecks, Minus, Play, RotateCcw, ShoppingBasket, Store, Timer } from 'lucide-react';
+import { ArrowLeftRight, Camera, Check, ChefHat, ClipboardList, Flag, HeartPulse, ListChecks, Minus, Play, RotateCcw, ShoppingBasket, Store, Timer, UtensilsCrossed } from 'lucide-react';
 import type { DayType, HHMM, ItemStatus, MealSlot } from '../../../domain/types';
+import { photoReadable } from '../../../engine/coachTasks/photo';
 import type { DayItem, StatusSource } from '../../../engine/timeline';
 import { haptic } from '../../../lib/haptics';
 import { Button, Chip, Field, ListGroup, ListRow, Sheet, TextArea, cn, spring, springSnappy, toneColor, toneInk, toneRing, toneSoft, type Tone } from '../../../ui';
+import { usePlanDay } from '../../../state/hooks';
+import { useApp, useUi } from '../../../state/store';
+import { stashPhoto } from '../../pasti/photoInbox';
+import { PhotoPickRow } from '../../pasti/PhotoPick';
+import { useOnline } from '../../pasti/useOnline';
 import { canReplace, replaceSuggestions } from '../kinds';
 import { StatusMark } from './StatusMark';
 
@@ -57,6 +63,10 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
   const [text, setText] = useState(note ?? '');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const suggestions = replaceSuggestions(item);
+  const today = usePlanDay();
+  const canPhoto = useApp((s) => photoReadable(s.settings));
+  const hasDishes = useApp((s) => (s.dishes?.length ?? 0) > 0);
+  const online = useOnline();
   // Coprifuoco, letto e telefono fuori: o fatto o saltato.
   const choices = canReplace(item) || status === 'sostituito' ? CHOICES : CHOICES.filter((c) => c.status !== 'sostituito');
 
@@ -139,6 +149,35 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
       />
     ) : null;
 
+  // Foto del piatto e i miei piatti (§ 7.1, § 8.2): al massimo due righe, solo quando servono. La riga della foto è un
+  // `<label>` collegato all'input nascosto: il tocco sulla riga è il gesto che apre il selettore su iPhone. Il foglio
+  // della voce resta aperto finché non arriva la foto; se l'utente annulla il selettore non succede niente.
+  const mealSlot = item.kind === 'pasto' ? item.slot : undefined;
+  const openMealLog = (mode: 'foto' | 'piatti') => {
+    if (!mealSlot) return;
+    onClose();
+    useUi.getState().open({ type: 'mealLog', date: today, slot: mealSlot, mode });
+  };
+  const photo = !mealSlot || !canPhoto ? null : online ? (
+    <PhotoPickRow
+      key="photo"
+      icon={Camera}
+      iconTone="accent"
+      title="Fotografa il piatto"
+      subtitle="Il coach stima, tu controlli"
+      onPick={(file) => {
+        stashPhoto({ kind: 'file', file });
+        openMealLog('foto');
+      }}
+    />
+  ) : (
+    <ListRow key="photo" icon={Camera} iconTone="neutral" title="Fotografa il piatto" subtitle="Serve la rete" onPress={() => openMealLog('foto')} />
+  );
+  const dishesRow =
+    mealSlot && hasDishes ? (
+      <ListRow key="dishes" icon={UtensilsCrossed} iconTone="good" title="I miei piatti" subtitle="Anche senza rete" onPress={() => openMealLog('piatti')} />
+    ) : null;
+
   const reset =
     source === 'diario' ? (
       <ListRow
@@ -155,7 +194,7 @@ function Body({ item, dayType, status, lockedUntil, source, note, onClose, onSet
       />
     ) : null;
 
-  const rows = [detailRow, planB, reset].filter(Boolean);
+  const rows = [detailRow, photo, dishesRow, planB, reset].filter(Boolean);
 
   return (
     <div className="flex flex-col gap-5 pb-2">
