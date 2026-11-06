@@ -162,7 +162,7 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping, proposal }: MenuT
                   colorType={colorType}
                   factor={factor}
                   matchEve={meals.matchEve}
-                  floor={detail.matchCarbs?.extraG ? detail.matchCarbs.gPerKg : undefined}
+                  floor={detail.matchCarbs?.gPerKg}
                 />
               }
             >

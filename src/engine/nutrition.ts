@@ -318,11 +318,11 @@ export function dayCarbScale(date: ISODate, state: NutritionState): number {
   // Le kcal rimesse dai limiti dell'energia passano dalle righe di carboidrati, come la differenza dell'obiettivo.
   const delta = targetDelta(dayType, state.plan) + energyAdjust(date, state).kcal;
   const match = matchCarbs(date, state);
-  if (!delta && !match?.extraG) return 1;
+  if (!delta && !match) return 1;
   const recipes = mealsForDate(date, { plan: state.plan, dayLogs: {} }).meals.map((m) => RECIPES[m.plannedId]);
   const ref = DEFAULT_TARGETS[dayType];
   const target: MacroTarget = { ...(state.plan.targets?.[dayType] ?? ref), kcal: ref.kcal + delta };
-  return carbScaleForMeals(recipes, dayType, target, match?.extraG ? match.floorG : undefined);
+  return carbScaleForMeals(recipes, dayType, target, match?.floorG);
 }
 
 /** Risolve l'argomento `scale` delle funzioni di questo file. */

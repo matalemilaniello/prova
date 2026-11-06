@@ -637,3 +637,33 @@ describe('carbScaleForMeals: la regola di dayCarbScale su ricette date', () => {
     expect(floor).toBeLessThanOrEqual(1.6);
   });
 });
+
+describe('partita e vigilia: il minimo vale nel piatto anche quando l’obiettivo ci arriva già', () => {
+  const start = '2026-11-09';
+  // Obiettivo del calcio con 360 g di carboidrati: per un profilo generico da 60 kg sono già 6 g/kg sulla carta,
+  // quindi matchCarbs non aggiunge niente (extraG = 0). Prima il minimo non arrivava alla scala e il piatto restava sotto.
+  const plan: Plan = {
+    ...defaultPlan(start),
+    targets: {
+      calcio: { kcal: 2700, proteinG: 135, fatG: 75, carbG: 360, fiberG: 35 },
+      palestra: { kcal: 2500, proteinG: 135, fatG: 75, carbG: 310, fiberG: 35 },
+      leggero: { kcal: 2350, proteinG: 135, fatG: 75, carbG: 275, fiberG: 35 },
+      riposo: { kcal: 2200, proteinG: 135, fatG: 75, carbG: 235, fiberG: 35 },
+    },
+  };
+  const weighIn: CheckIn = { date: '2026-11-07', weightKg: 60, pain: {} };
+  const state = { plan, dayLogs: {}, profile: { ...DEFAULT_PROFILE, startWeightKg: 60 }, checkIns: { [weighIn.date]: weighIn } };
+
+  it('per otto settimane ogni partita e ogni vigilia hanno almeno il minimo nel piatto', () => {
+    let days = 0;
+    for (let i = 0; i < 56; i++) {
+      const d = addDays(start, i);
+      const m = matchCarbs(d, state);
+      if (!m) continue;
+      days++;
+      expect(m.extraG).toBe(0);
+      expect(dayNutritionDetail(d, state).total.carbG).toBeGreaterThanOrEqual(m.floorG - 5);
+    }
+    expect(days).toBeGreaterThan(0);
+  });
+});

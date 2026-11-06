@@ -89,7 +89,7 @@ export function baseCarbScale(iso: ISODate, plan: Plan): number {
   const target: MacroTarget = { ...own, kcal: (Number(own?.kcal) || ref.kcal) + energyAdjust(iso, state).kcal };
   const match = matchCarbs(iso, state);
   const recipes = plannedMealsForDate(iso, plan).meals.map((m) => m.recipe);
-  return carbScaleForMeals(recipes, dayType, target, match?.extraG ? match.floorG : undefined);
+  return carbScaleForMeals(recipes, dayType, target, match?.floorG);
 }
 
 // ───────────────────────── Contesto del giorno ─────────────────────────

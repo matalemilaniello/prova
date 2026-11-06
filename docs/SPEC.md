@@ -1110,3 +1110,9 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   - `EMPTY_MENU_CELL` in `engine/menu.ts`: in un menù approvato o ripetuto una casella che il generatore ha lasciato vuota
     finisce in `DayMeals.cleared` con questo valore; Menù mostra «Scegli tu» («Nessuna ricetta adatta con le tue
     esclusioni.», `clearedReason`) e Oggi lo schema del pasto.
+- Minimo di carboidrati di partita e vigilia nel piatto, sempre (dopo l'onda 2): `dayCarbScale`, `baseCarbScale` in
+  `engine/similar.ts` e `menuDayCtx` in `engine/menuGen/context.ts` passano `matchCarbs(...).floorG` alla scala ogni volta
+  che il minimo vale per la data, non solo quando l'obiettivo del tipo di giorno è sotto i 6 g/kg (`extraG > 0`). Prima,
+  con un obiettivo già a 6 g/kg sulla carta (profili leggeri, surplus della massa), le porzioni seguivano le sole kcal e
+  il piatto restava a circa 5,4-5,5 g/kg. La scala sale solo quando i pasti previsti non ci arrivano: l'istantanea di
+  compatibilità non cambia. Menù e Ricetta mostrano il minimo in tutti i giorni di partita e di vigilia.

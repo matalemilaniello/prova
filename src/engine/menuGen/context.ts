@@ -35,7 +35,7 @@ export interface MenuDayCtx {
   footballDay?: boolean;
   /** Obiettivo della data (`dayTargetFor`): limiti dell'energia e minimo di partita compresi. */
   target: MacroTarget;
-  /** 6 g/kg a partita e vigilia, solo quando l'obiettivo del tipo di giorno non ci arriva da solo. */
+  /** 6 g/kg a partita e vigilia, sempre: anche quando l'obiettivo del tipo di giorno ci arriva sulla carta, il piatto deve arrivarci davvero. */
   carbFloorG?: number;
   /**
    * Kcal con cui si calcola la scala dei carboidrati, come `dayCarbScale`: obiettivo del tipo di giorno più le kcal
@@ -156,7 +156,7 @@ export function menuDayCtx(iso: ISODate, s: MenuGenState, fiberTargetG: number =
     eveningFootball: isEveningFootball(sched),
     footballDay: Boolean(sched?.football),
     target,
-    ...(match?.extraG ? { carbFloorG: match.floorG } : {}),
+    ...(match ? { carbFloorG: match.floorG } : {}),
     scaleKcal: (Number.isFinite(own) && own > 0 ? own : ref.kcal) + energyAdjust(iso, ns).kcal,
     fiberTargetG,
     ...(carry.length ? { carry } : {}),

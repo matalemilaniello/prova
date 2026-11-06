@@ -70,7 +70,7 @@ export default function RecipeSheet({ recipeId, date, slot, onClose }: RecipeShe
   // Partita e vigilia: il minimo per kg, solo quando alza davvero le porzioni (come nel Menù).
   const floor = useMemo(() => {
     const m = matchCarbs(date, nutrition);
-    return m?.extraG ? m.gPerKg : undefined;
+    return m?.gPerKg;
   }, [date, nutrition]);
   const schedule = mealScheduleFor(date, plan);
   const slotTitle = slotEff ? schedule[slotEff]?.title : undefined;
