@@ -34,13 +34,15 @@ Le illustrazioni in `assets/img/` sono quelle originali del progetto precedente:
 
 ## Pubblicare
 
-Hosting scelto: **Cloudflare Pages**, gratuito, con indirizzo `https://shubao.pages.dev`.
+Hosting scelto: **Cloudflare Pages**, gratuito. Il sito è online su `https://shubao-9rh.pages.dev`.
+
+Per pubblicare una nuova versione: apri il progetto `shubao` su Cloudflare, scegli **Create deployment** (o «Crea distribuzione») e trascina lo zip aggiornato.
 
 1. Crea un account gratuito su dash.cloudflare.com.
 2. Vai in **Workers e Pages → Crea → Pages → Carica risorse**.
 3. Come nome del progetto usa `shubao`, poi trascina la cartella `shubao-website` (o lo zip) e conferma.
 
-Se il nome `shubao` è già preso, Cloudflare assegna un indirizzo diverso. In quel caso in `index.html` vanno aggiornate le righe `og:url`, `og:image` e `canonical`, altrimenti l'anteprima su X e Telegram non compare.
+Se l'indirizzo cambia, per esempio collegando un dominio proprio, in `index.html` vanno aggiornate le righe `og:url`, `og:image` e `canonical`, altrimenti l'anteprima su X e Telegram non compare.
 
 Più avanti si può collegare un dominio proprio, sempre da Cloudflare. Non usare "everland" nel nome.
 
