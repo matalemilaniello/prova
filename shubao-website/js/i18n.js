@@ -58,9 +58,9 @@ window.SHUBAO_I18N = {
     "story.keeper": "Her keeper describes her as curious and playful: she explores on her own and practises climbing trees.",
     "story.born": "Born in Yongin, South Korea",
 
-    "now.badge": "On public view since Oct 30, 2026",
-    "now.title": "Now she's meeting the world",
-    "now.p1": "Since October 30, 2026, Shubao has been meeting visitors at Panda World in Yongin, South Korea. On her first day, fans gathered from early morning.",
+    "now.badge": "Now at Panda World, Everland",
+    "now.title": "She's there now: go say hi",
+    "now.p1": "Shubao lives at Panda World in Everland, Yongin, South Korea, and since October 30, 2026 she has been open to the public. On her first day, fans gathered from early morning. Viewing times are being extended step by step, so check Everland's official channels before you go.",
     "now.p2": "Today her photos and videos are everywhere: X, YouTube and every social feed. Everyone wants a look at the little dawn treasure.",
 
     "cto.kicker": "Community takeover",
@@ -158,9 +158,9 @@ window.SHUBAO_I18N = {
     "story.keeper": "饲养员说她好奇又爱玩：喜欢独自探索，还在练习爬树。",
     "story.born": "出生于韩国龙仁",
 
-    "now.badge": "2026年10月30日起公开亮相",
-    "now.title": "现在，她和全世界见面了",
-    "now.p1": "自2026年10月30日起，曙宝在韩国龙仁的熊猫世界与游客见面。亮相第一天，粉丝们一大早就来了。",
+    "now.badge": "现居爱宝乐园熊猫世界",
+    "now.title": "她就在那里，快去看看她吧",
+    "now.p1": "曙宝生活在韩国龙仁爱宝乐园的熊猫世界，自2026年10月30日起正式对公众开放。亮相第一天，粉丝们一大早就来了。开放时间正在逐步延长，出发前请先查看爱宝乐园的官方渠道。",
     "now.p2": "如今她的照片和视频遍布 X、YouTube 和各大社交平台。每个人都想看看这个小小的曙光宝贝。",
 
     "cto.kicker": "社区接管",
@@ -258,9 +258,9 @@ window.SHUBAO_I18N = {
     "story.keeper": "사육사는 슈바오를 호기심 많고 장난기 가득한 판다라고 해요. 혼자서도 이곳저곳 탐험하고, 나무 타기를 연습하고 있어요.",
     "story.born": "한국 용인 출생",
 
-    "now.badge": "2026년 10월 30일부터 일반 공개",
-    "now.title": "이제 모두와 만나고 있어요",
-    "now.p1": "2026년 10월 30일부터 슈바오는 용인 판다월드에서 관람객을 만나고 있어요. 공개 첫날에는 이른 아침부터 팬들이 모여들었어요.",
+    "now.badge": "지금 에버랜드 판다월드에",
+    "now.title": "지금 만나러 갈 수 있어요",
+    "now.p1": "슈바오는 용인 에버랜드 판다월드에 살고 있으며, 2026년 10월 30일부터 일반에 공개되었어요. 공개 첫날에는 이른 아침부터 팬들이 모여들었어요. 관람 시간은 단계적으로 늘어나고 있으니, 방문 전 에버랜드 공식 채널을 확인하세요.",
     "now.p2": "지금은 X, 유튜브 등 SNS 어디에서나 슈바오의 사진과 영상을 볼 수 있어요. 모두가 작은 새벽 보물을 보고 싶어 해요.",
 
     "cto.kicker": "커뮤니티 테이크오버",
