@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shuba ($SHUBA) | Memecoin on BNB Chain</title>
+  <meta name="description" content="Shuba ($SHUBA) is a community-driven memecoin on BNB Smart Chain. Tokenomics, how to buy on PancakeSwap, roadmap and official links.">
+  <meta name="theme-color" content="#0B0B0F">
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Shuba ($SHUBA) | Memecoin on BNB Chain">
+  <meta property="og:description" content="Community-driven memecoin on BNB Smart Chain.">
+  <meta property="og:image" content="assets/logo.svg">
+  <meta name="twitter:card" content="summary">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <div class="notice" id="notice" hidden>
+    <span class="notice__dot" aria-hidden="true"></span>
+    <p data-i18n="notice.noContract"></p>
+  </div>
+
+  <header class="header" id="header">
+    <div class="wrap header__inner">
+      <a class="brand" href="#top" aria-label="Shuba home">
+        <img src="assets/logo.svg" alt="" width="36" height="36">
+        <span class="brand__name" data-bind="name">Shuba</span>
+      </a>
+      <nav class="nav" id="nav" aria-label="Main">
+        <a href="#about" data-i18n="nav.about"></a>
+        <a href="#tokenomics" data-i18n="nav.tokenomics"></a>
+        <a href="#how-to-buy" data-i18n="nav.buy"></a>
+        <a href="#roadmap" data-i18n="nav.roadmap"></a>
+        <a href="#faq" data-i18n="nav.faq"></a>
+      </nav>
+      <div class="header__actions">
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en">EN</button>
+          <button type="button" data-lang="it">IT</button>
+        </div>
+        <a class="btn btn--primary btn--sm js-buy" href="#how-to-buy" data-i18n="cta.buy"></a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero" id="top">
+      <div class="hero__glow" aria-hidden="true"></div>
+      <div class="wrap hero__inner">
+        <div class="hero__copy">
+          <p class="kicker" data-i18n="hero.kicker"></p>
+          <h1 class="hero__title" data-i18n="hero.title"></h1>
+          <p class="hero__lead" data-i18n="hero.lead"></p>
+          <div class="hero__cta">
+            <a class="btn btn--primary js-buy" href="#how-to-buy" data-i18n="cta.buyPancake"></a>
+            <a class="btn btn--ghost js-community" href="#community" data-i18n="cta.community"></a>
+          </div>
+
+          <div class="ca" id="ca">
+            <span class="ca__label" data-i18n="hero.contract"></span>
+            <div class="ca__row">
+              <code class="ca__value" id="caValue"></code>
+              <button class="ca__copy" id="caCopy" type="button" data-i18n="hero.copy"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero__art" aria-hidden="true">
+          <div class="coin">
+            <img src="assets/logo.svg" alt="" width="320" height="320">
+          </div>
+          <div class="orbit orbit--1"><span>BNB</span></div>
+          <div class="orbit orbit--2"><span>BEP-20</span></div>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <dl class="stats" id="stats" hidden>
+          <div><dt data-i18n="stats.price"></dt><dd id="statPrice">-</dd></div>
+          <div><dt data-i18n="stats.mcap"></dt><dd id="statMcap">-</dd></div>
+          <div><dt data-i18n="stats.liquidity"></dt><dd id="statLiq">-</dd></div>
+          <div><dt data-i18n="stats.change"></dt><dd id="statChange">-</dd></div>
+        </dl>
+        <p class="stats__src" id="statsSrc" hidden data-i18n="stats.source"></p>
+      </div>
+    </section>
+
+    <!-- MARQUEE -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track" id="marquee"></div>
+    </div>
+
+    <!-- ABOUT -->
+    <section class="section" id="about">
+      <div class="wrap">
+        <p class="kicker" data-i18n="about.kicker"></p>
+        <h2 class="section__title" data-i18n="about.title"></h2>
+        <div class="cards">
+          <article class="card reveal">
+            <div class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0M3 20a6 6 0 0 1 9-5.2A6 6 0 0 1 21 20M12 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+            </div>
+            <h3 data-i18n="about.c1.title"></h3>
+            <p data-i18n="about.c1.text"></p>
+          </article>
+          <article class="card reveal">
+            <div class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 2l3 3-3 3-3-3zM5 9l3 3-3 3-3-3zM19 9l3 3-3 3-3-3zM12 16l3 3-3 3-3-3zM12 9l3 3-3 3-3-3z"/></svg>
+            </div>
+            <h3 data-i18n="about.c2.title"></h3>
+            <p data-i18n="about.c2.text"></p>
+          </article>
+          <article class="card reveal">
+            <div class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6zM8.5 12l2.5 2.5 4.5-5"/></svg>
+            </div>
+            <h3 data-i18n="about.c3.title"></h3>
+            <p data-i18n="about.c3.text"></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- TOKENOMICS -->
+    <section class="section section--alt" id="tokenomics">
+      <div class="wrap">
+        <p class="kicker" data-i18n="tok.kicker"></p>
+        <h2 class="section__title" data-i18n="tok.title"></h2>
+        <div class="tok">
+          <ul class="tok__grid" id="tokGrid"></ul>
+          <div class="tok__alloc reveal">
+            <h3 data-i18n="tok.allocation"></h3>
+            <div class="donut" id="donut" role="img"></div>
+            <ul class="legend" id="legend"></ul>
+            <p class="muted" id="allocTba" hidden data-i18n="tok.allocationTba"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHART -->
+    <section class="section" id="chart" hidden>
+      <div class="wrap">
+        <p class="kicker" data-i18n="chart.kicker"></p>
+        <h2 class="section__title" data-i18n="chart.title"></h2>
+        <div class="chart"><iframe id="chartFrame" title="DexScreener chart" loading="lazy"></iframe></div>
+      </div>
+    </section>
+
+    <!-- HOW TO BUY -->
+    <section class="section" id="how-to-buy">
+      <div class="wrap">
+        <p class="kicker" data-i18n="buy.kicker"></p>
+        <h2 class="section__title" data-i18n="buy.title"></h2>
+        <ol class="steps">
+          <li class="step reveal"><span class="step__n">1</span><h3 data-i18n="buy.s1.title"></h3><p data-i18n="buy.s1.text"></p></li>
+          <li class="step reveal"><span class="step__n">2</span><h3 data-i18n="buy.s2.title"></h3><p data-i18n="buy.s2.text"></p></li>
+          <li class="step reveal"><span class="step__n">3</span><h3 data-i18n="buy.s3.title"></h3><p data-i18n="buy.s3.text"></p></li>
+          <li class="step reveal"><span class="step__n">4</span><h3 data-i18n="buy.s4.title"></h3><p data-i18n="buy.s4.text"></p></li>
+        </ol>
+        <div class="buy-actions">
+          <a class="btn btn--primary js-buy" href="#how-to-buy" data-i18n="cta.buyPancake"></a>
+          <button class="btn btn--ghost" id="addChain" type="button" data-i18n="buy.addChain"></button>
+          <button class="btn btn--ghost" id="addToken" type="button" data-i18n="buy.addToken"></button>
+        </div>
+        <p class="wallet-msg" id="walletMsg" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section class="section section--alt" id="roadmap">
+      <div class="wrap">
+        <p class="kicker" data-i18n="road.kicker"></p>
+        <h2 class="section__title" data-i18n="road.title"></h2>
+        <div class="road" id="road"></div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="wrap wrap--narrow">
+        <p class="kicker" data-i18n="faq.kicker"></p>
+        <h2 class="section__title" data-i18n="faq.title"></h2>
+        <div class="faq">
+          <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
+          <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
+          <details><summary data-i18n="faq.q3"></summary><p data-i18n="faq.a3"></p></details>
+          <details><summary data-i18n="faq.q4"></summary><p data-i18n="faq.a4"></p></details>
+          <details><summary data-i18n="faq.q5"></summary><p data-i18n="faq.a5"></p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMMUNITY -->
+    <section class="section community" id="community">
+      <div class="wrap community__inner">
+        <img class="community__logo" src="assets/logo.svg" alt="" width="96" height="96">
+        <p class="kicker" data-i18n="comm.kicker"></p>
+        <h2 class="section__title" data-i18n="comm.title"></h2>
+        <p class="community__text" data-i18n="comm.text"></p>
+        <div class="socials" id="socials"></div>
+        <p class="muted" id="socialsSoon" hidden data-i18n="comm.soon"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer__top">
+        <a class="brand" href="#top">
+          <img src="assets/logo.svg" alt="" width="32" height="32">
+          <span class="brand__name" data-bind="name">Shuba</span>
+        </a>
+        <div class="footer__links" id="footerLinks"></div>
+      </div>
+      <p class="footer__disclaimer" data-i18n="footer.disclaimer"></p>
+      <p class="footer__copy">&copy; <span id="year"></span> <span data-bind="name">Shuba</span>. <span data-i18n="footer.rights"></span></p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
