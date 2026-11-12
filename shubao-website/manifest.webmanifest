@@ -1,0 +1,21 @@
+{
+  "name": "曙宝 Shubao",
+  "short_name": "曙宝",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#283016",
+  "theme_color": "#283016",
+  "description": "曙宝 (Shubao, 슈바오) is a fan-made community token on BNB Chain inspired by the giant panda cub born in South Korea on June 3, 2026. A treasure as bright as the dawn light.",
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

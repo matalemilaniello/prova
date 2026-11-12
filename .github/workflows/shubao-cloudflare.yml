@@ -1,0 +1,45 @@
+name: Shubao · pubblica su Cloudflare Pages
+
+# Pubblica il sito shubao-website su Cloudflare Pages a ogni modifica.
+# Resta inattivo finché nelle impostazioni del repository non ci sono i segreti
+# CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID (vedi shubao-website/LEGGIMI.md).
+
+on:
+  push:
+    branches:
+      - main
+      - claude/beautiful-newton-rvmigw
+    paths:
+      - 'shubao-website/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'shubao' }}
+    steps:
+      - name: Segreti presenti?
+        id: check
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Segreti Cloudflare non configurati: pubblicazione saltata."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.skip != 'true'
+        with:
+          python-version: '3.12'
+      - name: Genera le pagine
+        if: steps.check.outputs.skip != 'true'
+        run: python3 shubao-website/tools/build.py
+      - name: Prepara la cartella da pubblicare
+        if: steps.check.outputs.skip != 'true'
+        run: bash shubao-website/tools/dist.sh "$RUNNER_TEMP/shubao-dist"
+      - name: Pubblica su Cloudflare Pages
+        if: steps.check.outputs.skip != 'true'
+        run: npx --yes wrangler@3 pages deploy "$RUNNER_TEMP/shubao-dist" --project-name="$PROJECT" --branch=main

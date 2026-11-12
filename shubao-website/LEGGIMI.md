@@ -1,57 +1,91 @@
 # 曙宝 Shubao: sito della community
 
-Sito a pagina unica del token community 曙宝 (Shubao, 슈바오) su BNB Chain, costruito sul brief della community. Il brief non è nel repository, perché contiene note interne.
+Sito a pagina unica del token community 曙宝 (Shubao, 슈바오) su BNB Chain, in quattro lingue: inglese, cinese, coreano e giapponese.
 
-È un sito statico: HTML, CSS e JavaScript senza installazioni né compilazione. Per vederlo basta aprire `index.html` nel browser, oppure caricare la cartella su un hosting.
+Online: https://shubao-9rh.pages.dev (Cloudflare Pages).
 
-## Lingue
+## Come è fatto
 
-Inglese (predefinito), cinese e coreano, con il selettore in alto a destra. La scelta resta salvata nel browser del visitatore. Per aprire direttamente una lingua si aggiunge `?lang=zh` o `?lang=ko` all'indirizzo.
+Il sito è statico: HTML, CSS e JavaScript, senza framework. Le pagine vengono generate da uno script a partire da un modello e dai testi.
 
-## Dove cambiare le cose
-
-| Cosa | File |
+| Cosa | Dove |
 | --- | --- |
-| Contratto, coppia e link ufficiali | `js/config.js` |
-| Tutti i testi nelle tre lingue | `js/i18n.js` |
-| Colori, font e impaginazione | `css/style.css`, con i colori in cima |
-| Struttura della pagina | `index.html` |
+| Testi in ogni lingua | `i18n/en.json`, `zh.json`, `ko.json`, `ja.json` |
+| Contratto, link, video, indirizzo del sito | `tools/site.json` |
+| Struttura della pagina | `tools/template.html` |
+| Icone SVG | `tools/symbols.svg` |
+| Colori, font, impaginazione | `css/style.css` (colori in cima al file) |
+| Funzioni interattive | `js/main.js` |
+| Pagine generate (da non modificare a mano) | `index.html`, `zh/`, `ko/`, `ja/`, `404.html`, `sitemap.xml`, `robots.txt`, `manifest.webmanifest`, `assets/fonts/` |
 
-## Cosa contiene
+## Modificare il sito
 
-1. **Hero:** 曙宝 / 슈바오 / Shubao, significato del nome, testi approvati e pulsanti PancakeSwap, DexScreener e Telegram. Il cucciolo è cliccabile e squittisce con un suono sintetizzato.
-2. **Contratto:** indirizzo completo con pulsante «Copy» e conferma «Copied».
-3. **Dati di mercato:** prezzo, capitalizzazione, liquidità e variazione a 24 ore, letti in tempo reale da DexScreener nel browser del visitatore. Se DexScreener non risponde, la striscia non compare. Nessun numero è scritto a mano nel codice.
-4. **La sua storia:** testi approvati e fatti verificati del brief (171 g, oltre 9 kg, 220.000 voti, 42%, significato del nome, carattere). Segue un blocco su dove si trova ora (Panda World di Everland, a Yongin, aperta al pubblico dal 30 ottobre 2026, confermato dalla stampa coreana) e sulla sua popolarità su X, YouTube e social. Le sorelle non vengono citate, come da scelta editoriale.
-5. **Community takeover:** cosa significa CTO, senza attaccare il team precedente.
-6. **Come comprare:** quattro passaggi generici e avviso anti-truffa.
-7. **Link ufficiali:** X, Telegram, DexScreener, BscScan, PancakeSwap. Il vecchio account `x.com/ShuBaobnb` non c'è.
-8. **Footer:** disclaimer completo di non affiliazione.
+1. Cambia il testo in `i18n/*.json` oppure i dati in `tools/site.json`.
+2. Rigenera le pagine:
+   ```bash
+   python3 tools/build.py
+   ```
+   Lo script scarica da Google Fonts solo i caratteri usati nelle pagine e li salva in `assets/fonts/`. I visitatori quindi non contattano Google e la pagina inglese carica circa 70 KB di font.
+3. Prepara la cartella da pubblicare:
+   ```bash
+   bash tools/dist.sh ../shubao-dist
+   ```
+4. Pubblica la cartella o il suo zip su Cloudflare: progetto `shubao` → **Create deployment**.
 
-## Immagini
+Le risorse grafiche si rigenerano solo se cambiano le illustrazioni:
+- `node tools/og.cjs` crea le anteprime social (`assets/og-*.jpg`) e il banner per X. Richiede Playwright.
+- `python3 tools/assets.py` crea gli sticker PNG, il codice QR del contratto, le icone e il kit per i meme. Richiede Pillow e qrcode.
 
-Le illustrazioni in `assets/img/` sono quelle originali del progetto precedente: acquerelli generati con AI, senza foto di Everland o di agenzie. Le icone in `assets/icons/` e l'anteprima social `assets/og.jpg` sono ricavate da quelle illustrazioni.
+## Cosa contiene la pagina
 
-## Pubblicare
+1. **Hero:** 曙宝 / 슈바오 / Shubao, significato del nome, età di Shubao calcolata ogni giorno, etichetta «ora al Panda World», cucciolo cliccabile che squittisce (5 tocchi di fila fanno partire una sorpresa).
+2. **Contratto:** copia con un clic, codice QR, pulsante «Aggiungi a MetaMask». Il pulsante si attiva dopo aver letto simbolo e decimali dalla blockchain.
+3. **Dati in tempo reale:** prezzo, capitalizzazione, liquidità, variazione, volume e scambi delle ultime 24 ore da DexScreener, più l'offerta totale letta da BNB Chain. Se le fonti non rispondono, la striscia non compare. Nessun numero è scritto a mano.
+4. **La sua storia:** testi approvati, numeri chiave che si animano, grafico della crescita, linea del tempo, significato del nome, nota del custode, blocco su dove si trova ora.
+5. **Guardala:** video ufficiali di Everland caricati solo al clic (`youtube-nocookie`) e link ai canali ufficiali: YouTube @withEverland e @ppuppatv, Instagram @witheverland.
+6. **Community (CTO):** solo in positivo, senza riferimenti al passato.
+7. **Grafico DexScreener** incorporato, caricato quando ci si arriva scorrendo.
+8. **Come comprare:** quattro passaggi, consiglio sullo slippage, controlli indipendenti (GoPlus, Token Sniffer, holder su BscScan) e regole di sicurezza con link per segnalare truffe.
+9. **Kit dei fan:** sticker scaricabili, kit ZIP per i meme (sticker, sticker per Telegram, banner per X, anteprime, cornice per la foto profilo), generatore di immagine profilo nel browser e condivisione su X.
+10. **Domande frequenti**, **link ufficiali**, **footer** con il disclaimer completo e il selettore di lingua.
+11. **Telefono:** barra fissa in basso con «Copia CA» e «Compra».
 
-Hosting scelto: **Cloudflare Pages**, gratuito. Il sito è online su `https://shubao-9rh.pages.dev`.
+Altri dettagli: lingua scelta in automatico da quella del browser (e ricordata quando la cambi), indirizzi separati `/zh/`, `/ko/`, `/ja/`, tag hreflang, dati strutturati, sitemap, pagina 404, manifest per la schermata Home, barra di avanzamento della lettura, foglie animate, rispetto di «riduci movimento».
 
-Per pubblicare una nuova versione: apri il progetto `shubao` su Cloudflare, scegli **Create deployment** (o «Crea distribuzione») e trascina lo zip aggiornato.
+## Pubblicazione automatica (facoltativa)
 
-1. Crea un account gratuito su dash.cloudflare.com.
-2. Vai in **Workers e Pages → Crea → Pages → Carica risorse**.
-3. Come nome del progetto usa `shubao`, poi trascina la cartella `shubao-website` (o lo zip) e conferma.
+Il file `.github/workflows/shubao-cloudflare.yml` pubblica il sito su Cloudflare a ogni modifica salvata su GitHub. Resta spento finché non aggiungi due segreti al repository (GitHub → Settings → Secrets and variables → Actions):
 
-Se l'indirizzo cambia, per esempio collegando un dominio proprio, in `index.html` vanno aggiornate le righe `og:url`, `og:image` e `canonical`, altrimenti l'anteprima su X e Telegram non compare.
+1. `CLOUDFLARE_ACCOUNT_ID`: lo trovi in Cloudflare, nella colonna a destra della pagina Workers e Pages.
+2. `CLOUDFLARE_API_TOKEN`: in Cloudflare vai su My Profile → API Tokens → Create Token, scegli il modello «Edit Cloudflare Workers» oppure crea un token con il permesso «Cloudflare Pages: Edit».
 
-Più avanti si può collegare un dominio proprio, sempre da Cloudflare. Non usare "everland" nel nome.
+Se il progetto Cloudflare non si chiama `shubao`, aggiungi anche la variabile `CLOUDFLARE_PAGES_PROJECT` con il nome giusto.
 
-## Da fare prima di andare online
+Consiglio: sposta il sito in un repository suo e privato, per esempio `shubao-website`, invece di tenerlo in `prova`, che è pubblico.
 
-1. **Link PancakeSwap.** Il formato `swap?outputCurrency=…&chain=bsc` è quello usato normalmente, ma non è stato possibile aprirlo da qui. Dopo la pubblicazione basta un clic per vedere se preseleziona 曙宝.
-2. **Traduzioni.** Cinese e coreano sono stati riletti, ma non da un madrelingua. Se nella community c'è qualcuno che li parla, conviene fargli dare un'occhiata a `js/i18n.js`.
-3. **Logo.** Quando sarà disponibile `icon_square.png`, decidere se sostituire l'icona attuale del cucciolo illustrato in `assets/icons/`. Attenzione: è una foto, quindi valgono le regole del brief su diritti e watermark.
-4. **Pubblicazione.** Vedi sopra.
-5. **Dopo la pubblicazione.** Seguire la sezione 10 del brief: bio di X, supporto DexScreener e ticket Fomo.
+## Statistiche delle visite (facoltative)
 
-Supply, tasse e liquidità bloccata non compaiono sul sito, perché non sono ancora verificati.
+Cloudflare Web Analytics è gratuito e non usa cookie. In Cloudflare apri Analytics e log → Web Analytics → Add a site, copia il token e incollalo in `tools/site.json` alla voce `cloudflareAnalyticsToken`, poi rigenera le pagine.
+
+## Dominio
+
+Quando avrete un dominio (per esempio `shubaocto.com`):
+1. Collegalo al progetto in Cloudflare: Custom domains → Set up a custom domain.
+2. Cambia `siteUrl` in `tools/site.json` e rigenera le pagine. Anteprime social, sitemap e hreflang si aggiornano da sole.
+
+Non usare "everland" nel nome.
+
+## Da controllare
+
+- **Video:** i tre video in `tools/site.json` sono stati trovati con una ricerca e appartengono a serie di Everland (아기판다바오, 전지적 할부지 시점), ma il canale che li ha caricati non è stato verificato. Aprili una volta su YouTube: se il canale non è @withEverland o @ppuppatv, sostituiscili.
+- **Link PancakeSwap:** clicca «Buy» e controlla che preselezioni 曙宝.
+- **Traduzioni:** cinese, coreano e giapponese sono state rilette, ma non da madrelingua.
+- **Bio di X:** il sito invita a controllare che @ShuBaoCto linki il sito, quindi va aggiunto il link nella bio.
+- **Supply, tasse, liquidità bloccata:** non sono scritti nel sito. L'offerta totale si legge in tempo reale dalla blockchain, per le tasse il sito rimanda a GoPlus e Token Sniffer.
+
+## Regole da rispettare
+
+- Niente foto o video di Everland copiati sul sito: solo incorporati da YouTube o linkati.
+- Niente loghi o marchi di Everland o Samsung C&T, niente "everland" nel dominio.
+- Il disclaimer di non affiliazione nel footer deve restare.
+- Niente promesse di prezzo e niente dati inventati.

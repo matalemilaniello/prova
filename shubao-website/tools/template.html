@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="{{htmllang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{t:meta.title}}</title>
+  <meta name="description" content="{{t:meta.description}}">
+  <meta name="theme-color" content="#283016">
+  <link rel="canonical" href="{{canonical}}">
+{{hreflang}}
+  <link rel="icon" type="image/png" sizes="32x32" href="{{base}}assets/icons/favicon-32.png">
+  <link rel="icon" type="image/svg+xml" href="{{base}}assets/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="{{base}}assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="{{base}}manifest.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="曙宝 Shubao">
+  <meta property="og:locale" content="{{oglocale}}">
+  <meta property="og:url" content="{{canonical}}">
+  <meta property="og:title" content="{{t:meta.title}}">
+  <meta property="og:description" content="{{t:meta.description}}">
+  <meta property="og:image" content="{{ogimage}}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="{{t:meta.ogAlt}}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@ShuBaoCto">
+  <meta name="twitter:image" content="{{ogimage}}">
+
+  <link rel="preload" as="image" href="{{base}}assets/img/hero-panda-rest.webp">
+  <link rel="stylesheet" href="{{base}}assets/fonts/fonts-{{lang}}.css?v={{v}}">
+  <link rel="stylesheet" href="{{base}}css/style.css?v={{v}}">
+  <script type="application/ld+json">{{jsonld}}</script>
+{{analytics}}
+</head>
+<body>
+  <a class="skip" href="#main">{{t:skip}}</a>
+
+  <header class="header" id="header">
+    <div class="wrap header__inner">
+      <a class="brand" href="#top" aria-label="曙宝 Shubao">
+        <span class="brand__icon"><img src="{{base}}assets/icons/brand.png" alt="" width="40" height="40"></span>
+        <span class="brand__name"><span class="cjk-brush" lang="zh-Hans">曙宝</span> <span class="brand__latin" lang="en">Shubao</span></span>
+      </a>
+
+      <nav class="nav" id="nav" aria-label="Main">
+        <a href="#story">{{t:nav.story}}</a>
+        <a href="#watch">{{t:nav.watch}}</a>
+        <a href="#cto">{{t:nav.cto}}</a>
+        <a href="#buy">{{t:nav.buy}}</a>
+        <a href="#faq">{{t:nav.faq}}</a>
+        <div class="lang lang--menu" role="group" aria-label="{{t:lang.label}}">{{langswitch}}</div>
+      </nav>
+
+      <div class="header__actions">
+        <div class="lang lang--bar" role="group" aria-label="{{t:lang.label}}">{{langswitch}}</div>
+        <a class="btn btn--pink btn--sm" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:nav.buyBtn}}</a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav" aria-label="{{t:nav.menu}}">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+    <div class="progress" id="progress" aria-hidden="true"></div>
+  </header>
+
+  <main id="main">
+    <!-- ============ HERO ============ -->
+    <section class="hero" id="top">
+      <div class="hero__dawn" aria-hidden="true"></div>
+      <svg class="bamboo bamboo--left" aria-hidden="true" viewBox="0 0 200 800"><use href="#bamboo"/></svg>
+      <svg class="bamboo bamboo--right" aria-hidden="true" viewBox="0 0 200 800"><use href="#bamboo"/></svg>
+      <div class="leaves" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+      <div class="wrap hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow"><svg class="paw" aria-hidden="true"><use href="#paw"/></svg><span>{{t:hero.eyebrow}}</span></p>
+          <h1 class="hero__title">
+            <span class="hero__han" lang="zh-Hans">曙宝</span>
+            <span class="hero__alt"><span lang="ko">슈바오</span><span class="dot" aria-hidden="true">·</span><span lang="en">Shubao</span></span>
+          </h1>
+          <p class="hero__meaning">{{t:hero.meaning}}</p>
+          <p class="hero__lead">{{t:hero.lead}}</p>
+          <p class="hero__tagline"><span>{{t:hero.tagline}}</span></p>
+
+          <div class="hero__cta">
+            <a class="btn btn--pink" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:hero.buy}}</a>
+            <a class="btn btn--ghost" href="#chart">{{t:hero.chart}}</a>
+            <a class="btn btn--ghost" href="{{link:telegram}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg>{{t:hero.telegram}}</a>
+          </div>
+        </div>
+
+        <div class="hero__art">
+          <div class="sun" aria-hidden="true"></div>
+          <button class="panda" id="panda" type="button" aria-label="{{t:hero.pandaAlt}}">
+            <img class="panda__img panda__img--rest" src="{{base}}assets/img/hero-panda-rest.webp" alt="" width="1400" height="1400">
+            <img class="panda__img panda__img--squeak" src="{{base}}assets/img/hero-panda-squeak.webp" alt="" width="1400" height="1400" loading="lazy">
+          </button>
+          <span class="panda__live"><span class="live-dot" aria-hidden="true"></span><span>{{t:now.badge}}</span></span>
+          <span class="panda__age" data-age-template="{{t:hero.age}}"></span>
+          <span class="panda__hint" aria-hidden="true"><svg class="paw"><use href="#paw"/></svg><span>{{t:hero.tap}}</span></span>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div class="ca" id="ca">
+          <span class="ca__label">{{t:ca.label}}</span>
+          <div class="ca__row">
+            <code class="ca__value" id="caValue">{{ca}}</code>
+            <button class="ca__copy js-copy" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              <span class="js-copy-label">{{t:ca.copy}}</span>
+            </button>
+          </div>
+          <div class="ca__tools">
+            <button class="chip-btn" id="addToken" type="button" disabled><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>{{t:ca.addWallet}}</button>
+            <details class="ca__qr">
+              <summary class="chip-btn"><svg class="ico" aria-hidden="true"><use href="#i-qr"/></svg>{{t:ca.qr}}</summary>
+              <img src="{{base}}assets/qr-ca.svg" alt="{{t:ca.qrAlt}}" width="200" height="200" loading="lazy">
+            </details>
+          </div>
+          <p class="ca__note">{{t:ca.note}}</p>
+          <p class="wallet-msg" id="walletMsg" role="status" aria-live="polite"></p>
+        </div>
+
+        <dl class="stats" id="stats" hidden>
+          <div><dt>{{t:stats.price}}</dt><dd id="sPrice">-</dd></div>
+          <div><dt>{{t:stats.mcap}}</dt><dd id="sMcap">-</dd></div>
+          <div><dt>{{t:stats.liq}}</dt><dd id="sLiq">-</dd></div>
+          <div><dt>{{t:stats.change}}</dt><dd id="sChange">-</dd></div>
+          <div><dt>{{t:stats.vol}}</dt><dd id="sVol">-</dd></div>
+          <div><dt>{{t:stats.txns}}</dt><dd id="sTxns">-</dd></div>
+          <div class="stats__wide" id="supplyCell" hidden><dt>{{t:stats.supply}}</dt><dd id="sSupply">-</dd></div>
+        </dl>
+        <p class="stats__src" id="statsSrc" hidden>{{t:stats.source}}</p>
+      </div>
+    </section>
+
+    <!-- ============ DAWN BAND ============ -->
+    <div class="band" aria-hidden="true">
+      <img src="{{base}}assets/img/hero-1600.webp" srcset="{{base}}assets/img/hero-1600.webp 1600w, {{base}}assets/img/hero-2560.webp 2560w" sizes="100vw" alt="" loading="lazy" width="2560" height="1428">
+    </div>
+
+    <!-- ============ STORY ============ -->
+    <section class="section paper" id="story">
+      <div class="wrap story">
+        <div class="story__text">
+          <p class="kicker">{{t:story.kicker}}</p>
+          <h2 class="section__title">{{t:story.title}}</h2>
+          <div class="story__poem">
+            <p class="story__big">{{t:story.p1a}}</p>
+            <p>{{t:story.p1b}}</p>
+            <p>{{t:story.p1c}}</p>
+            <p>{{t:story.p2}}</p>
+            <p class="story__em">{{t:story.p3}}</p>
+          </div>
+        </div>
+        <figure class="story__art reveal">
+          <img src="{{base}}assets/img/shubao-basket-800.webp" srcset="{{base}}assets/img/shubao-basket-800.webp 800w, {{base}}assets/img/shubao-basket-1600.webp 1600w" sizes="(max-width: 900px) 90vw, 480px" alt="{{t:story.basketAlt}}" width="1600" height="1600" loading="lazy">
+          <figcaption><svg class="paw" aria-hidden="true"><use href="#paw"/></svg><span>{{t:story.born}}</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="wrap">
+        <ul class="facts">
+          <li class="fact reveal"><strong class="js-count">{{t:story.f1.v}}</strong><span>{{t:story.f1.l}}</span></li>
+          <li class="fact reveal"><strong class="js-count">{{t:story.f2.v}}</strong><span>{{t:story.f2.l}}</span></li>
+          <li class="fact reveal"><strong class="js-count">{{t:story.f3.v}}</strong><span>{{t:story.f3.l}}</span></li>
+          <li class="fact reveal"><strong class="js-count">{{t:story.f4.v}}</strong><span>{{t:story.f4.l}}</span></li>
+        </ul>
+
+        <div class="grow-time">
+          <figure class="growth reveal" aria-labelledby="growthTitle">
+            <h3 id="growthTitle">{{t:growth.title}}</h3>
+            <div class="growth__bars">
+              <div class="bar" style="--h:4%"><b>171 g</b><span>{{t:growth.birth}}</span></div>
+              <div class="bar" style="--h:58%"><b>5.5 kg</b><span>{{t:growth.d100}}</span></div>
+              <div class="bar bar--now" style="--h:95%"><b>9 kg+</b><span>{{t:growth.now}}</span></div>
+            </div>
+            <figcaption>{{t:growth.note}}</figcaption>
+          </figure>
+
+          <div class="timeline reveal">
+            <h3>{{t:time.title}}</h3>
+            <ol>
+              <li><time datetime="2026-06-03">{{t:time.t1.d}}</time><span>{{t:time.t1}}</span></li>
+              <li><time datetime="2026-09-11">{{t:time.t2.d}}</time><span>{{t:time.t2}}</span></li>
+              <li><time datetime="2026-10-30">{{t:time.t3.d}}</time><span>{{t:time.t3}}</span></li>
+              <li class="is-today"><time>{{t:time.t4.d}}</time><span class="js-age-text" data-age-template="{{t:time.t4}}"></span></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="name-card reveal">
+          <div class="name-card__glyphs" aria-hidden="true">
+            <span lang="zh-Hans">曙</span><span lang="zh-Hans">宝</span>
+          </div>
+          <div class="name-card__text">
+            <h3>{{t:story.name.title}}</h3>
+            <p>{{t:story.name.text}}</p>
+            <p class="muted">{{t:story.name.date}}</p>
+          </div>
+          <img class="name-card__art" src="{{base}}assets/img/sticker-crawl-800.webp" alt="" width="800" height="800" loading="lazy">
+        </div>
+
+        <figure class="note reveal">
+          <img src="{{base}}assets/img/sticker-choux-800.webp" alt="" width="800" height="800" loading="lazy">
+          <blockquote><p>{{t:story.keeper}}</p></blockquote>
+          <figcaption>{{t:story.keeperBy}}</figcaption>
+        </figure>
+
+        <div class="now reveal">
+          <img class="now__art" src="{{base}}assets/img/sticker-morning-800.webp" alt="" width="800" height="800" loading="lazy">
+          <div class="now__text">
+            <p class="now__badge"><span class="live-dot" aria-hidden="true"></span><span>{{t:now.badge}}</span></p>
+            <h3>{{t:now.title}}</h3>
+            <p>{{t:now.p1}}</p>
+            <p>{{t:now.p2}}</p>
+            <ul class="now__tags">
+              <li>#曙宝</li><li>#슈바오</li><li>#Shubao</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <svg class="brush-sep brush-sep--paper" aria-hidden="true" viewBox="0 0 1440 60" preserveAspectRatio="none"><path d="M0 0h1440v22c-120 18-260 30-420 22-170-9-260-30-430-26C420 22 300 44 160 40 90 38 40 30 0 26z"/></svg>
+
+    <!-- ============ WATCH ============ -->
+    <section class="section" id="watch">
+      <div class="wrap">
+        <p class="kicker">{{t:watch.kicker}}</p>
+        <h2 class="section__title">{{t:watch.title}}</h2>
+        <p class="section__lead">{{t:watch.p}}</p>
+        <div class="videos">{{videos}}</div>
+        <p class="videos__note muted">{{t:watch.videosNote}}</p>
+        <div class="channels">
+          <a class="channel" href="{{everland:youtubeMain}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-yt"/></svg><span><b>@withEverland</b><small>{{t:watch.ch.main}}</small></span></a>
+          <a class="channel" href="{{everland:youtubeZoo}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-yt"/></svg><span><b>@ppuppatv</b><small>{{t:watch.ch.zoo}}</small></span></a>
+          <a class="channel" href="{{everland:instagram}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-ig"/></svg><span><b>@witheverland</b><small>{{t:watch.ch.insta}}</small></span></a>
+        </div>
+        <p class="watch__note">{{t:watch.note}}</p>
+      </div>
+    </section>
+
+    <!-- ============ CTO ============ -->
+    <section class="section section--deep" id="cto">
+      <div class="wrap cto">
+        <div class="cto__art reveal">
+          <img src="{{base}}assets/img/sticker-loud-800.webp" alt="" width="800" height="800" loading="lazy">
+        </div>
+        <div class="cto__text">
+          <p class="kicker">{{t:cto.kicker}}</p>
+          <h2 class="section__title">{{t:cto.title}}</h2>
+          <blockquote class="cto__quote"><p>{{t:cto.quote}}</p></blockquote>
+          <p class="cto__lead">{{t:cto.p1}}</p>
+          <ul class="ticks">
+            <li><h3>{{t:cto.l1.t}}</h3><p>{{t:cto.l1.d}}</p></li>
+            <li><h3>{{t:cto.l2.t}}</h3><p>{{t:cto.l2.d}}</p></li>
+            <li><h3>{{t:cto.l3.t}}</h3><p>{{t:cto.l3.d}}</p></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHART ============ -->
+    <section class="section" id="chart">
+      <div class="wrap">
+        <p class="kicker">{{t:chart.kicker}}</p>
+        <h2 class="section__title">{{t:chart.title}}</h2>
+        <div class="chart" id="chartBox" data-src="https://dexscreener.com/bsc/{{pair}}?embed=1&amp;theme=dark&amp;info=0&amp;trades=0">
+          <p class="chart__loading">{{t:chart.loading}}</p>
+        </div>
+        <p class="chart__open"><a href="{{link:dexscreener}}" target="_blank" rel="noopener noreferrer">{{t:chart.open}} ↗</a></p>
+      </div>
+    </section>
+
+    <!-- ============ HOW TO BUY ============ -->
+    <section class="section section--deep" id="buy">
+      <div class="wrap">
+        <p class="kicker">{{t:buy.kicker}}</p>
+        <h2 class="section__title">{{t:buy.title}}</h2>
+        <ol class="steps">
+          <li class="step reveal"><span class="step__n">1</span><h3>{{t:buy.s1.t}}</h3><p>{{t:buy.s1.d}}</p></li>
+          <li class="step reveal"><span class="step__n">2</span><h3>{{t:buy.s2.t}}</h3><p>{{t:buy.s2.d}}</p></li>
+          <li class="step reveal"><span class="step__n">3</span><h3>{{t:buy.s3.t}}</h3><p>{{t:buy.s3.d}}</p></li>
+          <li class="step reveal"><span class="step__n">4</span><h3>{{t:buy.s4.t}}</h3><p>{{t:buy.s4.d}}</p></li>
+        </ol>
+        <p class="tip"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>{{t:buy.slip}}</span></p>
+        <div class="buy__row">
+          <a class="btn btn--pink" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:buy.cta}}</a>
+          <p class="muted">{{t:buy.note}}</p>
+        </div>
+
+        <div class="checks">
+          <aside class="verify reveal">
+            <h3><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{{t:verify.title}}</h3>
+            <p>{{t:verify.p}}</p>
+            <ul>
+              <li><a href="{{link:goplus}}" target="_blank" rel="noopener noreferrer">{{t:verify.goplus}} ↗</a></li>
+              <li><a href="{{link:sniffer}}" target="_blank" rel="noopener noreferrer">{{t:verify.sniffer}} ↗</a></li>
+              <li><a href="{{link:holders}}" target="_blank" rel="noopener noreferrer">{{t:verify.holders}} ↗</a></li>
+            </ul>
+            <p class="muted">{{t:verify.official}}</p>
+          </aside>
+
+          <aside class="safe reveal">
+            <h3><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>{{t:safe.title}}</h3>
+            <p>{{t:safe.p1}}</p>
+            <p class="muted">{{t:safe.p2}}</p>
+            <a class="safe__report" href="{{link:telegram}}" target="_blank" rel="noopener noreferrer">{{t:safe.report}} ↗</a>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAN KIT ============ -->
+    <section class="section paper" id="fun">
+      <div class="wrap">
+        <p class="kicker">{{t:fun.kicker}}</p>
+        <h2 class="section__title">{{t:fun.title}}</h2>
+        <p class="section__lead">{{t:fun.p}}</p>
+        <ul class="stickers">
+          <li class="sticker"><button type="button" class="sticker__img js-wiggle" aria-label="{{t:fun.st.morning}}"><img src="{{base}}assets/img/sticker-morning-800.webp" alt="" width="800" height="800" loading="lazy"></button><span>{{t:fun.st.morning}}</span><a href="{{base}}assets/stickers/shubao-morning.png" download>{{t:fun.download}}</a></li>
+          <li class="sticker"><button type="button" class="sticker__img js-wiggle" aria-label="{{t:fun.st.loud}}"><img src="{{base}}assets/img/sticker-loud-800.webp" alt="" width="800" height="800" loading="lazy"></button><span>{{t:fun.st.loud}}</span><a href="{{base}}assets/stickers/shubao-loud.png" download>{{t:fun.download}}</a></li>
+          <li class="sticker"><button type="button" class="sticker__img js-wiggle" aria-label="{{t:fun.st.crawl}}"><img src="{{base}}assets/img/sticker-crawl-800.webp" alt="" width="800" height="800" loading="lazy"></button><span>{{t:fun.st.crawl}}</span><a href="{{base}}assets/stickers/shubao-crawl.png" download>{{t:fun.download}}</a></li>
+          <li class="sticker"><button type="button" class="sticker__img js-wiggle" aria-label="{{t:fun.st.choux}}"><img src="{{base}}assets/img/sticker-choux-800.webp" alt="" width="800" height="800" loading="lazy"></button><span>{{t:fun.st.choux}}</span><a href="{{base}}assets/stickers/shubao-choux.png" download>{{t:fun.download}}</a></li>
+          <li class="sticker"><button type="button" class="sticker__img js-wiggle" aria-label="{{t:fun.st.basket}}"><img src="{{base}}assets/img/shubao-basket-800.webp" alt="" width="800" height="800" loading="lazy"></button><span>{{t:fun.st.basket}}</span><a href="{{base}}assets/stickers/shubao-basket.png" download>{{t:fun.download}}</a></li>
+        </ul>
+        <p class="kit"><a class="btn btn--green" href="{{base}}assets/kit/shubao-meme-kit.zip" download><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>{{t:fun.kit}}</a></p>
+
+        <div class="fun-grid">
+          <div class="pfp reveal" id="pfp">
+            <h3>{{t:pfp.title}}</h3>
+            <p>{{t:pfp.p}}</p>
+            <div class="pfp__stage">
+              <canvas id="pfpCanvas" width="1024" height="1024" aria-label="{{t:pfp.alt}}" role="img"></canvas>
+            </div>
+            <div class="pfp__controls">
+              <label class="btn btn--ghost-dark pfp__pick">{{t:pfp.choose}}<input type="file" id="pfpFile" accept="image/*" hidden></label>
+              <label class="pfp__zoom">{{t:pfp.zoom}} <input type="range" id="pfpZoom" min="1" max="3" step="0.01" value="1" disabled></label>
+              <button class="btn btn--pink" id="pfpSave" type="button" disabled>{{t:pfp.save}}</button>
+            </div>
+            <p class="muted pfp__hint">{{t:pfp.hint}}</p>
+          </div>
+
+          <div class="share reveal">
+            <h3>{{t:share.title}}</h3>
+            <p>{{t:share.p}}</p>
+            <a class="btn btn--dark" id="shareX" href="https://x.com/intent/post?text={{share}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg>{{t:share.x}}</a>
+            <img src="{{base}}assets/img/sticker-loud-800.webp" alt="" width="800" height="800" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section" id="faq">
+      <div class="wrap wrap--narrow">
+        <p class="kicker">{{t:faq.kicker}}</p>
+        <h2 class="section__title">{{t:faq.title}}</h2>
+        <div class="faq">
+          <details><summary>{{t:faq.q1}}</summary><p>{{t:faq.a1}}</p></details>
+          <details><summary>{{t:faq.q2}}</summary><p>{{t:faq.a2}}</p></details>
+          <details><summary>{{t:faq.q3}}</summary><p>{{t:faq.a3}}</p></details>
+          <details><summary>{{t:faq.q4}}</summary><p>{{t:faq.a4}}</p></details>
+          <details><summary>{{t:faq.q5}}</summary><p>{{t:faq.a5}}</p></details>
+          <details><summary>{{t:faq.q6}}</summary><p>{{t:faq.a6}}</p></details>
+          <details><summary>{{t:faq.q7}}</summary><p>{{t:faq.a7}}</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LINKS ============ -->
+    <section class="section section--deep links-section" id="links">
+      <div class="wrap">
+        <p class="kicker">{{t:links.kicker}}</p>
+        <h2 class="section__title">{{t:links.title}}</h2>
+        <div class="links">
+          <a class="link-card" href="{{link:x}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg><span class="link-card__name">@ShuBaoCto</span><span class="link-card__desc">{{t:links.x}}</span></a>
+          <a class="link-card" href="{{link:telegram}}" target="_blank" rel="noopener noreferrer"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg><span class="link-card__name">Telegram</span><span class="link-card__desc">{{t:links.telegram}}</span></a>
+          <a class="link-card" href="{{link:dexscreener}}" target="_blank" rel="noopener noreferrer"><svg class="ico ico--line" aria-hidden="true"><use href="#i-chart"/></svg><span class="link-card__name">DexScreener</span><span class="link-card__desc">{{t:links.dexscreener}}</span></a>
+          <a class="link-card" href="{{link:bscscan}}" target="_blank" rel="noopener noreferrer"><svg class="ico ico--line" aria-hidden="true"><use href="#i-cube"/></svg><span class="link-card__name">BscScan</span><span class="link-card__desc">{{t:links.bscscan}}</span></a>
+          <a class="link-card" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer"><svg class="ico ico--line" aria-hidden="true"><use href="#i-swap"/></svg><span class="link-card__name">PancakeSwap</span><span class="link-card__desc">{{t:links.pancakeswap}}</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <img class="footer__art" src="{{base}}assets/img/sticker-morning-800.webp" alt="" width="800" height="800" loading="lazy">
+      <div>
+        <p class="footer__brand"><span class="cjk-brush" lang="zh-Hans">曙宝</span> <span lang="ko">슈바오</span> · <span lang="en">Shubao</span></p>
+        <p class="footer__disclaimer">{{t:footer.disclaimer}}</p>
+        <div class="lang lang--footer" role="group" aria-label="{{t:lang.label}}">{{langswitch}}</div>
+        <p class="footer__small">{{t:footer.art}} {{t:footer.made}} &copy; <span id="year">2026</span></p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="sticky-buy" id="stickyBuy">
+    <button class="sticky-buy__copy js-copy" type="button"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="js-copy-label">{{t:sticky.copy}}</span></button>
+    <a class="btn btn--pink" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:sticky.buy}}</a>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+{{symbols}}
+
+  <script>window.SHUBAO={{pagejson}};</script>
+  <script src="{{base}}js/main.js?v={{v}}" defer></script>
+</body>
+</html>

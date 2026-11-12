@@ -1,0 +1,29 @@
+{
+  "siteUrl": "https://shubao-9rh.pages.dev",
+  "contract": "0x7E15837DaF327b65f571a008B2D5Dd6C5E407777",
+  "pair": "0xbB0bd5b6a7Fd53393Bb92826bd4DdE397E0F2fA3",
+  "links": {
+    "x": "https://x.com/ShuBaoCto",
+    "telegram": "https://t.me/ShuBaoCtoBNB",
+    "dexscreener": "https://dexscreener.com/bsc/0x7E15837DaF327b65f571a008B2D5Dd6C5E407777",
+    "bscscan": "https://bscscan.com/token/0x7E15837DaF327b65f571a008B2D5Dd6C5E407777",
+    "holders": "https://bscscan.com/token/0x7E15837DaF327b65f571a008B2D5Dd6C5E407777#balances",
+    "goplus": "https://gopluslabs.io/token-security/56/0x7E15837DaF327b65f571a008B2D5Dd6C5E407777",
+    "sniffer": "https://tokensniffer.com/token/bsc/0x7E15837DaF327b65f571a008B2D5Dd6C5E407777",
+    "pancakeswap": "https://pancakeswap.finance/swap?outputCurrency=0x7E15837DaF327b65f571a008B2D5Dd6C5E407777&chain=bsc"
+  },
+  "everland": {
+    "youtubeMain": "https://www.youtube.com/@withEverland",
+    "youtubeZoo": "https://www.youtube.com/@ppuppatv",
+    "instagram": "https://www.instagram.com/witheverland/"
+  },
+  "videos": [
+    { "id": "dd_G3GuI58c", "label": "watch.v1", "title": "[아기판다바오] EP.1 아기판다의 탄생" },
+    { "id": "oAmtWubsQJQ", "label": "watch.v2", "title": "[아기판다바오] EP12. 100일 만에 '슈바오'가 되었어요" },
+    { "id": "iMK2Th1q7sU", "label": "watch.v3", "title": "슈바오, 으마으마한 장난꾸러기로 밝혀져..." }
+  ],
+  "languages": ["en", "zh", "ko", "ja"],
+  "htmlLang": { "en": "en", "zh": "zh-Hans", "ko": "ko", "ja": "ja" },
+  "langNames": { "en": "EN", "zh": "中文", "ko": "한국어", "ja": "日本語" },
+  "cloudflareAnalyticsToken": ""
+}

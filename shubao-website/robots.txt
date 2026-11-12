@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shubao-9rh.pages.dev/sitemap.xml
