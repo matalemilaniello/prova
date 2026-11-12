@@ -214,6 +214,22 @@ html:lang(zh-Hans) .story__big { font-family: var(--font-han); }
 .keeper { margin-top: 24px; display: flex; align-items: center; gap: 20px; padding: 18px 26px 18px 18px; border-radius: 999px; background: var(--paper-2); font-size: 18px; font-weight: 600; }
 .keeper img { width: 92px; flex: none; margin: -14px 0; }
 
+/* ora visibile al pubblico */
+.now { position: relative; margin-top: 56px; display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: center; padding: 28px 32px 28px 20px; border-radius: 28px; background: linear-gradient(120deg, #FBE3E8, #FFF4E6); border: 1px solid #F3CCD5; }
+.now__art { width: 220px; margin: -40px 0 -20px; }
+.now__badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: var(--green-800); color: var(--white); font-size: 13px; font-weight: 800; }
+.now__dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: #FF5A6E; box-shadow: 0 0 0 0 rgba(255, 90, 110, .6); animation: live 1.8s ease-out infinite; }
+.now h3 { margin: 12px 0 8px; font-size: clamp(24px, 3vw, 32px); font-weight: 900; color: var(--green-800); }
+.now p + p { margin-top: 8px; }
+.now__tags { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.now__tags li { padding: 4px 12px; border-radius: 999px; background: #fff; color: var(--pink-deep); font-weight: 800; font-size: 14px; }
+@keyframes live { 70% { box-shadow: 0 0 0 9px rgba(255, 90, 110, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 90, 110, 0); } }
+.panda__live {
+  position: absolute; left: 0; top: 6%; display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px; border-radius: 999px; background: var(--green-900); color: var(--white); border: 1px solid rgba(247, 247, 247, .25);
+  font-weight: 800; font-size: 13px; box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .5); transform: rotate(-3deg); pointer-events: none; max-width: 70%;
+}
+
 /* CTO */
 .cto { display: grid; grid-template-columns: .8fr 1.2fr; gap: 48px; align-items: center; }
 .cto__art { position: relative; }
@@ -291,6 +307,9 @@ html:lang(zh-Hans) .story__big { font-family: var(--font-han); }
   .section { padding: 72px 0; }
   .name-card { padding-right: 32px; padding-bottom: 170px; }
   .name-card__art { width: 180px; }
+  .now { grid-template-columns: 1fr; padding: 24px; text-align: center; margin-top: 84px; }
+  .now__art { width: 170px; margin: -60px auto -10px; }
+  .now__tags { justify-content: center; }
 }
 @media (max-width: 640px) {
   .header .btn--sm { display: none; }

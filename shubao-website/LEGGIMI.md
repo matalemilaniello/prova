@@ -22,7 +22,7 @@ Inglese (predefinito), cinese e coreano, con il selettore in alto a destra. La s
 1. **Hero:** 曙宝 / 슈바오 / Shubao, significato del nome, testi approvati e pulsanti PancakeSwap, DexScreener e Telegram. Il cucciolo è cliccabile e squittisce con un suono sintetizzato.
 2. **Contratto:** indirizzo completo con pulsante «Copy» e conferma «Copied».
 3. **Dati di mercato:** prezzo, capitalizzazione, liquidità e variazione a 24 ore, letti in tempo reale da DexScreener nel browser del visitatore. Se DexScreener non risponde, la striscia non compare. Nessun numero è scritto a mano nel codice.
-4. **La sua storia:** testi approvati e fatti verificati del brief (171 g, oltre 9 kg, 220.000 voti, 42%, significato del nome, carattere). Le sorelle non vengono citate, come da scelta editoriale.
+4. **La sua storia:** testi approvati e fatti verificati del brief (171 g, oltre 9 kg, 220.000 voti, 42%, significato del nome, carattere). Segue un blocco sull'apertura al pubblico dal 30 ottobre 2026, confermata dalla stampa coreana, e sulla popolarità di Shubao su X, YouTube e social. Le sorelle non vengono citate, come da scelta editoriale.
 5. **Community takeover:** cosa significa CTO, senza attaccare il team precedente.
 6. **Come comprare:** quattro passaggi generici e avviso anti-truffa.
 7. **Link ufficiali:** X, Telegram, DexScreener, BscScan, PancakeSwap. Il vecchio account `x.com/ShuBaobnb` non c'è.
