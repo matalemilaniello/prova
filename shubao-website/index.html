@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>曙宝 (Shubao) | Community token on BNB Chain</title>
+  <meta name="description" content="曙宝 (Shubao, 슈바오) is a community token on BNB Chain inspired by the giant panda cub born in South Korea on June 3, 2026. Community-run, fan-made.">
+  <meta name="theme-color" content="#283016">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="曙宝 Shubao">
+  <meta property="og:title" content="曙宝 (Shubao) | Community token on BNB Chain">
+  <meta property="og:description" content="A treasure as bright as the dawn light. Community-run, fan-made token on BNB Chain.">
+  <meta property="og:image" content="assets/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@ShuBaoCto">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Nanum+Brush+Script&family=Nunito:wght@400;600;800;900&family=Noto+Sans+KR:wght@400;700;900&family=Noto+Sans+SC:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="assets/img/hero-panda-rest.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+  <header class="header" id="header">
+    <div class="wrap header__inner">
+      <a class="brand" href="#top" aria-label="曙宝 Shubao">
+        <span class="brand__icon"><img src="assets/icons/brand.png" alt="" width="40" height="40"></span>
+        <span class="brand__name"><span class="cjk-brush">曙宝</span> <span class="brand__latin">Shubao</span></span>
+      </a>
+
+      <nav class="nav" id="nav" aria-label="Main">
+        <a href="#story" data-i18n="nav.story"></a>
+        <a href="#cto" data-i18n="nav.cto"></a>
+        <a href="#buy" data-i18n="nav.buy"></a>
+        <a href="#links" data-i18n="nav.links"></a>
+      </nav>
+
+      <div class="header__actions">
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en" lang="en">EN</button>
+          <button type="button" data-lang="zh" lang="zh-Hans">中文</button>
+          <button type="button" data-lang="ko" lang="ko">한국어</button>
+        </div>
+        <a class="btn btn--pink btn--sm js-link" data-link="pancakeswap" data-i18n="nav.buyBtn"></a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav" data-i18n-label="nav.menu">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ============ HERO ============ -->
+    <section class="hero" id="top">
+      <div class="hero__dawn" aria-hidden="true"></div>
+      <svg class="bamboo bamboo--left" aria-hidden="true" viewBox="0 0 200 800"><use href="#bamboo"/></svg>
+      <svg class="bamboo bamboo--right" aria-hidden="true" viewBox="0 0 200 800"><use href="#bamboo"/></svg>
+
+      <div class="wrap hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow"><svg class="paw" aria-hidden="true"><use href="#paw"/></svg><span data-i18n="hero.eyebrow"></span></p>
+          <h1 class="hero__title">
+            <span class="hero__han" lang="zh-Hans">曙宝</span>
+            <span class="hero__alt"><span lang="ko">슈바오</span><span class="dot" aria-hidden="true">·</span><span lang="en">Shubao</span></span>
+          </h1>
+          <p class="hero__meaning" data-i18n="hero.meaning"></p>
+          <p class="hero__lead" data-i18n="hero.lead"></p>
+          <p class="hero__tagline"><span data-i18n="hero.tagline"></span></p>
+
+          <div class="hero__cta">
+            <a class="btn btn--pink js-link" data-link="pancakeswap" data-i18n="hero.buy"></a>
+            <a class="btn btn--ghost js-link" data-link="dexscreener" data-i18n="hero.chart"></a>
+            <a class="btn btn--ghost js-link" data-link="telegram" data-i18n="hero.telegram"></a>
+          </div>
+        </div>
+
+        <div class="hero__art">
+          <div class="sun" aria-hidden="true"></div>
+          <button class="panda" id="panda" type="button" data-i18n-label="hero.pandaLabel">
+            <img class="panda__img panda__img--rest" src="assets/img/hero-panda-rest.webp" alt="" width="1400" height="1400">
+            <img class="panda__img panda__img--squeak" src="assets/img/hero-panda-squeak.webp" alt="" width="1400" height="1400" loading="lazy">
+          </button>
+          <span class="panda__hint" aria-hidden="true"><svg class="paw"><use href="#paw"/></svg><span data-i18n="hero.tap"></span></span>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div class="ca" id="ca">
+          <span class="ca__label" data-i18n="ca.label"></span>
+          <div class="ca__row">
+            <code class="ca__value" id="caValue"></code>
+            <button class="ca__copy" id="caCopy" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              <span id="caCopyText" data-i18n="ca.copy"></span>
+            </button>
+          </div>
+          <p class="ca__note" data-i18n="ca.note"></p>
+        </div>
+
+        <dl class="stats" id="stats" hidden>
+          <div><dt data-i18n="stats.price"></dt><dd id="sPrice">-</dd></div>
+          <div><dt data-i18n="stats.mcap"></dt><dd id="sMcap">-</dd></div>
+          <div><dt data-i18n="stats.liq"></dt><dd id="sLiq">-</dd></div>
+          <div><dt data-i18n="stats.change"></dt><dd id="sChange">-</dd></div>
+        </dl>
+        <p class="stats__src" id="statsSrc" hidden data-i18n="stats.source"></p>
+      </div>
+    </section>
+
+    <!-- ============ DAWN BAND ============ -->
+    <div class="band" aria-hidden="true">
+      <img src="assets/img/hero-1600.webp" srcset="assets/img/hero-1600.webp 1600w, assets/img/hero-2560.webp 2560w" sizes="100vw" alt="" loading="lazy" width="2560" height="1428">
+    </div>
+
+    <!-- ============ STORY ============ -->
+    <section class="section paper" id="story">
+      <div class="wrap story">
+        <div class="story__text">
+          <p class="kicker" data-i18n="story.kicker"></p>
+          <h2 class="section__title" data-i18n="story.title"></h2>
+          <div class="story__poem">
+            <p class="story__big" data-i18n="story.p1a"></p>
+            <p data-i18n="story.p1b"></p>
+            <p data-i18n="story.p1c"></p>
+            <p data-i18n="story.p2"></p>
+            <p class="story__em" data-i18n="story.p3"></p>
+          </div>
+        </div>
+        <figure class="story__art reveal">
+          <img src="assets/img/shubao-basket-800.webp" srcset="assets/img/shubao-basket-800.webp 800w, assets/img/shubao-basket-1600.webp 1600w" sizes="(max-width: 900px) 90vw, 480px" alt="" width="1600" height="1600" loading="lazy">
+          <figcaption><svg class="paw" aria-hidden="true"><use href="#paw"/></svg><span data-i18n="story.born"></span></figcaption>
+        </figure>
+      </div>
+
+      <div class="wrap">
+        <ul class="facts">
+          <li class="fact reveal"><strong data-i18n="story.f1.v"></strong><span data-i18n="story.f1.l"></span></li>
+          <li class="fact reveal"><strong data-i18n="story.f2.v"></strong><span data-i18n="story.f2.l"></span></li>
+          <li class="fact reveal"><strong data-i18n="story.f3.v"></strong><span data-i18n="story.f3.l"></span></li>
+          <li class="fact reveal"><strong data-i18n="story.f4.v"></strong><span data-i18n="story.f4.l"></span></li>
+        </ul>
+
+        <div class="name-card reveal">
+          <div class="name-card__glyphs" aria-hidden="true">
+            <span lang="zh-Hans">曙</span><span lang="zh-Hans">宝</span>
+          </div>
+          <div class="name-card__text">
+            <h3 data-i18n="story.name.title"></h3>
+            <p data-i18n="story.name.text"></p>
+            <p class="muted" data-i18n="story.name.date"></p>
+          </div>
+          <img class="name-card__art" src="assets/img/sticker-crawl-800.webp" alt="" width="800" height="800" loading="lazy">
+        </div>
+
+        <p class="keeper reveal"><img src="assets/img/sticker-choux-800.webp" alt="" width="800" height="800" loading="lazy"><span data-i18n="story.keeper"></span></p>
+      </div>
+    </section>
+
+    <!-- ============ CTO ============ -->
+    <section class="section" id="cto">
+      <div class="wrap cto">
+        <div class="cto__art reveal">
+          <img src="assets/img/sticker-loud-800.webp" alt="" width="800" height="800" loading="lazy">
+        </div>
+        <div class="cto__text">
+          <p class="kicker" data-i18n="cto.kicker"></p>
+          <h2 class="section__title" data-i18n="cto.title"></h2>
+          <blockquote class="cto__quote"><p data-i18n="cto.quote"></p></blockquote>
+          <p class="cto__lead" data-i18n="cto.p1"></p>
+          <ul class="ticks">
+            <li><h3 data-i18n="cto.l1.t"></h3><p data-i18n="cto.l1.d"></p></li>
+            <li><h3 data-i18n="cto.l2.t"></h3><p data-i18n="cto.l2.d"></p></li>
+            <li><h3 data-i18n="cto.l3.t"></h3><p data-i18n="cto.l3.d"></p></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HOW TO BUY ============ -->
+    <section class="section section--deep" id="buy">
+      <div class="wrap">
+        <p class="kicker" data-i18n="buy.kicker"></p>
+        <h2 class="section__title" data-i18n="buy.title"></h2>
+        <ol class="steps">
+          <li class="step reveal"><span class="step__n">1</span><h3 data-i18n="buy.s1.t"></h3><p data-i18n="buy.s1.d"></p></li>
+          <li class="step reveal"><span class="step__n">2</span><h3 data-i18n="buy.s2.t"></h3><p data-i18n="buy.s2.d"></p></li>
+          <li class="step reveal"><span class="step__n">3</span><h3 data-i18n="buy.s3.t"></h3><p data-i18n="buy.s3.d"></p></li>
+          <li class="step reveal"><span class="step__n">4</span><h3 data-i18n="buy.s4.t"></h3><p data-i18n="buy.s4.d"></p></li>
+        </ol>
+        <div class="buy__row">
+          <a class="btn btn--pink js-link" data-link="pancakeswap" data-i18n="buy.cta"></a>
+          <p class="muted" data-i18n="buy.note"></p>
+        </div>
+
+        <aside class="safe reveal" aria-labelledby="safeTitle">
+          <svg class="safe__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M12 8v5M12 16.5v.5"/></svg>
+          <div>
+            <h3 id="safeTitle" data-i18n="safe.title"></h3>
+            <p data-i18n="safe.p1"></p>
+            <p data-i18n="safe.p2"></p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ LINKS ============ -->
+    <section class="section" id="links">
+      <div class="wrap">
+        <p class="kicker" data-i18n="links.kicker"></p>
+        <h2 class="section__title" data-i18n="links.title"></h2>
+        <div class="links">
+          <a class="link-card js-link" data-link="x">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M17.8 2.5h3.3l-7.2 8.2 8.5 10.8h-6.6l-5.2-6.8-6 6.8H1.3l7.7-8.8L.9 2.5h6.8l4.7 6.2zm-1.2 17h1.8L6.6 4.4H4.6z"/></svg>
+            <span class="link-card__name">@ShuBaoCto</span><span class="link-card__desc" data-i18n="links.x"></span>
+          </a>
+          <a class="link-card js-link" data-link="telegram">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M21.9 4.3 18.7 19.4c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.9-8c.4-.3-.1-.5-.6-.2L6.5 13.2 1.8 11.7c-1-.3-1-1 .2-1.5L20.5 3c.9-.3 1.6.2 1.4 1.3z"/></svg>
+            <span class="link-card__name">Telegram</span><span class="link-card__desc" data-i18n="links.telegram"></span>
+          </a>
+          <a class="link-card js-link" data-link="dexscreener">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg>
+            <span class="link-card__name">DexScreener</span><span class="link-card__desc" data-i18n="links.dexscreener"></span>
+          </a>
+          <a class="link-card js-link" data-link="bscscan">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg>
+            <span class="link-card__name">BscScan</span><span class="link-card__desc" data-i18n="links.bscscan"></span>
+          </a>
+          <a class="link-card js-link" data-link="pancakeswap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-4-4M20 16H7l4 4"/></svg>
+            <span class="link-card__name">PancakeSwap</span><span class="link-card__desc" data-i18n="links.pancakeswap"></span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <img class="footer__art" src="assets/img/sticker-morning-800.webp" alt="" width="800" height="800" loading="lazy">
+      <div>
+        <p class="footer__brand"><span class="cjk-brush">曙宝</span> <span lang="ko">슈바오</span> · Shubao</p>
+        <p class="footer__disclaimer" data-i18n="footer.disclaimer"></p>
+        <p class="footer__small"><span data-i18n="footer.art"></span> <span data-i18n="footer.made"></span> &copy; <span id="year">2026</span></p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Simboli SVG riutilizzati -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="paw" viewBox="0 0 24 24"><ellipse cx="12" cy="16" rx="5" ry="4.2"/><ellipse cx="5.2" cy="10.4" rx="2.1" ry="2.6"/><ellipse cx="9.3" cy="6.6" rx="2.1" ry="2.7"/><ellipse cx="14.7" cy="6.6" rx="2.1" ry="2.7"/><ellipse cx="18.8" cy="10.4" rx="2.1" ry="2.6"/></symbol>
+    <symbol id="bamboo" viewBox="0 0 200 800">
+      <g fill="none" stroke="currentColor" stroke-linecap="round">
+        <path d="M70 820 C68 600 74 400 72 -20" stroke-width="14"/>
+        <path d="M60 620h24M60 420h24M61 220h22" stroke-width="5"/>
+        <path d="M140 820 C142 640 136 450 140 120" stroke-width="10"/>
+        <path d="M132 520h18M133 320h16" stroke-width="4"/>
+      </g>
+      <g fill="currentColor">
+        <path d="M74 300c30-18 70-20 110-8-40 6-78 18-110 8z"/>
+        <path d="M74 310c26 10 52 34 66 66-24-22-50-40-66-66z"/>
+        <path d="M70 160c-26-20-52-26-80-22 30 6 54 14 80 22z"/>
+        <path d="M140 220c22-26 44-38 70-42-24 12-46 26-70 42z"/>
+        <path d="M140 230c10 26 12 52 6 80-6-26-8-52-6-80z"/>
+        <path d="M72 520c-30 4-56 18-74 40 24-14 48-28 74-40z"/>
+      </g>
+    </symbol>
+  </svg>
+
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
