@@ -1,6 +1,6 @@
 # 曙宝 Shubao: sito della community
 
-Sito a pagina unica del token community 曙宝 (Shubao, 슈바오) su BNB Chain, costruito sul brief in `BRIEF.md`.
+Sito a pagina unica del token community 曙宝 (Shubao, 슈바오) su BNB Chain, costruito sul brief della community. Il brief non è nel repository, perché contiene note interne.
 
 È un sito statico: HTML, CSS e JavaScript senza installazioni né compilazione. Per vederlo basta aprire `index.html` nel browser, oppure caricare la cartella su un hosting.
 
@@ -34,18 +34,22 @@ Le illustrazioni in `assets/img/` sono quelle originali del progetto precedente:
 
 ## Pubblicare
 
-- **Cloudflare Pages o Netlify:** trascina la cartella `shubao-website` nella pagina di caricamento manuale. Non serve nessun comando di compilazione.
-- **Vercel:** importa il progetto e indica `shubao-website` come cartella principale, senza comandi di build.
-- **Dominio:** non usare "everland" nel nome.
+Hosting scelto: **Cloudflare Pages**, gratuito, con indirizzo `https://shubao.pages.dev`.
 
-Dopo aver scelto il dominio, in `index.html` va cambiata la riga `og:image`, mettendo l'indirizzo completo (per esempio `https://dominio.xyz/assets/og.jpg`). Così l'anteprima su X e Telegram funziona.
+1. Crea un account gratuito su dash.cloudflare.com.
+2. Vai in **Workers e Pages → Crea → Pages → Carica risorse**.
+3. Come nome del progetto usa `shubao`, poi trascina la cartella `shubao-website` (o lo zip) e conferma.
+
+Se il nome `shubao` è già preso, Cloudflare assegna un indirizzo diverso. In quel caso in `index.html` vanno aggiornate le righe `og:url`, `og:image` e `canonical`, altrimenti l'anteprima su X e Telegram non compare.
+
+Più avanti si può collegare un dominio proprio, sempre da Cloudflare. Non usare "everland" nel nome.
 
 ## Da fare prima di andare online
 
-1. **Link PancakeSwap.** Aprirlo e controllare che preselezioni 曙宝. Nel brief è segnato come da verificare.
-2. **Traduzioni.** Far rileggere a un madrelingua cinese e coreano, in `js/i18n.js`. Le parti non approvate nel brief le ho tradotte io.
+1. **Link PancakeSwap.** Il formato `swap?outputCurrency=…&chain=bsc` è quello usato normalmente, ma non è stato possibile aprirlo da qui. Dopo la pubblicazione basta un clic per vedere se preseleziona 曙宝.
+2. **Traduzioni.** Cinese e coreano sono stati riletti, ma non da un madrelingua. Se nella community c'è qualcuno che li parla, conviene fargli dare un'occhiata a `js/i18n.js`.
 3. **Logo.** Quando sarà disponibile `icon_square.png`, decidere se sostituire l'icona attuale del cucciolo illustrato in `assets/icons/`. Attenzione: è una foto, quindi valgono le regole del brief su diritti e watermark.
-4. **Dominio e pubblicazione.** Vedi sopra.
+4. **Pubblicazione.** Vedi sopra.
 5. **Dopo la pubblicazione.** Seguire la sezione 10 del brief: bio di X, supporto DexScreener e ticket Fomo.
 
 Supply, tasse e liquidità bloccata non compaiono sul sito, perché non sono ancora verificati.
