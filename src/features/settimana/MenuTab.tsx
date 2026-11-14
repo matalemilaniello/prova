@@ -12,34 +12,31 @@
  * card «Scegli tu» con le ricette del pasto e il piano B; nella settimana dopo, con una proposta aperta, la card «Menù
  * nuovo» in cima e un punto ambra con la ricetta nuova sui pasti che cambierebbero.
  */
-import { useId, useMemo, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Activity, ArrowLeftRight, BadgeCheck, BriefcaseBusiness, ChefHat, ChevronDown, Dumbbell, Layers, Repeat, ShoppingBasket, Sparkles, Store, UtensilsCrossed } from 'lucide-react';
-import type { DayType, ISODate, IngredientLine, MealSlot, Plan, AppData } from '../../domain/types';
+import { useId, useMemo, useState, type ReactNode } from 'react';
+import { motion } from 'motion/react';
+import { Activity, ArrowLeftRight, BadgeCheck, BriefcaseBusiness, ChevronDown, Dumbbell, Layers, Repeat, ShoppingBasket, Sparkles, Store, UtensilsCrossed } from 'lucide-react';
+import type { DayType, ISODate, MealSlot, Plan, AppData } from '../../domain/types';
 import { FOODS } from '../../data/foods';
 import { RECIPES } from '../../data/recipes';
 import { formatDayLong, formatRelativeDay, weekdayOf } from '../../engine/dates';
 import { workBlocksFor } from '../../engine/mealTimes';
 import { MEAL_SLOTS, mealsForDate, type MealEntry, type MenuSource } from '../../engine/menu';
-import { dayNutritionDetail, nutritionStateOf, portionParts, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
-import { foodState, shopName } from '../../engine/shopping';
+import { dayNutritionDetail, nutritionStateOf, recipeNutrition, totalCarbFactor } from '../../engine/nutrition';
 import { clearedMealDetail } from '../../engine/timeline';
 import { formatWork } from '../../engine/work';
 import { capitalize, fmtNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useApp, useUi } from '../../state/store';
 import { usePlanDay } from '../../state/hooks';
-import { BallIcon, Button, Card, DayTypeBadge, Disclosure, EmptyState, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, cn, staggerItem } from '../../ui';
+import { BallIcon, Button, Card, DayTypeBadge, Disclosure, EmptyState, IconButton, NumberTicker, Pill, Pressable, ProgressBar, ProgressRing, SectionTitle, cn, staggerItem } from '../../ui';
 import { toneColor, toneInk } from '../../ui/tones';
 import { DishArt } from './art/DishArt';
 import type { IconLike } from '../../ui/icon';
-import { swatchFor } from './art/foodArt';
 import {
   dayActivities,
   dayVerdict,
   fiberReferenceG,
   firstShoppingSafe,
-  lowerFirst,
   mealScheduleFor,
   portionShort,
   preShoppingSlots,
@@ -146,8 +143,6 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping, proposal }: MenuT
         </Card>
       ) : (
         <>
-          <DayNutritionCard colorType={colorType} detail={detail} starter={meals.starter} />
-
           <section className="flex flex-col gap-3" aria-labelledby="settimana-pasti">
             <SectionTitle
               id="settimana-pasti"
@@ -156,56 +151,56 @@ export function MenuTab({ date, plan, dayLogs, onOpenShopping, proposal }: MenuT
                   {source.label}
                 </Pill>
               }
-              subtitle={
-                <PortionNote
-                  dayType={dayType}
-                  colorType={colorType}
-                  factor={factor}
-                  matchEve={meals.matchEve}
-                  floor={detail.matchCarbs?.gPerKg}
-                />
-              }
             >
               Pasti del giorno
             </SectionTitle>
-            <ul className="flex flex-col gap-3">
-              {slots.map((slot, i) => {
-                const m = meals.bySlot[slot];
-                const title = (schedule[slot]?.title ?? capitalize(slot)).split(',')[0];
-                return (
-                  <motion.li key={`${date}-${slot}`} {...staggerItem(i)}>
-                    {m ? (
-                      <MealCard
-                        entry={m}
-                        date={date}
-                        dayType={dayType}
-                        colorType={colorType}
-                        scale={scale}
-                        title={title}
-                        time={schedule[slot]?.time}
-                        carry={schedule[slot]?.carry}
-                        beforeShop={mixedShop && beforeShop.has(slot)}
-                        sunday={sunday}
-                        proposed={proposed?.[slot]}
-                        onSwap={() => setSwapSlot(slot)}
-                      />
-                    ) : (
-                      <ClearedMealCard
-                        slot={slot}
-                        scheme={clearedMealDetail(slot, day)}
-                        title={title}
-                        time={schedule[slot]?.time}
-                        reason={clearedReason(cleared[slot], plan, date)}
-                        proposed={proposed?.[slot]}
-                        onSwap={() => setSwapSlot(slot)}
-                      />
-                    )}
-                  </motion.li>
-                );
-              })}
-            </ul>
+            {/* Una riga per pasto in una sola card: nome e kcal. Ingredienti, porzioni e passaggi stanno nella ricetta. */}
+            <Card padding="none" className="overflow-hidden">
+              <ul>
+                {slots.map((slot, i) => {
+                  const m = meals.bySlot[slot];
+                  const title = (schedule[slot]?.title ?? capitalize(slot)).split(',')[0];
+                  return (
+                    <motion.li key={`${date}-${slot}`} {...staggerItem(i)} className={cn(i > 0 && 'border-t border-line')}>
+                      {m ? (
+                        <MealCard
+                          entry={m}
+                          date={date}
+                          dayType={dayType}
+                          colorType={colorType}
+                          scale={scale}
+                          title={title}
+                          time={schedule[slot]?.time}
+                          carry={schedule[slot]?.carry}
+                          beforeShop={mixedShop && beforeShop.has(slot)}
+                          sunday={sunday}
+                          proposed={proposed?.[slot]}
+                          onSwap={() => setSwapSlot(slot)}
+                        />
+                      ) : (
+                        <ClearedMealCard
+                          slot={slot}
+                          scheme={clearedMealDetail(slot, day)}
+                          title={title}
+                          time={schedule[slot]?.time}
+                          reason={clearedReason(cleared[slot], plan, date)}
+                          proposed={proposed?.[slot]}
+                          onSwap={() => setSwapSlot(slot)}
+                        />
+                      )}
+                    </motion.li>
+                  );
+                })}
+              </ul>
+            </Card>
             {source.note && <p className="t-footnote px-1 text-ink-3">{source.note}</p>}
           </section>
+          <DayNutritionCard
+            colorType={colorType}
+            detail={detail}
+            starter={meals.starter}
+            note={<PortionNote dayType={dayType} colorType={colorType} factor={factor} matchEve={meals.matchEve} floor={detail.matchCarbs?.gPerKg} />}
+          />
           <Disclosure variant="inline" tone="quiet" title="Come si misurano le porzioni" className="px-1">
             Palmo, pugno e mano a coppa sono quelli della tua mano: crescono con te. Accanto a ogni porzione ci sono i
             grammi, per controllare con la bilancia le prime volte. Valori stimati dalle tabelle CREA e USDA.
@@ -290,7 +285,9 @@ function StarterNote({ date, shop, onOpenShopping }: { date: ISODate; shop: Firs
  * delle fibre ha la tacca del riferimento di quei giorni (`fiberReferenceG`, circa 28 g su 35), il giudizio si fa su
  * quello e una riga sola lo dice.
  */
-function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; detail: ReturnType<typeof dayNutritionDetail>; starter?: boolean }) {
+function DayNutritionCard({ colorType, detail, starter, note }: { colorType: DayType; detail: ReturnType<typeof dayNutritionDetail>; starter?: boolean; note?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
   // Obiettivo della data: tipo di giorno effettivo più il minimo di carboidrati di partita e vigilia.
   const target = detail.target;
   const t = detail.total;
@@ -307,14 +304,34 @@ function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; 
     { label: 'Fibre', v: t.fiberG, target: target.fiberG, marker: ramp && target.fiberG ? fiberRef / target.fiberG : undefined },
   ];
   return (
-    <Card variant="highlight" tone={colorType} padding="lg" as="section" aria-label="Valori stimati del giorno">
-      <div className="flex items-center justify-between gap-3">
-        <span className="t-label text-ink-3">Stima dal menù</span>
-        <Pill tone={verdict.good ? 'good' : 'warn'} dot>
-          {verdict.text}
-        </Pill>
-      </div>
-      <div className="mt-4 flex items-center gap-4">
+    <Card padding="none" as="section" aria-label="Valori stimati del giorno" className="overflow-hidden">
+      {/* Chiusa dice solo se il giorno è in linea; i numeri si aprono con un tocco. */}
+      <button
+        type="button"
+        onClick={() => {
+          haptic('selection');
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        aria-controls={open ? bodyId : undefined}
+        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 active:bg-ink-soft"
+      >
+        <span aria-hidden className={cn('size-2.5 shrink-0 rounded-full', verdict.good ? 'bg-good' : 'bg-warn')} />
+        <span className="min-w-0 flex-1">
+          <span className="t-callout block font-semibold text-ink">{verdict.text}</span>
+          <span className="t-footnote block text-ink-2">
+            <span className="tabular">{fmtNumber(Math.round(t.kcal / 10) * 10)}</span> kcal dal menù
+          </span>
+        </span>
+        <span className="t-footnote inline-flex shrink-0 items-center gap-1 font-semibold text-accent-ink">
+          {open ? 'Chiudi' : 'Valori'}
+          <ChevronDown aria-hidden size={16} strokeWidth={2.4} className={cn('transition-transform duration-200', open && 'rotate-180')} />
+        </span>
+      </button>
+      {open && (
+      <div id={bodyId} className="border-t border-line p-5">
+      {note && <div className="mb-4">{note}</div>}
+      <div className="flex items-center gap-4">
         <ProgressRing
           value={ratio}
           size={108}
@@ -377,6 +394,8 @@ function DayNutritionCard({ colorType, detail, starter }: { colorType: DayType; 
           <span className="text-ink-3">, obiettivo 5</span>
         </p>
       </div>
+      </div>
+      )}
     </Card>
   );
 }
@@ -420,7 +439,7 @@ function ClearedMealCard({
 }) {
   const scheme = detail.replace(/^Scegli tu: /, '');
   return (
-    <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: scegli tu`}>
+    <article aria-label={`${title}: scegli tu`}>
       <div className="flex items-start gap-3.5 p-4 pb-3">
         <span
           aria-hidden
@@ -459,7 +478,7 @@ function ClearedMealCard({
           Piano B
         </button>
       </div>
-    </Card>
+    </article>
   );
 }
 
@@ -486,21 +505,9 @@ interface MealCardProps {
   onSwap: () => void;
 }
 
-const SPICE_MAX_G = 6;
-
-/** La porzione mostrata cambia rispetto a quella della ricetta (giorno di palestra, obiettivi predefiniti)? */
-function portionChanged(line: IngredientLine, dayType: DayType, scale: number): boolean {
-  if (!line.carbScaled) return false;
-  return portionParts(line, dayType, FOODS, scale).portion !== portionParts(line, 'palestra', FOODS, 1).portion;
-}
-
 function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, beforeShop, sunday, proposed, onSwap }: MealCardProps) {
   const recipe = entry.recipe;
   const n = useMemo(() => recipeNutrition(recipe, dayType, FOODS, scale), [recipe, dayType, scale]);
-  const [open, setOpen] = useState(false);
-  const listId = useId();
-  const reduce = useReducedMotion();
-
   if (!recipe) {
     return (
       <Card>
@@ -509,30 +516,18 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, 
     );
   }
 
-  const lines = recipe.ingredients.map((l, idx) => {
-    const food = FOODS[l.foodId];
-    const p = portionParts(l, dayType, FOODS, scale);
-    return { l, idx, food, p, changed: portionChanged(l, dayType, scale), spice: Boolean(food?.pantry) && p.grams < SPICE_MAX_G && l.foodId !== 'olio-evo' };
-  });
-  const main = lines.filter((x) => !x.spice);
-  const changed = main.filter((x) => x.changed);
-  const spices = lines.filter((x) => x.spice).map((x) => (x.food ? lowerFirst(shopName(x.food)) : x.l.foodId));
-
   const openRecipe = () => useUi.getState().open({ type: 'recipe', recipeId: entry.recipeId, date, slot: entry.slot });
-  const toggle = () => {
-    haptic('selection');
-    setOpen((v) => !v);
-  };
+  const mark = entry.swapped ? 'Cambiato' : beforeShop ? 'Dopo la spesa' : recipe.batch ? (sunday ? 'Dalla preparazione di oggi' : 'Pronta dalla domenica') : null;
 
   return (
-    <Card padding="none" as="article" className="overflow-hidden" aria-label={`${title}: ${recipe.name}`}>
+    <article className="flex items-center" aria-label={`${title}: ${recipe.name}`}>
       <Pressable
         onPress={openRecipe}
         pressScale={0.985}
-        className="flex w-full items-center gap-3.5 p-4 pb-3.5"
-        aria-label={`${title}, ${recipe.name}${carry ? ', da portare al lavoro' : ''}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}${proposed ? `, nel menù nuovo ${RECIPES[proposed]?.name ?? 'un’altra ricetta'}` : ''}. Apri la ricetta`}
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 pr-1"
+        aria-label={`${title}, ${recipe.name}, ${fmtNumber(Math.round(n.kcal / 10) * 10)} kcal${carry ? ', da portare al lavoro' : ''}${entry.swapped ? ', cambiato' : beforeShop ? ', dopo la spesa' : ''}${proposed ? `, nel menù nuovo ${RECIPES[proposed]?.name ?? 'un’altra ricetta'}` : ''}. Apri la ricetta`}
       >
-        <span className="relative size-14 shrink-0 self-start">
+        <span className="relative size-12 shrink-0">
           <DishArt recipe={recipe} dayType={colorType} variant="thumb" className="size-full" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
@@ -541,138 +536,20 @@ function MealCard({ entry, date, dayType, colorType, scale, title, time, carry, 
             {time && <span className="t-mono shrink-0 text-[0.75rem] text-ink-3">{time}</span>}
             {carry && <span className="t-caption shrink-0 font-semibold text-ink-2">Da portare</span>}
           </span>
-          <span className="t-headline mt-0.5 text-ink">{recipe.name}</span>
-          <span className="t-footnote mt-1 text-ink-2">
-            <span className="font-semibold text-ink tabular">{fmtNumber(Math.round(n.kcal))}</span> kcal
-            <span aria-hidden className="text-ink-3"> · </span>
-            <span className="whitespace-nowrap">
-              <span className="font-semibold text-ink tabular">{fmtNumber(Math.round(n.proteinG))}</span> g proteine
-            </span>
-            <span aria-hidden className="text-ink-3"> · </span>
-            <span className="whitespace-nowrap">{recipe.prepMin} min</span>
+          <span className="t-callout mt-0.5 line-clamp-2 font-semibold text-ink">{recipe.name}</span>
+          <span className="t-footnote mt-0.5 text-ink-2">
+            <span className="tabular">{fmtNumber(Math.round(n.kcal / 10) * 10)}</span> kcal
+            {mark && (
+              <>
+                <span aria-hidden className="text-ink-3"> · </span>
+                <span className={entry.swapped ? 'font-semibold text-accent-ink' : undefined}>{mark}</span>
+              </>
+            )}
           </span>
-          {/* Le porzioni cambiate per il tipo di giorno, a parole: i grammi sono negli ingredienti e nella ricetta. A pezzi
-              la porzione nomina già l'alimento ("7 gallette di riso"), mai "7 gallette di gallette di riso". */}
-          {!open && changed.length > 0 && (
-            <span className="mt-1.5 flex flex-col gap-0.5">
-              {changed.map(({ l, idx, food, p }) => (
-                <span key={`${l.foodId}-${idx}`} className="t-footnote text-pretty text-ink-2">
-                  {p.named ? (
-                    <span className="font-semibold" style={{ color: toneInk(colorType) }}>
-                      {p.named}
-                    </span>
-                  ) : (
-                    <>
-                      <span className="font-semibold" style={{ color: toneInk(colorType) }}>
-                        {p.portion}
-                      </span>{' '}
-                      di {food ? lowerFirst(shopName(food)) : l.foodId}
-                    </>
-                  )}
-                </span>
-              ))}
-            </span>
-          )}
           {proposed && <ProposedLine recipeId={proposed} />}
-          {(entry.swapped || beforeShop || recipe.batch) && (
-            <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-              {entry.swapped ? (
-                <Pill tone="accent" size="sm">
-                  Cambiato
-                </Pill>
-              ) : beforeShop ? (
-                <Pill tone="neutral" size="sm" icon={ShoppingBasket}>
-                  Dopo la spesa
-                </Pill>
-              ) : null}
-              {recipe.batch && (
-                <span className="t-caption inline-flex items-center gap-1 text-ink-3">
-                  <ChefHat aria-hidden size={13} strokeWidth={2.2} />
-                  {sunday ? 'Dalla preparazione di oggi' : 'Pronta dalla domenica'}
-                </span>
-              )}
-            </span>
-          )}
         </span>
       </Pressable>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.ul
-            key="righe"
-            id={listId}
-            initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
-            animate={reduce ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
-            exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden border-t border-line"
-            aria-label="Ingredienti"
-          >
-            <li className="h-2" aria-hidden />
-            <AnimatePresence initial={false}>
-              {main.map(({ l, idx, food, p, changed: isChanged }) => {
-                const name = food ? shopName(food) : l.foodId;
-                const state = food ? foodState(food) : undefined;
-                const hand = l.unit !== 'g' && l.unit !== 'ml';
-                return (
-                  <motion.li
-                    key={`${l.foodId}-${idx}`}
-                    layout="position"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.16 }}
-                    className="mx-4 flex items-start gap-2.5 py-1"
-                  >
-                    <span
-                      aria-hidden
-                      className="mt-[6px] size-2 shrink-0 rounded-full"
-                      style={{ background: swatchFor(l.foodId, food), boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)' }}
-                    />
-                    <span className="t-footnote min-w-0 flex-1 text-ink">
-                      {name}
-                      {state && <span className="text-ink-3"> {state}</span>}
-                    </span>
-                    <span className="t-footnote max-w-[55%] shrink-0 text-right leading-5">
-                      <span className="font-medium" style={{ color: isChanged ? toneInk(colorType) : 'var(--ink-2)' }}>
-                        {p.portion}
-                      </span>
-                      {hand && p.grams > 0 && <span className="tabular whitespace-nowrap text-ink-3"> · ≈&nbsp;{p.grams}&nbsp;g</span>}
-                    </span>
-                  </motion.li>
-                );
-              })}
-            </AnimatePresence>
-            {spices.length > 0 && <li className="t-caption mx-4 pt-1 text-ink-3">Per insaporire: {spices.join(', ')}</li>}
-            <li className="h-2" aria-hidden />
-          </motion.ul>
-        )}
-      </AnimatePresence>
-
-      {/* Due collegamenti quieti allineati al testo, senza una fascia divisa: la card resta il pasto, non una barra di comandi. */}
-      <div className={cn('flex items-center gap-5 pb-2.5 pl-[86px] pr-4', open ? 'pt-1' : '-mt-1.5')}>
-        <button
-          type="button"
-          onClick={onSwap}
-          aria-label={`Cambia ${title.toLowerCase()}`}
-          className="hit-44 t-footnote inline-flex h-8 items-center gap-1.5 font-semibold text-ink-2 transition-opacity duration-150 active:opacity-60"
-        >
-          <ArrowLeftRight aria-hidden size={14} strokeWidth={2.4} className="text-accent-ink" />
-          Cambia
-        </button>
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
-          className="hit-44 t-footnote inline-flex h-8 items-center gap-1 font-medium text-ink-2 transition-opacity duration-150 active:opacity-60"
-        >
-          {recipe.ingredients.length} ingredienti
-          <motion.span aria-hidden className="inline-flex" animate={{ rotate: open ? 180 : 0 }} transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}>
-            <ChevronDown size={15} strokeWidth={2.4} />
-          </motion.span>
-        </button>
-      </div>
-    </Card>
+      <IconButton icon={ArrowLeftRight} label={`Cambia ${title.toLowerCase()}`} onClick={onSwap} className="mr-1.5 shrink-0" />
+    </article>
   );
 }

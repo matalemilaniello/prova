@@ -12,12 +12,12 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CircleCheck, Dumbbell } from 'lucide-react';
 import type { WorkoutLog } from '../../domain/types';
 import { daysBetween, formatDayTitle, formatMonth, formatWeekday, weekIndexSince } from '../../engine/dates';
-import { FOOTBALL_LABEL, fmtNumber } from '../../lib/format';
+import { FOOTBALL_LABEL, fmtNumber, plural } from '../../lib/format';
 import { sessionFor } from '../../engine/plan/program';
 import { gateForLater, introLevel, sessionLoad } from '../../engine/training';
 import { useNow, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Card, DayTypeBadge, EmptyState, ListGroup, ListRow, Pill, Screen, SectionTitle } from '../../ui';
+import { Card, DayTypeBadge, Disclosure, EmptyState, ListGroup, ListRow, Pill, Screen, SectionTitle } from '../../ui';
 import StoricoPage from '../piano/StoricoPage';
 import { openProposalSheet, undoApproval } from '../piano/actions';
 import { blockSessions, blockWeekLabel, ensureBlockProposal, openBlockProposal, pendingBlock, sessionName, type EnsureResult } from './blocks';
@@ -200,16 +200,19 @@ export default function AllenamentoScreen() {
 
           <PhysioSection physio={physio} plan={plan} onEdit={() => setPhysioOpen(true)} />
 
-          <StrengthSection rows={data.strength} physio={physio} />
+          {/* Forza stimata e storico servono ogni tanto: stanno dietro un tocco, così la schermata resta della prossima seduta. */}
+          <Disclosure title="Forza stimata e storico" summary={data.history.length ? plural(data.history.length, 'seduta', 'sedute') : undefined} className="px-1" contentClassName="flex flex-col gap-6 pt-3">
+            <StrengthSection rows={data.strength} physio={physio} />
 
-          <HistorySection
-            history={data.history}
-            recordById={data.recordById}
-            physio={physio}
-            plan={plan}
-            onOpen={(log) => setDetail({ log, open: true })}
-            onStart={() => startSession(data.next?.sessionId ?? 'A')}
-          />
+            <HistorySection
+              history={data.history}
+              recordById={data.recordById}
+              physio={physio}
+              plan={plan}
+              onOpen={(log) => setDetail({ log, open: true })}
+              onStart={() => startSession(data.next?.sessionId ?? 'A')}
+            />
+          </Disclosure>
 
           {(pastBlocks > 0 || plan.program) && <PastBlocksRow onOpen={() => setStorico(true)} />}
 

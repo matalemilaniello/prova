@@ -53,7 +53,8 @@ export function WeekCard({ days, status, planned, onDay }: WeekCardProps) {
         {days.map((d, i) => {
           const t = tileFor(d);
           const color = toneColor(t.tone);
-          const sub = d.load > 0 ? fmtNumber(d.load) : d.football && !d.football.log && !d.isPast ? d.football.time : d.gym && !d.gym.log && !d.isPast ? (d.gym.time ?? '') : '';
+          // Sotto il giorno solo l'orario di quello che manca: il carico in numeri sta dietro «Carico della settimana».
+          const sub = d.football && !d.football.log && !d.isPast ? d.football.time : d.gym && !d.gym.log && !d.isPast ? (d.gym.time ?? '') : '';
           const body = (
             <>
               <span className={cn('t-label text-[0.625rem]', d.isToday ? 'text-accent-ink' : 'text-ink-3')}>{WEEKDAY_INITIAL[d.weekday]}</span>
@@ -110,23 +111,25 @@ export function WeekCard({ days, status, planned, onDay }: WeekCardProps) {
           );
         })}
       </ol>
-      <div className="border-t border-line p-4">
-        <p className="t-label mb-3 text-ink-3">Carico della settimana</p>
-        <LoadMeter status={status} planned={planned} />
-        <Disclosure variant="inline" tone="quiet" title="Come si calcola" className="mt-2">
-          Ogni seduta e ogni partita valgono minuti × RPE (metodo di Foster), in unità arbitrarie (UA). La soglia è il{' '}
-          {fmtNumber(Math.round(LOAD_ALERT_RATIO * 100))}% della media delle settimane precedenti (fino a {LOAD_LOOKBACK_WEEKS}): oltre, il carico sale
-          più in fretta dell’adattamento.
-        </Disclosure>
+      <div className="border-t border-line px-4 py-1.5">
+        {/* Il carico in numeri si apre con un tocco; l'avviso, quando serve, resta in vista. */}
         {status.alert ? (
-          <Callout tone="warn" title="Oltre il 120% della media" className="mt-4">
-            Picchi così aumentano il rischio di sovraccarico. Tieni leggere le prossime sedute e salta la facoltativa.
+          <Callout tone="warn" title="Carico sopra la tua media" className="my-2.5">
+            Tieni leggere le prossime sedute e salta la facoltativa.
           </Callout>
         ) : projOver ? (
-          <Callout tone="accent" title="Con il programma superi la soglia" className="mt-4">
-            Arriveresti a {fmtNumber(projected)} UA: se la settimana è pesante, la seduta facoltativa è la prima da togliere.
+          <Callout tone="accent" title="Settimana pesante in arrivo" className="my-2.5">
+            Se ti senti stanco, la seduta facoltativa è la prima da togliere.
           </Callout>
         ) : null}
+        <Disclosure title="Carico della settimana" summary={status.alert ? 'Alto' : projOver ? 'In salita' : 'Nella norma'} contentClassName="pb-3 pt-2">
+          <LoadMeter status={status} planned={planned} />
+          <p className="t-footnote mt-3 text-ink-2">
+            Ogni seduta e ogni partita valgono minuti × RPE (metodo di Foster), in unità arbitrarie (UA). La soglia è il{' '}
+            {fmtNumber(Math.round(LOAD_ALERT_RATIO * 100))}% della media delle settimane precedenti (fino a {LOAD_LOOKBACK_WEEKS}): oltre, il carico sale
+            più in fretta dell’adattamento.
+          </p>
+        </Disclosure>
       </div>
     </Card>
   );
