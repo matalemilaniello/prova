@@ -84,11 +84,17 @@ Contenuto / Contents
 - pfp-frame-1024.png      cornice per la foto profilo / profile picture frame
 - logo-512.png     icona / icon
 
-Le illustrazioni sono opere originali create per la community di 曙宝.
-Usale liberamente per meme e post sul progetto. Non usarle per spacciarti per Everland
-o per altri progetti.
-The illustrations are original artwork made for the 曙宝 community. Use them freely for
-memes and posts about the project. Don't use them to impersonate Everland or other projects.
+Le illustrazioni sono opere originali create con l'aiuto dell'AI per la community di 曙宝.
+Puoi usarle gratis per meme e post non commerciali sul progetto. Non usarle per spacciarti
+per i canali ufficiali, per Everland o per altri, né in contenuti ingannevoli o illeciti.
+Sono fornite così come sono, senza alcuna garanzia.
+The illustrations are original, AI-assisted artwork made for the 曙宝 community. You may use
+them free of charge for non-commercial memes and posts about the project. Do not use them to
+impersonate the official channels, Everland or anyone else, or in misleading or unlawful
+content. Provided as is, without any warranty.
+
+曙宝 is a fan-made memecoin, not affiliated with Everland or Samsung C&T. Not financial advice.
+Terms: {site["siteUrl"]}/legal/
 
 Contratto ufficiale / Official contract (BNB Chain):
 {site["contract"]}

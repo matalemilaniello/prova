@@ -30,6 +30,20 @@
     if (m) location.replace(m[1] + "/" + location.hash);
   })();
 
+  /* ---------- avviso di rischio da accettare alla prima visita ---------- */
+  (function riskGate() {
+    var g = $("#gate"), ok = $("#gateOk"), KEY = "shubao-ack-v1";
+    if (!g || !ok || store(KEY)) return;
+    g.hidden = false;
+    document.documentElement.classList.add("has-gate");
+    setTimeout(function () { try { ok.focus({ preventScroll: true }); } catch (e) { ok.focus(); } }, 50);
+    ok.addEventListener("click", function () {
+      store(KEY, new Date().toISOString());
+      g.hidden = true;
+      document.documentElement.classList.remove("has-gate");
+    });
+  })();
+
   /* ---------- avvisi ---------- */
   var toastTimer;
   function toast(msg) {
@@ -239,25 +253,30 @@
       .catch(function () { walletMsg(T["ca.walletError"]); });
   });
 
-  /* ---------- caricamento pigro: grafico e video ---------- */
-  function onVisible(el, fn, margin) {
-    if (!el) return;
-    if (!("IntersectionObserver" in window)) return fn();
-    var io = new IntersectionObserver(function (es) {
-      if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); fn(); }
-    }, { rootMargin: margin || "300px" });
-    io.observe(el);
-  }
-  var chartBox = $("#chartBox");
-  onVisible(chartBox, function () {
+  /* ---------- contenuti esterni solo su richiesta (privacy) ---------- */
+  // Grafico di DexScreener: si carica solo se il visitatore lo chiede
+  var chartBox = $("#chartBox"), chartBtn = $("#chartLoad");
+  if (chartBox && chartBtn) chartBtn.addEventListener("click", function () {
+    chartBox.classList.add("is-loading");
     var f = document.createElement("iframe");
-    f.src = chartBox.dataset.src; f.title = "DexScreener"; f.loading = "lazy";
+    f.src = chartBox.dataset.src; f.title = "DexScreener";
     f.addEventListener("load", function () { chartBox.classList.add("is-loaded"); });
     chartBox.appendChild(f);
   });
 
+  // Miniature di YouTube: solo dopo il consenso, che vale per la sessione
+  function loadThumbs() {
+    $$(".video__btn img[data-src]").forEach(function (i) { i.src = i.getAttribute("data-src"); i.removeAttribute("data-src"); i.hidden = false; });
+    var c = $("#videoConsent"); if (c) c.hidden = true;
+    try { sessionStorage.setItem("shubao-yt", "1"); } catch (e) { /* niente */ }
+  }
+  var vBtn = $("#videoLoad");
+  if (vBtn) vBtn.addEventListener("click", loadThumbs);
+  try { if (sessionStorage.getItem("shubao-yt") === "1") loadThumbs(); } catch (e) { /* niente */ }
+
   $$(".js-video").forEach(function (b) {
     b.addEventListener("click", function () {
+      loadThumbs(); // cliccare su un video vale come consenso
       var f = document.createElement("iframe");
       f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(b.dataset.id) + "?autoplay=1&rel=0";
       f.title = b.getAttribute("aria-label") || T["watch.play"];

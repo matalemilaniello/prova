@@ -85,7 +85,7 @@ def render(lang):
     videos = "".join(
         f'<figure class="video reveal"><button class="video__btn js-video" type="button" data-id="{esc(v["id"])}" '
         f'aria-label="{esc(d["watch.play"])}: {esc(d[v["label"]])}">'
-        f'<img src="https://i.ytimg.com/vi/{esc(v["id"])}/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" onerror="this.hidden=true">'
+        f'<img data-src="https://i.ytimg.com/vi/{esc(v["id"])}/hqdefault.jpg" alt="" width="480" height="360" hidden onerror="this.hidden=true">'
         f'<span class="video__play"><svg aria-hidden="true"><use href="#i-play"/></svg></span></button>'
         f'<figcaption><b>{esc(d[v["label"]])}</b><span lang="ko">{esc(v["title"])}</span></figcaption></figure>'
         for v in site.get("videos", [])
@@ -113,6 +113,7 @@ def render(lang):
         "share": share, "analytics": analytics, "pagejson": pagejson, "symbols": SYMBOLS,
         "ca": esc(site["contract"]), "pair": esc(site["pair"]), "oglocale": OG_LOCALE[lang],
         "ogimage": f"{SITE}/assets/og-{lang}.jpg", "v": VERSION,
+        "legalnote": (f' · <span class="muted">{esc(d["legal.note"])}</span>' if d.get("legal.note") else ""),
     }
     for k, v in repl.items():
         out = out.replace("{{" + k + "}}", v)
@@ -214,7 +215,7 @@ def write_extras():
     (ROOT / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
-        + urls + "</urlset>\n", encoding="utf-8")
+        + urls + f"  <url><loc>{SITE}/legal/</loc></url>\n</urlset>\n", encoding="utf-8")
     (ROOT / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n", encoding="utf-8")
     (ROOT / "manifest.webmanifest").write_text(json.dumps({
         "name": "曙宝 Shubao", "short_name": "曙宝", "start_url": "/", "display": "standalone",
@@ -251,6 +252,31 @@ def write_extras():
 """, encoding="utf-8")
 
 
+def write_legal():
+    """Pagina legale (solo inglese): termini, rischi, privacy."""
+    src = (TOOLS / "legal.html").read_text(encoding="utf-8")
+    email = site.get("contactEmail", "").strip()
+    contact = (f'<a href="mailto:{esc(email)}">{esc(email)}</a>' if email
+               else f'through the <a href="{esc(site["links"]["telegram"])}">official Telegram group</a>')
+    analytics = ("<li><strong>Statistics:</strong> we use Cloudflare Web Analytics, which counts visits "
+                 "in aggregate without cookies and without identifying you.</li>"
+                 if site.get("cloudflareAnalyticsToken", "").strip() else "")
+    repl = {
+        "site": SITE, "v": VERSION, "ca": esc(site["contract"]), "updated": esc(site.get("legalUpdated", "")),
+        "x": esc(site["links"]["x"]), "telegram": esc(site["links"]["telegram"]), "contact": contact,
+        "rpcs": "bsc-dataseed.bnbchain.org, bsc-rpc.publicnode.com", "analyticsPrivacy": analytics,
+    }
+    for k, v in repl.items():
+        src = src.replace("{{" + k + "}}", v)
+    left = re.findall(r"\{\{[^}]+\}\}", src)
+    if left:
+        raise ValueError(f"[legal] segnaposto non sostituiti: {sorted(set(left))}")
+    out = ROOT / "legal" / "index.html"
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(src, encoding="utf-8")
+    print("ok legal/index.html")
+
+
 # ---------------------------------------------------------------- main
 VERSION = asset_version()
 FONT_DIR.mkdir(parents=True, exist_ok=True)
@@ -263,6 +289,7 @@ for lang in LANGS:
     used_fonts.update(build_fonts(lang, page_chars(lang, page)))
     print(f"ok {out.relative_to(ROOT)}")
 write_extras()
+write_legal()
 # rimuove i font vecchi non più usati
 for f in FONT_DIR.glob("*.woff2"):
     if f.name not in used_fonts:

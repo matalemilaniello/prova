@@ -563,3 +563,69 @@ html:lang(ja) .story__big { font-family: var(--font-body); font-weight: 900; let
   .js .reveal, .js .growth .bar { opacity: 1; transform: none; }
   .leaves { display: none; }
 }
+
+/* ============================================================
+   Tutele legali (versione 3)
+   ============================================================ */
+.riskbar { margin: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 8px; padding: 8px 16px; background: #3A1E24; color: #F6D3DA; font-size: 13px; font-weight: 700; text-align: center; border-bottom: 1px solid rgba(236, 134, 155, .3); }
+.riskbar .ico { color: var(--pink); }
+.riskbar a { color: var(--white); }
+
+.consent { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-bottom: 20px; padding: 14px 18px; border-radius: var(--radius-sm); background: rgba(0, 0, 0, .22); border: 1px dashed rgba(247, 247, 247, .25); font-size: 14px; color: #DCE0CF; }
+.consent[hidden] { display: none; }
+.consent p { flex: 1 1 320px; }
+.consent a { color: var(--bamboo-soft); }
+
+.chart__consent { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; color: #DCE0CF; background: radial-gradient(60% 60% at 50% 50%, rgba(122, 166, 10, .15), transparent 70%); }
+.chart__consent p { max-width: 46ch; }
+.chart.is-loading .chart__consent { display: none; }
+.chart__loading { display: none; }
+.chart.is-loading .chart__loading { display: grid; }
+.chart.is-loaded .chart__loading { display: none; }
+
+.risk-box { margin-top: 18px; padding: 18px 22px; border-radius: var(--radius); background: rgba(236, 134, 155, .12); border: 1px solid rgba(236, 134, 155, .5); }
+.risk-box h3 { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 900; color: var(--pink-soft); margin-bottom: 6px; }
+.risk-box h3 .ico { color: var(--pink); }
+.risk-box p { color: #E7E3E3; }
+.risk-box a { display: inline-block; margin-top: 8px; color: var(--pink-soft); font-weight: 800; }
+
+.footer__legal { margin-top: 14px; font-size: 14px; font-weight: 800; }
+.footer__legal a { color: var(--bamboo-soft); }
+.footer__legal .muted { font-weight: 600; }
+
+/* banner da accettare */
+.gate { position: fixed; left: 0; right: 0; bottom: 0; z-index: 95; padding: 16px; display: flex; justify-content: center; pointer-events: none; }
+.gate[hidden] { display: none; }
+.gate__box { pointer-events: auto; width: min(760px, 100%); padding: 20px 22px; border-radius: var(--radius); background: var(--paper); color: var(--ink); box-shadow: 0 -10px 60px rgba(0, 0, 0, .45); border: 2px solid var(--pink); }
+.gate__box h2 { font-size: 20px; font-weight: 900; margin-bottom: 6px; color: var(--green-800); }
+.gate__box p { font-size: 15px; color: var(--ink); }
+.gate__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 14px; }
+.gate__actions a { color: #B03F58; font-weight: 800; }
+.has-gate .sticky-buy { visibility: hidden; }
+
+/* pagina legale */
+.legal-page { background: var(--green-800); }
+.legal-head { position: sticky; top: 0; z-index: 10; background: rgba(40, 48, 22, .92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.legal-head .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
+.legal-back { color: var(--bamboo-soft); font-weight: 800; text-decoration: none; }
+.legal { padding: 48px 0 80px; }
+.legal h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 900; letter-spacing: -.02em; }
+.legal__updated { margin-top: 6px; color: var(--muted); font-size: 14px; }
+.legal__toc { display: grid; gap: 6px; margin: 28px 0 8px; padding: 18px 22px; border-radius: var(--radius); background: rgba(0, 0, 0, .2); border: 1px solid var(--line); }
+.legal__toc a { color: var(--bamboo-soft); font-weight: 700; text-decoration: none; }
+.legal__toc a:hover { text-decoration: underline; }
+.legal section { margin-top: 40px; scroll-margin-top: 80px; }
+.legal h2 { font-size: 24px; font-weight: 900; margin-bottom: 12px; color: var(--pink-soft); }
+.legal p, .legal li { color: #E1E4D6; }
+.legal p + p { margin-top: 10px; }
+.legal ul { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 8px; }
+.legal a { color: var(--bamboo-soft); }
+.legal code { font: 500 14px var(--font-mono); overflow-wrap: anywhere; color: var(--white); }
+.legal strong { color: var(--white); }
+
+@media (max-width: 640px) {
+  .riskbar { font-size: 12px; }
+  .gate { padding: 10px; }
+  .gate__box { padding: 16px; }
+  .gate__actions .btn { flex: 1 1 100%; }
+}

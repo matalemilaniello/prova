@@ -35,6 +35,7 @@
 </head>
 <body>
   <a class="skip" href="#main">{{t:skip}}</a>
+  <p class="riskbar"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>{{t:risk.bar}}</span> <a href="{{base}}legal/#risks">{{t:risk.more}}</a></p>
 
   <header class="header" id="header">
     <div class="wrap header__inner">
@@ -231,6 +232,7 @@
         <p class="kicker">{{t:watch.kicker}}</p>
         <h2 class="section__title">{{t:watch.title}}</h2>
         <p class="section__lead">{{t:watch.p}}</p>
+        <div class="consent" id="videoConsent"><p>{{t:watch.consentText}} <a href="{{base}}legal/#privacy">{{t:legal.privacy}}</a></p><button class="btn btn--pink btn--sm" type="button" id="videoLoad">{{t:watch.load}}</button></div>
         <div class="videos">{{videos}}</div>
         <p class="videos__note muted">{{t:watch.videosNote}}</p>
         <div class="channels">
@@ -268,6 +270,7 @@
         <p class="kicker">{{t:chart.kicker}}</p>
         <h2 class="section__title">{{t:chart.title}}</h2>
         <div class="chart" id="chartBox" data-src="https://dexscreener.com/bsc/{{pair}}?embed=1&amp;theme=dark&amp;info=0&amp;trades=0">
+          <div class="chart__consent"><p>{{t:chart.consentText}}</p><button class="btn btn--pink" type="button" id="chartLoad">{{t:chart.load}}</button></div>
           <p class="chart__loading">{{t:chart.loading}}</p>
         </div>
         <p class="chart__open"><a href="{{link:dexscreener}}" target="_blank" rel="noopener noreferrer">{{t:chart.open}} ↗</a></p>
@@ -286,6 +289,7 @@
           <li class="step reveal"><span class="step__n">4</span><h3>{{t:buy.s4.t}}</h3><p>{{t:buy.s4.d}}</p></li>
         </ol>
         <p class="tip"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>{{t:buy.slip}}</span></p>
+        <aside class="risk-box"><h3><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg>{{t:buy.risk.title}}</h3><p>{{t:buy.risk.text}}</p><a href="{{base}}legal/#risks">{{t:risk.more}} ↗</a></aside>
         <div class="buy__row">
           <a class="btn btn--pink" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:buy.cta}}</a>
           <p class="muted">{{t:buy.note}}</p>
@@ -366,6 +370,8 @@
           <details><summary>{{t:faq.q5}}</summary><p>{{t:faq.a5}}</p></details>
           <details><summary>{{t:faq.q6}}</summary><p>{{t:faq.a6}}</p></details>
           <details><summary>{{t:faq.q7}}</summary><p>{{t:faq.a7}}</p></details>
+          <details><summary>{{t:faq.q8}}</summary><p>{{t:faq.a8}}</p></details>
+          <details><summary>{{t:faq.q9}}</summary><p>{{t:faq.a9}}</p></details>
         </div>
       </div>
     </section>
@@ -393,6 +399,7 @@
         <p class="footer__brand"><span class="cjk-brush" lang="zh-Hans">曙宝</span> <span lang="ko">슈바오</span> · <span lang="en">Shubao</span></p>
         <p class="footer__disclaimer">{{t:footer.disclaimer}}</p>
         <div class="lang lang--footer" role="group" aria-label="{{t:lang.label}}">{{langswitch}}</div>
+        <p class="footer__legal"><a href="{{base}}legal/">{{t:legal.terms}}</a> · <a href="{{base}}legal/#privacy">{{t:legal.privacy}}</a>{{legalnote}}</p>
         <p class="footer__small">{{t:footer.art}} {{t:footer.made}} &copy; <span id="year">2026</span></p>
       </div>
     </div>
@@ -401,6 +408,14 @@
   <div class="sticky-buy" id="stickyBuy">
     <button class="sticky-buy__copy js-copy" type="button"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="js-copy-label">{{t:sticky.copy}}</span></button>
     <a class="btn btn--pink" href="{{link:pancakeswap}}" target="_blank" rel="noopener noreferrer">{{t:sticky.buy}}</a>
+  </div>
+
+  <div class="gate" id="gate" role="dialog" aria-labelledby="gateTitle" aria-describedby="gateText" hidden>
+    <div class="gate__box">
+      <h2 id="gateTitle">{{t:gate.title}}</h2>
+      <p id="gateText">{{t:gate.text}}</p>
+      <div class="gate__actions"><button class="btn btn--pink" type="button" id="gateOk">{{t:gate.ok}}</button><a href="{{base}}legal/">{{t:gate.terms}}</a></div>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

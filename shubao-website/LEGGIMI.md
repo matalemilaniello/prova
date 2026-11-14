@@ -83,6 +83,24 @@ Non usare "everland" nel nome.
 - **Bio di X:** il sito invita a controllare che @ShuBaoCto linki il sito, quindi va aggiunto il link nella bio.
 - **Supply, tasse, liquidità bloccata:** non sono scritti nel sito. L'offerta totale si legge in tempo reale dalla blockchain, per le tasse il sito rimanda a GoPlus e Token Sniffer.
 
+## Tutele legali
+
+Cosa c'è sul sito:
+- **Barra del rischio** in cima a ogni pagina e **banner da accettare** alla prima visita: rischio di perdita totale, nessuna offerta, paesi esclusi. L'accettazione resta salvata nel browser del visitatore.
+- **Pagina legale** `legal/` (solo in inglese, la versione vincolante): natura del sito, nessun consiglio né offerta, rischi, giurisdizioni escluse (Regno Unito, Cina continentale, paesi sotto sanzioni), servizi di terzi, marchi e contenuti, licenza del kit dei fan, procedura di rimozione su richiesta, esclusione di garanzie e responsabilità, informativa privacy (GDPR).
+- **Disclaimer completo** nel footer di ogni lingua, riquadro dei rischi accanto al pulsante di acquisto, due domande nuove nelle FAQ.
+- **Privacy:** nessun cookie. YouTube e il grafico DexScreener si caricano solo dopo un clic. Prima del consenso il sito contatta solo l'API di DexScreener e i nodi pubblici di BNB Chain, come dichiarato nell'informativa.
+- **Trasparenza:** il footer dichiara che le illustrazioni sono create con l'aiuto dell'AI.
+
+Da fare dopo l'acquisto del dominio:
+1. **Email di contatto.** In Cloudflare: Email → Email Routing → crea per esempio `contact@dominio` inoltrata alla tua casella. Poi scrivi l'indirizzo in `tools/site.json` alla voce `contactEmail` e rigenera: la pagina legale lo userà al posto del link Telegram.
+2. **Blocco geografico.** Per il Regno Unito un disclaimer da solo non basta. In Cloudflare: dominio → Security → WAF → Custom rules → Create rule, espressione `(ip.src.country in {"GB" "CN" "IR" "KP" "CU" "SY"})`, azione **Block**. Funziona solo sul dominio vostro, non su `pages.dev`.
+
+Limiti (da far valutare a un avvocato):
+- Il GDPR chiede di indicare chi è il titolare del trattamento. Oggi la pagina parla di «volontari della community»: è la scelta più prudente per l'anonimato, ma non è pienamente conforme.
+- Il nome 슈바오/Shubao potrebbe essere registrato come marchio da Samsung C&T (per Fu Bao hanno fatto prodotti su licenza). Controlla su KIPRIS (kipris.or.kr) prima di investire nel dominio e nel marchio del progetto.
+- Le illustrazioni sono state generate con l'AI partendo da foto stampa come riferimento: il rischio di contestazione è basso ma non nullo.
+
 ## Regole da rispettare
 
 - Niente foto o video di Everland copiati sul sito: solo incorporati da YouTube o linkati.
