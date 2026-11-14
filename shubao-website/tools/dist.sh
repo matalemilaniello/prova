@@ -5,5 +5,5 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${1:-../shubao-dist}"
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp -r index.html 404.html zh ko ja legal css js assets sitemap.xml robots.txt manifest.webmanifest "$OUT"/
+cp -r _worker.js index.html 404.html zh ko ja legal css js assets sitemap.xml robots.txt manifest.webmanifest "$OUT"/
 echo "Pronto: $OUT"

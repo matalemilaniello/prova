@@ -92,9 +92,9 @@ Cosa c'è sul sito:
 - **Privacy:** nessun cookie. YouTube e il grafico DexScreener si caricano solo dopo un clic. Prima del consenso il sito contatta solo l'API di DexScreener e i nodi pubblici di BNB Chain, come dichiarato nell'informativa.
 - **Trasparenza:** il footer dichiara che le illustrazioni sono create con l'aiuto dell'AI.
 
-Da fare dopo l'acquisto del dominio:
-1. **Email di contatto.** In Cloudflare: Email → Email Routing → crea per esempio `contact@dominio` inoltrata alla tua casella. Poi scrivi l'indirizzo in `tools/site.json` alla voce `contactEmail` e rigenera: la pagina legale lo userà al posto del link Telegram.
-2. **Blocco geografico.** Per il Regno Unito un disclaimer da solo non basta. In Cloudflare: dominio → Security → WAF → Custom rules → Create rule, espressione `(ip.src.country in {"GB" "CN" "IR" "KP" "CU" "SY"})`, azione **Block**. Funziona solo sul dominio vostro, non su `pages.dev`.
+Contatti e blocco geografico:
+1. **Email di contatto (solo con un dominio proprio).** Finché il sito resta su `pages.dev` la pagina legale indica il gruppo Telegram. Con un dominio, in Cloudflare: Email → Email Routing → crea per esempio `contact@dominio` inoltrata alla tua casella. Poi scrivi l'indirizzo in `tools/site.json` alla voce `contactEmail` e rigenera: la pagina legale lo userà al posto del link Telegram.
+2. **Blocco geografico.** È già attivo tramite `_worker.js`, che Cloudflare Pages esegue prima di servire le pagine e che funziona anche su `pages.dev`: chi si trova nel Regno Unito, in Cina continentale, Iran, Corea del Nord, Cuba, Siria, Crimea, Donetsk o Luhansk vede una pagina «Not available in your region» (codice 451). Per verificarlo usa una VPN con uscita nel Regno Unito. Per cambiare i paesi modifica l'elenco in cima al file; per disattivarlo elimina il file e pubblica di nuovo. Con un dominio proprio si può usare in alternativa una regola WAF: `(ip.src.country in {"GB" "CN" "IR" "KP" "CU" "SY"})` → Block.
 
 Limiti (da far valutare a un avvocato):
 - Il GDPR chiede di indicare chi è il titolare del trattamento. Oggi la pagina parla di «volontari della community»: è la scelta più prudente per l'anonimato, ma non è pienamente conforme.
