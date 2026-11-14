@@ -1116,3 +1116,17 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   con un obiettivo già a 6 g/kg sulla carta (profili leggeri, surplus della massa), le porzioni seguivano le sole kcal e
   il piatto restava a circa 5,4-5,5 g/kg. La scala sale solo quando i pasti previsti non ci arrivano: l'istantanea di
   compatibilità non cambia. Menù e Ricetta mostrano il minimo in tutti i giorni di partita e di vigilia.
+- Snellimento dell'interfaccia e menù che entra da solo (dopo l'onda 2, su richiesta dell'utente: meno numeri, meno
+  decisioni):
+  - **Oggi**: `DayHero` con `compact` mostra una riga sola («6 di 10 fatte», barra con la tacca della giornata riuscita,
+    cosa manca) e con `onDetails` apre il foglio «Dettagli del giorno», dove stanno anello, serie, settimana, valori del
+    giorno, scalino, dolci e consiglio. `TrackersCard` ha le tre righe facoltative: in Oggi resta l'acqua.
+  - **Menù**: i pasti del giorno in una sola card, una riga per pasto (nome, kcal arrotondate a 10, «Cambia» a destra);
+    ingredienti e porzioni stanno nella ricetta. `DayNutritionCard` è chiusa («In linea con l’obiettivo») e si apre.
+  - **Allenamento**: carico in numeri, forza stimata e storico dietro un tocco; gli avvisi sul carico restano in vista.
+  - **Eccezione a P2 per il solo menù**: `enterMenuIfDue` in `features/settimana/useMenuProposal.ts` fa entrare nel
+    piano il menù della settimana dopo senza approvazione quando `entersByItself` è vero (nato dal motore, senza
+    `warnings`, spesa di quel lunedì non cominciata). Se la base del menù cambia dopo e la spesa non è cominciata, il
+    menù entrato esce e ne entra uno ricalcolato. `AutoMenuCard` lascia «Un altro menù» (`anotherMenu`) e «Tieni quello
+    di prima» (`keepPreviousMenu`, con «Annulla»). Con avvisi o a spesa cominciata resta la proposta aperta di prima.
+    Blocchi di allenamento, obiettivi e ritorni non entrano mai da soli. `proposeMenuIfDue` non cambia.

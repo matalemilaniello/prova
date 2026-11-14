@@ -28,7 +28,8 @@ import { MenuTab } from './MenuTab';
 import { PrepTab } from './PrepTab';
 import { ShoppingTab } from './ShoppingTab';
 import { TabSwitch } from './TabSwitch';
-import { proposalMondayFor, useMenuProposalTrigger, useMenuProposalView } from './useMenuProposal';
+import { proposalMondayFor, useAutoMenu, useMenuProposalTrigger, useMenuProposalView } from './useMenuProposal';
+import { AutoMenuCard } from './AutoMenuCard';
 import { WeekStrip } from './WeekStrip';
 import { daySuccessfulSafe, isWeekend, prepSkipped, relativeWeekLabel, shoppingFromDate, shoppingLeadSafe, starterShoppingSafe } from './helpers';
 
@@ -114,6 +115,10 @@ export default function SettimanaScreen() {
   const proposalHere = proposal && proposal.monday === monday ? proposal : null;
   const proposalInShopping = proposal && proposal.monday === proposalMondayFor(monday, thisMonday, today) ? proposal : null;
   const marked = useMemo(() => new Set(proposalHere ? Object.keys(proposalHere.changed) : []), [proposalHere]);
+  // Menù entrato da solo per il lunedì dopo: una card quieta nel Menù di quella settimana e sopra la Spesa.
+  const autoMenu = useAutoMenu(addDays(thisMonday, 7));
+  const autoHere = autoMenu && autoMenu.monday === monday ? autoMenu : null;
+  const autoInShopping = autoMenu && autoMenu.monday === proposalMondayFor(monday, thisMonday, today) ? autoMenu : null;
 
   // Giornate passate riuscite (spunta nella striscia).
   const success = useMemo(() => {
@@ -265,6 +270,8 @@ export default function SettimanaScreen() {
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
+              {tab === 'menu' && autoHere && <AutoMenuCard view={autoHere} today={today} className="mb-6" />}
+              {tab === 'spesa' && autoInShopping && <AutoMenuCard view={autoInShopping} today={today} ahead={autoInShopping.monday !== monday} className="mb-4" />}
               {tab === 'menu' && <MenuTab date={selected} plan={plan} dayLogs={dayLogs} onOpenShopping={openStarterShopping} proposal={proposalHere} />}
               {tab === 'spesa' && (
                 <ShoppingTab

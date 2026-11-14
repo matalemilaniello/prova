@@ -161,7 +161,7 @@ function setupPlanProposals(): Promise<{ proposeMenu: () => void }> {
           // Dati di esempio: la proposta del menù della settimana dopo c'è già il venerdì e il sabato (§ 11.7), anche
           // prima di aprire Settimana (la spesa del sabato in Oggi dice di guardarla).
           const demoMenu = () => {
-            if (useApp.getState().settings.demoData) menu.proposeMenuIfDue();
+            if (useApp.getState().settings.demoData) menu.enterMenuIfDue();
           };
           ensureBlock();
           demoMenu();
@@ -174,7 +174,7 @@ function setupPlanProposals(): Promise<{ proposeMenu: () => void }> {
               demoMenu();
             }, 0),
           );
-          resolve({ proposeMenu: () => void menu.proposeMenuIfDue() });
+          resolve({ proposeMenu: () => void menu.enterMenuIfDue() });
         })
         .catch(() => resolve({ proposeMenu: () => undefined }));
     });

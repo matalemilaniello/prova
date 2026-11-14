@@ -17,7 +17,7 @@ import { planHistory, proposalStateOf, type HistoryEntry } from './actions';
 
 const EMPTY: PlanProposal[] = [];
 
-function useProposalList(): PlanProposal[] {
+export function useProposalList(): PlanProposal[] {
   return useApp((s) => s.planner?.proposals) ?? EMPTY;
 }
 

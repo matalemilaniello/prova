@@ -6,11 +6,14 @@
  *   (`setupMenuProposals`): il foglio della proposta lo usa per ricalcolare una proposta superata e per «Un’altra
  *   proposta», anche quando lo apre lo storico. Una proposta nata dallo storico («Usalo la prossima settimana») non si
  *   ricalcola con il generatore, che darebbe un altro menù sotto lo stesso titolo: superata, resta superata.
+ * - **Entra da solo** (`enterMenuIfDue`, scelta dell’utente dopo l’onda 2): il menù nato dal motore, senza avvisi e con la
+ *   spesa di quella settimana non cominciata, entra nel piano senza approvazione; in Settimana una card quieta lascia «Un
+ *   altro menù» e «Tieni quello di prima». Negli altri casi resta la proposta aperta descritta qui sotto.
  * - **Quando nasce** (`proposeMenuIfDue`): una volta per settimana, per il lunedì dopo, dal venerdì alle 12:00
  *   (`isMenuProposalTime`), quando si apre Settimana o l'app torna in primo piano, sempre dopo il primo disegno (un
  *   `setTimeout`) e in modo sincrono. Si rigenera solo se cambia la base del menù (la proposta aperta superata si
  *   ricalcola con `refreshProposal`) o con «Un’altra proposta» dal foglio; una proposta già decisa per quel lunedì
- *   («Approva» o «Tieni il piano attuale») chiude la settimana. Niente si applica da solo (P2).
+ *   («Approva» o «Tieni il piano attuale») chiude la settimana.
  * - **Cosa mostra** (`menuProposalView`): la proposta aperta del lunedì mostrato, quanti pasti cambiano, i prodotti
  *   della spesa nuova, i pasti cambiati (il punto ambra) e, a spesa già cominciata, quanti prodotti servirebbero in più.
  *
@@ -26,9 +29,12 @@ import { changedMeals } from '../../engine/plan/diff';
 import { planBasis } from '../../engine/plan/proposals';
 import { planTodayISO } from '../../engine/sleep';
 import { useNowHHMM, usePlanDay } from '../../state/hooks';
-import { DATA_REPLACED_EVENT, useApp } from '../../state/store';
+import { DATA_REPLACED_EVENT, useApp, useUi } from '../../state/store';
 import {
+  anotherProposal,
+  findProposal,
   isReuseProposal,
+  openProposalSheet,
   projectedAppData,
   proposalStateOf,
   refreshProposal,
@@ -36,7 +42,7 @@ import {
   submitProposal,
   type ProposalBuilder,
 } from '../piano/actions';
-import { useOpenProposal, useProposalState } from '../piano/useProposals';
+import { useOpenProposal, useProposalList, useProposalState } from '../piano/useProposals';
 
 /** Lo stato che serve alla proposta del menù: quello dello store, o una sua parte nei test. */
 export type MenuProposalAppState = Pick<AppData, 'plan' | 'profile' | 'physio' | 'dayLogs'> &
@@ -126,14 +132,105 @@ export function proposeMenuIfDue(now: Date = currentDate()): string | null {
   return null;
 }
 
+// ───────────────────────── Il menù entra da solo ─────────────────────────
+
+/**
+ * Il menù della settimana dopo entra nel piano senza chiedere (scelta dell'utente: meno decisioni), ma solo quando non
+ * c'è niente da decidere davvero: nasce dal motore (non dallo storico), non ha avvisi (rispetta tutti i limiti) e la
+ * spesa di quella settimana non è cominciata. Negli altri casi resta una proposta aperta, come prima. I blocchi di
+ * allenamento e gli obiettivi non entrano mai da soli.
+ */
+export function entersByItself(p: PlanProposal, s: Pick<MenuProposalAppState, 'shoppingChecked'>): boolean {
+  return p.kind === 'menu' && p.status === 'aperta' && !isReuseProposal(p) && !p.warnings?.length && !s.shoppingChecked?.[p.effectiveFrom]?.length;
+}
+
+/** Il menù entrato da solo per quel lunedì, finché la settimana non comincia: approvato, nato dal motore. */
+export function autoMenuOf(s: Pick<AppData, 'planner'>, monday: ISODate, today: ISODate): PlanProposal | undefined {
+  if (monday <= today) return undefined;
+  return (s.planner?.proposals ?? []).find((p) => p.kind === 'menu' && p.effectiveFrom === monday && p.status === 'approvata' && !isReuseProposal(p));
+}
+
+function approveQuietly(id: string, today: ISODate): boolean {
+  const s = useApp.getState();
+  const p = findProposal(id, s);
+  if (!p || !entersByItself(p, s)) return false;
+  return Boolean(s.approveProposal(id, today));
+}
+
+/**
+ * Come `proposeMenuIfDue`, e in più il menù entra da solo quando può (`entersByItself`). Se la base del menù è cambiata
+ * dopo che era entrato (un'esclusione, un orario) e la spesa non è cominciata, quello vecchio esce e ne entra uno
+ * ricalcolato. Restituisce l'id del menù entrato adesso, oppure null.
+ */
+export function enterMenuIfDue(now: Date = currentDate()): string | null {
+  const s0 = useApp.getState();
+  if (!s0.onboarded) return null;
+  const today = planTodayISO(s0.plan, now);
+  const monday = menuProposalMonday(today);
+  const entered = autoMenuOf(s0, monday, today);
+  if (entered) {
+    // La base del menù non legge i menù approvati: si confronta senza toccare i dati. Stessa base, o spesa già
+    // cominciata: il menù entrato resta com'è.
+    if (s0.shoppingChecked?.[monday]?.length || planBasis('menu', proposalStateOf(s0)) === entered.basis) return null;
+    // Base cambiata (un'esclusione, un orario): quello vecchio esce, torna aperto e qui sotto si ricalcola.
+    s0.undoApproval(entered.id);
+  }
+  const id = proposeMenuIfDue(now);
+  return id && approveQuietly(id, today) ? id : null;
+}
+
+/** «Tieni quello di prima»: il menù entrato da solo esce e per quella settimana non ne nasce un altro. Con «Annulla». */
+export function keepPreviousMenu(id: string, today: ISODate): void {
+  const a = useApp.getState();
+  a.undoApproval(id);
+  useApp.getState().rejectProposal(id);
+  useUi.getState().toast('Resta il menù di prima', 'neutral', {
+    actionLabel: 'Annulla',
+    onAction: () => {
+      // La scartata torna aperta e rientra: è la stessa proposta, con la stessa base.
+      useApp.setState((s) => {
+        const list = s.planner?.proposals ?? [];
+        return {
+          planner: {
+            ...(s.planner ?? { proposals: [] }),
+            proposals: list.map((p) => {
+              if (p.id !== id || p.status !== 'scartata') return p;
+              const { decidedAt: _decidedAt, ...rest } = p;
+              return { ...rest, status: 'aperta' as const };
+            }),
+          },
+        };
+      });
+      approveQuietly(id, today);
+    },
+  });
+}
+
+/**
+ * «Un altro menù»: quello entrato esce e ne entra un altro (tentativo successivo). Se il nuovo ha qualcosa da decidere
+ * (avvisi), si apre il foglio della proposta; se il motore non ne trova un altro, resta quello di prima.
+ */
+export function anotherMenu(id: string, today: ISODate): string | null {
+  useApp.getState().undoApproval(id);
+  const next = anotherProposal(id, today);
+  if (!next) {
+    approveQuietly(id, today);
+    useUi.getState().toast('Non c’è un altro menù adatto', 'neutral');
+    return null;
+  }
+  if (approveQuietly(next, today)) useUi.getState().toast('Menù cambiato', 'good');
+  else openProposalSheet(next);
+  return next;
+}
+
 let pending: ReturnType<typeof setTimeout> | null = null;
 
-/** Lancia `proposeMenuIfDue` dopo il disegno (mai durante il primo disegno dopo un avvio a freddo, § 4.10). */
+/** Lancia `enterMenuIfDue` dopo il disegno (mai durante il primo disegno dopo un avvio a freddo, § 4.10). */
 export function scheduleMenuProposal(delayMs = 0): void {
   if (typeof window === 'undefined' || pending !== null) return;
   pending = setTimeout(() => {
     pending = null;
-    proposeMenuIfDue();
+    enterMenuIfDue();
   }, delayMs);
 }
 
@@ -244,6 +341,16 @@ export function useMenuProposalView(monday: ISODate): MenuProposalView | null {
     const shoppingChecked = checked ? { [monday]: checked } : {};
     return menuProposalView({ plan, profile, physio, planner, dayLogs, checkIns, reviews, shoppingChecked }, p);
   }, [p, monday, plan, profile, physio, planner, dayLogs, checkIns, reviews, checked]);
+}
+
+/** Il menù entrato da solo per il lunedì dato (finché la settimana non comincia), con quanti pasti cambia. */
+export function useAutoMenu(monday: ISODate): { proposal: PlanProposal; monday: ISODate; meals: number } | null {
+  const list = useProposalList();
+  const today = usePlanDay();
+  return useMemo(() => {
+    const p = autoMenuOf({ planner: { proposals: list } }, monday, today);
+    return p ? { proposal: p, monday, meals: changedMeals(p.diff) } : null;
+  }, [list, monday, today]);
 }
 
 /** «cambiano 4 pasti, 37 prodotti». */

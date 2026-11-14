@@ -32,7 +32,7 @@ describe('provenienza del menù', () => {
     const plan = fixtureState(NEXT).plan;
     expect(menuSourceInfo('rotazione', NEXT, plan)).toEqual({ source: 'rotazione', label: 'Menù di base' });
     expect(menuSourceInfo('avvio', NEXT, plan).label).toBe('Menù di avvio');
-    expect(menuSourceInfo('approvato', NEXT, plan).label).toBe('Menù approvato');
+    expect(menuSourceInfo('approvato', NEXT, plan).label).toBe('Menù della settimana');
     const week = MENU_ROTATION[1];
     const withPast = { ...plan, menus: { [addDays(NEXT, -14)]: week } };
     expect(repeatedFromMonday(NEXT, withPast)).toBe(addDays(NEXT, -14));

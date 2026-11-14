@@ -136,11 +136,12 @@ const VIEWS = [
   { name: 'oggi-spesa-menu-nuovo', hash: 'oggi', weekday: 5, now: '10:30', wait: 1800 },
   { name: 'settimana-menu-prossima', hash: 'settimana', query: { tab: 'menu' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Settimana successiva'] },
   { name: 'planProposal', hash: 'settimana', query: { tab: 'spesa', overlay: 'planProposal' }, weekday: 5, now: '10:30', wait: 2200 },
-  { name: 'planProposal-dopo-spesa', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:3', 'tap:Vedi la proposta'] },
-  { name: 'settimana-spesa-in-piu', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:8', 'tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva'] },
-  // «Un’altra proposta» sul sabato di --today 2026-11-05 cambia le ricette da preparazione: i compiti nascono dai componenti.
-  { name: 'settimana-preparazione-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva', 'tab:Preparazione'] },
-  { name: 'settimana-guida-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Vedi la proposta', 'tap:Un’altra proposta', 'tap:Approva', 'tab:Preparazione', 'tap:Inizia la preparazione'] },
+  { name: 'planProposal-dopo-spesa', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:3', 'tap:Un altro menù'] },
+  { name: 'settimana-spesa-in-piu', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['check:8', 'tap:Un altro menù', 'tap:Approva'] },
+  // Il menù entra da solo: «Un altro menù» sul sabato di --today 2026-11-05 cambia le ricette da preparazione (i compiti
+  // nascono dai componenti); con la spesa già cominciata apre invece il foglio della proposta («Dopo la spesa»).
+  { name: 'settimana-preparazione-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Un altro menù', 'tab:Preparazione'] },
+  { name: 'settimana-guida-generata', hash: 'settimana', query: { tab: 'spesa' }, weekday: 5, now: '10:30', wait: 1800, steps: ['tap:Un altro menù', 'tab:Preparazione', 'tap:Inizia la preparazione'] },
   // Onda 2 · allenamento: il blocco dei dati di esempio è alla settimana 2 (vista `allenamento`); con un obiettivo diverso
   // nasce la proposta del blocco dopo (card in Allenamento e foglio).
   { name: 'allenamento-proposta', hash: 'allenamento', weekday: 1, now: '18:10', planPatch: OTHER_TRAINING, wait: 1600 },

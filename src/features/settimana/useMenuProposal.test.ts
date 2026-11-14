@@ -10,10 +10,15 @@ import { menuWeekInForce } from '../../engine/menu';
 import { buildMenuProposal } from '../../engine/menuGen';
 import { fixtureState } from '../../engine/menuGen/testFixtures';
 import { changedMeals } from '../../engine/plan/diff';
-import { useApp } from '../../state/store';
+import { useApp, useUi } from '../../state/store';
 import { approveProposal, hasProposalBuilder, keepCurrentPlan, REUSE_ATTEMPT, undoApproval } from '../piano/actions';
 import {
   afterShoppingText,
+  anotherMenu,
+  autoMenuOf,
+  enterMenuIfDue,
+  entersByItself,
+  keepPreviousMenu,
   menuProposalBuilder,
   menuProposalStep,
   menuProposalView,
@@ -182,5 +187,85 @@ describe('cosa mostra', () => {
     expect(proposalMondayFor(thisMonday, thisMonday, FRI)).toBe(NEXT);
     expect(proposalMondayFor(thisMonday, thisMonday, THU)).toBe(thisMonday);
     expect(proposalMondayFor(NEXT, thisMonday, SAT)).toBe(NEXT);
+  });
+});
+
+describe('il menù entra da solo', () => {
+  const entered = () => autoMenuOf(useApp.getState(), NEXT, FRI);
+
+  it('dal venerdì alle 12:00 entra nel piano senza approvazione, una volta sola, e questa settimana non cambia', () => {
+    expect(enterMenuIfDue(new Date(2026, 10, 12, 21, 0))).toBeNull();
+    expect(useApp.getState().plan.menus).toBeUndefined();
+    const id = enterMenuIfDue(friEvening);
+    expect(id).not.toBeNull();
+    expect(entered()?.id).toBe(id);
+    expect(useApp.getState().plan.menus?.[NEXT]).toBeDefined();
+    expect(openMenu()).toHaveLength(0);
+    expect(menuWeekInForce(FRI, useApp.getState().plan)).toEqual(menuWeekInForce(FRI, fixtureState(NEXT).plan));
+    // Riaprire l'app non lo rifà: resta lo stesso menù, senza proposte nuove.
+    const menu = useApp.getState().plan.menus?.[NEXT];
+    expect(enterMenuIfDue(new Date(2026, 10, 14, 9, 0))).toBeNull();
+    expect(entered()?.id).toBe(id);
+    expect(useApp.getState().plan.menus?.[NEXT]).toEqual(menu);
+    expect(menuProposals()).toHaveLength(1);
+  });
+
+  it('con la spesa di quella settimana già cominciata non entra: resta una proposta aperta', () => {
+    useApp.getState().toggleShopping(NEXT, 'kiwi');
+    expect(enterMenuIfDue(friEvening)).toBeNull();
+    expect(useApp.getState().plan.menus).toBeUndefined();
+    expect(openMenu()).toHaveLength(1);
+    expect(entersByItself(openMenu()[0], useApp.getState())).toBe(false);
+  });
+
+  it('un menù con avvisi o nato dallo storico non entra da solo', () => {
+    const id = proposeMenuIfDue(friEvening)!;
+    const p = openMenu().find((x) => x.id === id)!;
+    expect(entersByItself(p, useApp.getState())).toBe(true);
+    expect(entersByItself({ ...p, warnings: ['Riso in 4 pasti'] }, useApp.getState())).toBe(false);
+    expect(entersByItself({ ...p, attempt: REUSE_ATTEMPT }, useApp.getState())).toBe(false);
+    expect(entersByItself({ ...p, kind: 'blocco' }, useApp.getState())).toBe(false);
+  });
+
+  it('un’esclusione dopo che è entrato lo fa ricalcolare: esce il vecchio ed entra quello senza l’alimento', () => {
+    const id = enterMenuIfDue(friEvening)!;
+    useApp.getState().addExclusion('tonno', 'impostazioni', SAT);
+    const next = enterMenuIfDue(friEvening);
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(id);
+    expect(entered()?.id).toBe(next);
+    expect(menuProposals().find((p) => p.id === id)?.status).toBe('superata');
+    expect(openMenu()).toHaveLength(0);
+  });
+
+  it('«Tieni quello di prima» lo toglie e non ne nasce un altro; «Annulla» lo rimette', () => {
+    const id = enterMenuIfDue(friEvening)!;
+    keepPreviousMenu(id, FRI);
+    expect(useApp.getState().plan.menus?.[NEXT]).toBeUndefined();
+    expect(enterMenuIfDue(new Date(2026, 10, 14, 10, 0))).toBeNull();
+    expect(entered()).toBeUndefined();
+    expect(openMenu()).toHaveLength(0);
+    // «Annulla» dell'avviso.
+    const toast = useUi.getState().toasts.at(-1);
+    toast?.onAction?.();
+    expect(entered()?.id).toBe(id);
+    expect(useApp.getState().plan.menus?.[NEXT]).toBeDefined();
+  });
+
+  it('«Un altro menù» fa entrare il tentativo successivo', () => {
+    const id = enterMenuIfDue(friEvening)!;
+    const before = useApp.getState().plan.menus?.[NEXT];
+    const next = anotherMenu(id, FRI);
+    if (next) {
+      expect(next).not.toBe(id);
+      const p = menuProposals().find((x) => x.id === next)!;
+      // Entra da solo se non ha avvisi; altrimenti resta aperto e si decide nel foglio.
+      expect(['approvata', 'aperta']).toContain(p.status);
+      if (p.status === 'approvata') expect(useApp.getState().plan.menus?.[NEXT]).not.toEqual(before);
+    } else {
+      // Nessun altro menù adatto: resta quello di prima.
+      expect(entered()?.id).toBe(id);
+      expect(useApp.getState().plan.menus?.[NEXT]).toEqual(before);
+    }
   });
 });

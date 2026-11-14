@@ -19,7 +19,7 @@ import { lowerFirst } from './helpers';
 
 export interface MenuSourceInfo {
   source: MenuSource;
-  /** Testo breve della pillola: «Menù approvato». */
+  /** Testo breve della pillola: «Menù della settimana». */
   label: string;
   /** Per il menù ripetuto: la riga che dice da dove viene. */
   note?: string;
@@ -42,7 +42,7 @@ export function repeatedFromMonday(monday: ISODate, plan: Pick<Plan, 'menus'>): 
 const SOURCE_LABEL: Record<MenuSource, string> = {
   avvio: 'Menù di avvio',
   rotazione: 'Menù di base',
-  approvato: 'Menù approvato',
+  approvato: 'Menù della settimana',
   ripetuto: 'Menù ripetuto',
 };
 
