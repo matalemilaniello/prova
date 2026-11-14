@@ -2,14 +2,16 @@
  * Integratori: elenco con interruttore "attivo" e foglio per aggiungere o modificare.
  * Condiviso da Benvenuto (bozza locale) e Impostazioni (stato salvato).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronRight, Pill as PillIcon, Plus, Trash2 } from 'lucide-react';
 import type { Supplement } from '../../../domain/types';
+import { SUPPLEMENT_CATALOG, type CatalogDose, type CatalogEntry } from '../../../data/supplementCatalog';
+import { STANCE_TEXT, commonEntries, doseChoices, formatDose, fromCatalog, overMax, searchCatalog, stanceWarns } from '../../../engine/supplements';
 import { doseUndefined } from '../../../engine/timeline';
 import { haptic } from '../../../lib/haptics';
 import { uid } from '../../../lib/id';
-import { Button, EmptyState, Field, Sheet, TextArea, TextInput, Toggle, cn, staggerItem } from '../../../ui';
+import { Button, Chip, EmptyState, Field, Sheet, TextArea, TextInput, Toggle, cn, staggerItem } from '../../../ui';
 import { TIMING_OPTIONS, TIMING_TEXT, sortSupplements } from '../lib';
 import { CompactChoice, FormRow, InlineReveal } from './controls';
 
@@ -128,6 +130,34 @@ export function SupplementSheet({ supplement, onSave, onDelete, onClosed }: Supp
   const [confirmDelete, setConfirmDelete] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
+  // Voce del catalogo scelta: la dose è già pronta e si cambia con un tocco. Riscrivere il nome a mano la scioglie.
+  const [entry, setEntry] = useState<CatalogEntry | null>(() => SUPPLEMENT_CATALOG.find((e) => e.id === supplement?.catalogId) ?? null);
+  const [amount, setAmount] = useState<CatalogDose | null>(() => (supplement?.catalogId && supplement.amount ? { amount: supplement.amount.amount, unit: supplement.amount.unit } : null));
+  const hits = useMemo(() => (entry ? [] : searchCatalog(name, SUPPLEMENT_CATALOG, 4).map((h) => h.entry)), [entry, name]);
+  const common = useMemo(() => commonEntries(SUPPLEMENT_CATALOG), []);
+  const pick = (e: CatalogEntry, d: CatalogDose = e.dose) => {
+    const f = fromCatalog(e, d);
+    haptic('selection');
+    setEntry(e);
+    setAmount(d);
+    setName(f.name);
+    setDose(f.dose);
+    setTiming(f.timing);
+  };
+  const changeName = (v: string) => {
+    setName(v);
+    if (entry && v.trim() !== entry.name) {
+      setEntry(null);
+      setAmount(null);
+    }
+  };
+  const changeDose = (v: string) => {
+    setDose(v);
+    // Dose scritta a mano: resta la voce del catalogo, ma senza la quantità in numeri.
+    if (amount && v.trim() !== formatDose(amount)) setAmount(null);
+  };
+  const tooMuch = entry && amount ? overMax(entry, amount) : false;
+
   const nameError = tried && !name.trim() ? 'Scrivi il nome, ad esempio Creatina monoidrato.' : undefined;
   const doseError = tried && !dose.trim() ? 'Scrivi la dose, ad esempio 5 g.' : undefined;
 
@@ -145,6 +175,8 @@ export function SupplementSheet({ supplement, onSave, onDelete, onClosed }: Supp
       timing,
       note: note.trim() || undefined,
       active,
+      ...(entry ? { catalogId: entry.id } : {}),
+      ...(entry && amount ? { amount: { amount: amount.amount, unit: amount.unit } } : {}),
     });
     haptic('success');
     close();
@@ -163,12 +195,53 @@ export function SupplementSheet({ supplement, onSave, onDelete, onClosed }: Supp
       }
     >
       <div className="flex flex-col gap-5 pb-2">
-        <Field label="Nome" error={nameError}>
-          <TextInput ref={nameRef} value={name} onChange={setName} placeholder="Es. Creatina monoidrato" autoCapitalize="sentences" maxLength={60} />
-        </Field>
-        <Field label="Dose" error={doseError} hint="Come te l’hanno indicata: grammi, capsule, gocce.">
-          <TextInput value={dose} onChange={setDose} placeholder="Es. 5 g" maxLength={60} />
-        </Field>
+        <div className="flex flex-col gap-2">
+          <Field label="Nome" error={nameError} hint={entry || supplement ? undefined : 'Scrivi il nome: se è nel catalogo, la dose è già pronta.'}>
+            <TextInput ref={nameRef} value={name} onChange={changeName} placeholder="Es. Creatina" autoCapitalize="sentences" maxLength={60} />
+          </Field>
+          {/* Prima di scrivere: i più comuni. Mentre si scrive: le voci del catalogo che corrispondono. */}
+          {!entry && !supplement && !name.trim() && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Integratori comuni">
+              {common.map((e) => (
+                <Chip key={e.id} selected={false} onChange={() => pick(e)}>
+                  {e.name}
+                </Chip>
+              ))}
+            </div>
+          )}
+          {hits.length > 0 && (
+            <ul className="overflow-hidden rounded-card bg-card shadow-card" aria-label="Dal catalogo">
+              {hits.map((e, i) => (
+                <li key={e.id} className={cn(i > 0 && 'border-t border-line')}>
+                  <button
+                    type="button"
+                    onClick={() => pick(e)}
+                    className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-150 active:bg-ink-soft"
+                  >
+                    <span className="t-callout min-w-0 flex-1 font-medium text-ink">{e.name}</span>
+                    <span className="t-footnote shrink-0 tabular text-ink-2">{formatDose(e.dose)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {entry && <p className={cn('t-footnote px-1', stanceWarns(entry.stance) ? 'font-medium text-warn-ink' : 'text-ink-2')}>{STANCE_TEXT[entry.stance]}.{entry.needsTest ? ' Serve un esame prima di prenderlo.' : ''}</p>}
+        </div>
+        <div className="flex flex-col gap-2">
+          <Field label="Dose" error={doseError} hint={entry ? undefined : 'Come te l’hanno indicata: grammi, capsule, gocce.'}>
+            <TextInput value={dose} onChange={changeDose} placeholder="Es. 5 g" maxLength={60} />
+          </Field>
+          {entry && doseChoices(entry).length > 1 && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Dosi del catalogo">
+              {doseChoices(entry).map((d) => (
+                <Chip key={`${d.amount}-${d.unit}`} selected={amount?.amount === d.amount && amount.unit === d.unit} onChange={() => pick(entry, d)}>
+                  {formatDose(d)}
+                </Chip>
+              ))}
+            </div>
+          )}
+          {tooMuch && entry?.max && <p className="t-footnote px-1 font-medium text-warn-ink">Sopra il massimo al giorno per un integratore ({formatDose(entry.max)}).</p>}
+        </div>
         <div className="flex flex-col gap-1.5">
           <span className="t-footnote px-1 font-semibold text-ink-2">Quando</span>
           <CompactChoice aria-label="Quando prenderlo" value={timing} onChange={setTiming} options={TIMING_OPTIONS} />

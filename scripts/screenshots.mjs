@@ -118,6 +118,9 @@ const VIEWS = [
   { name: 'progressi-revisione', hash: 'progressi', query: { view: 'revisione' }, wait: 900 },
   { name: 'impostazioni', hash: 'impostazioni' },
   ...SETTINGS_PAGES.map((sezione) => ({ name: `impostazioni-${sezione}`, hash: 'impostazioni', query: { sezione }, wait: 700 })),
+  // Nuovo integratore dal catalogo: i più comuni in vista, poi la voce scelta con la dose già pronta.
+  { name: 'integratore-nuovo', hash: 'impostazioni', query: { sezione: 'integratori' }, wait: 700, steps: ['tap:Aggiungi integratore'] },
+  { name: 'integratore-catalogo', hash: 'impostazioni', query: { sezione: 'integratori' }, wait: 700, steps: ['tap:Aggiungi integratore', 'tap:Vitamina D'] },
   { name: 'kit', hash: 'kit', tall: true },
   { name: 'recipe', hash: 'oggi', query: { overlay: 'recipe' }, wait: 900 },
   { name: 'checkin', hash: 'oggi', query: { overlay: 'checkin' }, wait: 900 },
