@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { Fragment, useId, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, ChevronDown, Cookie, Footprints, GlassWater, Minus, Plus } from 'lucide-react';
 import { formatWeekday } from '../../../engine/dates';
@@ -32,18 +32,23 @@ export interface SweetsProps {
  * dolci. Ogni riga è titolo, avanzamento e un pulsante; il tocco sulla riga apre il dettaglio (il come dello
  * scalino, i bicchieri da toccare, togliere un dolce di oggi).
  */
-export function TrackersCard({ water, sweets, step }: { water: WaterProps; sweets: SweetsProps; step?: StepProps | null }) {
+export function TrackersCard({ water, sweets, step }: { water?: WaterProps | null; sweets?: SweetsProps | null; step?: StepProps | null }) {
+  // Ogni riga è facoltativa: in Oggi resta solo l'acqua, scalino e dolci stanno nei dettagli del giorno.
+  const rows = [
+    step ? <StepRow key="scalino" {...step} /> : null,
+    water ? <WaterRow key="acqua" {...water} /> : null,
+    sweets ? <SweetsRow key="dolci" {...sweets} /> : null,
+  ].filter(Boolean);
+  if (!rows.length) return null;
+  const label = [step && 'Scalino', water && 'Acqua', sweets && 'Dolci'].filter(Boolean).join(', ');
   return (
-    <Card padding="none" as="section" aria-label={step ? 'Scalino, acqua e dolci' : 'Acqua e dolci'}>
-      {step && (
-        <>
-          <StepRow {...step} />
-          <div aria-hidden className="mx-4 h-px bg-line" />
-        </>
-      )}
-      <WaterRow {...water} />
-      <div aria-hidden className="mx-4 h-px bg-line" />
-      <SweetsRow {...sweets} />
+    <Card padding="none" as="section" aria-label={label}>
+      {rows.map((row, i) => (
+        <Fragment key={i}>
+          {i > 0 && <div aria-hidden className="mx-4 h-px bg-line" />}
+          {row}
+        </Fragment>
+      ))}
     </Card>
   );
 }

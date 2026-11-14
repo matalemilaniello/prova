@@ -88,6 +88,8 @@ const VIEWS = [
   // Passi del benvenuto (2-6; il 6 è il riepilogo "Il tuo piano è pronto").
   ...[2, 3, 4, 5, 6].map((n) => ({ name: `benvenuto-${n}`, query: { onboarding: '1', step: String(n) }, fresh: true, wait: 800 })),
   { name: 'oggi', hash: 'oggi' },
+  // Dettagli del giorno: numeri, valori, scalino, dolci e consiglio, aperti dalla riga «fatte» di Oggi.
+  { name: 'oggi-dettagli', hash: 'oggi', tap: 'Dettagli', wait: 800 },
   // Momenti della giornata: controllo del mattino, giorno di partita, palestra, sera del coprifuoco.
   { name: 'oggi-mattina', hash: 'oggi', now: '07:25' },
   { name: 'oggi-partita', hash: 'oggi', weekday: 0, now: '18:40' },

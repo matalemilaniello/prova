@@ -32,7 +32,7 @@ import { fmtDayTitle, fmtKcal, plural } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useDayLog, useNowHHMM, usePlanDay } from '../../state/hooks';
 import { useApp, useUi } from '../../state/store';
-import { Button, Callout, Card, DayTypeBadge, IconButton, Pill, Screen, SectionTitle, fade } from '../../ui';
+import { Button, Callout, Card, DayTypeBadge, IconButton, Pill, Screen, SectionTitle, Sheet, fade } from '../../ui';
 import { PhysioEditorSheet } from '../allenamento/PhysioEditor';
 import { InstallCard } from '../impostazioni/components/InstallCard';
 import { installReminderDue, markInstallReminded } from '../impostazioni/install';
@@ -107,6 +107,8 @@ export default function OggiScreen() {
   const [physioOpen, setPhysioOpen] = useState(false);
   const [physioEditorOpen, setPhysioEditorOpen] = useState(false);
   const [recover, setRecover] = useState<RecoverState | null>(null);
+  // Dettagli del giorno: i numeri e i contatori che non stanno più in Oggi (serie, valori, scalino, dolci, consiglio).
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [quickGym, setQuickGym] = useState<{ item: DayItem; date: ISODate; session: number } | null>(null);
   const [ritualOpen, setRitualOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -530,6 +532,8 @@ export default function OggiScreen() {
           const it = items.find((i) => i.id === spot.id) ?? data.tomorrowItems.find((i) => i.id === spot.id);
           if (it?.kind === 'spesa') openShopping(it, spot.tomorrow ? tomorrow : today);
         }}
+        compact
+        onDetails={() => setDetailsOpen(true)}
       />
 
       {showPain && (
@@ -677,6 +681,7 @@ export default function OggiScreen() {
         />
       )}
 
+      {/* In Oggi resta solo l'acqua: è l'unico contatore che si tocca più volte al giorno. */}
       <TrackersCard
         water={{
           glasses: dayLog.waterGlasses,
@@ -685,26 +690,45 @@ export default function OggiScreen() {
           extraReason: footballExtra ? 'calcio +750 ml' : undefined,
           onAdd: addWater,
         }}
-        sweets={{ week: data.weekSweets, today: dayLog.sweets, planned: plan.sweetsPerWeek, onAdd: addSweet }}
-        step={step ? { status: step, onToggle: toggleStep } : null}
       />
 
-      {/* Il primo giorno, con dei pasti già passati prima dell'avvio, i valori del menù intero non dicono niente. */}
-      {data.fullMenu && (
-        <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} note={data.valuesNote} />
-      )}
-      <TipCard
-        date={today}
-        dayType={data.dayType}
-        firstId={fiberRampWeek(today, plan) !== null ? 'fibre-gradualita' : undefined}
-        context={{
-          painThreshold: plan.painThreshold,
-          impactThreshold: impactT,
-          fiberG: data.target.fiberG,
-          gymSessionId: day?.gymSessionId,
-          afterMatch: plan.week.find((d) => d.weekday === weekdayOf(yesterday))?.football?.kind === 'partita',
-        }}
-      />
+      <Sheet open={detailsOpen} onClose={() => setDetailsOpen(false)} title="Dettagli del giorno" size="large">
+        <div className="flex flex-col gap-5 pb-2">
+          <DayHero
+            summary={summary}
+            streak={data.streak}
+            nights={data.nights}
+            successful={successful}
+            complete={data.complete}
+            phonePending={successful && phonePending ? { time: phonePending.time } : null}
+            overdueCount={0}
+            onRecover={() => undefined}
+            kickoff={null}
+            planDay={data.planDay}
+            weekAdherence={data.weekAdherence}
+          />
+          {/* Il primo giorno, con dei pasti già passati prima dell'avvio, i valori del menù intero non dicono niente. */}
+          {data.fullMenu && (
+            <DayValues planned={data.planned} eaten={data.eaten} target={data.valuesTarget} minimal={data.minimal} note={data.valuesNote} />
+          )}
+          <TrackersCard
+            sweets={{ week: data.weekSweets, today: dayLog.sweets, planned: plan.sweetsPerWeek, onAdd: addSweet }}
+            step={step ? { status: step, onToggle: toggleStep } : null}
+          />
+          <TipCard
+            date={today}
+            dayType={data.dayType}
+            firstId={fiberRampWeek(today, plan) !== null ? 'fibre-gradualita' : undefined}
+            context={{
+              painThreshold: plan.painThreshold,
+              impactThreshold: impactT,
+              fiberG: data.target.fiberG,
+              gymSessionId: day?.gymSessionId,
+              afterMatch: plan.week.find((d) => d.weekday === weekdayOf(yesterday))?.football?.kind === 'partita',
+            }}
+          />
+        </div>
+      </Sheet>
 
       <ItemActionsSheet
         key={optionsSession}

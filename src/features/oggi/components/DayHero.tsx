@@ -4,7 +4,7 @@ import { Check, ChevronRight, CircleCheck, Moon, ShieldCheck } from 'lucide-reac
 import type { HHMM } from '../../../domain/types';
 import { SUCCESS_THRESHOLD, itemsToSuccess, type AdherenceSummary, type StreakInfo } from '../../../engine/timeline';
 import { fmtMinutes, fmtNumber, fmtPercent, plural } from '../../../lib/format';
-import { BallIcon, NumberTicker, ProgressRing, cn, spring, type AnyTone } from '../../../ui';
+import { BallIcon, NumberTicker, ProgressBar, ProgressRing, cn, spring, type AnyTone } from '../../../ui';
 import type { Kickoff } from '../useOggi';
 import type { WelcomeSpot } from '../firstDay';
 import { BOARD_LABEL } from '../kinds';
@@ -39,6 +39,13 @@ export interface DayHeroProps {
    * serie, settimana e notti valgono zero e non dicono niente: al loro posto una riga di avvio.
    */
   planDay?: number | null;
+  /**
+   * In Oggi: al posto dell'anello e delle colonne una riga sola, «5 di 10 fatte», con quello che manca alla giornata
+   * riuscita. I numeri (serie, settimana, notti) stanno nel foglio dei dettagli, che la riga apre.
+   */
+  compact?: boolean;
+  /** Tocco sulla riga compatta: apre i dettagli del giorno. */
+  onDetails?: () => void;
 }
 
 const KICKOFF_WORD: Record<Kickoff['kind'], [string, string]> = {
@@ -131,6 +138,8 @@ export function DayHero({
   welcome,
   onWelcomeSpot,
   planDay = null,
+  compact = false,
+  onDetails,
 }: DayHeroProps) {
   const reduce = useReducedMotion();
   if (welcome?.length) return <WelcomeBoard spots={welcome} onSpot={onWelcomeSpot} overdueCount={overdueCount} onRecover={onRecover} />;
@@ -243,6 +252,16 @@ export function DayHero({
         </motion.div>
       )}
 
+      {compact ? (
+        <DayLine
+          summary={summary}
+          value={ringValue}
+          tone={ringTone}
+          status={status?.text ?? (successful ? 'Giornata riuscita' : 'Giornata chiusa')}
+          good={status ? status.tone === 'good' : successful}
+          onDetails={onDetails}
+        />
+      ) : (
       <div className={cn('relative', big ? 'pt-1' : 'border-y border-line py-4')}>
         <div className="relative flex items-center gap-4">
           <DayRing summary={summary} value={ringValue} tone={ringTone} size={big ? 80 : 60} stroke={big ? 7 : 5} big={big} />
@@ -296,9 +315,61 @@ export function DayHero({
           />
         )}
       </div>
+      )}
 
       <RecoverRow count={overdueCount} onRecover={onRecover} />
     </section>
+  );
+}
+
+/**
+ * La giornata in una riga: quante voci sono segnate, una barra con la tacca del 70% e cosa manca. Niente percentuali:
+ * il conto è quello che si vede nella lista sotto. Tutta la riga apre i dettagli del giorno.
+ */
+function DayLine({
+  summary,
+  value,
+  tone,
+  status,
+  good,
+  onDetails,
+}: {
+  summary: AdherenceSummary;
+  value: number;
+  tone: AnyTone;
+  status: string;
+  good: boolean;
+  onDetails?: () => void;
+}) {
+  const marked = summary.done + summary.replaced;
+  const body = (
+    <>
+      <span className="flex items-baseline gap-2">
+        <span className="t-headline tabular text-ink">
+          {summary.total > 0 ? `${fmtNumber(marked)} di ${fmtNumber(summary.total)} ${marked === 1 ? 'fatta' : 'fatte'}` : 'Niente da segnare'}
+        </span>
+        {onDetails && (
+          <span className="t-footnote ml-auto inline-flex shrink-0 items-center font-semibold text-accent-ink">
+            Dettagli
+            <ChevronRight size={16} strokeWidth={2.4} aria-hidden className="-mr-1" />
+          </span>
+        )}
+      </span>
+      {summary.total > 0 && <ProgressBar value={value} tone={tone} size="xs" marker={SUCCESS_THRESHOLD} className="mt-2.5" />}
+      <span className={cn('t-footnote mt-2 block', good ? 'font-semibold text-good-ink' : 'text-ink-2')}>{status}</span>
+    </>
+  );
+  if (!onDetails) return <div className="py-1">{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onDetails}
+      aria-haspopup="dialog"
+      aria-label={`${summary.total > 0 ? `${fmtNumber(marked)} voci fatte su ${fmtNumber(summary.total)}` : 'Niente da segnare'}. ${status}. Apri i dettagli del giorno`}
+      className="-mx-1 block w-[calc(100%+8px)] rounded-control px-1 py-1 text-left transition-colors duration-150 active:bg-ink-soft"
+    >
+      {body}
+    </button>
   );
 }
 
