@@ -1,14 +1,14 @@
 /**
- * Scelte visive condivise: zone di dolore (pillole + zona personalizzata), tema (anteprime in miniatura)
+ * Scelte visive condivise: zone di dolore (pillole + zona personalizzata), tema (una riga a tre voci)
  * e il marchio di Ritmo.
  */
 import { useId, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { ThemePref } from '../../../domain/types';
 import { SUGGESTED_PAIN_SITES } from '../../../data/defaults';
 import { haptic } from '../../../lib/haptics';
-import { Chip, cn, springSnappy } from '../../../ui';
+import { Chip, Segmented, cn, springSnappy } from '../../../ui';
 import { normalizeSite } from '../lib';
 
 // ───────────────────────── Zone di dolore ─────────────────────────
@@ -87,91 +87,15 @@ export function PainSitesPicker({ value, onChange, className }: PainSitesPickerP
 
 // ───────────────────────── Tema ─────────────────────────
 
-const THEME_OPTIONS: { value: ThemePref; label: string; hint: string }[] = [
-  { value: 'sistema', label: 'Sistema', hint: 'Come l’iPhone' },
-  { value: 'scuro', label: 'Scuro', hint: 'Campo di sera' },
-  { value: 'chiaro', label: 'Chiaro', hint: 'Giorno di partita' },
+const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
+  { value: 'sistema', label: 'Sistema' },
+  { value: 'scuro', label: 'Scuro' },
+  { value: 'chiaro', label: 'Chiaro' },
 ];
 
-/** Colori delle anteprime: ritraggono ciascun tema a prescindere da quello attivo. */
-const MOCK = {
-  scuro: { bg: '#0A1220', card: '#142036', line: '#22324D', ink: '#EEF2F8', ink3: '#6E7E99', accent: '#F5C04A', palestra: '#6EA8FE' },
-  chiaro: { bg: '#F3F5F9', card: '#FFFFFF', line: '#DCE2EC', ink: '#0D1A2C', ink3: '#7D8BA3', accent: '#E3A21F', palestra: '#2F6FE0' },
-};
-
-function MiniScreen({ theme }: { theme: 'scuro' | 'chiaro' }) {
-  const c = MOCK[theme];
-  return (
-    <svg viewBox="0 0 90 120" className="absolute inset-0 h-full w-full" aria-hidden preserveAspectRatio="xMidYMid slice">
-      <rect width="90" height="120" fill={c.bg} />
-      <rect x="10" y="12" width="26" height="6" rx="3" fill={c.ink} opacity="0.9" />
-      <rect x="10" y="22" width="16" height="3" rx="1.5" fill={c.ink3} />
-      <rect x="8" y="32" width="74" height="34" rx="8" fill={c.card} stroke={theme === 'chiaro' ? c.line : 'none'} strokeWidth="0.75" />
-      <circle cx="26" cy="49" r="10" fill="none" stroke={c.line} strokeWidth="3.5" />
-      <circle cx="26" cy="49" r="10" fill="none" stroke={c.accent} strokeWidth="3.5" strokeLinecap="round" strokeDasharray="44 63" transform="rotate(-90 26 49)" />
-      <rect x="42" y="43" width="32" height="4" rx="2" fill={c.ink} opacity="0.85" />
-      <rect x="42" y="51" width="22" height="3" rx="1.5" fill={c.ink3} />
-      <rect x="8" y="72" width="74" height="18" rx="6" fill={c.card} stroke={theme === 'chiaro' ? c.line : 'none'} strokeWidth="0.75" />
-      <rect x="14" y="79" width="4" height="4" rx="2" fill={c.palestra} />
-      <rect x="22" y="79" width="34" height="4" rx="2" fill={c.ink} opacity="0.7" />
-      <rect x="8" y="94" width="74" height="18" rx="6" fill={c.card} stroke={theme === 'chiaro' ? c.line : 'none'} strokeWidth="0.75" />
-      <rect x="14" y="101" width="4" height="4" rx="2" fill={c.accent} />
-      <rect x="22" y="101" width="28" height="4" rx="2" fill={c.ink} opacity="0.7" />
-    </svg>
-  );
-}
-
+/** Tema dell'app: una riga sola, senza anteprime (il tema si vede appena lo si tocca). */
 export function ThemePicker({ value, onChange }: { value: ThemePref; onChange: (t: ThemePref) => void }) {
-  return (
-    <div role="radiogroup" aria-label="Tema" className="grid grid-cols-3 gap-3">
-      {THEME_OPTIONS.map((o) => {
-        const on = o.value === value;
-        return (
-          <motion.button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            whileTap={{ scale: 0.95 }}
-            transition={springSnappy}
-            onClick={() => {
-              if (!on) haptic('selection');
-              onChange(o.value);
-            }}
-            className="flex flex-col items-center gap-2 rounded-[18px] p-1"
-          >
-            <span
-              className={cn(
-                'relative block aspect-[3/4] w-full overflow-hidden rounded-[14px] transition-shadow duration-200',
-                on ? 'shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--accent)]' : 'shadow-[0_0_0_1px_var(--line)]',
-              )}
-            >
-              {o.value === 'sistema' ? (
-                <>
-                  <MiniScreen theme="chiaro" />
-                  <span className="absolute inset-0" style={{ clipPath: 'polygon(0 0, 100% 0, 0 100%)' }}>
-                    <MiniScreen theme="scuro" />
-                  </span>
-                </>
-              ) : (
-                <MiniScreen theme={o.value} />
-              )}
-            </span>
-            <span className="flex flex-col items-center gap-0.5">
-              <span className="t-footnote font-semibold text-ink">{o.label}</span>
-              <span className="text-[0.6875rem] leading-tight text-ink-3">{o.hint}</span>
-            </span>
-            <span
-              aria-hidden
-              className={cn('mt-auto grid size-[22px] place-items-center rounded-full transition-colors duration-200', on ? 'bg-accent text-on-accent' : 'shadow-[inset_0_0_0_1.5px_var(--line-strong)]')}
-            >
-              {on && <Check size={14} strokeWidth={3.2} />}
-            </span>
-          </motion.button>
-        );
-      })}
-    </div>
-  );
+  return <Segmented aria-label="Tema" options={THEME_OPTIONS} value={value} onChange={onChange} />;
 }
 
 // ───────────────────────── Marchio ─────────────────────────

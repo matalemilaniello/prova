@@ -1130,3 +1130,11 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
     menù entrato esce e ne entra uno ricalcolato. `AutoMenuCard` lascia «Un altro menù» (`anotherMenu`) e «Tieni quello
     di prima» (`keepPreviousMenu`, con «Annulla»). Con avvisi o a spesa cominciata resta la proposta aperta di prima.
     Blocchi di allenamento, obiettivi e ritorni non entrano mai da soli. `proposeMenuIfDue` non cambia.
+- Integratori dal catalogo, versione semplice (al posto dell'onda 3A): `scripts/build-supplement-catalog.mjs` genera
+  `src/data/supplementCatalog.ts` (`SUPPLEMENT_CATALOG`, `CatalogEntry`, `CatalogDose`, `CatalogStance`: nome, altri
+  nomi, giudizio, pasto, dose predefinita, altre dosi, tetto al giorno, esame richiesto) dal JSON, e con `--check`
+  fallisce se non è aggiornato. `src/engine/supplements.ts`: `searchCatalog`, `formatDose`, `fromCatalog`,
+  `doseChoices`, `overMax`, `commonEntries`, `STANCE_TEXT`, `stanceWarns`. La scheda dell'integratore propone i più
+  comuni e le voci che corrispondono al nome; la scelta scrive `Supplement.catalogId` e `amount`. Fuori da questa
+  versione: lettura dell'etichetta dalla foto, somma degli apporti tra più integratori, esami, rifinitura del coach.
+- Impostazioni: il tema è un controllo a tre voci (`ThemePicker` senza anteprime).
