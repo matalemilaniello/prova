@@ -75,6 +75,7 @@ import {
   DEFAULT_WEEK,
   STORAGE_KEY,
   defaultAppData,
+  planStartFor,
   defaultPlan,
   DEFAULT_PROFILE,
   DEFAULT_SETTINGS,
@@ -84,7 +85,7 @@ import { ESTIMATE_FOODS } from '../data/estimateFoods';
 import { FOODS } from '../data/foods';
 import { isCatalogId } from '../data/supplementCatalogIds';
 import { buildDemo } from '../demo/seed';
-import { isHHMM, isISODate, nowMinutes, todayISO, weekdayOf } from '../engine/dates';
+import { isHHMM, isISODate, nowHHMM, nowMinutes, todayISO, weekdayOf } from '../engine/dates';
 import { MAX_SURPLUS_KCAL, MAX_DEFICIT_KCAL, clampKcalCorrection, goalDeltaOf } from '../engine/energy';
 import { ITEM_GRAMS_MAX, ITEM_GRAMS_MIN, ITEM_LABEL_MAX, MAX_MEAL_ITEMS, estimatedItemsValues, normalizeEstimatedItem, validPer100g } from '../engine/estimate';
 import { planTodayISO } from '../engine/sleep';
@@ -1780,6 +1781,14 @@ export interface AppActions {
   importData: (data: unknown) => boolean;
   /** Azzera tutto, impostazioni comprese. */
   resetAll: () => void;
+  /**
+   * Ricomincia da capo senza rifare il benvenuto: restano profilo, settimana tipo (lavoro e calcio compresi), orari,
+   * obiettivi, integratori, gusti, soglie del dolore, esercizi del fisioterapista, piatti salvati e impostazioni;
+   * spariscono diario, controlli, sedute, partite, revisioni, spunte della spesa e della preparazione, chat, proposte,
+   * storico, menù approvati, blocco e fermo degli impatti. Il primo avvio è adesso e il piano riparte di lunedì
+   * (`planStartFor`), come alla fine del benvenuto.
+   */
+  restartPlan: (now?: Date) => void;
 
   /** Diario del giorno o uno vuoto, senza scriverlo nello stato. */
   getDayLog: (date: ISODate) => DayLog;
@@ -2353,6 +2362,29 @@ export const useApp = create<AppState>()(
         resetAll: () => {
           safeStorage.removeItem(PRE_DEMO_KEY);
           set({ ...defaultAppData(), ...NO_SECTIONS });
+          writeArchive(get(), 'forza');
+          announceDataReplaced();
+        },
+
+        restartPlan: (now = new Date()) => {
+          const s = get();
+          if (!s.onboarded || s.settings.demoData) return;
+          const { firstUse: _firstUse, program: _program, weekOverrides: _weekOverrides, menus: _menus, impactHold: _impactHold, tasteAsked: _tasteAsked, ...kept } = s.plan;
+          const day = planTodayISO(s.plan, now);
+          const firstUse = { date: day, time: nowHHMM(now) };
+          set({
+            plan: { ...kept, firstUse, startDate: planStartFor(day) },
+            dayLogs: {},
+            checkIns: {},
+            workoutLogs: [],
+            footballLogs: [],
+            reviews: [],
+            shoppingChecked: {},
+            prepDone: {},
+            chat: [],
+            planner: undefined,
+            planVersions: undefined,
+          });
           writeArchive(get(), 'forza');
           announceDataReplaced();
         },

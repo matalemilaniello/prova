@@ -1138,3 +1138,9 @@ l'integrazione). Non eseguire `npm install` se non sei l'agente delle fondamenta
   comuni e le voci che corrispondono al nome; la scelta scrive `Supplement.catalogId` e `amount`. Fuori da questa
   versione: lettura dell'etichetta dalla foto, somma degli apporti tra più integratori, esami, rifinitura del coach.
 - Impostazioni: il tema è un controllo a tre voci (`ThemePicker` senza anteprime).
+- «Ricomincia da capo» (Impostazioni › Dati, nascosta con i dati di esempio e prima del benvenuto): l'azione
+  `restartPlan(now?)` dello store cancella diario, controlli, sedute, partite, revisioni, spunte di spesa e preparazione,
+  chat, proposte e storico del piano, e toglie dal piano `menus`, `program`, `weekOverrides`, `impactHold` e
+  `tasteAsked`. Restano profilo, settimana tipo (lavoro e calcio), orari, obiettivi, integratori, esclusioni, soglie,
+  esercizi del fisioterapista, piatti salvati e impostazioni. `firstUse` diventa adesso e `startDate` è
+  `planStartFor` della giornata del piano, come alla fine del benvenuto. «Azzera tutto» resta com'era.

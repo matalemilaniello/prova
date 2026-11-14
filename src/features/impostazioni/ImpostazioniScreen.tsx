@@ -18,6 +18,7 @@ import {
   Info,
   Moon,
   Pill as PillIcon,
+  RotateCcw,
   Salad,
   Sparkles,
   Target,
@@ -28,8 +29,9 @@ import {
 import { goBack, navigate, parseRoute, useRoute } from '../../app/router';
 import { IS_PREVIEW } from '../../app/env';
 import { getUrlParam } from '../../app/urlParams';
-import { isProfileComplete } from '../../data/defaults';
-import { currentDate } from '../../engine/dates';
+import { isProfileComplete, planStartFor } from '../../data/defaults';
+import { currentDate, formatDayLong } from '../../engine/dates';
+import { planTodayISO } from '../../engine/sleep';
 import { modelLabel } from '../../lib/claude';
 import { setLastBackupAt } from '../../lib/backup';
 import { fmtDateLong, fmtKg, fmtNumber, listIt, plural } from '../../lib/format';
@@ -233,10 +235,12 @@ export default function ImpostazioniScreen() {
 function RootPage({ open }: { open: (id: PageId) => void }) {
   const profile = useApp((s) => s.profile);
   const plan = useApp((s) => s.plan);
+  const onboarded = useApp((s) => s.onboarded);
   const physio = useApp((s) => s.physio);
   const settings = useApp((s) => s.settings);
   const toast = useUi((s) => s.toast);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
 
   const year = currentDate().getFullYear();
   const complete = isProfileComplete(profile);
@@ -261,6 +265,18 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
       useApp.getState().clearDemo();
       toast(hasPreDemo ? 'Dati di esempio rimossi: bentornato ai tuoi' : 'Dati di esempio rimossi', 'good');
     }
+  };
+
+  // Ricomincia da capo: via il diario e lo storico, restano profilo, orari e impostazioni; il piano riparte di lunedì.
+  const restartFrom = planStartFor(planTodayISO(plan));
+  const restart = () => {
+    haptic('warning');
+    useSessionDraft.getState().clear();
+    void useSessionDraft.persist.clearStorage();
+    setConfirmRestart(false);
+    navigate('oggi');
+    useApp.getState().restartPlan();
+    useUi.getState().toast(`Si riparte: il piano comincia ${formatDayLong(restartFrom)}`, 'good');
   };
 
   const resetAll = () => {
@@ -411,8 +427,42 @@ function RootPage({ open }: { open: (id: PageId) => void }) {
             subtitle={settings.demoData ? 'Attivi: tre settimane d’uso simulate' : 'Prova l’app piena, i tuoi dati restano da parte'}
             trailing={<Toggle label="Dati di esempio" checked={settings.demoData} onChange={toggleDemo} />}
           />
-          <ListRow icon={Trash2} iconTone="bad" title="Azzera tutto" destructive chevron={false} onPress={() => setConfirmReset((v) => !v)} />
+          {onboarded && !settings.demoData && (
+            <ListRow
+              icon={RotateCcw}
+              iconTone="neutral"
+              title="Ricomincia da capo"
+              subtitle="Azzera diario e storico, tiene profilo e orari"
+              chevron={false}
+              onPress={() => (setConfirmReset(false), setConfirmRestart((v) => !v))}
+            />
+          )}
+          <ListRow icon={Trash2} iconTone="bad" title="Azzera tutto" destructive chevron={false} onPress={() => (setConfirmRestart(false), setConfirmReset((v) => !v))} />
         </ListGroup>
+        <InlineReveal open={confirmRestart}>
+          <div className="flex flex-col gap-3 rounded-card bg-card p-4 shadow-card" role="alert">
+            <div className="flex flex-col gap-1">
+              <p className="t-callout font-semibold text-ink">Ricominciare da capo?</p>
+              <p className="t-footnote text-ink-2">
+                Si cancellano diario, controlli del mattino, sedute, revisioni, spunte della spesa, chat e storico del piano. Restano profilo,
+                settimana con lavoro e calcio, obiettivi, integratori, gusti e impostazioni. Il piano riparte {formatDayLong(restartFrom)}. Non si può annullare.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button icon={RotateCcw} fullWidth onClick={restart}>
+                Sì, ricomincia
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1" onClick={() => setConfirmRestart(false)}>
+                  Annulla
+                </Button>
+                <Button variant="secondary" className="flex-1" icon={Database} onClick={() => (setConfirmRestart(false), open('backup'))}>
+                  Prima un backup
+                </Button>
+              </div>
+            </div>
+          </div>
+        </InlineReveal>
         <InlineReveal open={confirmReset}>
           <div className="flex flex-col gap-3 rounded-card bg-bad-soft p-4 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--bad)_28%,transparent)]" role="alert">
             <div className="flex gap-3">
