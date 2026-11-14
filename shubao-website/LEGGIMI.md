@@ -2,7 +2,7 @@
 
 Sito a pagina unica del token community 曙宝 (Shubao, 슈바오) su BNB Chain, in quattro lingue: inglese, cinese, coreano e giapponese.
 
-Online: https://shubao-9rh.pages.dev (Cloudflare Pages).
+Online: https://shubaocto.com (Cloudflare Pages, progetto `shubao`; indirizzo tecnico https://shubao-9rh.pages.dev).
 
 ## Come è fatto
 
